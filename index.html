@@ -47,11 +47,11 @@
     :root {
       --bg-color: #fcfbf9; /* Soft marble */
       --surface-color: #ffffff;
-      --sidebar-bg: #1e293b; /* Dark sidebar for contrast */
-      --sidebar-hover: #334155;
+      --sidebar-bg: #fcfbf9; /* Matches the page background */
+      --sidebar-hover: #e2e8f0;
       --text-main: #1e293b;
       --text-muted: #64748b;
-      --text-light: #f8fafc;
+      --text-light: #1e293b; /* Dark text for light sidebar */
       --primary-color: #2a728f; /* Aegean/Retro Teal */
       --primary-hover: #1e5a73;
       --accent-orange: #f46b45; /* Fire orange */
@@ -83,11 +83,15 @@
     .sidebar {
       width: 260px;
       background-color: var(--sidebar-bg);
+      background-image: linear-gradient(rgba(252, 251, 249, 0.96), rgba(252, 251, 249, 0.96)), url('assets/math_bg.jpg');
+      background-size: 500px;
+      background-repeat: repeat;
       color: var(--text-light);
       display: flex;
       flex-direction: column;
       flex-shrink: 0;
       transition: transform 0.3s ease;
+      border-right: 1px solid var(--border-color);
     }
 
     @media (max-width: 768px) {
@@ -109,21 +113,22 @@
     .new-chat-btn {
       width: 100%;
       padding: 12px;
-      background: transparent;
-      border: 1px solid rgba(255,255,255,0.2);
-      color: white;
+      background: var(--surface-color);
+      border: 1px solid var(--border-color);
+      color: var(--primary-color);
       border-radius: 6px;
       cursor: pointer;
       font-family: 'Inter', sans-serif;
-      font-weight: 500;
+      font-weight: 600;
       display: flex;
       align-items: center;
       gap: 10px;
-      transition: background 0.2s;
+      transition: background 0.2s, box-shadow 0.2s;
     }
 
     .new-chat-btn:hover {
-      background: rgba(255,255,255,0.1);
+      background: var(--chat-ai-bg);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
 
     .chat-history {
@@ -139,22 +144,23 @@
       padding: 10px 12px;
       border-radius: 6px;
       cursor: pointer;
-      color: #cbd5e1;
+      color: var(--text-muted);
       font-size: 0.9rem;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      transition: background 0.2s;
+      transition: background 0.2s, color 0.2s;
     }
 
     .chat-item:hover, .chat-item.active {
       background: var(--sidebar-hover);
-      color: white;
+      color: var(--text-main);
+      font-weight: 500;
     }
 
     .sidebar-footer {
       padding: 16px;
-      border-top: 1px solid rgba(255,255,255,0.1);
+      border-top: 1px solid var(--border-color);
     }
 
     .login-btn, .logout-btn {
@@ -170,8 +176,8 @@
     }
 
     .login-btn:hover { background: var(--primary-hover); }
-    .logout-btn { background: transparent; border: 1px solid rgba(255,255,255,0.2); margin-top: 10px; }
-    .logout-btn:hover { background: rgba(255,0,0,0.1); }
+    .logout-btn { background: transparent; border: 1px solid var(--border-color); margin-top: 10px; color: var(--text-muted); }
+    .logout-btn:hover { background: rgba(255,0,0,0.08); color: #dc2626; border-color: #dc2626; }
 
     .user-profile {
       display: flex;
@@ -252,11 +258,9 @@
       width: 50px;
       height: 50px;
       border-radius: 50%;
-      background-image: url('assets/pythos_avatar.jpg');
-      background-size: cover;
-      background-position: center;
       border: 2px solid var(--accent-orange);
       box-shadow: 0 0 10px rgba(244, 107, 69, 0.3);
+      object-fit: cover;
     }
 
     .header-info h1 {
@@ -431,7 +435,7 @@
 
       <div class="app-container">
         <div class="header">
-          <div class="header-avatar"></div>
+          <img class="header-avatar" src="assets/pythos_avatar.jpg" alt="Pythos Avatar" />
           <div class="header-info">
             <h1>PYTHOS</h1>
             <p>Mathematics & Physics Oracle</p>
