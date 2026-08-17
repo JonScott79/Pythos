@@ -47,8 +47,11 @@
     :root {
       --bg-color: #fcfbf9; /* Soft marble */
       --surface-color: #ffffff;
+      --sidebar-bg: #1e293b; /* Dark sidebar for contrast */
+      --sidebar-hover: #334155;
       --text-main: #1e293b;
       --text-muted: #64748b;
+      --text-light: #f8fafc;
       --primary-color: #2a728f; /* Aegean/Retro Teal */
       --primary-hover: #1e5a73;
       --accent-orange: #f46b45; /* Fire orange */
@@ -64,20 +67,158 @@
       color: var(--text-main);
       font-family: 'Inter', sans-serif;
       display: flex;
-      justify-content: center;
-      align-items: center;
       height: 100vh;
       box-sizing: border-box;
+      overflow: hidden;
+    }
+
+    /* Layout */
+    .layout {
+      display: flex;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 260px;
+      background-color: var(--sidebar-bg);
+      color: var(--text-light);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      transition: transform 0.3s ease;
+    }
+
+    @media (max-width: 768px) {
+      .sidebar {
+        position: absolute;
+        z-index: 1000;
+        height: 100%;
+        transform: translateX(-100%);
+      }
+      .sidebar.open {
+        transform: translateX(0);
+      }
+    }
+
+    .sidebar-header {
+      padding: 16px;
+    }
+
+    .new-chat-btn {
+      width: 100%;
+      padding: 12px;
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.2);
+      color: white;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: background 0.2s;
+    }
+
+    .new-chat-btn:hover {
+      background: rgba(255,255,255,0.1);
+    }
+
+    .chat-history {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .chat-item {
+      padding: 10px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      color: #cbd5e1;
+      font-size: 0.9rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      transition: background 0.2s;
+    }
+
+    .chat-item:hover, .chat-item.active {
+      background: var(--sidebar-hover);
+      color: white;
+    }
+
+    .sidebar-footer {
+      padding: 16px;
+      border-top: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .login-btn, .logout-btn {
+      width: 100%;
+      padding: 10px;
+      background: var(--primary-color);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+
+    .login-btn:hover { background: var(--primary-hover); }
+    .logout-btn { background: transparent; border: 1px solid rgba(255,255,255,0.2); margin-top: 10px; }
+    .logout-btn:hover { background: rgba(255,0,0,0.1); }
+
+    .user-profile {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.9rem;
+    }
+    .user-profile img {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+    }
+
+    /* Main Chat Area */
+    .main-area {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
       /* Hand-drawn Math Doodle Background */
       background-image: linear-gradient(rgba(252, 251, 249, 0.92), rgba(252, 251, 249, 0.92)), url('assets/math_bg.jpg');
       background-size: 500px;
       background-repeat: repeat;
+      position: relative;
+    }
+
+    .mobile-menu-btn {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      z-index: 10;
+      background: var(--surface-color);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      padding: 8px;
+      cursor: pointer;
+      display: none;
+    }
+
+    @media (max-width: 768px) {
+      .mobile-menu-btn { display: block; }
     }
 
     .app-container {
       width: 100%;
       max-width: 800px;
-      height: 100vh;
+      height: 100%;
       background: var(--surface-color);
       display: flex;
       flex-direction: column;
@@ -101,7 +242,10 @@
       gap: 16px;
       border-bottom: 1px solid var(--border-color);
       background: var(--surface-color);
-      border-radius: 12px 12px 0 0;
+    }
+
+    @media (max-width: 768px) {
+      .header { padding-left: 60px; } /* Room for mobile menu btn */
     }
 
     .header-avatar {
@@ -117,7 +261,7 @@
 
     .header-info h1 {
       margin: 0;
-      font-family: 'Cinzel', serif; /* Greek style font */
+      font-family: 'Cinzel', serif;
       font-size: 1.5rem;
       font-weight: 700;
       color: var(--primary-color);
@@ -130,23 +274,6 @@
       color: var(--text-muted);
       text-transform: uppercase;
       letter-spacing: 1px;
-    }
-
-    /* Polyglot Footer */
-    .polyglot-footer {
-      background: var(--surface-color);
-      padding: 10px 24px 16px 24px;
-      text-align: center;
-      font-size: 0.85rem;
-      color: var(--text-muted);
-      border-top: 1px solid var(--border-color);
-    }
-    
-    .polyglot-footer span {
-      display: inline-block;
-      margin-top: 4px;
-      font-size: 1.2rem;
-      letter-spacing: 2px;
     }
 
     #output {
@@ -168,7 +295,6 @@
       position: relative;
     }
 
-    /* AI Message */
     .message.assistant {
       background: var(--chat-ai-bg);
       color: var(--text-main);
@@ -176,7 +302,6 @@
       border-left: 4px solid var(--primary-color);
     }
 
-    /* User Message */
     .message.user {
       background: var(--chat-user-bg);
       color: var(--text-main);
@@ -224,11 +349,7 @@
       color: var(--text-main);
     }
 
-    input::placeholder {
-      color: #94a3b8;
-    }
-
-    button {
+    button.send-btn {
       background: var(--primary-color);
       color: white;
       border: none;
@@ -242,13 +363,8 @@
       transition: background 0.2s, transform 0.1s;
     }
 
-    button:hover {
-      background: var(--primary-hover);
-    }
-
-    button:active {
-      transform: scale(0.95);
-    }
+    button.send-btn:hover { background: var(--primary-hover); }
+    button.send-btn:active { transform: scale(0.95); }
 
     .send-icon {
       width: 20px;
@@ -259,39 +375,92 @@
       stroke-linecap: round;
       stroke-linejoin: round;
     }
+
+    .polyglot-footer {
+      background: var(--surface-color);
+      padding: 10px 24px 16px 24px;
+      text-align: center;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border-color);
+    }
+    
+    .polyglot-footer span {
+      display: inline-block;
+      margin-top: 4px;
+      font-size: 1.2rem;
+      letter-spacing: 2px;
+    }
+
   </style>
 </head>
 <body>
 
-  <div class="app-container">
-    <div class="header">
-      <div class="header-avatar"></div>
-      <div class="header-info">
-        <h1>PYTHOS</h1>
-        <p>Mathematics & Physics Oracle</p>
-      </div>
-    </div>
-
-    <div id="output"></div>
-
-    <div class="input-area">
-      <div class="input-wrapper">
-        <input id="userInput" type="text" placeholder="Speak to the Oracle..." autocomplete="off" />
-        <button id="submitBtn" aria-label="Send">
-          <svg class="send-icon" viewBox="0 0 24 24">
-            <line x1="22" y1="2" x2="11" y2="13"></line>
-            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-          </svg>
+  <div class="layout">
+    
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <button id="newChatBtn" class="new-chat-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          New Chat
         </button>
       </div>
+      
+      <div id="chatHistoryList" class="chat-history">
+        <!-- Chat history items will be injected here via JS -->
+      </div>
+      
+      <div class="sidebar-footer">
+        <button id="loginBtn" class="login-btn">Login with Google</button>
+        <div id="userInfo" style="display: none;" class="user-profile">
+          <img id="userAvatar" src="" alt="Avatar" />
+          <div style="flex:1; overflow:hidden;">
+            <div id="userName" style="font-weight:600; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;"></div>
+          </div>
+        </div>
+        <button id="logoutBtn" class="logout-btn" style="display: none;">Logout</button>
+      </div>
+    </aside>
+
+    <!-- MAIN CHAT AREA -->
+    <div class="main-area">
+      <button id="mobileMenuBtn" class="mobile-menu-btn">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+      </button>
+
+      <div class="app-container">
+        <div class="header">
+          <div class="header-avatar"></div>
+          <div class="header-info">
+            <h1>PYTHOS</h1>
+            <p>Mathematics & Physics Oracle</p>
+          </div>
+        </div>
+
+        <div id="output"></div>
+
+        <div class="input-area">
+          <div class="input-wrapper">
+            <input id="userInput" type="text" placeholder="Speak to the Oracle..." autocomplete="off" />
+            <button id="submitBtn" class="send-btn" aria-label="Send">
+              <svg class="send-icon" viewBox="0 0 24 24">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+            </button>
+          </div>
+        </div>
+        
+        <div class="polyglot-footer">
+          Fluent in 100+ Languages. Just type in your native tongue!<br>
+          <span>🇺🇸 🇲🇽 🇫🇷 🇩🇪 🇯🇵 🇨🇳 🇰🇷 🇮🇹 🇮🇳 🇧🇷</span>
+        </div>
+      </div>
     </div>
-    
-    <div class="polyglot-footer">
-      Fluent in 100+ Languages. Just type in your native tongue!<br>
-      <span>🇺🇸 🇲🇽 🇫🇷 🇩🇪 🇯🇵 🇨🇳 🇰🇷 🇮🇹 🇮🇳 🇧🇷</span>
-    </div>
+
   </div>
 
-  <script src="app.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>
