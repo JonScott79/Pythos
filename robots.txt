@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://pythos.lanzar.me/sitemap.xml
