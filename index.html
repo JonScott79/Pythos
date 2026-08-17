@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/png" href="assets/favicon.png">
   
   <!-- SEO METADATA -->
   <title>Pythos | The AI Mathematical Oracle by LANZAR</title>
@@ -156,6 +157,64 @@
       background: var(--sidebar-hover);
       color: var(--text-main);
       font-weight: 500;
+    }
+
+    .chat-item-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      position: relative;
+    }
+
+    .chat-item-wrapper .chat-item {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .chat-actions {
+      display: none;
+      gap: 2px;
+      flex-shrink: 0;
+    }
+
+    .chat-item-wrapper:hover .chat-actions {
+      display: flex;
+    }
+
+    .chat-action-btn {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 4px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+    }
+
+    .chat-action-btn:hover {
+      background: var(--border-color);
+      color: var(--text-main);
+    }
+
+    .chat-action-btn.delete:hover {
+      background: #fee2e2;
+      color: #dc2626;
+    }
+
+    .rename-input {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid var(--primary-color);
+      border-radius: 4px;
+      font-size: 0.9rem;
+      font-family: 'Inter', sans-serif;
+      outline: none;
+      background: var(--surface-color);
+      color: var(--text-main);
     }
 
     .sidebar-footer {

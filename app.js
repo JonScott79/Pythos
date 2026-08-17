@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
-import { getFirestore, collection, addDoc, updateDoc, doc, getDocs, query, orderBy, serverTimestamp, getDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, orderBy, serverTimestamp, getDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
 // =========================
 // FIREBASE CONFIGURATION
@@ -31,6 +31,44 @@ let currentUser = null;
 let currentChatId = null;
 
 // =========================
+// KATEX RENDERING
+// =========================
+function renderMath(element) {
+  if (window.renderMathInElement) {
+    renderMathInElement(element, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false },
+        { left: "\\[", right: "\\]", display: true },
+        { left: "\\(", right: "\\)", display: false }
+      ],
+      throwOnError: false
+    });
+  }
+}
+
+// Render a KaTeX preview of the user's input below the input box
+function renderInputPreview() {
+  let preview = document.getElementById("mathPreview");
+  const raw = input.value;
+  // Only show preview if there's a math delimiter present
+  const hasMath = /\$|\\\(|\\\[/.test(raw);
+  if (!hasMath || !raw.trim()) {
+    if (preview) preview.style.display = "none";
+    return;
+  }
+  if (!preview) {
+    preview = document.createElement("div");
+    preview.id = "mathPreview";
+    preview.style.cssText = "padding:8px 20px;font-size:0.9rem;color:#64748b;border-top:1px dashed #e2e8f0;background:#f8fafc;";
+    document.querySelector(".input-area").appendChild(preview);
+  }
+  preview.style.display = "block";
+  preview.textContent = raw;
+  renderMath(preview);
+}
+
+// =========================
 // UI HELPERS
 // =========================
 function showThinking() {
@@ -52,17 +90,7 @@ function appendMessage(role, text) {
   const formattedText = text.replace(/\n/g, '<br>');
   div.innerHTML = formattedText;
   output.appendChild(div);
-
-  if (window.renderMathInElement) {
-    renderMathInElement(div, {
-      delimiters: [
-        { left: "$$", right: "$$", display: true },
-        { left: "$", right: "$", display: false },
-        { left: "\\[", right: "\\]", display: true },
-        { left: "\\(", right: "\\)", display: false }
-      ]
-    });
-  }
+  renderMath(div);
   output.scrollTop = output.scrollHeight;
 }
 
@@ -72,6 +100,9 @@ function clearChatUI() {
   const intro = "Greetings. I am Pythos, your mathematical and physics guide. What concepts shall we explore today?";
   messages.push({ role: "assistant", content: intro });
   appendMessage("assistant", intro);
+  // Clear the preview
+  const preview = document.getElementById("mathPreview");
+  if (preview) preview.style.display = "none";
 }
 
 // =========================
@@ -130,15 +161,55 @@ async function loadSidebarChats() {
     const snapshot = await getDocs(q);
     listEl.innerHTML = "";
 
+    if (snapshot.empty) {
+      listEl.innerHTML = '<em style="color:#94a3b8;padding:8px;font-size:0.85rem;">No chats yet. Start one!</em>';
+      return;
+    }
+
     snapshot.forEach(docSnap => {
       const data = docSnap.data();
-      const div = document.createElement("div");
-      div.className = "chat-item";
-      div.textContent = data.title || "Unknown Session";
-      if (docSnap.id === currentChatId) div.classList.add("active");
-      
-      div.addEventListener("click", () => loadChat(docSnap.id));
-      listEl.appendChild(div);
+      const chatId = docSnap.id;
+
+      // Wrapper
+      const wrapper = document.createElement("div");
+      wrapper.className = "chat-item-wrapper";
+
+      // Chat title
+      const titleEl = document.createElement("div");
+      titleEl.className = "chat-item";
+      titleEl.textContent = data.title || "Unknown Session";
+      if (chatId === currentChatId) titleEl.classList.add("active");
+      titleEl.addEventListener("click", () => loadChat(chatId));
+
+      // Action buttons container
+      const actions = document.createElement("div");
+      actions.className = "chat-actions";
+
+      // Rename button (pencil icon)
+      const renameBtn = document.createElement("button");
+      renameBtn.className = "chat-action-btn";
+      renameBtn.title = "Rename";
+      renameBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>`;
+      renameBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        startRename(wrapper, chatId, data.title || "");
+      });
+
+      // Delete button (trash icon)
+      const deleteBtn = document.createElement("button");
+      deleteBtn.className = "chat-action-btn delete";
+      deleteBtn.title = "Delete";
+      deleteBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
+      deleteBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        deleteChat(chatId);
+      });
+
+      actions.appendChild(renameBtn);
+      actions.appendChild(deleteBtn);
+      wrapper.appendChild(titleEl);
+      wrapper.appendChild(actions);
+      listEl.appendChild(wrapper);
     });
   } catch (e) {
     console.error(e);
@@ -146,13 +217,64 @@ async function loadSidebarChats() {
   }
 }
 
+// ----- Rename -----
+function startRename(wrapper, chatId, currentTitle) {
+  // Replace wrapper content with an input
+  const existingTitle = wrapper.querySelector(".chat-item");
+  const existingActions = wrapper.querySelector(".chat-actions");
+  existingTitle.style.display = "none";
+  existingActions.style.display = "none";
+
+  const renameInput = document.createElement("input");
+  renameInput.type = "text";
+  renameInput.className = "rename-input";
+  renameInput.value = currentTitle;
+  wrapper.appendChild(renameInput);
+  renameInput.focus();
+  renameInput.select();
+
+  const finishRename = async () => {
+    const newTitle = renameInput.value.trim();
+    if (newTitle && newTitle !== currentTitle) {
+      try {
+        const docRef = doc(db, `users/${currentUser.uid}/pythos_chats`, chatId);
+        await updateDoc(docRef, { title: newTitle });
+      } catch (e) {
+        console.error("Rename failed", e);
+      }
+    }
+    loadSidebarChats();
+  };
+
+  renameInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") finishRename();
+    if (e.key === "Escape") loadSidebarChats(); // cancel
+  });
+
+  renameInput.addEventListener("blur", finishRename);
+}
+
+// ----- Delete -----
+async function deleteChat(chatId) {
+  if (!confirm("Delete this chat session?")) return;
+  try {
+    const docRef = doc(db, `users/${currentUser.uid}/pythos_chats`, chatId);
+    await deleteDoc(docRef);
+    // If we deleted the active chat, reset
+    if (chatId === currentChatId) {
+      currentChatId = null;
+      clearChatUI();
+    }
+    loadSidebarChats();
+  } catch (e) {
+    console.error("Delete failed", e);
+    alert("Failed to delete chat.");
+  }
+}
+
 async function loadChat(chatId) {
   if (!currentUser) return;
   currentChatId = chatId;
-  
-  // Update UI active state
-  document.querySelectorAll(".chat-item").forEach(el => el.classList.remove("active"));
-  loadSidebarChats(); // Refresh list to set active class properly
   
   output.innerHTML = "";
   try {
@@ -164,6 +286,7 @@ async function loadChat(chatId) {
         appendMessage(msg.role, msg.content);
       });
     }
+    loadSidebarChats(); // Refresh to update active state
   } catch(e) {
     console.error("Error loading chat", e);
   }
@@ -172,7 +295,7 @@ async function loadChat(chatId) {
 document.getElementById("newChatBtn").addEventListener("click", () => {
   currentChatId = null;
   clearChatUI();
-  document.querySelectorAll(".chat-item").forEach(el => el.classList.remove("active"));
+  loadSidebarChats();
 });
 
 async function saveChatState(userMessage, botReply) {
@@ -210,6 +333,9 @@ async function askPythos(userText) {
   messages.push({ role: "user", content: userText });
   appendMessage("user", userText);
   input.value = "";
+  // Hide the math preview
+  const preview = document.getElementById("mathPreview");
+  if (preview) preview.style.display = "none";
 
   const thinking = showThinking();
 
@@ -251,6 +377,9 @@ button.addEventListener("click", () => askPythos(input.value));
 input.addEventListener("keypress", e => {
   if (e.key === "Enter") askPythos(input.value);
 });
+
+// Live KaTeX preview as user types
+input.addEventListener("input", renderInputPreview);
 
 // Mobile menu toggle
 const sidebar = document.getElementById("sidebar");
