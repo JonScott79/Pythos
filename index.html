@@ -68,8 +68,8 @@
       align-items: center;
       height: 100vh;
       box-sizing: border-box;
-      background-image: radial-gradient(var(--border-color) 1px, transparent 1px);
-      background-size: 20px 20px;
+      /* Math & Shapes SVG Background */
+      background-image: url("data:image/svg+xml,%3Csvg width='120' height='120' viewBox='0 0 120 120' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%232a728f' fill-opacity='0.05' fill-rule='evenodd'%3E%3Cpath d='M10 10l10-10h10L20 10v10H10V10zm20 30h10v10H30V40zm20-10h10v10H50V30zm30 50h10v10H80V80zm-20 20h10v10H60v-10z'/%3E%3Ccircle cx='90' cy='20' r='5'/%3E%3Ccircle cx='30' cy='80' r='8'/%3E%3Cpolygon points='50,90 60,105 40,105'/%3E%3Ctext x='70' y='60' font-family='monospace' font-size='14' font-weight='bold'%3E%2B%3C/text%3E%3Ctext x='15' y='50' font-family='monospace' font-size='12'%3E%3D%3C/text%3E%3Ctext x='100' y='95' font-family='serif' font-size='16' font-style='italic'%3E%26%23x3C0%3B%3C/text%3E%3Ctext x='10' y='110' font-family='serif' font-size='14' font-style='italic'%3Ex%3C/text%3E%3C/g%3E%3C/svg%3E");
     }
 
     .app-container {
@@ -79,7 +79,7 @@
       background: var(--surface-color);
       display: flex;
       flex-direction: column;
-      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
     }
 
     @media (min-width: 768px) {
@@ -88,6 +88,7 @@
         max-height: 850px;
         border-radius: 12px;
         border: 1px solid var(--border-color);
+        overflow: hidden;
       }
     }
 
@@ -127,6 +128,23 @@
       color: var(--text-muted);
       text-transform: uppercase;
       letter-spacing: 1px;
+    }
+
+    /* Polyglot Footer */
+    .polyglot-footer {
+      background: var(--surface-color);
+      padding: 10px 24px 16px 24px;
+      text-align: center;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border-color);
+    }
+    
+    .polyglot-footer span {
+      display: inline-block;
+      margin-top: 4px;
+      font-size: 1.2rem;
+      letter-spacing: 2px;
     }
 
     #output {
@@ -176,7 +194,6 @@
       padding: 20px 24px;
       background: var(--surface-color);
       border-top: 1px solid var(--border-color);
-      border-radius: 0 0 12px 12px;
     }
 
     .input-wrapper {
@@ -249,7 +266,7 @@
       <div class="header-avatar"></div>
       <div class="header-info">
         <h1>PYTHOS</h1>
-        <p>Mathematical Oracle</p>
+        <p>Mathematics & Physics Oracle</p>
       </div>
     </div>
 
@@ -265,6 +282,11 @@
           </svg>
         </button>
       </div>
+    </div>
+    
+    <div class="polyglot-footer">
+      Fluent in 100+ Languages. Just type in your native tongue!<br>
+      <span>🇺🇸 🇲🇽 🇫🇷 🇩🇪 🇯🇵 🇨🇳 🇰🇷 🇮🇹 🇮🇳 🇧🇷</span>
     </div>
   </div>
 
