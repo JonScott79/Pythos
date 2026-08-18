@@ -448,11 +448,24 @@
       border-top: 1px solid var(--border-color);
     }
     
-    .polyglot-footer span {
-      display: inline-block;
-      margin-top: 4px;
-      font-size: 1.2rem;
-      letter-spacing: 2px;
+    .polyglot-footer .flag-row {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 6px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .polyglot-footer .flag-row img {
+      height: 18px;
+      border-radius: 2px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+      transition: transform 0.15s;
+    }
+
+    .polyglot-footer .flag-row img:hover {
+      transform: scale(1.3);
     }
 
     /* Math Help Button */
@@ -693,7 +706,18 @@
         
         <div class="polyglot-footer">
           Fluent in 100+ Languages. Just type in your native tongue!<br>
-          <span>🇺🇸 🇲🇽 🇫🇷 🇩🇪 🇯🇵 🇨🇳 🇰🇷 🇮🇹 🇮🇳 🇧🇷</span>
+          <span class="flag-row">
+            <img src="https://flagcdn.com/w40/us.png" alt="English" title="English" />
+            <img src="https://flagcdn.com/w40/mx.png" alt="Español" title="Español" />
+            <img src="https://flagcdn.com/w40/fr.png" alt="Français" title="Français" />
+            <img src="https://flagcdn.com/w40/de.png" alt="Deutsch" title="Deutsch" />
+            <img src="https://flagcdn.com/w40/jp.png" alt="日本語" title="日本語" />
+            <img src="https://flagcdn.com/w40/cn.png" alt="中文" title="中文" />
+            <img src="https://flagcdn.com/w40/kr.png" alt="한국어" title="한국어" />
+            <img src="https://flagcdn.com/w40/it.png" alt="Italiano" title="Italiano" />
+            <img src="https://flagcdn.com/w40/in.png" alt="हिन्दी" title="हिन्दी" />
+            <img src="https://flagcdn.com/w40/br.png" alt="Português" title="Português" />
+          </span>
         </div>
       </div>
     </div>
