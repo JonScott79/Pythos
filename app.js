@@ -326,8 +326,28 @@ async function saveChatState(userMessage, botReply) {
 // =========================
 // OLLAMA INTEGRATION
 // =========================
+let isProcessing = false;
+const MAX_INPUT_LENGTH = 500;
+
+function setInputLocked(locked) {
+  isProcessing = locked;
+  button.disabled = locked;
+  input.disabled = locked;
+  button.style.opacity = locked ? "0.5" : "1";
+  button.style.cursor = locked ? "not-allowed" : "pointer";
+  input.style.opacity = locked ? "0.7" : "1";
+}
+
 async function askPythos(userText) {
   if (!userText.trim()) return;
+  if (isProcessing) return; // Block spam
+
+  // Cap input length
+  if (userText.length > MAX_INPUT_LENGTH) {
+    userText = userText.substring(0, MAX_INPUT_LENGTH);
+  }
+
+  setInputLocked(true);
 
   // Append user message to history
   messages.push({ role: "user", content: userText });
@@ -370,6 +390,9 @@ async function askPythos(userText) {
     removeThinking(thinking);
     appendMessage("assistant", "The connection to Athens has been lost. Is Ollama running?");
   }
+
+  // Cooldown before allowing next message
+  setTimeout(() => setInputLocked(false), 1000);
 }
 
 // ===== EVENTS =====
@@ -378,8 +401,13 @@ input.addEventListener("keypress", e => {
   if (e.key === "Enter") askPythos(input.value);
 });
 
-// Live KaTeX preview as user types
-input.addEventListener("input", renderInputPreview);
+// Enforce max length live
+input.addEventListener("input", () => {
+  if (input.value.length > MAX_INPUT_LENGTH) {
+    input.value = input.value.substring(0, MAX_INPUT_LENGTH);
+  }
+  renderInputPreview();
+});
 
 // Mobile menu toggle
 const sidebar = document.getElementById("sidebar");
