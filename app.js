@@ -387,5 +387,47 @@ document.getElementById("mobileMenuBtn").addEventListener("click", () => {
   sidebar.classList.toggle("open");
 });
 
+// ===== MATH INPUT GUIDE =====
+const guideOverlay = document.getElementById("mathGuideOverlay");
+const helpBtn = document.getElementById("helpBtn");
+
+helpBtn.addEventListener("click", () => {
+  guideOverlay.classList.add("visible");
+});
+
+document.getElementById("mathGuideClose").addEventListener("click", () => {
+  guideOverlay.classList.remove("visible");
+});
+
+guideOverlay.addEventListener("click", (e) => {
+  if (e.target === guideOverlay) guideOverlay.classList.remove("visible");
+});
+
+// Click-to-insert: clicking a guide example inserts the text into the input
+document.querySelectorAll(".guide-item[data-insert]").forEach(item => {
+  item.addEventListener("click", () => {
+    const text = item.getAttribute("data-insert");
+    const inputEl = document.getElementById("userInput");
+    // Insert at cursor position (or append)
+    const start = inputEl.selectionStart;
+    const end = inputEl.selectionEnd;
+    const current = inputEl.value;
+    inputEl.value = current.substring(0, start) + text + current.substring(end);
+    inputEl.focus();
+    // Place cursor after the inserted text
+    const newPos = start + text.length;
+    inputEl.setSelectionRange(newPos, newPos);
+    // Trigger the live preview
+    inputEl.dispatchEvent(new Event("input"));
+  });
+});
+
+// Close guide with Escape key
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && guideOverlay.classList.contains("visible")) {
+    guideOverlay.classList.remove("visible");
+  }
+});
+
 // ===== INIT =====
 clearChatUI();

@@ -455,6 +455,181 @@
       letter-spacing: 2px;
     }
 
+    /* Math Help Button */
+    .help-btn {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 0.9rem;
+      font-family: 'Inter', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      flex-shrink: 0;
+      align-self: center;
+    }
+
+    .help-btn:hover {
+      border-color: var(--primary-color);
+      color: var(--primary-color);
+      background: rgba(42, 114, 143, 0.06);
+    }
+
+    /* Math Guide Modal */
+    .math-guide-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.4);
+      z-index: 2000;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .math-guide-overlay.visible {
+      display: flex;
+    }
+
+    .math-guide {
+      background: var(--surface-color);
+      border-radius: 12px;
+      max-width: 560px;
+      width: 100%;
+      max-height: 80vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+      animation: guideIn 0.2s ease;
+    }
+
+    @keyframes guideIn {
+      from { opacity: 0; transform: translateY(10px) scale(0.98); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .math-guide-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 24px 16px;
+      border-bottom: 1px solid var(--border-color);
+      position: sticky;
+      top: 0;
+      background: var(--surface-color);
+      border-radius: 12px 12px 0 0;
+      z-index: 1;
+    }
+
+    .math-guide-header h2 {
+      margin: 0;
+      font-family: 'Cinzel', serif;
+      font-size: 1.2rem;
+      color: var(--primary-color);
+    }
+
+    .math-guide-header p {
+      margin: 4px 0 0;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .math-guide-close {
+      background: transparent;
+      border: none;
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: var(--text-muted);
+      padding: 4px 8px;
+      border-radius: 4px;
+      line-height: 1;
+    }
+
+    .math-guide-close:hover {
+      background: var(--border-color);
+      color: var(--text-main);
+    }
+
+    .math-guide-body {
+      padding: 16px 24px 24px;
+    }
+
+    .guide-category {
+      margin-bottom: 20px;
+    }
+
+    .guide-category h3 {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--primary-color);
+      margin: 0 0 10px;
+      font-weight: 600;
+    }
+
+    .guide-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    .guide-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: var(--bg-color);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+      gap: 8px;
+    }
+
+    .guide-item:hover {
+      border-color: var(--primary-color);
+      background: rgba(42, 114, 143, 0.04);
+      transform: translateY(-1px);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    .guide-item:active {
+      transform: translateY(0);
+    }
+
+    .guide-type {
+      font-family: 'Courier New', monospace;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .guide-render {
+      font-size: 1rem;
+      color: var(--text-main);
+      font-weight: 500;
+    }
+
+    .guide-arrow {
+      color: var(--border-color);
+      font-size: 0.75rem;
+      flex-shrink: 0;
+    }
+
+    .guide-tip {
+      margin-top: 16px;
+      padding: 12px 16px;
+      background: #f0f9ff;
+      border-left: 3px solid var(--primary-color);
+      border-radius: 0 6px 6px 0;
+      font-size: 0.85rem;
+      color: var(--text-main);
+    }
+
   </style>
 </head>
 <body>
@@ -505,6 +680,7 @@
 
         <div class="input-area">
           <div class="input-wrapper">
+            <button id="helpBtn" class="help-btn" title="Math Input Guide" aria-label="Math Input Guide">?</button>
             <input id="userInput" type="text" placeholder="Speak to the Oracle..." autocomplete="off" />
             <button id="submitBtn" class="send-btn" aria-label="Send">
               <svg class="send-icon" viewBox="0 0 24 24">
@@ -522,6 +698,94 @@
       </div>
     </div>
 
+  </div>
+
+  <!-- MATH INPUT GUIDE MODAL -->
+  <div id="mathGuideOverlay" class="math-guide-overlay">
+    <div class="math-guide">
+      <div class="math-guide-header">
+        <div>
+          <h2>Math Input Guide</h2>
+          <p>Click any example to insert it</p>
+        </div>
+        <button id="mathGuideClose" class="math-guide-close">&times;</button>
+      </div>
+      <div class="math-guide-body">
+
+        <div class="guide-category">
+          <h3>Basic</h3>
+          <div class="guide-grid">
+            <div class="guide-item" data-insert="x^2"><span class="guide-type">x^2</span><span class="guide-arrow">→</span><span class="guide-render">x²</span></div>
+            <div class="guide-item" data-insert="x_1"><span class="guide-type">x_1</span><span class="guide-arrow">→</span><span class="guide-render">x₁</span></div>
+            <div class="guide-item" data-insert="sqrt(x)"><span class="guide-type">sqrt(x)</span><span class="guide-arrow">→</span><span class="guide-render">√x</span></div>
+            <div class="guide-item" data-insert="(a)/(b)"><span class="guide-type">(a)/(b)</span><span class="guide-arrow">→</span><span class="guide-render">a⁄b</span></div>
+            <div class="guide-item" data-insert="abs(x)"><span class="guide-type">abs(x)</span><span class="guide-arrow">→</span><span class="guide-render">|x|</span></div>
+            <div class="guide-item" data-insert="+/- "><span class="guide-type">+/-</span><span class="guide-arrow">→</span><span class="guide-render">±</span></div>
+          </div>
+        </div>
+
+        <div class="guide-category">
+          <h3>Symbols</h3>
+          <div class="guide-grid">
+            <div class="guide-item" data-insert="pi"><span class="guide-type">pi</span><span class="guide-arrow">→</span><span class="guide-render">π</span></div>
+            <div class="guide-item" data-insert="inf"><span class="guide-type">inf</span><span class="guide-arrow">→</span><span class="guide-render">∞</span></div>
+            <div class="guide-item" data-insert="<="><span class="guide-type">&lt;=</span><span class="guide-arrow">→</span><span class="guide-render">≤</span></div>
+            <div class="guide-item" data-insert=">="><span class="guide-type">&gt;=</span><span class="guide-arrow">→</span><span class="guide-render">≥</span></div>
+            <div class="guide-item" data-insert="!="><span class="guide-type">!=</span><span class="guide-arrow">→</span><span class="guide-render">≠</span></div>
+            <div class="guide-item" data-insert="delta"><span class="guide-type">delta</span><span class="guide-arrow">→</span><span class="guide-render">Δ</span></div>
+            <div class="guide-item" data-insert="theta"><span class="guide-type">theta</span><span class="guide-arrow">→</span><span class="guide-render">θ</span></div>
+            <div class="guide-item" data-insert="mu"><span class="guide-type">mu</span><span class="guide-arrow">→</span><span class="guide-render">μ</span></div>
+            <div class="guide-item" data-insert="lambda"><span class="guide-type">lambda</span><span class="guide-arrow">→</span><span class="guide-render">λ</span></div>
+            <div class="guide-item" data-insert="omega"><span class="guide-type">omega</span><span class="guide-arrow">→</span><span class="guide-render">ω</span></div>
+          </div>
+        </div>
+
+        <div class="guide-category">
+          <h3>Algebra</h3>
+          <div class="guide-grid">
+            <div class="guide-item" data-insert="2x + 5 = 11"><span class="guide-type">2x + 5 = 11</span><span class="guide-arrow">→</span><span class="guide-render">solve for x</span></div>
+            <div class="guide-item" data-insert="x^2 - 4 = 0"><span class="guide-type">x^2 - 4 = 0</span><span class="guide-arrow">→</span><span class="guide-render">quadratic</span></div>
+            <div class="guide-item" data-insert="log_2(x)"><span class="guide-type">log_2(x)</span><span class="guide-arrow">→</span><span class="guide-render">log₂x</span></div>
+            <div class="guide-item" data-insert="ln(x)"><span class="guide-type">ln(x)</span><span class="guide-arrow">→</span><span class="guide-render">natural log</span></div>
+          </div>
+        </div>
+
+        <div class="guide-category">
+          <h3>Trigonometry</h3>
+          <div class="guide-grid">
+            <div class="guide-item" data-insert="sin(x)"><span class="guide-type">sin(x)</span><span class="guide-arrow">→</span><span class="guide-render">sine</span></div>
+            <div class="guide-item" data-insert="cos(x)"><span class="guide-type">cos(x)</span><span class="guide-arrow">→</span><span class="guide-render">cosine</span></div>
+            <div class="guide-item" data-insert="tan(x)"><span class="guide-type">tan(x)</span><span class="guide-arrow">→</span><span class="guide-render">tangent</span></div>
+            <div class="guide-item" data-insert="sin^2(x) + cos^2(x) = 1"><span class="guide-type">sin^2 + cos^2 = 1</span><span class="guide-arrow">→</span><span class="guide-render">identity</span></div>
+          </div>
+        </div>
+
+        <div class="guide-category">
+          <h3>Calculus</h3>
+          <div class="guide-grid">
+            <div class="guide-item" data-insert="dy/dx"><span class="guide-type">dy/dx</span><span class="guide-arrow">→</span><span class="guide-render">derivative</span></div>
+            <div class="guide-item" data-insert="integral of x^2 dx"><span class="guide-type">integral of x^2 dx</span><span class="guide-arrow">→</span><span class="guide-render">∫x²dx</span></div>
+            <div class="guide-item" data-insert="lim x->0"><span class="guide-type">lim x-&gt;0</span><span class="guide-arrow">→</span><span class="guide-render">limit</span></div>
+            <div class="guide-item" data-insert="d/dx(x^3)"><span class="guide-type">d/dx(x^3)</span><span class="guide-arrow">→</span><span class="guide-render">differentiate</span></div>
+          </div>
+        </div>
+
+        <div class="guide-category">
+          <h3>Physics</h3>
+          <div class="guide-grid">
+            <div class="guide-item" data-insert="F = ma"><span class="guide-type">F = ma</span><span class="guide-arrow">→</span><span class="guide-render">Newton's 2nd</span></div>
+            <div class="guide-item" data-insert="E = mc^2"><span class="guide-type">E = mc^2</span><span class="guide-arrow">→</span><span class="guide-render">mass-energy</span></div>
+            <div class="guide-item" data-insert="v = v_0 + at"><span class="guide-type">v = v_0 + at</span><span class="guide-arrow">→</span><span class="guide-render">kinematics</span></div>
+            <div class="guide-item" data-insert="F = G(m_1)(m_2)/r^2"><span class="guide-type">F = Gm₁m₂/r²</span><span class="guide-arrow">→</span><span class="guide-render">gravity</span></div>
+          </div>
+        </div>
+
+        <div class="guide-tip">
+          <strong>💡 Tip:</strong> You don't need special syntax! Just type naturally — Pythos understands plain English like <em>"what is the derivative of x^3?"</em> or <em>"solve 2x + 5 = 11"</em>.
+        </div>
+
+      </div>
+    </div>
   </div>
 
   <script type="module" src="app.js"></script>
