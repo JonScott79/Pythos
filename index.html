@@ -811,10 +811,37 @@
       height: auto;
     }
 
+    .msg-graph-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      margin-top: 8px;
+      gap: 12px;
+    }
+
     .msg-graph-caption {
-      margin-top: 6px;
       font-size: 0.8rem;
       color: var(--text-muted);
+    }
+
+    .msg-graph-open-btn {
+      background: #f0fdf4;
+      border: 1px solid #86efac;
+      color: #166534;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 4px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+
+    .msg-graph-open-btn:hover {
+      background: #166534;
+      color: #ffffff;
+      border-color: #166534;
     }
 
     .graph-render-fail {

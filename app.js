@@ -216,11 +216,36 @@ function appendMessage(role, text) {
       
       const success = renderInlineGraph(canvas, exprToGraph);
       if (success) {
+        const infoRow = document.createElement("div");
+        infoRow.className = "msg-graph-footer";
+
         const caption = document.createElement("div");
         caption.className = "msg-graph-caption";
         caption.innerHTML = `<strong>📈 Rendered Graph:</strong> <code>f(x) = ${exprToGraph}</code>`;
+
+        const openBtn = document.createElement("button");
+        openBtn.className = "msg-graph-open-btn";
+        openBtn.title = "Open and explore in the full Graph workspace";
+        openBtn.innerHTML = `Open in Graph ↗`;
+        openBtn.addEventListener("click", () => {
+          const graphWin = document.getElementById("floatGraphWindow");
+          const graphToggle = document.getElementById("toolGraphBtn");
+          const graphInput = document.getElementById("graphFuncInput");
+          
+          if (graphWin && graphInput) {
+            graphWin.style.display = "flex";
+            if (graphToggle) graphToggle.classList.add("active");
+            graphInput.value = exprToGraph;
+            const plotBtn = document.getElementById("graphPlotBtn");
+            if (plotBtn) plotBtn.click();
+          }
+        });
+
+        infoRow.appendChild(caption);
+        infoRow.appendChild(openBtn);
+
         graphCard.appendChild(canvas);
-        graphCard.appendChild(caption);
+        graphCard.appendChild(infoRow);
       } else {
         graphCard.innerHTML = `<div class="graph-render-fail">⚠️ Could not render graph for <code>${exprToGraph}</code>. Check expression syntax.</div>`;
       }
