@@ -588,21 +588,22 @@ guideOverlay.addEventListener("click", (e) => {
   if (e.target === guideOverlay) guideOverlay.classList.remove("visible");
 });
 
-// Click-to-insert: clicking a guide example inserts the text into the input
-document.querySelectorAll(".guide-item[data-insert]").forEach(item => {
+// Click-to-insert: clicking a guide example or starter phrase inserts text into the input
+document.querySelectorAll(".guide-item[data-insert], .starter-tag[data-insert]").forEach(item => {
   item.addEventListener("click", () => {
     const text = item.getAttribute("data-insert");
     const inputEl = document.getElementById("userInput");
-    // Insert at cursor position (or append)
-    const start = inputEl.selectionStart;
-    const end = inputEl.selectionEnd;
-    const current = inputEl.value;
-    inputEl.value = current.substring(0, start) + text + current.substring(end);
+    // If it's a starter phrase, set it cleanly; if it's a math item, insert at cursor
+    if (item.classList.contains("starter-tag")) {
+      inputEl.value = text;
+      guideOverlay.classList.remove("visible");
+    } else {
+      const start = inputEl.selectionStart;
+      const end = inputEl.selectionEnd;
+      const current = inputEl.value;
+      inputEl.value = current.substring(0, start) + text + current.substring(end);
+    }
     inputEl.focus();
-    // Place cursor after the inserted text
-    const newPos = start + text.length;
-    inputEl.setSelectionRange(newPos, newPos);
-    // Trigger the live preview
     inputEl.dispatchEvent(new Event("input"));
   });
 });
