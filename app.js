@@ -89,14 +89,144 @@ function removeThinking(el) {
   if (el && el.parentNode) el.parentNode.removeChild(el);
 }
 
+function renderInlineGraph(canvas, exprString) {
+  const ctx = canvas.getContext("2d");
+  const width = canvas.width;
+  const height = canvas.height;
+  ctx.clearRect(0, 0, width, height);
+
+  const xMin = -10, xMax = 10, yMin = -10, yMax = 10;
+  const toCanvasX = x => ((x - xMin) / (xMax - xMin)) * width;
+  const toCanvasY = y => height - ((y - yMin) / (yMax - yMin)) * height;
+
+  // Background
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, width, height);
+
+  // Grid
+  ctx.strokeStyle = "#f1f5f9";
+  ctx.lineWidth = 1;
+  for (let x = xMin; x <= xMax; x += 2) {
+    ctx.beginPath();
+    ctx.moveTo(toCanvasX(x), 0);
+    ctx.lineTo(toCanvasX(x), height);
+    ctx.stroke();
+  }
+  for (let y = yMin; y <= yMax; y += 2) {
+    ctx.beginPath();
+    ctx.moveTo(0, toCanvasY(y));
+    ctx.lineTo(width, toCanvasY(y));
+    ctx.stroke();
+  }
+
+  // Axes
+  ctx.strokeStyle = "#cbd5e1";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(0, toCanvasY(0));
+  ctx.lineTo(width, toCanvasY(0));
+  ctx.moveTo(toCanvasX(0), 0);
+  ctx.lineTo(toCanvasX(0), height);
+  ctx.stroke();
+
+  // Axis Labels
+  ctx.fillStyle = "#94a3b8";
+  ctx.font = "10px Inter, sans-serif";
+  ctx.fillText("x", width - 12, toCanvasY(0) - 4);
+  ctx.fillText("y", toCanvasX(0) + 4, 12);
+
+  if (!window.math || !exprString.trim()) return false;
+
+  try {
+    // Sanitize mathematical expression
+    let cleanExpr = exprString
+      .replace(/f\(x\)\s*=\s*/g, "")
+      .replace(/y\s*=\s*/g, "")
+      .replace(/=\s*0/g, "")
+      .replace(/\\cdot/g, "*")
+      .replace(/\\times/g, "*")
+      .replace(/(\d+)\s*x/g, "$1*x");
+
+    const compiled = window.math.compile(cleanExpr);
+    ctx.strokeStyle = "#2a728f";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+
+    let started = false;
+    const step = (xMax - xMin) / width;
+
+    for (let cx = 0; cx <= width; cx++) {
+      const xVal = xMin + cx * step;
+      try {
+        const yVal = compiled.evaluate({ x: xVal });
+        if (typeof yVal === "number" && !isNaN(yVal) && isFinite(yVal)) {
+          const cy = toCanvasY(yVal);
+          if (!started) {
+            ctx.moveTo(cx, cy);
+            started = true;
+          } else {
+            ctx.lineTo(cx, cy);
+          }
+        } else {
+          started = false;
+        }
+      } catch (e) {
+        started = false;
+      }
+    }
+    ctx.stroke();
+    return true;
+  } catch (err) {
+    console.warn("[GRAPH RENDERING ERROR]:", err.message);
+    return false;
+  }
+}
+
 function appendMessage(role, text) {
   const div = document.createElement("div");
   div.className = `message ${role}`;
   
   const contentDiv = document.createElement("div");
   contentDiv.className = "message-content";
-  const formattedText = text.replace(/\n/g, '<br>');
+
+  // Filter out any raw TikZ blocks if LLM accidentally hallucinates them
+  let sanitized = text.replace(/\\begin\{tikzpicture\}[\s\S]*?\\end\{tikzpicture\}/gi, "");
+
+  // Detect [GRAPH: expr] tokens
+  const graphTokenRegex = /\[GRAPH:\s*([^\]]+)\]/i;
+  const graphMatch = sanitized.match(graphTokenRegex);
+
+  if (graphMatch) {
+    const exprToGraph = graphMatch[1].trim();
+    sanitized = sanitized.replace(graphTokenRegex, '<div class="msg-inline-graph-card"></div>');
+  }
+
+  const formattedText = sanitized.replace(/\n/g, '<br>');
   contentDiv.innerHTML = formattedText;
+
+  // If a graph was detected, instantiate the live canvas
+  if (graphMatch) {
+    const graphCard = contentDiv.querySelector(".msg-inline-graph-card");
+    if (graphCard) {
+      const exprToGraph = graphMatch[1].trim();
+      const canvas = document.createElement("canvas");
+      canvas.className = "msg-graph-canvas";
+      canvas.width = 360;
+      canvas.height = 200;
+      
+      const success = renderInlineGraph(canvas, exprToGraph);
+      if (success) {
+        const caption = document.createElement("div");
+        caption.className = "msg-graph-caption";
+        caption.innerHTML = `<strong>📈 Rendered Graph:</strong> <code>f(x) = ${exprToGraph}</code>`;
+        graphCard.appendChild(canvas);
+        graphCard.appendChild(caption);
+      } else {
+        graphCard.innerHTML = `<div class="graph-render-fail">⚠️ Could not render graph for <code>${exprToGraph}</code>. Check expression syntax.</div>`;
+      }
+    }
+  }
+
   div.appendChild(contentDiv);
 
   // Copy button for easy clipboard copying
