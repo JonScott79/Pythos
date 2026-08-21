@@ -380,10 +380,66 @@ function showDeepThoughtResponse() {
 }
 
 // =========================
+// DETERMINISTIC MATH ENGINE (mathjs)
+// =========================
+window.DeterministicMath = {
+  // Evaluate raw mathematical expressions deterministically
+  evaluate: function(expression) {
+    try {
+      if (window.math) {
+        return window.math.evaluate(expression);
+      }
+      return null;
+    } catch (e) {
+      console.warn("[MATH ENGINE] Eval error:", e.message);
+      return null;
+    }
+  },
+
+  // Simplify an algebraic expression
+  simplify: function(expression) {
+    try {
+      if (window.math && window.math.simplify) {
+        return window.math.simplify(expression).toString();
+      }
+      return null;
+    } catch (e) {
+      console.warn("[MATH ENGINE] Simplify error:", e.message);
+      return null;
+    }
+  },
+
+  // Deterministically verify an equation and candidate substitution
+  // e.g. equation: "2*x + 7 = 19", variable: "x", value: 5
+  verifyEquationSolution: function(leftExpr, rightExpr, variable, proposedValue) {
+    try {
+      if (!window.math) return null;
+      const scope = {};
+      scope[variable] = proposedValue;
+      const leftVal = window.math.evaluate(leftExpr, scope);
+      const rightVal = window.math.evaluate(rightExpr, scope);
+      const isCorrect = Math.abs(leftVal - rightVal) < 1e-9;
+      return {
+        isCorrect,
+        leftVal,
+        rightVal,
+        leftExpr,
+        rightExpr,
+        proposedValue
+      };
+    } catch (e) {
+      console.warn("[MATH ENGINE] Verification error:", e.message);
+      return null;
+    }
+  }
+};
+
+// =========================
 // OLLAMA INTEGRATION
 // =========================
 let isProcessing = false;
-const MAX_INPUT_LENGTH = 500;
+const MAX_INPUT_LENGTH = 1500;
+const charCounter = document.getElementById("charCounter");
 
 function setInputLocked(locked) {
   isProcessing = locked;
@@ -409,6 +465,7 @@ async function askPythos(userText) {
   messages.push({ role: "user", content: userText });
   appendMessage("user", userText);
   input.value = "";
+  if (charCounter) charCounter.style.display = "none";
   // Hide the math preview
   const preview = document.getElementById("mathPreview");
   if (preview) preview.style.display = "none";
@@ -468,10 +525,20 @@ input.addEventListener("keypress", e => {
   if (e.key === "Enter") askPythos(input.value);
 });
 
-// Enforce max length live
+// Enforce max length and update character counter live
 input.addEventListener("input", () => {
   if (input.value.length > MAX_INPUT_LENGTH) {
     input.value = input.value.substring(0, MAX_INPUT_LENGTH);
+  }
+  const len = input.value.length;
+  if (charCounter) {
+    if (len > 100) {
+      charCounter.style.display = "inline";
+      charCounter.textContent = `${len}/${MAX_INPUT_LENGTH}`;
+      charCounter.style.color = len > 1400 ? "#ef4444" : "var(--text-muted)";
+    } else {
+      charCounter.style.display = "none";
+    }
   }
   renderInputPreview();
 });
