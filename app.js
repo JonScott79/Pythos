@@ -521,6 +521,7 @@ async function loadChat(chatId) {
       });
     }
     loadSidebarChats(); // Refresh to update active state
+    closeMobileSidebar();
   } catch(e) {
     console.error("Error loading chat", e);
   }
@@ -530,6 +531,7 @@ document.getElementById("newChatBtn").addEventListener("click", () => {
   currentChatId = null;
   clearChatUI();
   loadSidebarChats();
+  closeMobileSidebar();
 });
 
 async function saveChatState(userMessage, botReply) {
@@ -794,10 +796,45 @@ input.addEventListener("input", () => {
   renderInputPreview();
 });
 
-// Mobile menu toggle
+// Mobile menu toggle & sidebar backdrop management
 const sidebar = document.getElementById("sidebar");
-document.getElementById("mobileMenuBtn").addEventListener("click", () => {
-  sidebar.classList.toggle("open");
+const sidebarOverlay = document.getElementById("sidebarOverlay");
+const mobileMenuBtn = document.getElementById("mobileMenuBtn");
+const sidebarCloseBtn = document.getElementById("sidebarCloseBtn");
+
+function openMobileSidebar() {
+  if (sidebar) sidebar.classList.add("open");
+  if (sidebarOverlay) sidebarOverlay.classList.add("visible");
+}
+
+function closeMobileSidebar() {
+  if (sidebar) sidebar.classList.remove("open");
+  if (sidebarOverlay) sidebarOverlay.classList.remove("visible");
+}
+
+if (mobileMenuBtn) {
+  mobileMenuBtn.addEventListener("click", () => {
+    if (sidebar && sidebar.classList.contains("open")) {
+      closeMobileSidebar();
+    } else {
+      openMobileSidebar();
+    }
+  });
+}
+
+if (sidebarCloseBtn) {
+  sidebarCloseBtn.addEventListener("click", closeMobileSidebar);
+}
+
+if (sidebarOverlay) {
+  sidebarOverlay.addEventListener("click", closeMobileSidebar);
+}
+
+// Close sidebar on Escape key
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && sidebar && sidebar.classList.contains("open")) {
+    closeMobileSidebar();
+  }
 });
 
 // ===== MATH INPUT GUIDE =====
