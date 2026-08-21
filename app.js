@@ -38,11 +38,16 @@ function renderMath(element) {
     renderMathInElement(element, {
       delimiters: [
         { left: "$$", right: "$$", display: true },
-        { left: "$", right: "$", display: false },
         { left: "\\[", right: "\\]", display: true },
+        { left: "\\begin{equation}", right: "\\end{equation}", display: true },
+        { left: "\\begin{align}", right: "\\end{align}", display: true },
+        { left: "\\begin{pmatrix}", right: "\\end{pmatrix}", display: true },
+        { left: "\\begin{bmatrix}", right: "\\end{bmatrix}", display: true },
+        { left: "$", right: "$", display: false },
         { left: "\\(", right: "\\)", display: false }
       ],
-      throwOnError: false
+      throwOnError: false,
+      errorColor: "#ef4444"
     });
   }
 }

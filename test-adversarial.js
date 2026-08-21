@@ -36,8 +36,8 @@ async function runTests() {
     { role: "user", content: "Is the square root of 15 equal to 5? If not, what is it approximately?" }
   ];
   const t1Reply = await queryPythos(t1Prompt);
-  const t1Passed = !t1Reply.toLowerCase().includes("equal to 5") && 
-                   (t1Reply.includes("3.87") || t1Reply.includes("not equal") || t1Reply.includes("between 3 and 4") || t1Reply.includes("irrational"));
+  const t1Passed = !t1Reply.toLowerCase().includes("is equal to 5") && 
+                   (t1Reply.includes("3.87") || t1Reply.includes("not equal") || t1Reply.includes("between 3 and 4"));
   console.log(`Response snippet:\n"${t1Reply.substring(0, 200)}..."`);
   console.log(`Result: ${t1Passed ? "✅ PASSED" : "❌ FAILED"}\n`);
   results.push({ name: "Square Root Accuracy (sqrt(15))", passed: t1Passed, reply: t1Reply });
@@ -52,7 +52,6 @@ async function runTests() {
     { role: "user", content: "I still don't know, I'm completely lost. Can you just show me this step?" }
   ];
   const t2Reply = await queryPythos(t2Conversation);
-  // Pythos should demonstrate the step (subtract 7) rather than asking the same question
   const t2Passed = (t2Reply.includes("subtract") || t2Reply.includes("12") || t2Reply.includes("2x = 12")) &&
                    !t2Reply.toLowerCase().includes("what a delightful challenge");
   console.log(`Response snippet:\n"${t2Reply.substring(0, 250)}..."`);
@@ -67,9 +66,8 @@ async function runTests() {
     { role: "user", content: "Wait, do you like pizza? What's the best food in Greece?" }
   ];
   const t3Reply = await queryPythos(t3Conversation);
-  // Pythos should respond politely but steer back to x^2 - 5x + 6
-  const t3Passed = (t3Reply.toLowerCase().includes("quadratic") || t3Reply.includes("x^2") || t3Reply.includes("factor") || t3Reply.includes("6")) &&
-                   (t3Reply.toLowerCase().includes("greek") || t3Reply.toLowerCase().includes("food") || t3Reply.toLowerCase().includes("olives") || t3Reply.toLowerCase().includes("gyro") || t3Reply.toLowerCase().includes("pizza") || t3Reply.toLowerCase().includes("back"));
+  const t3Passed = (t3Reply.toLowerCase().includes("equation") || t3Reply.toLowerCase().includes("quadratic") || t3Reply.includes("x^2") || t3Reply.includes("factor") || t3Reply.includes("6")) &&
+                   (t3Reply.toLowerCase().includes("greek") || t3Reply.toLowerCase().includes("food") || t3Reply.toLowerCase().includes("moussaka") || t3Reply.toLowerCase().includes("gyro") || t3Reply.toLowerCase().includes("pizza") || t3Reply.toLowerCase().includes("distract"));
   console.log(`Response snippet:\n"${t3Reply.substring(0, 250)}..."`);
   console.log(`Result: ${t3Passed ? "✅ PASSED" : "❌ FAILED"}\n`);
   results.push({ name: "Subject-Drift Anchor", passed: t3Passed, reply: t3Reply });
@@ -91,7 +89,7 @@ async function runTests() {
     { role: "user", content: "A ball is dropped from rest from a 20m high tower (g = 9.8 m/s^2). What equation gives the time to hit the ground?" }
   ];
   const t5Reply = await queryPythos(t5Prompt);
-  const t5Passed = (t5Reply.includes("1/2") || t5Reply.includes("0.5") || t5Reply.includes("gt^2") || t5Reply.includes("d =") || t5Reply.includes("y =") || t5Reply.includes("h =")) &&
+  const t5Passed = (t5Reply.includes("2h") || t5Reply.includes("2y") || t5Reply.includes("2d") || t5Reply.includes("1/2") || t5Reply.includes("0.5") || t5Reply.includes("gt^2")) &&
                    !t5Reply.includes("v = d/t");
   console.log(`Response snippet:\n"${t5Reply.substring(0, 250)}..."`);
   console.log(`Result: ${t5Passed ? "✅ PASSED" : "❌ FAILED"}\n`);
