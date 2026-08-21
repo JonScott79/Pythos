@@ -483,14 +483,15 @@ async function askPythos(userText) {
 
   const thinking = showThinking();
 
+  // Pythos API Endpoint (Local dev: port 3006, Prod: /api/chat or https://pythos-api.lanzar.me)
+  const pythosApiUrl = window.location.hostname === "localhost" ? "http://localhost:3006/api/chat" : "https://pythos-api.lanzar.me/api/chat";
+
   try {
-    const res = await fetch("http://localhost:11434/api/chat", {
+    const res = await fetch(pythosApiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "pythos",
         messages: messages,
-        stream: false,
         options: { temperature: 0.3 }
       })
     });
