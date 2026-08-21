@@ -358,6 +358,42 @@
       line-height: 1.6;
       font-size: 1rem;
       position: relative;
+      user-select: text;
+    }
+
+    .message-content {
+      user-select: text;
+    }
+
+    .msg-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 6px;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .message:hover .msg-actions {
+      opacity: 1;
+    }
+
+    .msg-copy-btn {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      padding: 3px 6px;
+      cursor: pointer;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+
+    .msg-copy-btn:hover {
+      background: var(--surface-color);
+      color: var(--primary-color);
+      border-color: var(--primary-color);
     }
 
     .message.assistant {

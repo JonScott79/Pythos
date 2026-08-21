@@ -87,10 +87,32 @@ function removeThinking(el) {
 function appendMessage(role, text) {
   const div = document.createElement("div");
   div.className = `message ${role}`;
+  
+  const contentDiv = document.createElement("div");
+  contentDiv.className = "message-content";
   const formattedText = text.replace(/\n/g, '<br>');
-  div.innerHTML = formattedText;
+  contentDiv.innerHTML = formattedText;
+  div.appendChild(contentDiv);
+
+  // Copy button for easy clipboard copying
+  const actionRow = document.createElement("div");
+  actionRow.className = "msg-actions";
+  const copyBtn = document.createElement("button");
+  copyBtn.className = "msg-copy-btn";
+  copyBtn.title = "Copy message";
+  copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+  copyBtn.addEventListener("click", () => {
+    navigator.clipboard.writeText(text);
+    copyBtn.innerHTML = `<span style="font-size:10px; color:#166534;">✓</span>`;
+    setTimeout(() => {
+      copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+    }, 1500);
+  });
+  actionRow.appendChild(copyBtn);
+  div.appendChild(actionRow);
+
   output.appendChild(div);
-  renderMath(div);
+  renderMath(contentDiv);
   output.scrollTop = output.scrollHeight;
 }
 
