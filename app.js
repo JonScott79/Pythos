@@ -646,6 +646,124 @@ function setupFloatingTool(toggleBtnId, windowId, closeBtnId) {
 setupFloatingTool("toolCalcBtn", "floatCalcWindow", "calcCloseBtn");
 setupFloatingTool("toolGraphBtn", "floatGraphWindow", "graphCloseBtn");
 setupFloatingTool("toolCheckBtn", "floatCheckWindow", "checkCloseBtn");
+setupFloatingTool("toolUnitsBtn", "floatUnitsWindow", "unitsCloseBtn");
+setupFloatingTool("toolMatrixBtn", "floatMatrixWindow", "matrixCloseBtn");
+
+// =========================
+// UNIT CONVERTER LOGIC
+// =========================
+const unitsValueInput = document.getElementById("unitsValueInput");
+const unitsTargetInput = document.getElementById("unitsTargetInput");
+const unitsConvertBtn = document.getElementById("unitsConvertBtn");
+const unitsResultArea = document.getElementById("unitsResultArea");
+const unitsSendToPythos = document.getElementById("unitsSendToPythos");
+
+unitsConvertBtn.addEventListener("click", () => {
+  const valStr = unitsValueInput.value.trim();
+  const targetUnit = unitsTargetInput.value.trim();
+
+  try {
+    if (window.math && window.math.unit) {
+      const u = window.math.unit(valStr);
+      const converted = u.to(targetUnit);
+      unitsResultArea.style.display = "block";
+      unitsResultArea.className = "check-result-area check-result-pass";
+      unitsResultArea.innerHTML = `<strong>Result:</strong> ${converted.toString()}`;
+    }
+  } catch (err) {
+    unitsResultArea.style.display = "block";
+    unitsResultArea.className = "check-result-area check-result-fail";
+    unitsResultArea.innerHTML = `<strong>Error:</strong> Cannot convert <em>${valStr}</em> to <em>${targetUnit}</em>.`;
+  }
+});
+
+unitsSendToPythos.addEventListener("click", () => {
+  const text = unitsResultArea.innerText.replace("Result: ", "").trim() || `${unitsValueInput.value} to ${unitsTargetInput.value}`;
+  const inputEl = document.getElementById("userInput");
+  inputEl.value += (inputEl.value ? " " : "") + text;
+  inputEl.focus();
+  inputEl.dispatchEvent(new Event("input"));
+});
+
+// =========================
+// MATRIX CALCULATOR LOGIC
+// =========================
+const matrixAInput = document.getElementById("matrixAInput");
+const matrixBInput = document.getElementById("matrixBInput");
+const matrixResultArea = document.getElementById("matrixResultArea");
+const matrixSendToPythos = document.getElementById("matrixSendToPythos");
+
+function parseMatrix(inputStr) {
+  try {
+    return JSON.parse(inputStr);
+  } catch (e) {
+    return window.math.evaluate(inputStr);
+  }
+}
+
+function displayMatrixResult(res, opName) {
+  matrixResultArea.style.display = "block";
+  matrixResultArea.className = "check-result-area check-result-pass";
+  matrixResultArea.innerHTML = `<strong>${opName}:</strong><br><code>${JSON.stringify(res)}</code>`;
+}
+
+document.getElementById("matDetBtn").addEventListener("click", () => {
+  try {
+    const a = parseMatrix(matrixAInput.value);
+    const d = window.math.det(a);
+    displayMatrixResult(d, "det(A)");
+  } catch (err) {
+    matrixResultArea.style.display = "block";
+    matrixResultArea.className = "check-result-area check-result-fail";
+    matrixResultArea.innerHTML = `Error: ${err.message}`;
+  }
+});
+
+document.getElementById("matInvBtn").addEventListener("click", () => {
+  try {
+    const a = parseMatrix(matrixAInput.value);
+    const inv = window.math.inv(a);
+    displayMatrixResult(inv, "inv(A)");
+  } catch (err) {
+    matrixResultArea.style.display = "block";
+    matrixResultArea.className = "check-result-area check-result-fail";
+    matrixResultArea.innerHTML = `Error: ${err.message}`;
+  }
+});
+
+document.getElementById("matMulBtn").addEventListener("click", () => {
+  try {
+    const a = parseMatrix(matrixAInput.value);
+    const b = parseMatrix(matrixBInput.value);
+    const prod = window.math.multiply(a, b);
+    displayMatrixResult(prod, "A × B");
+  } catch (err) {
+    matrixResultArea.style.display = "block";
+    matrixResultArea.className = "check-result-area check-result-fail";
+    matrixResultArea.innerHTML = `Error: ${err.message}`;
+  }
+});
+
+document.getElementById("matAddBtn").addEventListener("click", () => {
+  try {
+    const a = parseMatrix(matrixAInput.value);
+    const b = parseMatrix(matrixBInput.value);
+    const sum = window.math.add(a, b);
+    displayMatrixResult(sum, "A + B");
+  } catch (err) {
+    matrixResultArea.style.display = "block";
+    matrixResultArea.className = "check-result-area check-result-fail";
+    matrixResultArea.innerHTML = `Error: ${err.message}`;
+  }
+});
+
+matrixSendToPythos.addEventListener("click", () => {
+  const resultText = matrixResultArea.innerText.trim() || `Matrix A: ${matrixAInput.value}`;
+  const inputEl = document.getElementById("userInput");
+  inputEl.value += (inputEl.value ? " " : "") + resultText;
+  inputEl.focus();
+  inputEl.dispatchEvent(new Event("input"));
+});
 
 // =========================
 // SCIENTIFIC CALCULATOR LOGIC
