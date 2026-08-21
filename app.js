@@ -683,12 +683,36 @@ setupFloatingTool("toolEditorBtn", "floatEditorWindow", "editorCloseBtn");
 // =========================
 const mathField = document.getElementById("visualMathField");
 const editorStatusMsg = document.getElementById("editorStatusMsg");
+const editorModeToggle = document.getElementById("editorModeToggle");
+const editorPaletteContainer = document.getElementById("editorPaletteContainer");
+
+let isKeyboardMode = false;
+
+if (editorModeToggle) {
+  editorModeToggle.addEventListener("click", () => {
+    isKeyboardMode = !isKeyboardMode;
+    if (isKeyboardMode) {
+      editorModeToggle.textContent = "🎨 Visual Palette";
+      editorModeToggle.style.background = "var(--primary-color)";
+      editorModeToggle.style.color = "#ffffff";
+      if (editorPaletteContainer) editorPaletteContainer.style.display = "none";
+      showEditorStatus("Keyboard Mode: Type naturally (e.g. x^2 + sqrt(x))");
+    } else {
+      editorModeToggle.textContent = "⌨️ Keyboard Mode";
+      editorModeToggle.style.background = "#e2e8f0";
+      editorModeToggle.style.color = "var(--text-main)";
+      if (editorPaletteContainer) editorPaletteContainer.style.display = "block";
+      showEditorStatus("Visual Mode: Click templates to build expressions");
+    }
+    if (mathField) mathField.focus();
+  });
+}
 
 function showEditorStatus(msg) {
   if (!editorStatusMsg) return;
   editorStatusMsg.style.display = "block";
   editorStatusMsg.textContent = msg;
-  setTimeout(() => { editorStatusMsg.style.display = "none"; }, 2000);
+  setTimeout(() => { editorStatusMsg.style.display = "none"; }, 2500);
 }
 
 // Click-to-insert palette templates directly into visual math-field
