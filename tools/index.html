@@ -1,0 +1,346 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/png" href="../assets/favicon.png">
+  
+  <!-- =====================================
+       Metadata / SEO
+  ===================================== -->
+  <title>Free Math & Physics Study Tools | Pythos</title>
+  <meta name="description" content="Explore free interactive mathematical tools: 2D Graphing Calculator, Scientific Calculator, Visual Equation Builder, Matrix Calculator, and Unit Converter.">
+  <meta name="keywords" content="free math study tools, graphing calculator, scientific calculator, matrix calculator, unit converter, visual equation editor, check math work">
+  <meta name="author" content="Jon Scott / LANZAR">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://pythos.lanzar.me/tools/">
+
+  <!-- OPEN GRAPH -->
+  <meta property="og:title" content="Free Math & Physics Study Tools | Pythos">
+  <meta property="og:description" content="Interactive graphing, scientific calculations, matrix arithmetic, unit conversions, and visual equation building.">
+  <meta property="og:url" content="https://pythos.lanzar.me/tools/">
+  <meta property="og:type" content="article">
+  <meta property="og:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
+
+  <!-- JSON-LD STRUCTURED DATA -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "Pythos Mathematics & Physics Toolset",
+    "description": "Suite of free interactive mathematical tools for students.",
+    "url": "https://pythos.lanzar.me/tools/",
+    "publisher": {
+      "@type": "Organization",
+      "name": "LANZAR",
+      "url": "https://lanzar.me"
+    }
+  }
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --bg-color: #fcfbf9;
+      --surface-color: #ffffff;
+      --text-main: #1e293b;
+      --text-muted: #64748b;
+      --primary-color: #2a728f;
+      --primary-hover: #1e5a73;
+      --accent-orange: #f46b45;
+      --border-color: #e2e8f0;
+      --card-bg: #f8fafc;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: var(--bg-color);
+      background-image: linear-gradient(rgba(252, 251, 249, 0.94), rgba(252, 251, 249, 0.94)), url('../assets/math_bg.jpg');
+      background-size: 500px;
+      background-repeat: repeat;
+      color: var(--text-main);
+      line-height: 1.6;
+    }
+
+    .nav-header {
+      background: var(--surface-color);
+      border-bottom: 1px solid var(--border-color);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .brand-logo {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 2px solid var(--accent-orange);
+      object-fit: cover;
+    }
+
+    .brand-title {
+      font-family: 'Cinzel', serif;
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: var(--primary-color);
+      letter-spacing: 1px;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      font-size: 0.88rem;
+    }
+
+    .nav-link {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-weight: 500;
+      transition: color 0.15s;
+    }
+
+    .nav-link:hover, .nav-link.active {
+      color: var(--primary-color);
+    }
+
+    .btn-launch {
+      background: var(--primary-color);
+      color: #ffffff;
+      padding: 7px 14px;
+      border-radius: 6px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.85rem;
+      transition: background 0.2s;
+    }
+
+    .btn-launch:hover {
+      background: var(--primary-hover);
+    }
+
+    .container {
+      max-width: 840px;
+      margin: 40px auto;
+      padding: 0 20px;
+    }
+
+    .content-card {
+      background: var(--surface-color);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 36px 32px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.04);
+      margin-bottom: 30px;
+    }
+
+    h1 {
+      font-family: 'Cinzel', serif;
+      font-size: 2rem;
+      color: var(--primary-color);
+      margin: 0 0 10px 0;
+      line-height: 1.2;
+    }
+
+    .tagline {
+      font-size: 1.05rem;
+      color: var(--text-muted);
+      font-weight: 500;
+      margin-bottom: 24px;
+    }
+
+    h2 {
+      font-family: 'Cinzel', serif;
+      font-size: 1.3rem;
+      color: var(--primary-color);
+      margin: 28px 0 12px 0;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 6px;
+    }
+
+    p {
+      margin: 0 0 16px 0;
+      font-size: 0.96rem;
+      color: var(--text-main);
+    }
+
+    .tools-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin: 20px 0;
+    }
+
+    .tool-box {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .tool-box h3 {
+      margin: 0 0 8px 0;
+      font-size: 1.05rem;
+      color: var(--primary-color);
+    }
+
+    .tool-box p {
+      margin: 0 0 14px 0;
+      font-size: 0.88rem;
+      color: var(--text-muted);
+    }
+
+    .tool-action-btn {
+      align-self: flex-start;
+      background: transparent;
+      color: var(--primary-color);
+      border: 1px solid var(--primary-color);
+      padding: 5px 12px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.15s;
+    }
+
+    .tool-action-btn:hover {
+      background: var(--primary-color);
+      color: #ffffff;
+    }
+
+    .footer {
+      text-align: center;
+      padding: 24px 20px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border-color);
+      margin-top: 40px;
+      background: var(--surface-color);
+    }
+
+    .footer a {
+      color: var(--primary-color);
+      text-decoration: none;
+    }
+
+    @media (max-width: 600px) {
+      .content-card { padding: 24px 18px; }
+      h1 { font-size: 1.6rem; }
+      .nav-links { gap: 10px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation Header -->
+  <header class="nav-header">
+    <a href="../" class="brand-group">
+      <img src="../assets/pythos_avatar.jpg" alt="Pythos Avatar" class="brand-logo" />
+      <span class="brand-title">PYTHOS</span>
+    </a>
+    <nav class="nav-links">
+      <a href="../algebra/" class="nav-link">Algebra</a>
+      <a href="../calculus/" class="nav-link">Calculus</a>
+      <a href="../physics/" class="nav-link">Physics</a>
+      <a href="./" class="nav-link active">Tools</a>
+      <a href="../about/" class="nav-link">About</a>
+      <a href="../" class="btn-launch">Open Pythos ↵</a>
+    </nav>
+  </header>
+
+  <!-- Main Content -->
+  <main class="container">
+    <article class="content-card">
+      <h1>Pythos Math & Physics Toolset</h1>
+      <div class="tagline">A suite of lightweight, deterministic calculators and visual math tools built directly into the student workspace.</div>
+
+      <h2>Integrated Study Tools</h2>
+      <p>
+        Every tool in Pythos is built for rapid study flow. Results can be sent directly into the AI tutor conversation for derivation assistance or conceptual analysis.
+      </p>
+
+      <div class="tools-grid">
+        <div class="tool-box">
+          <div>
+            <h3>📈 2D Function Grapher</h3>
+            <p>Plot polynomials, rational functions, and trig curves with real-time coordinate inspection and range adjustments.</p>
+          </div>
+          <a href="../#tool=graph" class="tool-action-btn">Launch Grapher ↗</a>
+        </div>
+
+        <div class="tool-box">
+          <div>
+            <h3>🧮 Scientific Calculator</h3>
+            <p>Perform trigonometric evaluations (DEG/RAD), logarithms, roots, and factorial arithmetic with memory history.</p>
+          </div>
+          <a href="../#tool=calc" class="tool-action-btn">Launch Calculator ↗</a>
+        </div>
+
+        <div class="tool-box">
+          <div>
+            <h3>⌨️ Visual Equation Builder</h3>
+            <p>Compose multi-line mathematical notation with visual palettes for fractions, superscripts, integrals, and Greek letters.</p>
+          </div>
+          <a href="../#tool=editor" class="tool-action-btn">Launch Builder ↗</a>
+        </div>
+
+        <div class="tool-box">
+          <div>
+            <h3>✅ Check My Work</h3>
+            <p>Verify candidate algebraic solutions deterministically to ensure homework accuracy before submission.</p>
+          </div>
+          <a href="../#tool=check" class="tool-action-btn">Check Work ↗</a>
+        </div>
+
+        <div class="tool-box">
+          <div>
+            <h3>⚖️ Unit & Dimensional Converter</h3>
+            <p>Convert distance, mass, energy, power, pressure, temperature, and speed between SI and imperial systems.</p>
+          </div>
+          <a href="../#tool=units" class="tool-action-btn">Convert Units ↗</a>
+        </div>
+
+        <div class="tool-box">
+          <div>
+            <h3>🔲 Matrix & Vector Engine</h3>
+            <p>Calculate 2x2 and 3x3 matrix determinants, matrix multiplication, inverses, and vector cross/dot products.</p>
+          </div>
+          <a href="../#tool=matrix" class="tool-action-btn">Open Matrix Tool ↗</a>
+        </div>
+      </div>
+
+      <div style="text-align: center; margin-top: 32px;">
+        <a href="../" class="btn-launch" style="padding: 10px 24px; font-size: 1rem;">Open Full Pythos Workspace ↗</a>
+      </div>
+    </article>
+  </main>
+
+  <footer class="footer">
+    <div><strong>Pythos</strong> — Mathematics & Physics Oracle. Developed by a student for students.</div>
+    <div style="margin-top: 6px;">A <a href="https://lanzar.me" target="_blank" rel="noopener">LANZAR</a> project. Free for all learners.</div>
+  </footer>
+
+</body>
+</html>

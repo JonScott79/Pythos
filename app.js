@@ -208,8 +208,7 @@ function appendMessage(role, text) {
   const graphMatch = sanitized.match(graphTokenRegex);
 
   if (graphMatch) {
-    const exprToGraph = graphMatch[1].trim();
-    sanitized = sanitized.replace(graphTokenRegex, '<div class="msg-inline-graph-card"></div>');
+    sanitized = sanitized.replace(graphTokenRegex, "%%%INLINE_GRAPH_PLACEHOLDER%%%");
   }
 
   // Helper to safely format markdown while preserving LaTeX blocks without breaking them
@@ -242,6 +241,9 @@ function appendMessage(role, text) {
 
     // Convert newlines to <br> for regular text
     protectedText = protectedText.replace(/\n/g, "<br>");
+
+    // Insert legitimate graph placeholder container into HTML after escaping is complete
+    protectedText = protectedText.replace("%%%INLINE_GRAPH_PLACEHOLDER%%%", '<div class="msg-inline-graph-card"></div>');
 
     // Restore protected math blocks verbatim
     protectedText = protectedText.replace(/%%%MATH_BLOCK_(\d+)%%%/g, (_, idx) => {
@@ -680,6 +682,22 @@ function setInputLocked(locked) {
   button.style.opacity = locked ? "0.5" : "1";
   button.style.cursor = locked ? "not-allowed" : "pointer";
   input.style.opacity = locked ? "0.7" : "1";
+
+  if (!locked) {
+    // Restore focus to chat input if the student is not actively focusing on another interactive element (e.g. tool window, modal, math-field)
+    const active = document.activeElement;
+    const isInteractingElsewhere = active && (
+      active.tagName === "INPUT" ||
+      active.tagName === "TEXTAREA" ||
+      active.tagName === "MATH-FIELD" ||
+      active.closest(".floating-window") ||
+      active.closest(".math-guide-overlay")
+    );
+
+    if (!isInteractingElsewhere) {
+      input.focus();
+    }
+  }
 }
 
 async function askPythos(userText) {

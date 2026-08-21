@@ -6,15 +6,16 @@
   <link rel="icon" type="image/png" href="assets/favicon.png">
   
   <!-- SEO METADATA -->
-  <title>Pythos | The AI Mathematical Oracle by LANZAR</title>
-  <meta name="description" content="Pythos is an AI-powered mathematical oracle and tutor built by LANZAR. Explore algebra, geometry, and calculus through Socratic guidance and ancient wisdom.">
+  <title>Pythos | Free AI Mathematics & Physics Tutor</title>
+  <meta name="description" content="Pythos is a free AI mathematics and physics tutor developed by a student for students. Master algebra, calculus, and physics with Socratic guidance, interactive graphing, and study tools. A LANZAR project.">
+  <meta name="keywords" content="AI math tutor, free AI math tutor, AI physics tutor, college math help, calculus help, algebra problem solver, graphing calculator, LANZAR">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://pythos.lanzar.me/">
 
   <!-- OPEN GRAPH -->
-  <meta property="og:title" content="Pythos | The AI Mathematical Oracle by LANZAR">
-  <meta property="og:description" content="Pythos is an AI-powered mathematical oracle and tutor built by LANZAR. Master mathematics through Socratic guidance.">
+  <meta property="og:title" content="Pythos | Free AI Mathematics & Physics Tutor">
+  <meta property="og:description" content="Free AI mathematics and physics study companion developed by a student for students. Socratic step-by-step guidance, interactive graphing, and equation tools. A LANZAR project.">
   <meta property="og:url" content="https://pythos.lanzar.me/">
   <meta property="og:type" content="website">
   <meta property="og:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
@@ -23,12 +24,17 @@
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
+    "@type": "WebApplication",
     "name": "Pythos",
     "applicationCategory": "EducationalApplication",
-    "description": "An AI-powered mathematical oracle and tutor that uses Socratic methods to teach math.",
+    "description": "A free AI-powered mathematics and physics tutor developed by a student for students.",
     "operatingSystem": "Web",
-    "developer": {
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "creator": {
       "@type": "Organization",
       "name": "LANZAR",
       "url": "https://lanzar.me"
@@ -223,8 +229,31 @@
     }
 
     .sidebar-footer {
-      padding: 12px 14px;
+      padding: 10px 12px;
       border-top: 1px solid var(--border-color);
+    }
+
+    .sidebar-nav-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 10px;
+      justify-content: center;
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed var(--border-color);
+    }
+
+    .sidebar-nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.72rem;
+      font-weight: 500;
+      transition: color 0.15s;
+    }
+
+    .sidebar-nav-links a:hover {
+      color: var(--primary-color);
+      text-decoration: underline;
     }
 
     .login-btn, .logout-btn {
@@ -1303,6 +1332,13 @@
           </div>
         </div>
         <button id="logoutBtn" class="logout-btn" style="display: none;">Logout</button>
+        <nav class="sidebar-nav-links" aria-label="Study Guides">
+          <a href="algebra/">Algebra</a>
+          <a href="calculus/">Calculus</a>
+          <a href="physics/">Physics</a>
+          <a href="tools/">Tools</a>
+          <a href="about/">About</a>
+        </nav>
       </div>
     </aside>
 
