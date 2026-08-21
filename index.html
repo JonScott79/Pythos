@@ -479,6 +479,279 @@
       white-space: nowrap;
     }
 
+    /* Toolbox Toolbar */
+    .toolbox-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 6px;
+      padding: 0 4px;
+    }
+
+    .tool-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: var(--surface-color);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      font-weight: 500;
+      padding: 4px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tool-btn:hover, .tool-btn.active {
+      background: var(--chat-ai-bg);
+      color: var(--primary-color);
+      border-color: var(--primary-color);
+    }
+
+    /* Floating Windows */
+    .floating-window {
+      position: fixed;
+      background: var(--surface-color);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+      z-index: 1000;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      user-select: text;
+    }
+
+    .window-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: #f8fafc;
+      border-bottom: 1px solid var(--border-color);
+      cursor: move;
+    }
+
+    .window-title {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .window-controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .win-btn {
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      font-size: 0.8rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      transition: background 0.15s;
+    }
+
+    .win-close {
+      color: var(--text-muted);
+      font-size: 1.1rem;
+      line-height: 1;
+    }
+
+    .win-close:hover {
+      background: #fee2e2;
+      color: #ef4444;
+    }
+
+    .win-send {
+      background: var(--primary-color);
+      color: #fff;
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 3px 8px;
+    }
+
+    .win-send:hover {
+      background: var(--primary-hover);
+    }
+
+    .window-body {
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 0.85rem;
+    }
+
+    /* Calculator Styles */
+    .calc-display-wrap {
+      background: #f1f5f9;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 6px 8px;
+      text-align: right;
+    }
+
+    .calc-display {
+      width: 100%;
+      background: transparent;
+      border: none;
+      text-align: right;
+      font-family: 'Inter', monospace;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text-main);
+      outline: none;
+    }
+
+    .calc-history {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      min-height: 14px;
+    }
+
+    .calc-keypad {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 4px;
+    }
+
+    .calc-key {
+      padding: 8px 4px;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      background: #ffffff;
+      color: var(--text-main);
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+
+    .calc-key:hover {
+      background: #f1f5f9;
+    }
+
+    .calc-key.op-key {
+      background: #f8fafc;
+      color: var(--primary-color);
+    }
+
+    .calc-key.eq-key {
+      background: var(--primary-color);
+      color: #ffffff;
+      border-color: var(--primary-color);
+    }
+
+    .calc-key.eq-key:hover {
+      background: var(--primary-hover);
+    }
+
+    /* Grapher Styles */
+    .graph-input-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: 'Inter', monospace;
+      font-weight: 600;
+    }
+
+    .graph-input {
+      flex: 1;
+      padding: 4px 8px;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      font-family: 'Inter', monospace;
+      font-size: 0.85rem;
+      outline: none;
+    }
+
+    .graph-plot-btn {
+      padding: 4px 10px;
+      background: var(--primary-color);
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .graph-canvas {
+      background: #ffffff;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      display: block;
+    }
+
+    .graph-hint {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+
+    /* Check My Work Styles */
+    .check-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .check-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .check-input {
+      width: 100%;
+      padding: 6px 8px;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      font-family: 'Inter', monospace;
+      font-size: 0.85rem;
+      box-sizing: border-box;
+      outline: none;
+    }
+
+    .check-run-btn {
+      padding: 8px;
+      background: var(--primary-color);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 4px;
+      transition: background 0.2s;
+    }
+
+    .check-run-btn:hover {
+      background: var(--primary-hover);
+    }
+
+    .check-result-area {
+      padding: 8px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      line-height: 1.5;
+    }
+
+    .check-result-pass {
+      background: #dcfce7;
+      color: #166534;
+      border: 1px solid #86efac;
+    }
+
+    .check-result-fail {
+      background: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #fca5a5;
+    }
+
     /* Deep Thought Easter Egg */
     .deep-thought {
       background: #0a0e17 !important;
@@ -768,6 +1041,22 @@
         <div id="output"></div>
 
         <div class="input-area">
+          <!-- PYTHOS MATH TOOLBOX -->
+          <div class="toolbox-bar">
+            <button id="toolCalcBtn" class="tool-btn" title="Scientific Calculator" aria-label="Scientific Calculator">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="6" x2="16" y2="6"></line><line x1="16" y1="14" x2="16" y2="18"></line><path d="M8 10h.01"></path><path d="M12 10h.01"></path><path d="M16 10h.01"></path><path d="M8 14h.01"></path><path d="M12 14h.01"></path><path d="M8 18h.01"></path><path d="M12 18h.01"></path></svg>
+              <span>Calc</span>
+            </button>
+            <button id="toolGraphBtn" class="tool-btn" title="Function Grapher" aria-label="Function Grapher">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+              <span>Graph</span>
+            </button>
+            <button id="toolCheckBtn" class="tool-btn" title="Check My Work (Step Verifier)" aria-label="Check My Work">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+              <span>Check Work</span>
+            </button>
+          </div>
+
           <div class="input-wrapper">
             <button id="helpBtn" class="help-btn" title="Math Input Guide" aria-label="Math Input Guide">?</button>
             <input id="userInput" type="text" placeholder="Speak to the Oracle..." autocomplete="off" maxlength="1500" />
@@ -886,6 +1175,118 @@
         </div>
 
       </div>
+    </div>
+  </div>
+
+  <!-- FLOATING TOOL WINDOW: SCIENTIFIC CALCULATOR -->
+  <div id="floatCalcWindow" class="floating-window" style="display: none; top: 120px; right: 40px; width: 320px;">
+    <div class="window-header">
+      <div class="window-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="6" x2="16" y2="6"></line></svg>
+        Scientific Calculator
+      </div>
+      <div class="window-controls">
+        <button class="win-btn win-send" id="calcSendToPythos" title="Send Result to Pythos">Send to Pythos ↵</button>
+        <button class="win-btn win-close" id="calcCloseBtn" title="Close">×</button>
+      </div>
+    </div>
+    <div class="window-body">
+      <div class="calc-display-wrap">
+        <input type="text" id="calcDisplay" class="calc-display" readonly value="0" />
+        <div id="calcHistory" class="calc-history"></div>
+      </div>
+      <div class="calc-keypad">
+        <button class="calc-key op-key" data-calc="rad-deg" id="calcDegRad">DEG</button>
+        <button class="calc-key op-key" data-calc="sin">sin</button>
+        <button class="calc-key op-key" data-calc="cos">cos</button>
+        <button class="calc-key op-key" data-calc="tan">tan</button>
+        <button class="calc-key op-key" data-calc="clear">C</button>
+
+        <button class="calc-key op-key" data-calc="pi">π</button>
+        <button class="calc-key op-key" data-calc="e">e</button>
+        <button class="calc-key op-key" data-calc="sqrt">√</button>
+        <button class="calc-key op-key" data-calc="pow">^</button>
+        <button class="calc-key op-key" data-calc="/">÷</button>
+
+        <button class="calc-key op-key" data-calc="ln">ln</button>
+        <button class="calc-key num-key" data-calc="7">7</button>
+        <button class="calc-key num-key" data-calc="8">8</button>
+        <button class="calc-key num-key" data-calc="9">9</button>
+        <button class="calc-key op-key" data-calc="*">×</button>
+
+        <button class="calc-key op-key" data-calc="log">log</button>
+        <button class="calc-key num-key" data-calc="4">4</button>
+        <button class="calc-key num-key" data-calc="5">5</button>
+        <button class="calc-key num-key" data-calc="6">6</button>
+        <button class="calc-key op-key" data-calc="-">-</button>
+
+        <button class="calc-key op-key" data-calc="(">(</button>
+        <button class="calc-key num-key" data-calc="1">1</button>
+        <button class="calc-key num-key" data-calc="2">2</button>
+        <button class="calc-key num-key" data-calc="3">3</button>
+        <button class="calc-key op-key" data-calc="+">+</button>
+
+        <button class="calc-key op-key" data-calc=")">)</button>
+        <button class="calc-key num-key" data-calc="0">0</button>
+        <button class="calc-key num-key" data-calc=".">.</button>
+        <button class="calc-key eq-key" data-calc="=">=</button>
+        <button class="calc-key op-key" data-calc="copy" title="Copy result to clipboard">📋</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- FLOATING TOOL WINDOW: FUNCTION GRAPHER -->
+  <div id="floatGraphWindow" class="floating-window" style="display: none; top: 120px; right: 40px; width: 440px;">
+    <div class="window-header">
+      <div class="window-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+        Function Grapher
+      </div>
+      <div class="window-controls">
+        <button class="win-btn win-send" id="graphSendToPythos" title="Ask Pythos about this graph">Ask Pythos ↵</button>
+        <button class="win-btn win-close" id="graphCloseBtn" title="Close">×</button>
+      </div>
+    </div>
+    <div class="window-body">
+      <div class="graph-input-row">
+        <span>f(x) =</span>
+        <input type="text" id="graphFuncInput" class="graph-input" placeholder="e.g. sin(x) * x or x^2 - 4" value="x^2 - 4" />
+        <button id="graphPlotBtn" class="graph-plot-btn">Plot</button>
+      </div>
+      <canvas id="graphCanvas" class="graph-canvas" width="400" height="260"></canvas>
+      <div class="graph-hint">Range: x ∈ [-10, 10], y ∈ [-10, 10]. Interactive grid coordinates.</div>
+    </div>
+  </div>
+
+  <!-- FLOATING TOOL WINDOW: CHECK MY WORK -->
+  <div id="floatCheckWindow" class="floating-window" style="display: none; top: 120px; right: 40px; width: 380px;">
+    <div class="window-header">
+      <div class="window-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+        Check My Work (Step Verifier)
+      </div>
+      <div class="window-controls">
+        <button class="win-btn win-close" id="checkCloseBtn" title="Close">×</button>
+      </div>
+    </div>
+    <div class="window-body">
+      <div class="check-group">
+        <label for="checkEqInput">Original Equation / Expression:</label>
+        <input type="text" id="checkEqInput" class="check-input" placeholder="e.g. 2*x + 7 = 19" value="2*x + 7 = 19" />
+      </div>
+      <div class="check-row">
+        <div style="flex:1;">
+          <label for="checkVarInput">Variable:</label>
+          <input type="text" id="checkVarInput" class="check-input" placeholder="x" value="x" />
+        </div>
+        <div style="flex:2;">
+          <label for="checkAnsInput">Your Answer:</label>
+          <input type="text" id="checkAnsInput" class="check-input" placeholder="e.g. 6" value="6" />
+        </div>
+      </div>
+      <button id="checkRunBtn" class="check-run-btn">Verify Deterministically</button>
+      <div id="checkResultArea" class="check-result-area" style="display:none;"></div>
+      <button id="checkAskPythosBtn" class="win-btn win-send" style="display:none; width:100%; margin-top:8px;" title="Have Pythos explain the error">Ask Pythos to Explain Step ↵</button>
     </div>
   </div>
 

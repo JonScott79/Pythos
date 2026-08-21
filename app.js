@@ -591,5 +591,289 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
+// =========================
+// FLOATING WINDOW UTILITIES
+// =========================
+function makeDraggable(winEl, handleEl) {
+  let isDragging = false;
+  let offsetX = 0;
+  let offsetY = 0;
+
+  handleEl.addEventListener("mousedown", (e) => {
+    if (e.target.closest("button")) return; // Don't drag when clicking close/action buttons
+    isDragging = true;
+    offsetX = e.clientX - winEl.getBoundingClientRect().left;
+    offsetY = e.clientY - winEl.getBoundingClientRect().top;
+    winEl.style.zIndex = 1001; // Bring to front
+  });
+
+  document.addEventListener("mousemove", (e) => {
+    if (!isDragging) return;
+    const x = Math.max(10, Math.min(window.innerWidth - winEl.offsetWidth - 10, e.clientX - offsetX));
+    const y = Math.max(10, Math.min(window.innerHeight - winEl.offsetHeight - 10, e.clientY - offsetY));
+    winEl.style.left = `${x}px`;
+    winEl.style.top = `${y}px`;
+    winEl.style.right = "auto";
+  });
+
+  document.addEventListener("mouseup", () => {
+    isDragging = false;
+  });
+}
+
+function setupFloatingTool(toggleBtnId, windowId, closeBtnId) {
+  const toggleBtn = document.getElementById(toggleBtnId);
+  const win = document.getElementById(windowId);
+  const closeBtn = document.getElementById(closeBtnId);
+  const header = win.querySelector(".window-header");
+
+  makeDraggable(win, header);
+
+  toggleBtn.addEventListener("click", () => {
+    const isVisible = win.style.display !== "none";
+    win.style.display = isVisible ? "none" : "flex";
+    toggleBtn.classList.toggle("active", !isVisible);
+  });
+
+  closeBtn.addEventListener("click", () => {
+    win.style.display = "none";
+    toggleBtn.classList.remove("active");
+  });
+}
+
+// Initialize tools
+setupFloatingTool("toolCalcBtn", "floatCalcWindow", "calcCloseBtn");
+setupFloatingTool("toolGraphBtn", "floatGraphWindow", "graphCloseBtn");
+setupFloatingTool("toolCheckBtn", "floatCheckWindow", "checkCloseBtn");
+
+// =========================
+// SCIENTIFIC CALCULATOR LOGIC
+// =========================
+const calcDisplay = document.getElementById("calcDisplay");
+const calcHistory = document.getElementById("calcHistory");
+const calcDegRadBtn = document.getElementById("calcDegRad");
+let isDegMode = true;
+let calcCurrentExpr = "";
+
+calcDegRadBtn.addEventListener("click", () => {
+  isDegMode = !isDegMode;
+  calcDegRadBtn.textContent = isDegMode ? "DEG" : "RAD";
+});
+
+document.querySelectorAll(".calc-key").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const val = btn.getAttribute("data-calc");
+    if (!val || val === "rad-deg") return;
+
+    if (val === "clear") {
+      calcCurrentExpr = "";
+      calcDisplay.value = "0";
+      calcHistory.textContent = "";
+    } else if (val === "=") {
+      try {
+        let expr = calcCurrentExpr
+          .replace(/÷/g, "/")
+          .replace(/×/g, "*")
+          .replace(/π/g, "pi")
+          .replace(/√\(/g, "sqrt(")
+          .replace(/√/g, "sqrt");
+
+        if (window.math) {
+          const res = window.math.evaluate(expr);
+          calcHistory.textContent = `${calcCurrentExpr} =`;
+          calcDisplay.value = String(res);
+          calcCurrentExpr = String(res);
+        }
+      } catch (e) {
+        calcDisplay.value = "Error";
+      }
+    } else if (val === "copy") {
+      navigator.clipboard.writeText(calcDisplay.value);
+      calcHistory.textContent = "Copied to clipboard!";
+    } else {
+      if (val === "sqrt") {
+        calcCurrentExpr += "sqrt(";
+      } else if (val === "sin" || val === "cos" || val === "tan" || val === "ln" || val === "log") {
+        calcCurrentExpr += `${val}(`;
+      } else {
+        calcCurrentExpr += val;
+      }
+      calcDisplay.value = calcCurrentExpr;
+    }
+  });
+});
+
+document.getElementById("calcSendToPythos").addEventListener("click", () => {
+  const result = calcDisplay.value;
+  const inputEl = document.getElementById("userInput");
+  inputEl.value += (inputEl.value ? " " : "") + result;
+  inputEl.focus();
+  inputEl.dispatchEvent(new Event("input"));
+});
+
+// =========================
+// FUNCTION GRAPHER LOGIC
+// =========================
+const graphCanvas = document.getElementById("graphCanvas");
+const graphCtx = graphCanvas.getContext("2d");
+const graphFuncInput = document.getElementById("graphFuncInput");
+const graphPlotBtn = document.getElementById("graphPlotBtn");
+
+function drawGraph(exprString) {
+  const width = graphCanvas.width;
+  const height = graphCanvas.height;
+  graphCtx.clearRect(0, 0, width, height);
+
+  // Coordinate ranges
+  const xMin = -10, xMax = 10, yMin = -10, yMax = 10;
+  const toCanvasX = x => ((x - xMin) / (xMax - xMin)) * width;
+  const toCanvasY = y => height - ((y - yMin) / (yMax - yMin)) * height;
+
+  // Draw Grid
+  graphCtx.strokeStyle = "#e2e8f0";
+  graphCtx.lineWidth = 1;
+
+  for (let x = xMin; x <= xMax; x += 2) {
+    graphCtx.beginPath();
+    graphCtx.moveTo(toCanvasX(x), 0);
+    graphCtx.lineTo(toCanvasX(x), height);
+    graphCtx.stroke();
+  }
+  for (let y = yMin; y <= yMax; y += 2) {
+    graphCtx.beginPath();
+    graphCtx.moveTo(0, toCanvasY(y));
+    graphCtx.lineTo(width, toCanvasY(y));
+    graphCtx.stroke();
+  }
+
+  // Draw Axes
+  graphCtx.strokeStyle = "#94a3b8";
+  graphCtx.lineWidth = 1.5;
+  graphCtx.beginPath();
+  graphCtx.moveTo(0, toCanvasY(0));
+  graphCtx.lineTo(width, toCanvasY(0));
+  graphCtx.moveTo(toCanvasX(0), 0);
+  graphCtx.lineTo(toCanvasX(0), height);
+  graphCtx.stroke();
+
+  // Plot Function
+  if (!window.math || !exprString.trim()) return;
+
+  try {
+    const compiled = window.math.compile(exprString);
+    graphCtx.strokeStyle = "#2a728f";
+    graphCtx.lineWidth = 2.5;
+    graphCtx.beginPath();
+
+    let started = false;
+    const step = (xMax - xMin) / width;
+
+    for (let cx = 0; cx <= width; cx++) {
+      const xVal = xMin + cx * step;
+      try {
+        const yVal = compiled.evaluate({ x: xVal });
+        if (typeof yVal === "number" && !isNaN(yVal) && isFinite(yVal)) {
+          const cy = toCanvasY(yVal);
+          if (!started) {
+            graphCtx.moveTo(cx, cy);
+            started = true;
+          } else {
+            graphCtx.lineTo(cx, cy);
+          }
+        } else {
+          started = false;
+        }
+      } catch (e) {
+        started = false;
+      }
+    }
+    graphCtx.stroke();
+  } catch (err) {
+    console.warn("[GRAPHER] Parse error:", err.message);
+  }
+}
+
+graphPlotBtn.addEventListener("click", () => drawGraph(graphFuncInput.value));
+graphFuncInput.addEventListener("keypress", (e) => {
+  if (e.key === "Enter") drawGraph(graphFuncInput.value);
+});
+document.getElementById("toolGraphBtn").addEventListener("click", () => {
+  setTimeout(() => drawGraph(graphFuncInput.value), 50);
+});
+
+document.getElementById("graphSendToPythos").addEventListener("click", () => {
+  const func = graphFuncInput.value;
+  askPythos(`Can you analyze and explain the behavior of the function f(x) = ${func}?`);
+});
+
+// =========================
+// CHECK MY WORK (STEP VERIFIER)
+// =========================
+const checkEqInput = document.getElementById("checkEqInput");
+const checkVarInput = document.getElementById("checkVarInput");
+const checkAnsInput = document.getElementById("checkAnsInput");
+const checkRunBtn = document.getElementById("checkRunBtn");
+const checkResultArea = document.getElementById("checkResultArea");
+const checkAskPythosBtn = document.getElementById("checkAskPythosBtn");
+
+let lastFailedVerification = null;
+
+checkRunBtn.addEventListener("click", () => {
+  const rawEq = checkEqInput.value.trim();
+  const variable = checkVarInput.value.trim() || "x";
+  const proposedVal = checkAnsInput.value.trim();
+
+  if (!rawEq.includes("=")) {
+    checkResultArea.style.display = "block";
+    checkResultArea.className = "check-result-area check-result-fail";
+    checkResultArea.innerHTML = "Please enter an equation containing '=' (e.g. <code>2*x + 7 = 19</code>).";
+    checkAskPythosBtn.style.display = "none";
+    return;
+  }
+
+  const [leftExpr, rightExpr] = rawEq.split("=").map(s => s.trim());
+  const parsedVal = parseFloat(proposedVal);
+
+  if (isNaN(parsedVal)) {
+    checkResultArea.style.display = "block";
+    checkResultArea.className = "check-result-area check-result-fail";
+    checkResultArea.innerHTML = "Please enter a valid numerical answer for the variable.";
+    checkAskPythosBtn.style.display = "none";
+    return;
+  }
+
+  const res = window.DeterministicMath.verifyEquationSolution(leftExpr, rightExpr, variable, parsedVal);
+
+  checkResultArea.style.display = "block";
+  if (res && res.isCorrect) {
+    checkResultArea.className = "check-result-area check-result-pass";
+    checkResultArea.innerHTML = `<strong>✓ Correct!</strong> Substituting ${variable} = ${parsedVal} gives: <br>Left Side = ${res.leftVal} | Right Side = ${res.rightVal} (Matches!)`;
+    checkAskPythosBtn.style.display = "none";
+    lastFailedVerification = null;
+  } else if (res) {
+    checkResultArea.className = "check-result-area check-result-fail";
+    checkResultArea.innerHTML = `<strong>✗ Incorrect.</strong> Substituting ${variable} = ${parsedVal} gives: <br>Left Side: <code>${res.leftVal}</code> ≠ Right Side: <code>${res.rightVal}</code>`;
+    checkAskPythosBtn.style.display = "block";
+    lastFailedVerification = {
+      equation: rawEq,
+      variable,
+      proposedVal,
+      leftVal: res.leftVal,
+      rightVal: res.rightVal
+    };
+  } else {
+    checkResultArea.className = "check-result-area check-result-fail";
+    checkResultArea.innerHTML = "Could not parse or verify this expression. Check formatting.";
+    checkAskPythosBtn.style.display = "none";
+  }
+});
+
+checkAskPythosBtn.addEventListener("click", () => {
+  if (lastFailedVerification) {
+    const { equation, variable, proposedVal, leftVal, rightVal } = lastFailedVerification;
+    askPythos(`I was solving ${equation} and guessed that ${variable} = ${proposedVal}, but that yielded ${leftVal} instead of ${rightVal}. Can you guide me on where I went wrong?`);
+  }
+});
+
 // ===== INIT =====
 clearChatUI();
