@@ -34,22 +34,33 @@ let currentChatId = null;
 // KATEX RENDERING
 // =========================
 function renderMath(element) {
-  if (window.renderMathInElement) {
-    renderMathInElement(element, {
-      delimiters: [
-        { left: "$$", right: "$$", display: true },
-        { left: "\\[", right: "\\]", display: true },
-        { left: "\\begin{equation}", right: "\\end{equation}", display: true },
-        { left: "\\begin{align}", right: "\\end{align}", display: true },
-        { left: "\\begin{pmatrix}", right: "\\end{pmatrix}", display: true },
-        { left: "\\begin{bmatrix}", right: "\\end{bmatrix}", display: true },
-        { left: "$", right: "$", display: false },
-        { left: "\\(", right: "\\)", display: false }
-      ],
-      throwOnError: false,
-      errorColor: "#ef4444"
-    });
-  }
+  if (!element) return;
+  
+  const doRender = () => {
+    if (window.renderMathInElement) {
+      window.renderMathInElement(element, {
+        delimiters: [
+          { left: "$$", right: "$$", display: true },
+          { left: "\\[", right: "\\]", display: true },
+          { left: "\\begin{equation}", right: "\\end{equation}", display: true },
+          { left: "\\begin{align}", right: "\\end{align}", display: true },
+          { left: "\\begin{pmatrix}", right: "\\end{pmatrix}", display: true },
+          { left: "\\begin{bmatrix}", right: "\\end{bmatrix}", display: true },
+          { left: "$", right: "$", display: false },
+          { left: "\\(", right: "\\)", display: false }
+        ],
+        ignoredTags: ["script", "noscript", "style", "textarea", "pre", "code", "option"],
+        throwOnError: false,
+        errorColor: "#ef4444"
+      });
+    } else if (window.katex) {
+      // Fallback if auto-render extension is not yet attached
+      console.warn("[KATEX] auto-render not ready, retrying...");
+      setTimeout(doRender, 100);
+    }
+  };
+
+  doRender();
 }
 
 // Render a KaTeX preview of the user's input below the input box
@@ -201,7 +212,46 @@ function appendMessage(role, text) {
     sanitized = sanitized.replace(graphTokenRegex, '<div class="msg-inline-graph-card"></div>');
   }
 
-  const formattedText = sanitized.replace(/\n/g, '<br>');
+  // Helper to safely format markdown while preserving LaTeX blocks without breaking them
+  function formatResponseText(raw) {
+    const mathBlocks = [];
+    // Protect display and inline math blocks so markdown/<br> transforms don't corrupt them
+    // Matches: $$, \[, \begin{...}...\end{...}, \(, $
+    const mathRegex = /(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\begin\{[a-z*]+\}[\s\S]*?\\end\{[a-z*]+\}|\\\([\s\S]*?\\\)|\$(?!\s)[^$\n]+(?<!\s)\$)/g;
+    
+    let protectedText = raw.replace(mathRegex, (match) => {
+      const idx = mathBlocks.length;
+      mathBlocks.push(match);
+      return `%%%MATH_BLOCK_${idx}%%%`;
+    });
+
+    // Escape HTML special characters in the non-math prose
+    protectedText = protectedText
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+
+    // Convert code ticks `...` to <code>...</code>
+    protectedText = protectedText.replace(/`([^`]+)`/g, "<code>$1</code>");
+
+    // Convert **bold** to <strong>bold</strong>
+    protectedText = protectedText.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+
+    // Convert *italic* to <em>italic</em>
+    protectedText = protectedText.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+
+    // Convert newlines to <br> for regular text
+    protectedText = protectedText.replace(/\n/g, "<br>");
+
+    // Restore protected math blocks verbatim
+    protectedText = protectedText.replace(/%%%MATH_BLOCK_(\d+)%%%/g, (_, idx) => {
+      return mathBlocks[parseInt(idx, 10)] || "";
+    });
+
+    return protectedText;
+  }
+
+  const formattedText = formatResponseText(sanitized);
   contentDiv.innerHTML = formattedText;
 
   // If a graph was detected, instantiate the live canvas
