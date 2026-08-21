@@ -676,6 +676,111 @@ setupFloatingTool("toolGraphBtn", "floatGraphWindow", "graphCloseBtn");
 setupFloatingTool("toolCheckBtn", "floatCheckWindow", "checkCloseBtn");
 setupFloatingTool("toolUnitsBtn", "floatUnitsWindow", "unitsCloseBtn");
 setupFloatingTool("toolMatrixBtn", "floatMatrixWindow", "matrixCloseBtn");
+setupFloatingTool("toolEditorBtn", "floatEditorWindow", "editorCloseBtn");
+
+// =========================
+// VISUAL EQUATION EDITOR (MathLive)
+// =========================
+const mathField = document.getElementById("visualMathField");
+const editorStatusMsg = document.getElementById("editorStatusMsg");
+
+function showEditorStatus(msg) {
+  if (!editorStatusMsg) return;
+  editorStatusMsg.style.display = "block";
+  editorStatusMsg.textContent = msg;
+  setTimeout(() => { editorStatusMsg.style.display = "none"; }, 2000);
+}
+
+// Click-to-insert palette templates directly into visual math-field
+document.querySelectorAll(".palette-btn[data-insert]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const template = btn.getAttribute("data-insert");
+    if (mathField && mathField.insert) {
+      mathField.insert(template, { focus: true });
+    }
+  });
+});
+
+// 1. Send Expression to Pythos Chat
+document.getElementById("sendEqToPythos").addEventListener("click", () => {
+  const latex = mathField ? mathField.value : "";
+  if (!latex) return;
+  const inputEl = document.getElementById("userInput");
+  inputEl.value += (inputEl.value ? " " : "") + `$${latex}$`;
+  inputEl.focus();
+  inputEl.dispatchEvent(new Event("input"));
+  showEditorStatus("Inserted into chat input!");
+});
+
+// 2. Send Expression to Scientific Calculator
+document.getElementById("sendEqToCalc").addEventListener("click", () => {
+  const latex = mathField ? mathField.value : "";
+  if (!latex) return;
+  // Convert basic LaTeX to calculator expression
+  let expr = latex
+    .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, "($1)/($2)")
+    .replace(/\\sqrt\{([^}]+)\}/g, "sqrt($1)")
+    .replace(/\\cdot/g, "*")
+    .replace(/\\times/g, "*")
+    .replace(/\\pi/g, "pi")
+    .replace(/\\left\(/g, "(")
+    .replace(/\\right\)/g, ")");
+  
+  const calcWin = document.getElementById("floatCalcWindow");
+  const calcToggle = document.getElementById("toolCalcBtn");
+  calcWin.style.display = "flex";
+  calcToggle.classList.add("active");
+  const calcDisplayEl = document.getElementById("calcDisplay");
+  if (calcDisplayEl) calcDisplayEl.value = expr;
+  showEditorStatus("Sent to Calculator!");
+});
+
+// 3. Send Expression to Function Grapher
+document.getElementById("sendEqToGraph").addEventListener("click", () => {
+  const latex = mathField ? mathField.value : "";
+  if (!latex) return;
+  let expr = latex
+    .replace(/f\(x\)\s*=\s*/g, "")
+    .replace(/y\s*=\s*/g, "")
+    .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, "($1)/($2)")
+    .replace(/\\sqrt\{([^}]+)\}/g, "sqrt($1)")
+    .replace(/\\cdot/g, "*")
+    .replace(/\\times/g, "*")
+    .replace(/\\left\(/g, "(")
+    .replace(/\\right\)/g, ")");
+  
+  const graphWin = document.getElementById("floatGraphWindow");
+  const graphToggle = document.getElementById("toolGraphBtn");
+  graphWin.style.display = "flex";
+  graphToggle.classList.add("active");
+  const graphInput = document.getElementById("graphFuncInput");
+  if (graphInput) {
+    graphInput.value = expr;
+    const plotBtn = document.getElementById("graphPlotBtn");
+    if (plotBtn) plotBtn.click();
+  }
+  showEditorStatus("Sent & Plotted in Grapher!");
+});
+
+// 4. Send Expression to Check My Work
+document.getElementById("sendEqToCheck").addEventListener("click", () => {
+  const latex = mathField ? mathField.value : "";
+  if (!latex) return;
+  const checkWin = document.getElementById("floatCheckWindow");
+  const checkToggle = document.getElementById("toolCheckBtn");
+  checkWin.style.display = "flex";
+  checkToggle.classList.add("active");
+  const checkEqInputEl = document.getElementById("checkEqInput");
+  if (checkEqInputEl) checkEqInputEl.value = latex;
+  showEditorStatus("Sent to Check My Work!");
+});
+
+// 5. Copy LaTeX Code
+document.getElementById("copyEqLaTeX").addEventListener("click", () => {
+  const latex = mathField ? mathField.value : "";
+  navigator.clipboard.writeText(latex);
+  showEditorStatus("LaTeX copied to clipboard!");
+});
 
 // =========================
 // UNIT CONVERTER LOGIC
