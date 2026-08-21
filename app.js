@@ -1153,3 +1153,9 @@ checkAskPythosBtn.addEventListener("click", () => {
 
 // ===== INIT =====
 clearChatUI();
+
+// Render KaTeX mathematical typography on the Equation Builder palette
+setTimeout(() => {
+  const palette = document.getElementById("editorPaletteContainer");
+  if (palette) renderMath(palette);
+}, 100);

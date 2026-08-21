@@ -824,28 +824,21 @@
       background: #ffffff;
       border: 1px solid var(--border-color);
       border-radius: 6px;
-      padding: 6px 2px;
+      padding: 4px;
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      font-size: 1rem;
-      font-weight: 500;
+      font-size: 0.95rem;
       color: var(--text-main);
       transition: all 0.1s;
-      min-height: 38px;
-      font-family: 'Times New Roman', 'Cambria Math', 'Inter', serif;
+      min-height: 42px;
       user-select: none;
+      overflow: hidden;
     }
 
-    .palette-btn sub, .palette-btn sup {
-      font-size: 0.75rem;
-    }
-
-    .vis-math-frac {
-      display: inline-flex;
-      align-items: center;
-      font-size: 0.95rem;
+    .palette-btn .katex {
+      font-size: 1.05rem;
     }
 
     .palette-btn:hover {
@@ -1592,80 +1585,80 @@
         <math-field id="visualMathField" class="custom-math-field">x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}</math-field>
       </div>
 
-      <!-- Quick Template Palette (Clean Visual Math Symbols) -->
+      <!-- Quick Template Palette (Rendered Mathematical Keyboard) -->
       <div class="palette-tabs" id="editorPaletteContainer">
         <div class="palette-grid">
-          <!-- Fraction -->
-          <button class="palette-btn math-symbol-btn" data-insert="\frac{#?}{#?}" title="Fraction (a/b)">
-            <span class="vis-math-frac"><sup>a</sup>&frasl;<sub>b</sub></span>
+          <!-- Rendered Stacked Fraction -->
+          <button class="palette-btn math-symbol-btn" data-insert="\frac{#?}{#?}" title="Fraction">
+            <span>\(\frac{a}{b}\)</span>
           </button>
-          <!-- Power / Exponent -->
-          <button class="palette-btn math-symbol-btn" data-insert="#?^{#?}" title="Exponent / Power (x²)">
-            <span>x<sup>2</sup></span>
+          <!-- Exponent / Power -->
+          <button class="palette-btn math-symbol-btn" data-insert="#?^{#?}" title="Exponent / Power">
+            <span>\(x^2\)</span>
           </button>
           <!-- Subscript -->
-          <button class="palette-btn math-symbol-btn" data-insert="#?_{#?}" title="Subscript (xₙ)">
-            <span>x<sub>n</sub></span>
+          <button class="palette-btn math-symbol-btn" data-insert="#?_{#?}" title="Subscript">
+            <span>\(x_n\)</span>
           </button>
           <!-- Square Root -->
-          <button class="palette-btn math-symbol-btn" data-insert="\sqrt{#?}" title="Square Root (√x)">
-            <span>&radic;x</span>
+          <button class="palette-btn math-symbol-btn" data-insert="\sqrt{#?}" title="Square Root">
+            <span>\(\sqrt{x}\)</span>
           </button>
           <!-- N-th Root -->
-          <button class="palette-btn math-symbol-btn" data-insert="\sqrt[#?]{#?}" title="N-th Root (ⁿ√x)">
-            <span><sup>n</sup>&radic;x</span>
+          <button class="palette-btn math-symbol-btn" data-insert="\sqrt[#?]{#?}" title="N-th Root">
+            <span>\(\sqrt[n]{x}\)</span>
           </button>
           <!-- Parentheses -->
-          <button class="palette-btn math-symbol-btn" data-insert="\left(#?\right)" title="Parentheses ( )">
-            <span>( x )</span>
+          <button class="palette-btn math-symbol-btn" data-insert="\left(#?\right)" title="Parentheses">
+            <span>\((x)\)</span>
           </button>
           <!-- Absolute Value -->
-          <button class="palette-btn math-symbol-btn" data-insert="\left|#?\right|" title="Absolute Value |x|">
-            <span>| x |</span>
+          <button class="palette-btn math-symbol-btn" data-insert="\left|#?\right|" title="Absolute Value">
+            <span>\(|x|\)</span>
           </button>
           <!-- Integral -->
-          <button class="palette-btn math-symbol-btn" data-insert="\int_{#?}^{#?} #? \, dx" title="Definite Integral (∫)">
-            <span>&int; dx</span>
+          <button class="palette-btn math-symbol-btn" data-insert="\int_{#?}^{#?} #? \, dx" title="Definite Integral">
+            <span>\(\int_a^b\)</span>
           </button>
-          <!-- Derivative -->
-          <button class="palette-btn math-symbol-btn" data-insert="\frac{d}{dx}\left(#?\right)" title="Derivative (d/dx)">
-            <span><sup>d</sup>&frasl;<sub>dx</sub></span>
+          <!-- Derivative as proper stacked fraction -->
+          <button class="palette-btn math-symbol-btn" data-insert="\frac{d}{dx}\left(#?\right)" title="Derivative">
+            <span>\(\frac{d}{dx}\)</span>
           </button>
-          <!-- Limit -->
-          <button class="palette-btn math-symbol-btn" data-insert="\lim_{#? \to #?} #?" title="Limit (lim)">
-            <span>lim</span>
+          <!-- Limit with subscript -->
+          <button class="palette-btn math-symbol-btn" data-insert="\lim_{#? \to #?} #?" title="Limit">
+            <span>\(\lim_{x \to 0}\)</span>
           </button>
-          <!-- Summation -->
-          <button class="palette-btn math-symbol-btn" data-insert="\sum_{#?}^{#?} #?" title="Summation (Σ)">
-            <span>&Sigma;</span>
+          <!-- Summation with bounds -->
+          <button class="palette-btn math-symbol-btn" data-insert="\sum_{#?}^{#?} #?" title="Summation">
+            <span>\(\sum\)</span>
           </button>
           <!-- Pi -->
-          <button class="palette-btn math-symbol-btn" data-insert="\pi" title="Pi (π)">
-            <span>&pi;</span>
+          <button class="palette-btn math-symbol-btn" data-insert="\pi" title="Pi">
+            <span>\(\pi\)</span>
           </button>
           <!-- Theta -->
-          <button class="palette-btn math-symbol-btn" data-insert="\theta" title="Theta (θ)">
-            <span>&theta;</span>
+          <button class="palette-btn math-symbol-btn" data-insert="\theta" title="Theta">
+            <span>\(\theta\)</span>
           </button>
           <!-- Plus-Minus -->
-          <button class="palette-btn math-symbol-btn" data-insert="\pm" title="Plus-Minus (±)">
-            <span>&plusmn;</span>
+          <button class="palette-btn math-symbol-btn" data-insert="\pm" title="Plus-Minus">
+            <span>\(\pm\)</span>
           </button>
           <!-- Less than or equal -->
-          <button class="palette-btn math-symbol-btn" data-insert="\le" title="Less than or equal (≤)">
-            <span>&le;</span>
+          <button class="palette-btn math-symbol-btn" data-insert="\le" title="Less than or equal">
+            <span>\(\le\)</span>
           </button>
           <!-- Greater than or equal -->
-          <button class="palette-btn math-symbol-btn" data-insert="\ge" title="Greater than or equal (≥)">
-            <span>&ge;</span>
+          <button class="palette-btn math-symbol-btn" data-insert="\ge" title="Greater than or equal">
+            <span>\(\ge\)</span>
           </button>
           <!-- Not Equal -->
-          <button class="palette-btn math-symbol-btn" data-insert="\neq" title="Not Equal (≠)">
-            <span>&ne;</span>
+          <button class="palette-btn math-symbol-btn" data-insert="\neq" title="Not Equal">
+            <span>\(\neq\)</span>
           </button>
-          <!-- Matrix -->
+          <!-- Rendered 2x2 Matrix -->
           <button class="palette-btn math-symbol-btn" data-insert="\begin{pmatrix} #? & #? \\ #? & #? \end{pmatrix}" title="2x2 Matrix">
-            <span>[ ⸬ ]</span>
+            <span>\(\begin{pmatrix} \cdot & \cdot \\ \cdot & \cdot \end{pmatrix}\)</span>
           </button>
         </div>
       </div>
