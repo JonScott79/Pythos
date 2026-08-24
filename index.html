@@ -85,10 +85,10 @@
     }
 
     [data-theme="dark"] {
-      --bg-color: #0f172a; /* Slate 900 */
-      --surface-color: #1e293b; /* Slate 800 */
-      --sidebar-bg: #0f172a;
-      --sidebar-hover: #334155;
+      --bg-color: #0b1120; /* Deep Obsidian / Night Slate */
+      --surface-color: #131d31; /* Sleek Dark Slate */
+      --sidebar-bg: #0b1120;
+      --sidebar-hover: #1e293b;
       --text-main: #f8fafc;
       --text-muted: #94a3b8;
       --text-light: #f8fafc;
@@ -98,13 +98,19 @@
       --chat-ai-bg: #1e293b;
       --chat-user-bg: #0369a1;
       --border-color: #334155;
-      --input-bg: #0f172a;
-      --window-bg: #1e293b;
-      --window-header-bg: #0f172a;
+      --input-bg: #0b1120;
+      --window-bg: #131d31;
+      --window-header-bg: #0b1120;
     }
 
     [data-theme="dark"] .sidebar {
-      background-image: linear-gradient(rgba(15, 23, 42, 0.95), rgba(15, 23, 42, 0.95)), url('assets/math_bg.jpg') !important;
+      background-image: linear-gradient(rgba(11, 17, 32, 0.94), rgba(11, 17, 32, 0.94)), url('assets/math_bg.jpg') !important;
+      filter: none;
+    }
+
+    [data-theme="dark"] .main-area {
+      background-image: linear-gradient(rgba(11, 17, 32, 0.92), rgba(11, 17, 32, 0.92)), url('assets/math_bg.jpg') !important;
+      background-color: var(--bg-color) !important;
     }
 
     [data-theme="dark"] .katex {
@@ -780,7 +786,7 @@
       align-items: center;
       justify-content: space-between;
       padding: 8px 12px;
-      background: #f8fafc;
+      background: var(--window-header-bg);
       border-bottom: 1px solid var(--border-color);
       cursor: move;
     }
