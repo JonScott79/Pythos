@@ -79,6 +79,155 @@
       --chat-ai-bg: #f1f5f9;
       --chat-user-bg: #e0f2fe;
       --border-color: #e2e8f0;
+      --input-bg: #fcfbf9;
+      --window-bg: #ffffff;
+      --window-header-bg: #f8fafc;
+    }
+
+    [data-theme="dark"] {
+      --bg-color: #0f172a; /* Slate 900 */
+      --surface-color: #1e293b; /* Slate 800 */
+      --sidebar-bg: #0f172a;
+      --sidebar-hover: #334155;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-light: #f8fafc;
+      --primary-color: #38bdf8; /* Bright Sky Blue */
+      --primary-hover: #0284c7;
+      --accent-orange: #fb923c;
+      --chat-ai-bg: #1e293b;
+      --chat-user-bg: #0369a1;
+      --border-color: #334155;
+      --input-bg: #0f172a;
+      --window-bg: #1e293b;
+      --window-header-bg: #0f172a;
+    }
+
+    [data-theme="dark"] .sidebar {
+      background-image: linear-gradient(rgba(15, 23, 42, 0.95), rgba(15, 23, 42, 0.95)), url('assets/math_bg.jpg') !important;
+    }
+
+    [data-theme="dark"] .katex {
+      color: #f8fafc;
+    }
+
+    [data-theme="dark"] .floating-window {
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    }
+
+    /* Starter Suggestions Grid */
+    .starter-cards-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 10px;
+      margin: 16px 0;
+      padding: 0 4px;
+    }
+
+    .starter-card {
+      background: var(--surface-color);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 12px 14px;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      text-align: left;
+      user-select: none;
+    }
+
+    .starter-card:hover {
+      border-color: var(--primary-color);
+      background: var(--chat-ai-bg);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    }
+
+    .starter-card .starter-icon {
+      font-size: 1.2rem;
+      margin-bottom: 2px;
+    }
+
+    .starter-card .starter-title {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--primary-color);
+    }
+
+    .starter-card .starter-desc {
+      font-size: 0.76rem;
+      color: var(--text-muted);
+      line-height: 1.35;
+    }
+
+    /* Voice Recording Pulse Animation */
+    @keyframes micPulse {
+      0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); }
+      70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+
+    .voice-btn.recording {
+      background: #ef4444 !important;
+      color: #ffffff !important;
+      border-color: #ef4444 !important;
+      animation: micPulse 1.5s infinite;
+    }
+
+    /* Theme Toggle Button */
+    .theme-toggle-btn {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      border-radius: 6px;
+      padding: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+      margin-left: auto;
+    }
+
+    .theme-toggle-btn:hover {
+      background: var(--chat-ai-bg);
+      color: var(--primary-color);
+      border-color: var(--primary-color);
+    }
+
+    /* Image Attachment Chip in input */
+    .image-preview-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      background: var(--chat-ai-bg);
+      border-top: 1px solid var(--border-color);
+      font-size: 0.8rem;
+    }
+
+    .image-preview-thumb {
+      width: 34px;
+      height: 34px;
+      border-radius: 4px;
+      object-fit: cover;
+      border: 1px solid var(--border-color);
+    }
+
+    .image-preview-remove {
+      background: transparent;
+      border: none;
+      color: #ef4444;
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .image-preview-remove:hover {
+      background: #fee2e2;
     }
 
     body {
@@ -1468,11 +1617,22 @@
             <h1>PYTHOS</h1>
             <p>Mathematics & Physics Oracle</p>
           </div>
+          <button id="themeToggleBtn" class="theme-toggle-btn" title="Toggle Dark/Light Mode" aria-label="Toggle Theme">
+            <svg id="themeIconSun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none;"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+            <svg id="themeIconMoon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+          </button>
         </div>
 
         <div id="output"></div>
 
         <div class="input-area">
+          <!-- Image Attachment Preview Bar -->
+          <div id="imagePreviewBar" class="image-preview-bar" style="display: none;">
+            <img id="imagePreviewThumb" class="image-preview-thumb" src="" alt="Attachment Preview" />
+            <span id="imagePreviewName" style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">image.png</span>
+            <button id="imagePreviewRemove" class="image-preview-remove" title="Remove image">✕</button>
+          </div>
+
           <!-- PYTHOS MATH TOOLBOX -->
           <div class="toolbox-bar">
             <button id="toolCalcBtn" class="tool-btn" title="Scientific Calculator" aria-label="Scientific Calculator">
@@ -1503,8 +1663,16 @@
 
           <div class="input-wrapper">
             <button id="helpBtn" class="help-btn" title="Math Input Guide" aria-label="Math Input Guide">?</button>
-            <input id="userInput" type="text" placeholder="Speak to the Oracle..." autocomplete="off" maxlength="1500" />
+            <!-- Hidden file input for image upload -->
+            <input type="file" id="imageFileInput" accept="image/*" style="display: none;" />
+            <button id="uploadImageBtn" class="help-btn" title="Upload problem photo or diagram" aria-label="Upload Image">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+            </button>
+            <input id="userInput" type="text" placeholder="Speak to the Oracle or dictate..." autocomplete="off" maxlength="1500" />
             <span id="charCounter" class="char-counter" style="display:none;">0/1500</span>
+            <button id="voiceBtn" class="help-btn voice-btn" title="Voice Input (Speech-to-Text)" aria-label="Voice Input">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+            </button>
             <button id="submitBtn" class="send-btn" aria-label="Send">
               <svg class="send-icon" viewBox="0 0 24 24">
                 <line x1="22" y1="2" x2="11" y2="13"></line>

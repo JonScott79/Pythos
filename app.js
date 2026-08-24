@@ -328,12 +328,62 @@ function appendMessage(role, text) {
   output.scrollTop = output.scrollHeight;
 }
 
+function renderStarterCards() {
+  const container = document.createElement("div");
+  container.className = "starter-cards-container";
+  container.id = "starterCards";
+
+  const starters = [
+    {
+      icon: "📐",
+      title: "Factor Polynomials",
+      desc: "Step-by-step factoring: 2x² + 5x - 3",
+      prompt: "Can you guide me step-by-step through factoring the quadratic expression 2x^2 + 5x - 3?"
+    },
+    {
+      icon: "🚀",
+      title: "Physics Kinematics",
+      desc: "Projectile motion with launch angle θ",
+      prompt: "How do I calculate the maximum height and range of a projectile launched at velocity v_0 and angle theta?"
+    },
+    {
+      icon: "∫",
+      title: "Calculus Derivatives",
+      desc: "Chain rule derivative of sin(x²)",
+      prompt: "How do I apply the chain rule to find the derivative of f(x) = sin(x^2)?"
+    },
+    {
+      icon: "📈",
+      title: "Analyze & Graph",
+      desc: "Roots & extrema of f(x) = x³ - 3x",
+      prompt: "Can you help me find the roots, critical points, and plot f(x) = x^3 - 3*x?"
+    }
+  ];
+
+  starters.forEach(s => {
+    const card = document.createElement("div");
+    card.className = "starter-card";
+    card.innerHTML = `
+      <div class="starter-icon">${s.icon}</div>
+      <div class="starter-title">${s.title}</div>
+      <div class="starter-desc">${s.desc}</div>
+    `;
+    card.addEventListener("click", () => {
+      askPythos(s.prompt);
+    });
+    container.appendChild(card);
+  });
+
+  output.appendChild(container);
+}
+
 function clearChatUI() {
   output.innerHTML = "";
   messages = [];
   const intro = "Greetings. I am Pythos, your mathematical and physics guide. What concepts shall we explore today?";
   messages.push({ role: "assistant", content: intro });
   appendMessage("assistant", intro);
+  renderStarterCards();
   // Clear the preview
   const preview = document.getElementById("mathPreview");
   if (preview) preview.style.display = "none";
@@ -1410,6 +1460,147 @@ checkAskPythosBtn.addEventListener("click", () => {
     askPythos(`I was solving ${equation} and guessed that ${variable} = ${proposedVal}, but that yielded ${leftVal} instead of ${rightVal}. Can you guide me on where I went wrong?`);
   }
 });
+
+// =========================
+// THEME SWITCHER (DARK / LIGHT MODE)
+// =========================
+const themeToggleBtn = document.getElementById("themeToggleBtn");
+const themeIconSun = document.getElementById("themeIconSun");
+const themeIconMoon = document.getElementById("themeIconMoon");
+
+function applyTheme(theme) {
+  if (theme === "dark") {
+    document.documentElement.setAttribute("data-theme", "dark");
+    if (themeIconSun) themeIconSun.style.display = "block";
+    if (themeIconMoon) themeIconMoon.style.display = "none";
+  } else {
+    document.documentElement.removeAttribute("data-theme");
+    if (themeIconSun) themeIconSun.style.display = "none";
+    if (themeIconMoon) themeIconMoon.style.display = "block";
+  }
+}
+
+// Load saved theme or system preference
+const savedTheme = localStorage.getItem("pythos_theme") || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+applyTheme(savedTheme);
+
+if (themeToggleBtn) {
+  themeToggleBtn.addEventListener("click", () => {
+    const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+    const nextTheme = isDark ? "light" : "dark";
+    applyTheme(nextTheme);
+    localStorage.setItem("pythos_theme", nextTheme);
+  });
+}
+
+// =========================
+// VOICE INPUT (SPEECH-TO-TEXT)
+// =========================
+const voiceBtn = document.getElementById("voiceBtn");
+let recognition = null;
+let isRecording = false;
+
+if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
+  const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SpeechRec();
+  recognition.continuous = false;
+  recognition.interimResults = true;
+  recognition.lang = "en-US";
+
+  recognition.onstart = () => {
+    isRecording = true;
+    if (voiceBtn) voiceBtn.classList.add("recording");
+    input.placeholder = "Listening... Speak your math problem or question...";
+  };
+
+  recognition.onresult = (event) => {
+    let transcript = "";
+    for (let i = event.resultIndex; i < event.results.length; ++i) {
+      transcript += event.results[i][0].transcript;
+    }
+    if (transcript.trim()) {
+      input.value = transcript;
+      input.dispatchEvent(new Event("input"));
+    }
+  };
+
+  recognition.onerror = (event) => {
+    console.warn("[SPEECH ERROR]:", event.error);
+    isRecording = false;
+    if (voiceBtn) voiceBtn.classList.remove("recording");
+    input.placeholder = "Speak to the Oracle...";
+  };
+
+  recognition.onend = () => {
+    isRecording = false;
+    if (voiceBtn) voiceBtn.classList.remove("recording");
+    input.placeholder = "Speak to the Oracle...";
+  };
+}
+
+if (voiceBtn) {
+  voiceBtn.addEventListener("click", () => {
+    if (!recognition) {
+      alert("Speech recognition is not supported in this browser. Please try Chrome, Edge, or Safari.");
+      return;
+    }
+    if (isRecording) {
+      recognition.stop();
+    } else {
+      recognition.start();
+    }
+  });
+}
+
+// =========================
+// IMAGE PROBLEM UPLOAD / OCR PREVIEW
+// =========================
+const uploadImageBtn = document.getElementById("uploadImageBtn");
+const imageFileInput = document.getElementById("imageFileInput");
+const imagePreviewBar = document.getElementById("imagePreviewBar");
+const imagePreviewThumb = document.getElementById("imagePreviewThumb");
+const imagePreviewName = document.getElementById("imagePreviewName");
+const imagePreviewRemove = document.getElementById("imagePreviewRemove");
+
+let attachedImageData = null;
+
+if (uploadImageBtn && imageFileInput) {
+  uploadImageBtn.addEventListener("click", () => {
+    imageFileInput.click();
+  });
+
+  imageFileInput.addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      alert("Please select an image file (PNG, JPG, WEBP).");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      attachedImageData = evt.target.result;
+      if (imagePreviewThumb) imagePreviewThumb.src = attachedImageData;
+      if (imagePreviewName) imagePreviewName.textContent = file.name;
+      if (imagePreviewBar) imagePreviewBar.style.display = "flex";
+      
+      if (!input.value.trim()) {
+        input.value = `Can you solve and explain the math problem shown in this uploaded image (${file.name})?`;
+        input.dispatchEvent(new Event("input"));
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+if (imagePreviewRemove) {
+  imagePreviewRemove.addEventListener("click", () => {
+    attachedImageData = null;
+    if (imageFileInput) imageFileInput.value = "";
+    if (imagePreviewBar) imagePreviewBar.style.display = "none";
+  });
+}
 
 // ===== INIT =====
 clearChatUI();
