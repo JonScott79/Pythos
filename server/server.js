@@ -148,7 +148,7 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '15mb' }));
 
 // =====================================
 // Health Check Endpoint
@@ -213,7 +213,7 @@ app.post('/api/chat', async (req, res) => {
     });
   }
 
-  // Validate message objects
+  // Validate message objects (supports string content and optional images array for vision/OCR)
   const hasInvalidMsg = messages.some(m => !m || typeof m !== 'object' || typeof m.content !== 'string');
   if (hasInvalidMsg) {
     return res.status(400).json({
@@ -222,20 +222,26 @@ app.post('/api/chat', async (req, res) => {
     });
   }
 
-  // Enforce reasonable message payload length
-  const totalLength = messages.reduce((acc, m) => acc + (m.content ? m.content.length : 0), 0);
-  if (totalLength > 50000) {
-    return res.status(413).json({
-      error: 'payload_too_large',
-      message: 'Conversation history exceeds maximum allowable token length.'
-    });
-  }
-
   // Ensure system instructions are always present and up-to-date
   let preparedMessages = messages.filter(m => m && m.role !== 'system');
   preparedMessages.unshift({
     role: 'system',
     content: PYTHOS_SYSTEM_PROMPT
+  });
+
+  // Clean prepared messages for Ollama API (keep role, content, images)
+  preparedMessages = preparedMessages.map(m => {
+    const cleanMsg = {
+      role: m.role,
+      content: m.content
+    };
+    if (m.images && Array.isArray(m.images) && m.images.length > 0) {
+      cleanMsg.images = m.images.map(img => {
+        // Strip data:image/...;base64, prefix if present
+        return typeof img === 'string' && img.includes('base64,') ? img.split('base64,')[1] : img;
+      });
+    }
+    return cleanMsg;
   });
 
   // Use AbortController for deterministic timeout protection

@@ -193,12 +193,26 @@ function renderInlineGraph(canvas, exprString) {
   }
 }
 
-function appendMessage(role, text) {
+function appendMessage(role, text, images = null) {
   const div = document.createElement("div");
   div.className = `message ${role}`;
   
   const contentDiv = document.createElement("div");
   contentDiv.className = "message-content";
+
+  // If user attached an image, render it inside the message bubble
+  if (images && Array.isArray(images) && images.length > 0) {
+    const imgContainer = document.createElement("div");
+    imgContainer.style.cssText = "margin-bottom:8px; display:flex; flex-wrap:wrap; gap:6px;";
+    images.forEach(imgSrc => {
+      const imgEl = document.createElement("img");
+      imgEl.src = imgSrc;
+      imgEl.alt = "Attached Problem Image";
+      imgEl.style.cssText = "max-width:100%; max-height:260px; border-radius:6px; border:1px solid var(--border-color); object-fit:contain; background:#ffffff;";
+      imgContainer.appendChild(imgEl);
+    });
+    contentDiv.appendChild(imgContainer);
+  }
 
   // Filter out any raw TikZ blocks if LLM accidentally hallucinates them
   let sanitized = text.replace(/\\begin\{tikzpicture\}[\s\S]*?\\end\{tikzpicture\}/gi, "");
@@ -517,7 +531,7 @@ async function loadChat(chatId) {
     if (docSnap.exists()) {
       messages = docSnap.data().messages || [];
       messages.forEach(msg => {
-        appendMessage(msg.role, msg.content);
+        appendMessage(msg.role, msg.content, msg.images || null);
       });
     }
     loadSidebarChats(); // Refresh to update active state
@@ -713,9 +727,22 @@ async function askPythos(userText) {
 
   setInputLocked(true);
 
+  // Construct message object (with optional attached image for vision OCR)
+  const userMsgObj = { role: "user", content: userText };
+  let currentAttached = null;
+
+  if (attachedImageData) {
+    userMsgObj.images = [attachedImageData];
+    currentAttached = [attachedImageData];
+    // Reset image attachment state
+    attachedImageData = null;
+    if (imageFileInput) imageFileInput.value = "";
+    if (imagePreviewBar) imagePreviewBar.style.display = "none";
+  }
+
   // Append user message to history
-  messages.push({ role: "user", content: userText });
-  appendMessage("user", userText);
+  messages.push(userMsgObj);
+  appendMessage("user", userText, currentAttached);
   input.value = "";
   if (charCounter) charCounter.style.display = "none";
   // Hide the math preview
