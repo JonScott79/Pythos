@@ -21,6 +21,7 @@ const cors = require('cors');
 const rawOllamaHost = (process.env.OLLAMA_HOST || 'http://localhost:11434').trim().replace(/\/+$/, '');
 const OLLAMA_HOST = rawOllamaHost.endsWith('/api') ? rawOllamaHost.slice(0, -4) : rawOllamaHost;
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'pythos:latest';
+const OLLAMA_VISION_MODEL = process.env.OLLAMA_VISION_MODEL || 'llama3.2-vision:latest';
 const OLLAMA_API_KEY = process.env.OLLAMA_API_KEY ? process.env.OLLAMA_API_KEY.trim() : null;
 const PORT = process.env.PORT || 3006;
 const REQUEST_TIMEOUT_MS = parseInt(process.env.REQUEST_TIMEOUT_MS, 10) || 60000; // 60s timeout
@@ -229,13 +230,15 @@ app.post('/api/chat', async (req, res) => {
     content: PYTHOS_SYSTEM_PROMPT
   });
 
-  // Clean prepared messages for Ollama API (keep role, content, images)
+  // Detect if this request contains image payloads
+  let hasImages = false;
   preparedMessages = preparedMessages.map(m => {
     const cleanMsg = {
       role: m.role,
       content: m.content
     };
     if (m.images && Array.isArray(m.images) && m.images.length > 0) {
+      hasImages = true;
       cleanMsg.images = m.images.map(img => {
         // Strip data:image/...;base64, prefix if present
         return typeof img === 'string' && img.includes('base64,') ? img.split('base64,')[1] : img;
@@ -243,6 +246,8 @@ app.post('/api/chat', async (req, res) => {
     }
     return cleanMsg;
   });
+
+  const targetModel = hasImages ? (process.env.OLLAMA_VISION_MODEL || 'llama3.2-vision:latest') : OLLAMA_MODEL;
 
   // Use AbortController for deterministic timeout protection
   const controller = new AbortController();
@@ -254,7 +259,7 @@ app.post('/api/chat', async (req, res) => {
       headers: getOllamaHeaders(),
       signal: controller.signal,
       body: JSON.stringify({
-        model: OLLAMA_MODEL,
+        model: targetModel,
         messages: preparedMessages,
         stream: false,
         options: options || { temperature: 0.3 }
@@ -265,11 +270,13 @@ app.post('/api/chat', async (req, res) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('[PYTHOS API] Ollama upstream error:', response.status);
+      console.error('[PYTHOS API] Ollama upstream error:', response.status, errorText);
       return res.status(502).json({
         error: 'ollama_error',
         status: response.status,
-        message: 'Inference engine encountered an upstream error.'
+        message: hasImages
+          ? 'The Oracle could not process this image. The active backend model does not support image vision OCR.'
+          : 'Inference engine encountered an upstream error.'
       });
     }
 

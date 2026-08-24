@@ -786,13 +786,14 @@ async function askPythos(userText) {
         // Save to Firebase
         await saveChatState(userText, botReply);
     } else {
-        appendMessage("assistant", "The Oracle is silent. (API Error)");
+        const errNotice = data.message || "The Oracle is silent. (API Error)";
+        appendMessage("assistant", errNotice);
     }
 
   } catch (err) {
     console.error(err);
     removeThinking(thinking);
-    appendMessage("assistant", "The connection to Athens has been lost. Is Ollama running?");
+    appendMessage("assistant", "The connection to Athens has been lost. Is the inference server running?");
   }
 
   // Cooldown before allowing next message
