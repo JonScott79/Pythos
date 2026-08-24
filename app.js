@@ -328,62 +328,12 @@ function appendMessage(role, text) {
   output.scrollTop = output.scrollHeight;
 }
 
-function renderStarterCards() {
-  const container = document.createElement("div");
-  container.className = "starter-cards-container";
-  container.id = "starterCards";
-
-  const starters = [
-    {
-      icon: "📐",
-      title: "Factor Polynomials",
-      desc: "Step-by-step factoring: 2x² + 5x - 3",
-      prompt: "Can you guide me step-by-step through factoring the quadratic expression 2x^2 + 5x - 3?"
-    },
-    {
-      icon: "🚀",
-      title: "Physics Kinematics",
-      desc: "Projectile motion with launch angle θ",
-      prompt: "How do I calculate the maximum height and range of a projectile launched at velocity v_0 and angle theta?"
-    },
-    {
-      icon: "∫",
-      title: "Calculus Derivatives",
-      desc: "Chain rule derivative of sin(x²)",
-      prompt: "How do I apply the chain rule to find the derivative of f(x) = sin(x^2)?"
-    },
-    {
-      icon: "📈",
-      title: "Analyze & Graph",
-      desc: "Roots & extrema of f(x) = x³ - 3x",
-      prompt: "Can you help me find the roots, critical points, and plot f(x) = x^3 - 3*x?"
-    }
-  ];
-
-  starters.forEach(s => {
-    const card = document.createElement("div");
-    card.className = "starter-card";
-    card.innerHTML = `
-      <div class="starter-icon">${s.icon}</div>
-      <div class="starter-title">${s.title}</div>
-      <div class="starter-desc">${s.desc}</div>
-    `;
-    card.addEventListener("click", () => {
-      askPythos(s.prompt);
-    });
-    container.appendChild(card);
-  });
-
-  output.appendChild(container);
-}
-
 function clearChatUI() {
   output.innerHTML = "";
   messages = [];
   const intro = "Greetings. I am Pythos, your mathematical and physics guide. What concepts shall we explore today?";
   messages.push({ role: "assistant", content: intro });
   appendMessage("assistant", intro);
-  renderStarterCards();
   // Clear the preview
   const preview = document.getElementById("mathPreview");
   if (preview) preview.style.display = "none";
