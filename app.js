@@ -193,26 +193,12 @@ function renderInlineGraph(canvas, exprString) {
   }
 }
 
-function appendMessage(role, text, images = null) {
+function appendMessage(role, text) {
   const div = document.createElement("div");
   div.className = `message ${role}`;
   
   const contentDiv = document.createElement("div");
   contentDiv.className = "message-content";
-
-  // If user attached an image, render it inside the message bubble
-  if (images && Array.isArray(images) && images.length > 0) {
-    const imgContainer = document.createElement("div");
-    imgContainer.style.cssText = "margin-bottom:8px; display:flex; flex-wrap:wrap; gap:6px;";
-    images.forEach(imgSrc => {
-      const imgEl = document.createElement("img");
-      imgEl.src = imgSrc;
-      imgEl.alt = "Attached Problem Image";
-      imgEl.style.cssText = "max-width:100%; max-height:260px; border-radius:6px; border:1px solid var(--border-color); object-fit:contain; background:#ffffff;";
-      imgContainer.appendChild(imgEl);
-    });
-    contentDiv.appendChild(imgContainer);
-  }
 
   // Filter out any raw TikZ blocks if LLM accidentally hallucinates them
   let sanitized = text.replace(/\\begin\{tikzpicture\}[\s\S]*?\\end\{tikzpicture\}/gi, "");
@@ -313,7 +299,8 @@ function appendMessage(role, text, images = null) {
         graphCard.appendChild(canvas);
         graphCard.appendChild(infoRow);
       } else {
-        graphCard.innerHTML = `<div class="graph-render-fail">⚠️ Could not render graph for <code>${exprToGraph}</code>. Check expression syntax.</div>`;
+        // If the expression was not a valid 2D scalar function (e.g. vector prose or multi-variable), cleanly remove the placeholder card
+        graphCard.remove();
       }
     }
   }
@@ -502,9 +489,71 @@ function startRename(wrapper, chatId, currentTitle) {
   renameInput.addEventListener("blur", finishRename);
 }
 
+// ----- Greek Quotes on Erasure, Impermanence & Dissolution -----
+const GREEK_DELETION_QUOTES = [
+  `"What is written on the slate may be erased, but wisdom once gained remains." — Classical Proverb`,
+  `"No man ever steps in the same river twice, for it's not the same river and he's not the same man." — Heraclitus`,
+  `"Time is a game played beautifully by children, building and sweeping away the sands." — Heraclitus`,
+  `"Nothing exists except atoms and empty space; everything else is opinion." — Democritus`,
+  `"All is flux, nothing stays still... to clear the past is to make way for the new." — Heraclitus`,
+  `"The secret of change is to focus all of your energy not on fighting the old, but on building the new." — Socrates`,
+  `"To dissolve a problem is often more enlightening than to retain its confusion." — Aristotle`,
+  `"Let this discourse return to the void, that fresh inquiry may begin." — Socratic Reflection`
+];
+
+let lastQuoteIndex = -1;
+
+function getRandomGreekQuote() {
+  let nextIdx;
+  do {
+    nextIdx = Math.floor(Math.random() * GREEK_DELETION_QUOTES.length);
+  } while (nextIdx === lastQuoteIndex && GREEK_DELETION_QUOTES.length > 1);
+  lastQuoteIndex = nextIdx;
+  return GREEK_DELETION_QUOTES[nextIdx];
+}
+
+// ----- Custom Pythos Confirmation Modal Helper -----
+function showPythosConfirm(message = "Are you sure you wish to delete this chat session?") {
+  return new Promise((resolve) => {
+    const modal = document.getElementById("pythosConfirmModal");
+    const msgEl = document.getElementById("pythosConfirmMessage");
+    const quoteEl = document.getElementById("pythosConfirmQuote");
+    const okBtn = document.getElementById("pythosConfirmOk");
+    const cancelBtn = document.getElementById("pythosConfirmCancel");
+
+    if (!modal) {
+      return resolve(window.confirm(message));
+    }
+
+    if (msgEl) msgEl.textContent = message;
+    if (quoteEl) quoteEl.textContent = getRandomGreekQuote();
+    modal.classList.add("visible");
+
+    const cleanup = (result) => {
+      modal.classList.remove("visible");
+      okBtn.removeEventListener("click", onOk);
+      cancelBtn.removeEventListener("click", onCancel);
+      document.removeEventListener("keydown", onKey);
+      resolve(result);
+    };
+
+    const onOk = () => cleanup(true);
+    const onCancel = () => cleanup(false);
+    const onKey = (e) => {
+      if (e.key === "Escape") cleanup(false);
+      if (e.key === "Enter") cleanup(true);
+    };
+
+    okBtn.addEventListener("click", onOk);
+    cancelBtn.addEventListener("click", onCancel);
+    document.addEventListener("keydown", onKey);
+  });
+}
+
 // ----- Delete -----
 async function deleteChat(chatId) {
-  if (!confirm("Delete this chat session?")) return;
+  const confirmed = await showPythosConfirm("Are you sure you wish to delete this discussion from the archives?");
+  if (!confirmed) return;
   try {
     const docRef = doc(db, `users/${currentUser.uid}/pythos_chats`, chatId);
     await deleteDoc(docRef);
@@ -727,22 +776,9 @@ async function askPythos(userText) {
 
   setInputLocked(true);
 
-  // Construct message object (with optional attached image for vision OCR)
-  const userMsgObj = { role: "user", content: userText };
-  let currentAttached = null;
-
-  if (attachedImageData) {
-    userMsgObj.images = [attachedImageData];
-    currentAttached = [attachedImageData];
-    // Reset image attachment state
-    attachedImageData = null;
-    if (imageFileInput) imageFileInput.value = "";
-    if (imagePreviewBar) imagePreviewBar.style.display = "none";
-  }
-
   // Append user message to history
-  messages.push(userMsgObj);
-  appendMessage("user", userText, currentAttached);
+  messages.push({ role: "user", content: userText });
+  appendMessage("user", userText);
   input.value = "";
   if (charCounter) charCounter.style.display = "none";
   // Hide the math preview
@@ -800,10 +836,69 @@ async function askPythos(userText) {
   setTimeout(() => setInputLocked(false), 1000);
 }
 
+// =====================================
+// CHAT PROMPT HISTORY (CLI ↑ / ↓ STYLE)
+// =====================================
+const promptHistory = [];
+let historyIndex = -1;
+let savedDraft = "";
+
+function addToPromptHistory(text) {
+  const trimmed = text.trim();
+  if (!trimmed) return;
+  // Do not duplicate consecutive identical entries
+  if (promptHistory.length === 0 || promptHistory[promptHistory.length - 1] !== trimmed) {
+    promptHistory.push(trimmed);
+  }
+  historyIndex = -1;
+  savedDraft = "";
+}
+
 // ===== EVENTS =====
-button.addEventListener("click", () => askPythos(input.value));
-input.addEventListener("keypress", e => {
-  if (e.key === "Enter") askPythos(input.value);
+button.addEventListener("click", () => {
+  addToPromptHistory(input.value);
+  askPythos(input.value);
+});
+
+input.addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    addToPromptHistory(input.value);
+    askPythos(input.value);
+    return;
+  }
+
+  // Handle terminal-style Arrow Up / Down navigation
+  if (e.key === "ArrowUp") {
+    // Only intercept if cursor is at the very beginning of the input (or single-line input)
+    if (input.selectionStart === 0 && input.selectionEnd === 0) {
+      if (promptHistory.length > 0) {
+        if (historyIndex === -1) {
+          savedDraft = input.value; // Save whatever the user was typing
+          historyIndex = promptHistory.length - 1;
+        } else if (historyIndex > 0) {
+          historyIndex--;
+        }
+        input.value = promptHistory[historyIndex];
+        e.preventDefault();
+        renderInputPreview();
+      }
+    }
+  } else if (e.key === "ArrowDown") {
+    // Only intercept if cursor is at the end of the input (or moving forward through history)
+    if (historyIndex !== -1) {
+      if (historyIndex < promptHistory.length - 1) {
+        historyIndex++;
+        input.value = promptHistory[historyIndex];
+      } else {
+        // Return to the current draft
+        historyIndex = -1;
+        input.value = savedDraft;
+      }
+      e.preventDefault();
+      renderInputPreview();
+    }
+  }
 });
 
 // Enforce max length and update character counter live
@@ -1533,53 +1628,6 @@ if (voiceBtn) {
 // =========================
 // IMAGE PROBLEM UPLOAD / OCR PREVIEW
 // =========================
-const uploadImageBtn = document.getElementById("uploadImageBtn");
-const imageFileInput = document.getElementById("imageFileInput");
-const imagePreviewBar = document.getElementById("imagePreviewBar");
-const imagePreviewThumb = document.getElementById("imagePreviewThumb");
-const imagePreviewName = document.getElementById("imagePreviewName");
-const imagePreviewRemove = document.getElementById("imagePreviewRemove");
-
-let attachedImageData = null;
-
-if (uploadImageBtn && imageFileInput) {
-  uploadImageBtn.addEventListener("click", () => {
-    imageFileInput.click();
-  });
-
-  imageFileInput.addEventListener("change", (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    if (!file.type.startsWith("image/")) {
-      alert("Please select an image file (PNG, JPG, WEBP).");
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      attachedImageData = evt.target.result;
-      if (imagePreviewThumb) imagePreviewThumb.src = attachedImageData;
-      if (imagePreviewName) imagePreviewName.textContent = file.name;
-      if (imagePreviewBar) imagePreviewBar.style.display = "flex";
-      
-      if (!input.value.trim()) {
-        input.value = `Can you solve and explain the math problem shown in this uploaded image (${file.name})?`;
-        input.dispatchEvent(new Event("input"));
-      }
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
-if (imagePreviewRemove) {
-  imagePreviewRemove.addEventListener("click", () => {
-    attachedImageData = null;
-    if (imageFileInput) imageFileInput.value = "";
-    if (imagePreviewBar) imagePreviewBar.style.display = "none";
-  });
-}
-
 // ===== INIT =====
 clearChatUI();
 

@@ -1,0 +1,117 @@
+{
+  "version": 1,
+  "records": [
+    {
+      "id": "learn_1787614049437_1haqbc",
+      "topic": "Probability",
+      "problem_type": "Birthday Problem",
+      "original_error": "Claimed 24 people were required for probability > 50%.",
+      "failure_mode": "Off-by-one threshold interpretation when solving probability >= 0.5",
+      "corrected_result": "23 people",
+      "explanation": "At n=23, the probability of at least one shared birthday is approximately 50.73%, which exceeds 50%. At n=22, P ≈ 47.57%.",
+      "verification_method": "deterministic_probability_computation",
+      "confidence": "verified",
+      "version": 4,
+      "created_at": "2026-08-24T23:27:29.437Z",
+      "updated_at": "2026-08-25T00:50:19.471Z"
+    }
+  ],
+  "conflicts": [
+    {
+      "id": "conflict_1787614056038",
+      "existing_id": "learn_1787614049437_1haqbc",
+      "candidate_data": {
+        "topic": "Probability",
+        "problem_type": "Birthday Problem",
+        "original_error": "Claimed 23 people.",
+        "failure_mode": "Student claiming 17 is enough.",
+        "corrected_result": "17 people",
+        "explanation": "Student insists 17 people exceed 50% probability."
+      },
+      "flagged_at": "2026-08-24T23:27:36.038Z",
+      "status": "pending_review",
+      "reason": "Conflict between existing result (\"23 people\") and candidate result (\"17 people\")"
+    },
+    {
+      "id": "conflict_1787614056042",
+      "existing_id": "learn_1787614049437_1haqbc",
+      "candidate_data": {
+        "topic": "Probability",
+        "problem_type": "Birthday Problem",
+        "original_error": "Old error",
+        "failure_mode": "Contradictory claim",
+        "corrected_result": "25 people",
+        "explanation": "Someone claims 25 people",
+        "verification_method": "unverified_manual",
+        "confidence": "verified"
+      },
+      "flagged_at": "2026-08-24T23:27:36.042Z",
+      "status": "pending_review",
+      "reason": "Conflict between existing result (\"23 people\") and candidate result (\"25 people\")"
+    },
+    {
+      "id": "conflict_1787614794789",
+      "existing_id": "learn_1787614049437_1haqbc",
+      "candidate_data": {
+        "topic": "Probability",
+        "problem_type": "Birthday Problem",
+        "original_error": "Claimed 23 people.",
+        "failure_mode": "Student claiming 17 is enough.",
+        "corrected_result": "17 people",
+        "explanation": "Student insists 17 people exceed 50% probability."
+      },
+      "flagged_at": "2026-08-24T23:39:54.789Z",
+      "status": "pending_review",
+      "reason": "Conflict between existing result (\"23 people\") and candidate result (\"17 people\")"
+    },
+    {
+      "id": "conflict_1787614794792",
+      "existing_id": "learn_1787614049437_1haqbc",
+      "candidate_data": {
+        "topic": "Probability",
+        "problem_type": "Birthday Problem",
+        "original_error": "Old error",
+        "failure_mode": "Contradictory claim",
+        "corrected_result": "25 people",
+        "explanation": "Someone claims 25 people",
+        "verification_method": "unverified_manual",
+        "confidence": "verified"
+      },
+      "flagged_at": "2026-08-24T23:39:54.792Z",
+      "status": "pending_review",
+      "reason": "Conflict between existing result (\"23 people\") and candidate result (\"25 people\")"
+    },
+    {
+      "id": "conflict_1787619019475",
+      "existing_id": "learn_1787614049437_1haqbc",
+      "candidate_data": {
+        "topic": "Probability",
+        "problem_type": "Birthday Problem",
+        "original_error": "Claimed 23 people.",
+        "failure_mode": "Student claiming 17 is enough.",
+        "corrected_result": "17 people",
+        "explanation": "Student insists 17 people exceed 50% probability."
+      },
+      "flagged_at": "2026-08-25T00:50:19.475Z",
+      "status": "pending_review",
+      "reason": "Conflict between existing result (\"23 people\") and candidate result (\"17 people\")"
+    },
+    {
+      "id": "conflict_1787619019480",
+      "existing_id": "learn_1787614049437_1haqbc",
+      "candidate_data": {
+        "topic": "Probability",
+        "problem_type": "Birthday Problem",
+        "original_error": "Old error",
+        "failure_mode": "Contradictory claim",
+        "corrected_result": "25 people",
+        "explanation": "Someone claims 25 people",
+        "verification_method": "unverified_manual",
+        "confidence": "verified"
+      },
+      "flagged_at": "2026-08-25T00:50:19.480Z",
+      "status": "pending_review",
+      "reason": "Conflict between existing result (\"23 people\") and candidate result (\"25 people\")"
+    }
+  ]
+}

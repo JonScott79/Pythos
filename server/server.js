@@ -21,10 +21,10 @@ const cors = require('cors');
 const rawOllamaHost = (process.env.OLLAMA_HOST || 'http://localhost:11434').trim().replace(/\/+$/, '');
 const OLLAMA_HOST = rawOllamaHost.endsWith('/api') ? rawOllamaHost.slice(0, -4) : rawOllamaHost;
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'pythos:latest';
-const OLLAMA_VISION_MODEL = process.env.OLLAMA_VISION_MODEL || 'llama3.2-vision:latest';
+const OLLAMA_VISION_MODEL = process.env.OLLAMA_VISION_MODEL || 'llava:7b';
 const OLLAMA_API_KEY = process.env.OLLAMA_API_KEY ? process.env.OLLAMA_API_KEY.trim() : null;
 const PORT = process.env.PORT || 3006;
-const REQUEST_TIMEOUT_MS = parseInt(process.env.REQUEST_TIMEOUT_MS, 10) || 60000; // 60s timeout
+const REQUEST_TIMEOUT_MS = parseInt(process.env.REQUEST_TIMEOUT_MS, 10) || 180000; // 180s timeout for vision models
 
 // Pythos Socratic System Instructions (Passed at runtime for cloud models)
 const PYTHOS_SYSTEM_PROMPT = `You are Pythos, a wise, warm, and sharp mathematics and physics tutor inspired by Ancient Greek scholarship and Socratic pedagogy.
@@ -57,7 +57,7 @@ const PYTHOS_SYSTEM_PROMPT = `You are Pythos, a wise, warm, and sharp mathematic
      * Stop blind advancement, slow down, reframe with an intuitive explanation, offer an alternate method (e.g. Factoring vs. Quadratic Formula), and demonstrate steps clearly rather than trapping the student in an endless Socratic quiz.
 
 3. CASUAL CONVERSATION & SUBJECT DRIFT:
-   - If the student goes off-topic (e.g. asks about food, hobbies, or life in ancient Greece), respond warmly with a brief, genuine remark for a sentence, then naturally steer back to the active math/physics problem.
+   - If the student goes off-topic (e.g. asks about food, hobbies, or unrelated matters), give a brief, natural response in one sentence, and then explicitly steer the conversation back to the active problem (re-stating the equation/task and asking for the next step).
 
 4. REVERSE ENGINEERING & DIRECT SOLUTION REQUESTS:
    - When the student explicitly asks for the answer or full solution, provide it immediately and walk through the derivation clearly.
@@ -74,19 +74,51 @@ const PYTHOS_SYSTEM_PROMPT = `You are Pythos, a wise, warm, and sharp mathematic
 - SQUARING BINOMIALS: When squaring an expression $(x - c)^2$, remember $(x - c)^2 = x^2 - 2cx + c^2$. NEVER confuse squaring $(x - c)^2$ with the difference of squares $(x - c)(x + c)$.
 - RADICAL EQUATIONS & EXTRANEOUS ROOTS: Always test candidate solutions in the ORIGINAL radical equation. For $\\sqrt{x + 3} = x - 3$, squaring gives $x + 3 = (x - 3)^2 = x^2 - 6x + 9 \\Rightarrow x^2 - 7x + 6 = 0 \\Rightarrow (x-6)(x-1)=0$. $x=6$ yields $\\sqrt{9}=3$ (Valid), but $x=1$ yields $\\sqrt{4} = -2$ which is FALSE ($x=1$ is extraneous).
 - FALLACY & PROOF TRAPS: Watch for division by zero. In the classic "2 = 1" fallacy where $a = b$, dividing both sides of $(a - b)(a + b) = b(a - b)$ by $(a - b)$ is illegal because $a - b = 0$, and division by zero is undefined. Always pinpoint division by zero as the exact flaw.
+- PHYSICS VECTOR DECOMPOSITION & CIRCULAR DYNAMICS (ABSOLUTE LAWS):
+  * CENTRIPETAL FORCE DEFINITION:
+    - In circular motion, centripetal force is ALWAYS the NET inward radial force directed toward the center of the circular path ($\vec{F}_{\text{net}} = \Sigma \vec{F}_r = m \vec{a}_c = \frac{m v^2}{r} \hat{r} \neq \mathbf{0}$).
+    - Centripetal force is NOT a separate, additional physical force on a free-body diagram; it is the RESULTANT radial force provided by physical interactions (e.g. the horizontal component of string tension, friction, or gravity).
+    - NEVER say "net force is the sum of centripetal force and other forces" (centripetal force IS the net radial force).
+    - NEVER say "the centripetal force could be balanced by other forces" or "the net force could be zero in circular motion". In any circular motion, net force is STRICTLY NONZERO.
+  * GEOMETRIC TRIGONOMETRY & COMPONENT DECOMPOSITION:
+    - ALWAYS carefully inspect where the angle $\theta$ is measured from:
+      1. If angle $\theta$ is measured FROM THE VERTICAL:
+         - Adjacent side = VERTICAL component = $F \cos\theta$.
+         - Opposite side = HORIZONTAL / RADIAL component = $F \sin\theta$.
+      2. If angle $\theta$ is measured FROM THE HORIZONTAL:
+         - Adjacent side = HORIZONTAL / RADIAL component = $F \cos\theta$.
+         - Opposite side = VERTICAL component = $F \sin\theta$.
+    - NEVER mix up or swap $\sin$ and $\cos$.
+  * CONSTANT SPEED vs. CONSTANT VELOCITY & TOTAL NET FORCE:
+    - Constant speed in a circle does NOT mean constant velocity. Speed is a scalar, but velocity is a vector ($\vec{v}$).
+    - Because the direction of motion continuously changes along the curved path, the velocity vector $\vec{v}$ is NOT constant ($d\vec{v}/dt \neq \mathbf{0}$).
+    - Therefore, there is a nonzero centripetal acceleration ($a_c = \frac{v^2}{R} \neq 0$) directed toward the center.
+    - By Newton's Second Law ($\Sigma \vec{F} = m\vec{a}$), the TOTAL NET FORCE IS STRICTLY NONZERO ($\Sigma \vec{F} = \vec{F}_{\text{net}} \neq \mathbf{0}$) and points directly toward the center of the circle ($\Sigma F_r = \frac{M v^2}{R}$).
+    - NEVER equate "vertical forces balance" ($\Sigma F_y = 0$) with "net force is zero".
+  * NUMERICAL EXECUTION: Whenever a student or problem asks for a numerical value (e.g. calculation of time, roots, or values), ALWAYS complete the full arithmetic and state the final evaluated numerical answer explicitly with units (e.g. for $\sqrt{\frac{2(20)}{9.8}} \approx 2.02\text{ s}$, always write out the final $\approx 2.02\text{ s}$).
+  * CONTEXTUAL SYNTHESIS & AP PHYSICS MISCONCEPTION AUDITING:
+    - When evaluating student arguments about circular motion:
+      1. If a student claims "there is no centripetal force because forces are angled/not pointing to center":
+         - Clarify that centripetal force is NOT an extra force on the free-body diagram; the inward radial component of the physical force (e.g. $T \sin\theta$) provides the necessary centripetal acceleration ($a_c = \frac{v^2}{R}$).
+      2. If a student claims "because a force is angled, its vertical component is less than Mg, so it accelerates downward":
+         - Clarify that in horizontal circular motion, vertical acceleration is zero ($a_y = 0$). Thus the vertical component EQUALS $Mg$ ($T \cos\theta = Mg$).
+         - The tension magnitude increases to $T = \frac{Mg}{\cos\theta} > Mg$ so its vertical component fully supports the weight.
+      3. CRITICAL SYNTHESIS RULE — VERTICAL EQUILIBRIUM $\neq$ TOTAL EQUILIBRIUM:
+         - The cancellation of vertical forces ($\Sigma F_y = 0$) DOES NOT mean the total net force is zero.
+         - The object is accelerating radially ($a_r = \frac{v^2}{R} \neq 0$). Thus, the total net force is NONZERO and directed radially inward ($\vec{F}_{\text{net}} = \Sigma \vec{F}_r = \frac{M v^2}{R} \hat{r} \neq \mathbf{0}$).
+         - NEVER claim or imply that the net force on the object is zero.
+  * Keep explanations crisp, physically rigorous, and conceptually clear without lecturing.
 - Double-check arithmetic, signs, factoring, and units.
 
 # MULTILINGUAL / POLYGLOT
 - Automatically detect the student's language and respond fluently in that exact same language (English, Spanish, French, German, Chinese, Japanese, etc.).
 
 # GRAPHING & VISUALIZATION (CRITICAL)
-- When a student asks you to graph, plot, or visualize a function or equation (e.g., "Graph 5x^2", "Plot 5x^2 = 0", "Plot sin(x)", "Show me the graph of y = 2x + 3"):
-  - NEVER output raw LaTeX/TikZ code like \\begin{tikzpicture}, \\begin{axis}, or ascii art unless the student explicitly asks for source code.
-  - Insert the deterministic graphing token on its own line: [GRAPH: expression] where expression is the mathematical function in terms of x (e.g. [GRAPH: 5*x^2], [GRAPH: sin(x)], [GRAPH: x^2 - 4]).
-  - The frontend engine will automatically intercept this token and render a live, high-precision interactive 2D graph directly inside your message bubble with an interactive "[ Open in Graph ↗ ]" button.
-  - After or before the [GRAPH: ...] token, provide your clear, conceptual explanation of what the graph shows:
-    - For y = ax^2 with a > 0 (e.g. y = 5x^2): It is a parabola that opens UPWARD, and the vertex at (0,0) is a **MINIMUM** (not a maximum), where y >= 0 for all real x.
-    - For y = ax^2 with a < 0: It is a parabola that opens DOWNWARD with a **MAXIMUM** at the vertex.
+- The inline graphing system ONLY accepts standard 1-variable scalar mathematical functions of $x$, e.g. $y = f(x)$.
+- When a student asks you to graph or plot a mathematical function of $x$ (e.g., "Graph 5x^2", "Plot sin(x)", "Show me y = 2x + 3"):
+  - NEVER output raw LaTeX/TikZ code like \\begin{tikzpicture}, \\begin{axis}, or ascii art.
+  - Insert the deterministic graphing token on its own line: [GRAPH: expression] where expression is ONLY a valid scalar function in terms of x (e.g. [GRAPH: 5*x^2], [GRAPH: sin(x)], [GRAPH: x^2 - 4]).
+  - NEVER emit a [GRAPH: ...] token for multi-variable equations, vector pairs, physics diagrams, or free-body diagrams (e.g. NEVER emit expressions with commas, tuples, or non-x variables like T * (cos(theta), sin(theta))). For free-body diagrams or vector concepts, describe the vectors clearly in LaTeX text.
 
 # MATHEMATICAL NOTATION & LATEX (CRITICAL)
 - Students do NOT need to know LaTeX. You must automatically format all mathematical and physics notation in clean LaTeX.
@@ -200,6 +232,9 @@ app.get('/health/ready', async (req, res) => {
   }
 });
 
+const learningStore = require('./learningStore');
+const { runDeterministicVerification, extractClaims } = require('./verificationBridge');
+
 // =====================================
 // Public Chat / Inference Route
 // =====================================
@@ -223,11 +258,16 @@ app.post('/api/chat', async (req, res) => {
     });
   }
 
+  // Extract latest user query to retrieve relevant verified lessons
+  const lastUserMsg = [...messages].reverse().find(m => m && m.role === 'user');
+  const relevantLessons = lastUserMsg ? learningStore.retrieveRelevantCorrections(lastUserMsg.content) : [];
+  const learningContext = learningStore.formatLearningContext(relevantLessons);
+
   // Ensure system instructions are always present and up-to-date
   let preparedMessages = messages.filter(m => m && m.role !== 'system');
   preparedMessages.unshift({
     role: 'system',
-    content: PYTHOS_SYSTEM_PROMPT
+    content: PYTHOS_SYSTEM_PROMPT + learningContext
   });
 
   // Detect if this request contains image payloads
@@ -247,46 +287,156 @@ app.post('/api/chat', async (req, res) => {
     return cleanMsg;
   });
 
-  const targetModel = hasImages ? (process.env.OLLAMA_VISION_MODEL || 'llama3.2-vision:latest') : OLLAMA_MODEL;
-
-  // Use AbortController for deterministic timeout protection
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const targetModel = hasImages ? (process.env.OLLAMA_VISION_MODEL || OLLAMA_VISION_MODEL) : OLLAMA_MODEL;
 
   try {
-    const response = await fetch(`${OLLAMA_HOST}/api/chat`, {
-      method: 'POST',
-      headers: getOllamaHeaders(),
-      signal: controller.signal,
-      body: JSON.stringify({
-        model: targetModel,
-        messages: preparedMessages,
-        stream: false,
-        options: options || { temperature: 0.3 }
-      })
+    const payload = JSON.stringify({
+      model: targetModel,
+      messages: preparedMessages,
+      stream: true,
+      options: options || { temperature: 0.3 }
     });
 
-    clearTimeout(timeoutId);
+    const isHttps = OLLAMA_HOST.startsWith('https://');
+    const httpLib = isHttps ? require('https') : require('http');
+    const parsedUrl = new URL(`${OLLAMA_HOST}/api/chat`);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[PYTHOS API] Ollama upstream error:', response.status, errorText);
-      return res.status(502).json({
-        error: 'ollama_error',
-        status: response.status,
-        message: hasImages
-          ? 'The Oracle could not process this image. The active backend model does not support image vision OCR.'
-          : 'Inference engine encountered an upstream error.'
+    const ollamaHeaders = getOllamaHeaders();
+    ollamaHeaders['Content-Type'] = 'application/json';
+    ollamaHeaders['Content-Length'] = Buffer.byteLength(payload);
+
+    const ollamaResponse = await new Promise((resolve, reject) => {
+      const req = httpLib.request({
+        hostname: parsedUrl.hostname,
+        port: parsedUrl.port || (isHttps ? 443 : 80),
+        path: parsedUrl.pathname,
+        method: 'POST',
+        headers: ollamaHeaders,
+        timeout: REQUEST_TIMEOUT_MS
+      }, (res) => {
+        let fullText = '';
+        let lastMsg = null;
+
+        res.on('data', (chunk) => {
+          const lines = chunk.toString().split('\n').filter(Boolean);
+          for (const line of lines) {
+            try {
+              const data = JSON.parse(line);
+              if (data.message && data.message.content) {
+                fullText += data.message.content;
+              }
+              lastMsg = data;
+            } catch (e) {}
+          }
+        });
+
+        res.on('end', () => {
+          if (res.statusCode >= 400) {
+            return reject(new Error(`Ollama returned status ${res.statusCode}`));
+          }
+          resolve({
+            model: targetModel,
+            message: {
+              role: 'assistant',
+              content: fullText
+            },
+            done: true
+          });
+        });
       });
+
+      req.on('timeout', () => {
+        req.destroy();
+        reject(new Error('ETIMEDOUT'));
+      });
+
+      req.on('error', (err) => {
+        reject(err);
+      });
+
+      req.write(payload);
+      req.end();
+    });
+
+    // =====================================
+    // Deterministic Verification & Revision Loop
+    // =====================================
+    let finalContent = ollamaResponse.message ? ollamaResponse.message.content : '';
+    const claims = extractClaims(finalContent);
+
+    if (claims.length > 0) {
+      for (const claim of claims) {
+        const verification = await runDeterministicVerification(claim);
+        if (verification && verification.verified === false && verification.status !== 'UNKNOWN') {
+          console.warn('[VERIFIER] Contradiction detected in LLM response:', verification);
+
+          // Revision step: Ask Pythos to correct its step given the deterministic verification feedback
+          try {
+            const revisionPrompt = [
+              ...preparedMessages,
+              { role: 'assistant', content: finalContent },
+              {
+                role: 'user',
+                content: `[VERIFICATION FEEDBACK]: An independent verification check found the following issue in your reasoning:\n- Issue: ${verification.error_type || verification.status}\n- Details: ${verification.details || verification.reason}\n\nPlease revise your solution and correct this mathematical/physical step precisely.`
+              }
+            ];
+
+            const revPayload = JSON.stringify({
+              model: targetModel,
+              messages: revisionPrompt,
+              stream: true,
+              options: options || { temperature: 0.1 }
+            });
+
+            const revisedResponse = await new Promise((resolveRev, rejectRev) => {
+              const revReq = httpLib.request({
+                hostname: parsedUrl.hostname,
+                port: parsedUrl.port || (isHttps ? 443 : 80),
+                path: parsedUrl.pathname,
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Content-Length': Buffer.byteLength(revPayload),
+                  ...(OLLAMA_API_KEY ? { 'Authorization': `Bearer ${OLLAMA_API_KEY}` } : {})
+                },
+                timeout: REQUEST_TIMEOUT_MS
+              }, (revRes) => {
+                let revText = '';
+                revRes.on('data', (chunk) => {
+                  const lines = chunk.toString().split('\n').filter(Boolean);
+                  for (const l of lines) {
+                    try {
+                      const d = JSON.parse(l);
+                      if (d.message && d.message.content) revText += d.message.content;
+                    } catch (e) {}
+                  }
+                });
+                revRes.on('end', () => {
+                  resolveRev(revText);
+                });
+              });
+              revReq.on('error', (e) => rejectRev(e));
+              revReq.write(revPayload);
+              revReq.end();
+            });
+
+            if (revisedResponse && revisedResponse.trim()) {
+              console.log('[VERIFIER] Solution revised successfully by Pythos.');
+              finalContent = revisedResponse.trim();
+              ollamaResponse.message.content = finalContent;
+            }
+          } catch (revErr) {
+            console.error('[VERIFIER] Revision call failed:', revErr.message);
+          }
+          break; // Avoid nested cascading revisions in a single turn
+        }
+      }
     }
 
-    const data = await response.json();
-    return res.status(200).json(data);
+    return res.status(200).json(ollamaResponse);
 
   } catch (error) {
-    clearTimeout(timeoutId);
-
-    if (error.name === 'AbortError') {
+    if (error.message === 'ETIMEDOUT' || error.name === 'AbortError') {
       console.error('[PYTHOS API] Request timed out after', REQUEST_TIMEOUT_MS, 'ms');
       return res.status(504).json({
         error: 'gateway_timeout',
@@ -300,6 +450,31 @@ app.post('/api/chat', async (req, res) => {
       message: 'Failed to connect to the Pythos inference host.'
     });
   }
+});
+
+// =====================================
+// Verified Mistake Learning Routes
+// =====================================
+app.get('/api/learning/history', (req, res) => {
+  try {
+    const history = learningStore.getLearningHistory();
+    return res.status(200).json(history);
+  } catch (err) {
+    return res.status(500).json({ error: 'learning_history_error', message: err.message });
+  }
+});
+
+app.post('/api/learning/record', (req, res) => {
+  const candidate = req.body;
+  if (!candidate || typeof candidate !== 'object') {
+    return res.status(400).json({ error: 'invalid_candidate', message: 'Candidate payload is required.' });
+  }
+
+  const result = learningStore.storeVerifiedCorrection(candidate);
+  if (!result.success) {
+    return res.status(400).json(result);
+  }
+  return res.status(200).json(result);
 });
 
 // =====================================
