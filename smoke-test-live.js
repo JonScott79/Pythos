@@ -56,7 +56,7 @@ async function runQuery(prompt) {
           const json = JSON.parse(body);
           resolve({
             statusCode: res.statusCode,
-            deterministic: json.deterministic,
+            deterministic: !!json.deterministic,
             content: (json.message && json.message.content) ? json.message.content : ''
           });
         } catch (e) {
@@ -81,13 +81,17 @@ async function smokeTest() {
     console.log(`▶ Testing Category: ${sc.category}`);
     try {
       const res = await runQuery(sc.prompt);
-      console.log(`  Status: ${res.statusCode} | Deterministic: ${res.deterministic}`);
-      const ok = sc.check(res.content);
-      if (ok) {
+      const isDetMatch = res.deterministic === sc.expectDeterministic;
+      const contentMatch = sc.check(res.content);
+      const routeLabel = res.deterministic ? 'Pure Deterministic Route (0 AI)' : 'Hybrid Semantic AI + Preflight CAS';
+
+      console.log(`  Status: ${res.statusCode} | Mode: ${routeLabel}`);
+      if (contentMatch && isDetMatch) {
         console.log(`  ✅ [PASS] ${sc.category}`);
         passed++;
       } else {
-        console.log(`  ❌ [FAIL] Content mismatch. Snippet:\n  ${res.content.slice(0, 160)}...`);
+        console.log(`  ❌ [FAIL] Content or Route mismatch. DetMatch: ${isDetMatch}, ContentMatch: ${contentMatch}`);
+        console.log(`  Snippet: ${res.content.slice(0, 160)}...`);
       }
     } catch (err) {
       console.log(`  ❌ [ERROR] ${err.message}`);
@@ -103,6 +107,7 @@ async function smokeTest() {
                     normalized.includes('**b. Subtract:** $\\frac{7}{8} - \\frac{1}{3}$') &&
                     normalized.includes('**c. Multiply:** $\\frac{5}{6} \\times \\frac{2}{9}$');
   if (ocrPassed) {
+    console.log('  Mode: Deterministic AST Syntax Normalizer');
     console.log('  ✅ [PASS] OCR Worksheet Fraction Normalization');
     passed++;
   } else {

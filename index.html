@@ -179,39 +179,6 @@
       font-family: 'Cinzel', serif;
     }
 
-    /* Image Attachment Chip in input */
-    .image-preview-bar {
-      display: none;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 12px;
-      background: var(--chat-ai-bg);
-      border-top: 1px solid var(--border-color);
-      font-size: 0.8rem;
-    }
-
-    .image-preview-thumb {
-      width: 34px;
-      height: 34px;
-      border-radius: 4px;
-      object-fit: cover;
-      border: 1px solid var(--border-color);
-    }
-
-    .image-preview-remove {
-      background: transparent;
-      border: none;
-      color: #ef4444;
-      cursor: pointer;
-      font-size: 1rem;
-      padding: 2px 6px;
-      border-radius: 4px;
-    }
-
-    .image-preview-remove:hover {
-      background: #fee2e2;
-    }
-
     body {
       margin: 0;
       padding: 0;
@@ -1746,6 +1713,7 @@
           <a href="calculus/">Calculus</a>
           <a href="physics/">Physics</a>
           <a href="about/">About</a>
+          <a href="changelog.html#pythos-1-0-0" title="View Changelog">v1.0.0</a>
         </nav>
       </div>
     </aside>
@@ -1760,7 +1728,7 @@
         <div class="header">
           <img class="header-avatar" src="assets/pythos_avatar.jpg" alt="Pythos Avatar" />
           <div class="header-info">
-            <h1>PYTHOS</h1>
+            <h1>PYTHOS <a href="changelog.html#pythos-1-0-0" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.0.0)">v1.0.0</a></h1>
             <p>Mathematics & Physics Oracle</p>
           </div>
           <button id="themeToggleBtn" class="theme-toggle-btn" title="Toggle Dark/Light Mode" aria-label="Toggle Theme">
@@ -1800,17 +1768,8 @@
             </button>
           </div>
 
-          <!-- ATTACHED IMAGE PREVIEW BAR -->
-          <div id="imagePreviewBar" class="image-preview-bar">
-            <img id="imagePreviewThumb" class="image-preview-thumb" src="" alt="Worksheet preview" />
-            <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">Attached image / worksheet</span>
-            <button id="imagePreviewRemove" class="image-preview-remove" title="Remove image">&times;</button>
-          </div>
-
           <div class="input-wrapper">
             <button id="helpBtn" class="help-btn" title="Math Input Guide" aria-label="Math Input Guide">?</button>
-            <button id="imageUploadBtn" class="help-btn" title="Upload Math Problem / Worksheet Image" aria-label="Upload Image">🖼️</button>
-            <input type="file" id="imageFileInput" accept="image/*" style="display:none;" />
             <input id="userInput" type="text" placeholder="Speak to the Oracle, dictate, or upload worksheet..." autocomplete="off" maxlength="1500" />
             <span id="charCounter" class="char-counter" style="display:none;">0/1500</span>
             <button id="voiceBtn" class="help-btn voice-btn" title="Voice Input (Speech-to-Text)" aria-label="Voice Input">

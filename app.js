@@ -883,39 +883,20 @@ function setInputLocked(locked) {
 }
 
 async function askPythos(userText) {
-  const hasText = userText && userText.trim();
-  if (!hasText && !pendingImageBase64) return;
+  if (!userText || !userText.trim()) return;
   if (isProcessing) return; // Block spam
 
-  // Default prompt when an image is submitted without text
-  const promptText = hasText ? userText.trim() : "Please read, transcribe, and solve the math problems shown in this attached worksheet image.";
-
   // Cap input length
-  let cleanText = promptText;
+  let cleanText = userText.trim();
   if (cleanText.length > MAX_INPUT_LENGTH) {
     cleanText = cleanText.substring(0, MAX_INPUT_LENGTH);
   }
 
   setInputLocked(true);
 
-  // Check if image is attached
-  let attachedImages = null;
-  if (pendingImageBase64) {
-    attachedImages = [pendingImageBase64];
-    pendingImageBase64 = null;
-    const previewBar = document.getElementById("imagePreviewBar");
-    if (previewBar) previewBar.style.display = "none";
-    const fileInput = document.getElementById("imageFileInput");
-    if (fileInput) fileInput.value = "";
-  }
-
   // Append user message to history
-  const userMsgObj = { role: "user", content: cleanText };
-  if (attachedImages) {
-    userMsgObj.images = attachedImages;
-  }
-  messages.push(userMsgObj);
-  appendMessage("user", cleanText, attachedImages);
+  messages.push({ role: "user", content: cleanText });
+  appendMessage("user", cleanText);
   input.value = "";
   if (charCounter) charCounter.style.display = "none";
   // Hide the math preview
@@ -1849,59 +1830,6 @@ if (voiceBtn) {
     }
   });
 }
-
-// =========================
-// IMAGE PROBLEM UPLOAD / OCR PREVIEW
-// =========================
-let pendingImageBase64 = null;
-const imageUploadBtn = document.getElementById("imageUploadBtn");
-const imageFileInput = document.getElementById("imageFileInput");
-const imagePreviewBar = document.getElementById("imagePreviewBar");
-const imagePreviewThumb = document.getElementById("imagePreviewThumb");
-const imagePreviewRemove = document.getElementById("imagePreviewRemove");
-
-function handleFileSelect(file) {
-  if (!file || !file.type.startsWith("image/")) return;
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    pendingImageBase64 = e.target.result;
-    if (imagePreviewThumb) imagePreviewThumb.src = pendingImageBase64;
-    if (imagePreviewBar) imagePreviewBar.style.display = "flex";
-    input.focus();
-  };
-  reader.readAsDataURL(file);
-}
-
-if (imageUploadBtn && imageFileInput) {
-  imageUploadBtn.addEventListener("click", () => imageFileInput.click());
-  imageFileInput.addEventListener("change", (e) => {
-    if (e.target.files && e.target.files[0]) {
-      handleFileSelect(e.target.files[0]);
-    }
-  });
-}
-
-if (imagePreviewRemove) {
-  imagePreviewRemove.addEventListener("click", () => {
-    pendingImageBase64 = null;
-    if (imagePreviewBar) imagePreviewBar.style.display = "none";
-    if (imageFileInput) imageFileInput.value = "";
-  });
-}
-
-// Support clipboard paste of images
-document.addEventListener("paste", (e) => {
-  if (e.clipboardData && e.clipboardData.items) {
-    for (let i = 0; i < e.clipboardData.items.length; i++) {
-      const item = e.clipboardData.items[i];
-      if (item.type.indexOf("image") !== -1) {
-        const blob = item.getAsFile();
-        handleFileSelect(blob);
-        break;
-      }
-    }
-  }
-});
 
 // ===== INIT =====
 clearChatUI();

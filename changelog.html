@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pythos - Changelog & Release History</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .changelog-container {
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 0 20px;
+      line-height: 1.6;
+      color: var(--text-color, #c9d1d9);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    }
+    .back-nav {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 24px;
+      color: #58a6ff;
+      text-decoration: none;
+      font-size: 0.95rem;
+      font-weight: 500;
+    }
+    .back-nav:hover {
+      text-decoration: underline;
+    }
+    .version-entry {
+      border-bottom: 1px solid var(--border-color, #30363d);
+      padding-bottom: 30px;
+      margin-bottom: 30px;
+    }
+    .version-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(240, 246, 252, 0.1);
+      padding-bottom: 8px;
+      margin-bottom: 16px;
+    }
+    .version-title {
+      font-size: 1.5rem;
+      color: #f0f6fc;
+      margin: 0;
+    }
+    .version-date {
+      color: #8b949e;
+      font-size: 0.9rem;
+    }
+    .section-title {
+      font-size: 1.1rem;
+      color: #58a6ff;
+      margin: 16px 0 8px 0;
+    }
+    ul {
+      margin: 0 0 16px 20px;
+      padding: 0;
+    }
+    li {
+      margin-bottom: 6px;
+    }
+    code {
+      background: rgba(110, 118, 129, 0.2);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.85em;
+    }
+  </style>
+</head>
+<body>
+  <div class="changelog-container">
+    <a href="index.html" class="back-nav">← Back to Pythos</a>
+
+    <header>
+      <h1 style="color: #f0f6fc; margin-bottom: 8px;">Pythos Changelog</h1>
+      <p style="color: #8b949e; margin-bottom: 32px;">Authoritative release history and mathematical verification engine updates.</p>
+    </header>
+
+    <!-- Version 1.0.0 Entry -->
+    <article class="version-entry" id="pythos-1-0-0">
+      <div class="version-header">
+        <h2 class="version-title">Pythos 1.0.0</h2>
+        <span class="version-date">August 26, 2026</span>
+      </div>
+
+      <div class="entry-content">
+        <h3 class="section-title">Added</h3>
+        <ul>
+          <li><strong>Specialized Problem Classifier & Router</strong> (<code>problemClassifier.js</code>): Multi-domain routing supporting <code>ARITHMETIC</code>, <code>ALGEBRA</code>, <code>CALCULUS</code>, <code>PROBABILITY</code>, <code>STATISTICS</code>, <code>PHYSICS</code>, and <code>CONCEPTUAL</code> reasoning.</li>
+          <li><strong>Two-Stage Reasoning Engine</strong>: Clear separation between Stage 1 (Situation & Model Identification) and Stage 2 (Exact Mathematical & Physical Derivation).</li>
+          <li><strong>Worksheet OCR Math Normalizer</strong> (<code>ocrMathNormalizer.js</code>): Parses stacked ASCII fractions, inline ratios, and labeled problem worksheets into structured LaTeX notation.</li>
+          <li><strong>Pre-Flight Deterministic Ground Truth</strong>: Pre-computes exact values (&lt;1ms) for constrained optimization, two-class Bayes defect rates, projectile motion, and population ratios.</li>
+          <li><strong>Concurrency & Cancellation Controller</strong>: Safe <code>AbortController</code> lifecycle propagation across client disconnects, semaphores, and local inference workers.</li>
+          <li><strong>Cross-Step Internal Consistency Verifier</strong>: Catches intermediate and posterior contradictions (e.g. Bayes $0.06 \times 0.30 = 0.018$, not $0.09$).</li>
+          <li><strong>Dynamic Domain-Aware Wait-State UX</strong>: Problem-specific rotating status messages during reasoning phases.</li>
+        </ul>
+
+        <h3 class="section-title">Performance</h3>
+        <ul>
+          <li>Pure arithmetic, fraction simplification, and linear equation queries short-circuit directly to deterministic solvers in <strong>3–49 ms</strong> with 0 AI calls.</li>
+          <li>Pre-flight CAS facts inject mathematical boundary conditions to eliminate hallucinations on complex word problems.</li>
+        </ul>
+
+        <h3 class="section-title">Verification & Testing</h3>
+        <ul>
+          <li>100% pass across 14 regression test suites and 216 Python CAS verifier unit tests.</li>
+        </ul>
+      </div>
+      
+      <a href="index.html" class="back-nav" style="margin-top: 16px;">← Back to Pythos</a>
+    </article>
+  </div>
+</body>
+</html>
