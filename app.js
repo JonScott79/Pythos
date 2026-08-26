@@ -36,6 +36,9 @@ let currentChatId = null;
 function renderMath(element) {
   if (!element) return;
   
+  let attempts = 0;
+  const maxAttempts = 60; // Retry for up to 6 seconds if CDN script is loading
+
   const doRender = () => {
     if (window.renderMathInElement) {
       window.renderMathInElement(element, {
@@ -44,6 +47,8 @@ function renderMath(element) {
           { left: "\\[", right: "\\]", display: true },
           { left: "\\begin{equation}", right: "\\end{equation}", display: true },
           { left: "\\begin{align}", right: "\\end{align}", display: true },
+          { left: "\\begin{aligned}", right: "\\end{aligned}", display: true },
+          { left: "\\begin{gather}", right: "\\end{gather}", display: true },
           { left: "\\begin{pmatrix}", right: "\\end{pmatrix}", display: true },
           { left: "\\begin{bmatrix}", right: "\\end{bmatrix}", display: true },
           { left: "$", right: "$", display: false },
@@ -66,9 +71,8 @@ function renderMath(element) {
           }
         });
       } catch (e) {}
-    } else if (window.katex) {
-      // Fallback if auto-render extension is not yet attached
-      console.warn("[KATEX] auto-render not ready, retrying...");
+    } else if (attempts < maxAttempts) {
+      attempts++;
       setTimeout(doRender, 100);
     }
   };

@@ -210,6 +210,8 @@ console.log('\n--- Auditing Boxed Answer Accessibility & Visual Styling ---');
 assert(indexHtml.includes('.katex .fbox') && indexHtml.includes('border-radius'), 'Boxed final answers have high-contrast visual styling in index.html');
 assert(appJs.includes('Final answer:') && appJs.includes('.katex .fbox'), 'Boxed math answers are annotated with semantic ARIA role/label for screen readers');
 assert(serverJs.includes('\\boxed{') && modelFile.includes('\\boxed{'), 'System prompt in server.js and ModelFile mandate boxed final answers');
+assert(serverJs.includes('POLYNOMIAL DIVISION') && modelFile.includes('POLYNOMIAL DIVISION'), 'System prompt forbids ASCII long division tables and mandates clean LaTeX');
+assert(appJs.includes('aligned') && appJs.includes('maxAttempts'), 'renderMath supports aligned/gather environments with resilient retry logic');
 
 // 7. SITEMAP, ROBOTS, MANIFEST & LLMS.TXT AUDIT
 console.log('\n--- Auditing Sitemap, Robots, Web App Manifest & llms.txt ---');
