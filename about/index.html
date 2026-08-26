@@ -7,7 +7,6 @@
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
     gtag('js', new Date());
-
     gtag('config', 'G-JFV7CSM9G9');
   </script>
 
@@ -15,9 +14,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="../assets/favicon.png">
   
-  <!-- =====================================
-       Metadata / SEO
-  ===================================== -->
   <title>About Pythos | Free AI Mathematics & Physics Tutor</title>
   <meta name="description" content="Pythos is a free AI mathematics and physics tutor built by a student for students under the LANZAR umbrella. Learn algebra, calculus, and physics through Socratic guidance.">
   <meta name="author" content="Jon Scott / LANZAR">
@@ -31,41 +27,16 @@
   <meta property="og:type" content="website">
   <meta property="og:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
 
-  <!-- JSON-LD STRUCTURED DATA -->
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "AboutPage",
-    "name": "About Pythos",
-    "description": "About Pythos, the free AI mathematics and physics tutor built by a student for students.",
-    "url": "https://pythos.lanzar.me/about/",
-    "mainEntity": {
-      "@type": "SoftwareApplication",
-      "name": "Pythos",
-      "applicationCategory": "EducationalApplication",
-      "operatingSystem": "Web",
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "USD"
-      },
-      "creator": {
-        "@type": "Organization",
-        "name": "LANZAR",
-        "url": "https://lanzar.me"
-      }
-    }
-  }
-  </script>
-
+  <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
   <style>
     :root {
       --bg-color: #fcfbf9;
       --surface-color: #ffffff;
+      --surface-card: rgba(255, 255, 255, 0.95);
       --text-main: #1e293b;
       --text-muted: #64748b;
       --primary-color: #2a728f;
@@ -73,9 +44,77 @@
       --accent-orange: #f46b45;
       --border-color: #e2e8f0;
       --card-bg: #f8fafc;
+      --badge-added-bg: #dcfce7;
+      --badge-added-text: #15803d;
+      --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    }
+
+    [data-theme="dark"] {
+      --bg-color: #0b1120;
+      --surface-color: #131d31;
+      --surface-card: rgba(19, 29, 49, 0.95);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary-color: #38bdf8;
+      --primary-hover: #0284c7;
+      --accent-orange: #fb923c;
+      --border-color: #334155;
+      --card-bg: #1e293b;
+      --badge-added-bg: rgba(34, 197, 94, 0.15);
+      --badge-added-text: #4ade80;
+      --card-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
     }
 
     * { box-sizing: border-box; }
+
+    /* Accessibility Focus & Reduced Motion */
+    *:focus-visible {
+      outline: 2px solid var(--primary-color) !important;
+      outline-offset: 2px !important;
+    }
+
+    .sr-only {
+      position: absolute !important;
+      width: 1px !important;
+      height: 1px !important;
+      padding: 0 !important;
+      margin: -1px !important;
+      overflow: hidden !important;
+      clip: rect(0, 0, 0, 0) !important;
+      white-space: nowrap !important;
+      border: 0 !important;
+    }
+
+    .skip-link {
+      position: absolute;
+      top: -60px;
+      left: 16px;
+      background: var(--primary-color);
+      color: #ffffff !important;
+      padding: 10px 16px;
+      z-index: 9999;
+      border-radius: 6px;
+      font-weight: 600;
+      text-decoration: none;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+      transition: top 0.2s ease-in-out;
+    }
+
+    .skip-link:focus,
+    .skip-link:focus-visible {
+      top: 16px;
+      outline: 3px solid #ffffff;
+      outline-offset: 2px;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
 
     body {
       margin: 0;
@@ -87,42 +126,58 @@
       background-repeat: repeat;
       color: var(--text-main);
       line-height: 1.6;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
     }
 
-    .nav-header {
-      background: var(--surface-color);
+    [data-theme="dark"] body {
+      background-image: linear-gradient(rgba(11, 17, 32, 0.94), rgba(11, 17, 32, 0.94)), url('../assets/math_bg.jpg');
+    }
+
+    /* Top Navigation */
+    .top-nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--surface-card);
+      backdrop-filter: blur(12px);
       border-bottom: 1px solid var(--border-color);
       padding: 12px 24px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      position: sticky;
-      top: 0;
-      z-index: 100;
+      gap: 12px;
+    }
+
+    .nav-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
     }
 
     .brand-group {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
       text-decoration: none;
       color: inherit;
     }
 
     .brand-logo {
-      width: 36px;
-      height: 36px;
+      width: 34px;
+      height: 34px;
       border-radius: 50%;
-      border: 2px solid var(--accent-orange);
+      border: 2px solid var(--primary-color);
       object-fit: cover;
     }
 
     .brand-title {
       font-family: 'Cinzel', serif;
-      font-size: 1.3rem;
+      font-size: 1.25rem;
       font-weight: 700;
       color: var(--primary-color);
-      letter-spacing: 1px;
+      letter-spacing: 0.5px;
     }
 
     .nav-links {
@@ -143,58 +198,107 @@
       color: var(--primary-color);
     }
 
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .theme-toggle {
+      background: var(--surface-color);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      border-radius: 8px;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: 0.88rem;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    .theme-toggle:hover {
+      color: var(--primary-color);
+      border-color: var(--primary-color);
+    }
+
     .btn-launch {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
       background: var(--primary-color);
       color: #ffffff;
-      padding: 7px 14px;
-      border-radius: 6px;
+      padding: 6px 14px;
+      border-radius: 8px;
       text-decoration: none;
       font-weight: 600;
       font-size: 0.85rem;
-      transition: background 0.2s;
+      transition: all 0.2s ease;
     }
 
     .btn-launch:hover {
       background: var(--primary-hover);
+      transform: translateY(-1px);
     }
 
     .container {
-      max-width: 840px;
-      margin: 40px auto;
-      padding: 0 20px;
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 40px 20px 80px;
+      width: 100%;
+      flex: 1;
     }
 
     .hero-card {
-      background: var(--surface-color);
+      background: var(--surface-card);
       border: 1px solid var(--border-color);
-      border-radius: 12px;
+      border-radius: 16px;
       padding: 36px 32px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.04);
+      box-shadow: var(--card-shadow);
       margin-bottom: 30px;
+      backdrop-filter: blur(8px);
+    }
+
+    .hero-header-wrap {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+
+    .hero-avatar-large {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      border: 2px solid var(--primary-color);
+      box-shadow: 0 4px 12px rgba(42, 114, 143, 0.25);
+      object-fit: cover;
     }
 
     h1 {
       font-family: 'Cinzel', serif;
       font-size: 2rem;
       color: var(--primary-color);
-      margin: 0 0 10px 0;
+      margin: 0 0 6px 0;
       line-height: 1.2;
     }
 
     .tagline {
-      font-size: 1.1rem;
+      font-size: 1.05rem;
       color: var(--text-muted);
       font-weight: 500;
-      margin-bottom: 24px;
+      margin-bottom: 20px;
     }
 
     h2 {
       font-family: 'Cinzel', serif;
       font-size: 1.3rem;
       color: var(--primary-color);
-      margin: 28px 0 12px 0;
+      margin: 32px 0 14px 0;
       border-bottom: 1px solid var(--border-color);
-      padding-bottom: 6px;
+      padding-bottom: 8px;
     }
 
     p {
@@ -213,14 +317,21 @@
     .feature-card {
       background: var(--card-bg);
       border: 1px solid var(--border-color);
-      border-radius: 8px;
-      padding: 16px;
+      border-radius: 12px;
+      padding: 18px;
+      transition: all 0.2s ease;
+    }
+
+    .feature-card:hover {
+      border-color: var(--primary-color);
+      transform: translateY(-2px);
     }
 
     .feature-card h3 {
       margin: 0 0 8px 0;
-      font-size: 1rem;
+      font-size: 1.02rem;
       color: var(--primary-color);
+      font-family: 'Cinzel', serif;
     }
 
     .feature-card p {
@@ -229,67 +340,102 @@
       color: var(--text-muted);
     }
 
-    .disclaimer-box {
-      background: #f0f9ff;
-      border-left: 4px solid var(--primary-color);
-      border-radius: 0 8px 8px 0;
-      padding: 14px 18px;
+    .quote-box {
+      background: var(--card-bg);
+      border-left: 4px solid var(--accent-orange);
+      border-radius: 0 12px 12px 0;
+      padding: 20px 24px;
       margin: 28px 0;
-      font-size: 0.88rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+
+    .quote-box p {
+      font-style: italic;
+      color: var(--text-main);
+      font-size: 0.98rem;
+      line-height: 1.65;
+      margin-bottom: 12px;
+    }
+
+    .quote-author {
+      font-weight: 700;
+      color: var(--primary-color);
+      font-size: 0.9rem;
+      font-family: 'Cinzel', serif;
+    }
+
+    .disclaimer-box {
+      background: var(--card-bg);
+      border-left: 4px solid var(--primary-color);
+      border-radius: 0 12px 12px 0;
+      padding: 16px 20px;
+      margin: 28px 0;
+      font-size: 0.92rem;
     }
 
     .disclaimer-box strong {
       color: var(--primary-color);
     }
 
-    .footer {
+    footer {
       text-align: center;
-      padding: 24px 20px;
-      font-size: 0.8rem;
+      padding: 24px;
+      font-size: 0.85rem;
       color: var(--text-muted);
       border-top: 1px solid var(--border-color);
-      margin-top: 40px;
-      background: var(--surface-color);
+      background: var(--surface-card);
+      margin-top: auto;
     }
 
-    .footer a {
-      color: var(--primary-color);
-      text-decoration: none;
-    }
-
-    @media (max-width: 600px) {
+    @media (max-width: 768px) {
+      .top-nav { flex-wrap: wrap; }
+      .nav-links { display: none; }
       .hero-card { padding: 24px 18px; }
       h1 { font-size: 1.6rem; }
-      .nav-links { gap: 10px; }
     }
   </style>
 </head>
 <body>
+  <a href="#mainContent" class="skip-link">Skip to main content</a>
 
-  <!-- =====================================
-       Navigation Header
-  ===================================== -->
-  <header class="nav-header">
-    <a href="../" class="brand-group">
-      <img src="../assets/pythos_avatar.jpg" alt="Pythos Avatar" class="brand-logo" />
-      <span class="brand-title">PYTHOS</span>
-    </a>
-    <nav class="nav-links">
-      <a href="../algebra/" class="nav-link">Algebra</a>
-      <a href="../calculus/" class="nav-link">Calculus</a>
-      <a href="../physics/" class="nav-link">Physics</a>
-      <a href="./" class="nav-link active">About</a>
-      <a href="../" class="btn-launch">Open Pythos ↵</a>
-    </nav>
-  </header>
+  <!-- Navigation Header -->
+  <nav class="top-nav" role="navigation" aria-label="Main Navigation">
+    <div class="nav-left">
+      <a href="../" class="brand-group" aria-label="Pythos Home">
+        <img src="../assets/pythos_avatar.jpg" alt="Pythos Oracle" class="brand-logo" />
+        <span class="brand-title">PYTHOS</span>
+      </a>
+      <div class="nav-links">
+        <a href="../algebra/" class="nav-link">Algebra</a>
+        <a href="../calculus/" class="nav-link">Calculus</a>
+        <a href="../physics/" class="nav-link">Physics</a>
+        <a href="../tools/" class="nav-link">Tools</a>
+        <a href="./" class="nav-link active" aria-current="page">About</a>
+        <a href="../changelog.html#pythos-1-0-0" class="nav-link">v1.0.0</a>
+      </div>
+    </div>
 
-  <!-- =====================================
-       Main Content Container
-  ===================================== -->
-  <main class="container">
+    <div class="nav-right">
+      <button id="themeToggleBtn" class="theme-toggle" title="Toggle Dark/Light Mode" aria-label="Toggle Dark and Light Mode">
+        <span id="themeIcon" aria-hidden="true">🌓</span>
+      </button>
+      <a href="../" class="btn-launch">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+        Back to Pythos Oracle
+      </a>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main id="mainContent" class="container" role="main">
     <article class="hero-card">
-      <h1>Meet Pythos — A Math Tutor Built to Check Its Work</h1>
-      <div class="tagline">An AI-powered math and physics study companion developed by a student for students. A LANZAR initiative.</div>
+      <div class="hero-header-wrap">
+        <img src="../assets/pythos_avatar.jpg" alt="Pythos Oracle" class="hero-avatar-large" />
+        <div>
+          <h1>Meet Pythos — A Math Tutor Built to Check Its Work</h1>
+          <div class="tagline">An AI-powered math and physics study companion developed by a student for students. A LANZAR initiative.</div>
+        </div>
+      </div>
 
       <p>
         AI is here, and it is reshaping how students learn. But instead of pushing technology away or relying on chatbots that simply spit out quick answers without understanding, <strong>Pythos takes a fundamentally different approach.</strong>
@@ -304,20 +450,20 @@
       </p>
       <div class="features-grid">
         <div class="feature-card">
-          <h3>🔬 Independent Deterministic Verification</h3>
-          <p>When Pythos works on math or physics, its proposed steps can be independently checked by a deterministic verification engine—auditing equations, roots, probabilities, and physical vector balances.</p>
+          <h3>🔬 Independent CAS Verification</h3>
+          <p>Every mathematical derivation can be checked by deterministic engines—auditing equations, roots, probabilities, and physical vector balances.</p>
         </div>
         <div class="feature-card">
-          <h3>🔄 Self-Correction & Revision Loop</h3>
-          <p>If an independent check catches a contradiction or algebra oversight, Pythos re-evaluates its derivation and corrects the error before presenting the solution to the student.</p>
+          <h3>🔄 Two-Stage Reasoning Architecture</h3>
+          <p>Separates model identification and trap detection from step-by-step verified derivations, catching arithmetic oversights before delivery.</p>
         </div>
         <div class="feature-card">
-          <h3>🛡️ Knowing What It Doesn't Know</h3>
-          <p>Pythos is deliberately conservative. A confident answer is not automatically a verified answer. If a problem falls outside its verification scope, it stays transparent rather than pretending.</p>
+          <h3>🛡️ Zero-Hallucination Ground Truth</h3>
+          <p>Pre-flight calculations inject mathematical invariants into the prompt context so complex word problems never suffer from drift.</p>
         </div>
         <div class="feature-card">
-          <h3>🧠 Verified Learning From Mistakes</h3>
-          <p>When students challenge Pythos, it doesn't blindly accept or ignore them. Proposed corrections are independently verified—storing the underlying reasoning and failure mode, not just a canned answer.</p>
+          <h3>🧠 Verified Learning & Socratic Dialogue</h3>
+          <p>When students challenge derivations, Pythos verifies proposed corrections independently—reinforcing conceptual understanding over guesswork.</p>
         </div>
       </div>
 
@@ -325,30 +471,27 @@
       <p>
         We understand why parents and teachers are cautious about AI. Traditional chatbots can hallucinate numbers, encourage passive copy-pasting, and undermine real learning. Pythos is built from the ground up to solve those exact concerns:
       </p>
-      <ul style="padding-left: 20px; color: var(--text-main); font-size: 0.95rem; line-height: 1.7;">
-        <li><strong>Active Socratic Guidance:</strong> If your student is stuck, Pythos breaks problems down into manageable hints rather than robbing them of the "aha!" moment.</li>
-        <li><strong>Built to Be Challenged:</strong> Pythos encourages a healthy critical mindset: <em>"If you think I'm wrong, challenge me."</em> Students learn to inspect derivations rather than blindly trusting computer screens.</li>
-        <li><strong>No Paywalls, Ads, or Lock-in:</strong> Clean, focused, and free for all learners under the LANZAR educational ecosystem.</li>
-        <li><strong>Integrated Visual Tools:</strong> 2D function graphing, interactive equation builders, matrix math, and unit conversion are right in the console.</li>
+      <ul style="padding-left: 20px; color: var(--text-main); font-size: 0.95rem; line-height: 1.8;">
+        <li><strong>Active Socratic Guidance:</strong> If a student gets stuck, Pythos provides progressive hints rather than robbing them of the insight.</li>
+        <li><strong>Built to Be Challenged:</strong> Pythos encourages healthy critical skepticism: <em>"If you think I'm wrong, challenge me."</em></li>
+        <li><strong>No Paywalls, Ads, or Subscriptions:</strong> Free and open for all learners under the LANZAR educational ecosystem.</li>
+        <li><strong>Integrated Visual Tools:</strong> 2D function graphing, interactive equation palette, scientific calculation, and unit conversion are built right in.</li>
       </ul>
 
       <h2>Built by a Student Who Refused to Settle for Hallucinations</h2>
       <p>
-        Pythos wasn't assembled overnight with generic prompts. It is the product of weeks of sitting down, testing, breaking, refining, and testing again.
-      </p>
-      <p>
-        Jon Scott spent countless hours running Pythos through rigorous adversarial physics traps, polynomial boundary tests, conical pendulum vector decompositions, and tricky algebraic edge cases—identifying every failure mode and engineering deterministic verification layers around it. The goal was simple: build a tutor that holds itself to the highest standard of mathematical honesty.
+        Pythos was created after weeks of rigorous adversarial testing across polynomial boundaries, Bayes defect rates, projectile motion, and tricky algebraic edge cases—identifying every failure mode and engineering deterministic verification layers around it.
       </p>
 
       <!-- Founder Quote Callout -->
-      <div style="background: var(--card-bg); border-left: 4px solid var(--accent-orange); border-radius: 0 8px 8px 0; padding: 18px 22px; margin: 24px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.03);">
-        <p style="font-style: italic; color: var(--text-main); font-size: 1rem; line-height: 1.6; margin-bottom: 12px;">
+      <div class="quote-box">
+        <p>
           “I'm a college student myself, and I know what it's like to stare at a math problem and think, <em>‘What the hell am I supposed to do with this?’</em> When I saw my own daughter struggling with math, I decided to build something that could help. Pythos is for every student who just needs someone to explain it differently until it finally clicks.
         </p>
-        <p style="font-style: italic; color: var(--text-main); font-size: 1rem; line-height: 1.6; margin-bottom: 12px;">
+        <p>
           Every kid deserves a chance to understand math, regardless of what their family can afford. That's why Pythos will always be free.”
         </p>
-        <div style="font-weight: 600; color: var(--primary-color); font-size: 0.9rem; font-family: 'Cinzel', serif;">
+        <div class="quote-author">
           — Jon Scott, Creator of Pythos
         </div>
       </div>
@@ -362,19 +505,43 @@
         <strong>💡 The Pythos Philosophy:</strong> Pythos exists to help students <em>learn</em> math — not just <em>finish</em> math. Embrace modern tools with healthy skepticism, rigorous verification, and genuine curiosity.
       </div>
 
-      <div style="text-align: center; margin-top: 32px;">
-        <a href="../" class="btn-launch" style="padding: 12px 28px; font-size: 1rem;">Experience Pythos Free ↗</a>
+      <div style="text-align: center; margin-top: 36px;">
+        <a href="../" class="btn-launch" style="padding: 12px 28px; font-size: 1rem;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+          Experience Pythos Free
+        </a>
       </div>
     </article>
   </main>
 
-  <!-- =====================================
-       Footer
-  ===================================== -->
-  <footer class="footer">
-    <div><strong>Pythos</strong> — Mathematics & Physics Oracle. Developed by a student for students.</div>
-    <div style="margin-top: 6px;">A <a href="https://lanzar.me" target="_blank" rel="noopener">LANZAR</a> project. Free for all learners.</div>
+  <!-- Footer -->
+  <footer>
+    <div>🏛️ Developed by a student for students. Built on deterministic CAS verification.</div>
+    <div style="margin-top: 6px; opacity: 0.75;">Pythos &copy; 2026 <a href="https://lanzar.me" target="_blank" rel="noopener" style="color:var(--primary-color); text-decoration:none;">LANZAR</a>. All rights reserved.</div>
   </footer>
 
+  <script>
+    const toggleBtn = document.getElementById('themeToggleBtn');
+    const themeIcon = document.getElementById('themeIcon');
+    const savedTheme = localStorage.getItem('pythos_theme') || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+
+    function applyTheme(theme) {
+      if (theme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        themeIcon.textContent = '🌙';
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+        themeIcon.textContent = '☀️';
+      }
+      localStorage.setItem('pythos_theme', theme);
+    }
+
+    applyTheme(savedTheme);
+
+    toggleBtn.addEventListener('click', () => {
+      const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+      applyTheme(current === 'dark' ? 'light' : 'dark');
+    });
+  </script>
 </body>
 </html>

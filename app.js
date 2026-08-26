@@ -165,6 +165,8 @@ function inferClientDomain(text) {
 function showThinking(userQuery = '') {
   const div = document.createElement("div");
   div.className = "message thinking";
+  div.setAttribute("role", "status");
+  div.setAttribute("aria-live", "polite");
 
   const domain = inferClientDomain(userQuery);
   const messagesList = WAIT_STATE_MESSAGES[domain] || WAIT_STATE_MESSAGES.DEFAULT;
@@ -172,8 +174,9 @@ function showThinking(userQuery = '') {
 
   div.innerHTML = `
     <div class="thinking-status-wrap">
-      <span class="thinking-spinner"></span>
-      <span class="thinking-text">${messagesList[0]}</span>
+      <span class="thinking-spinner" aria-hidden="true"></span>
+      <span class="thinking-text" aria-hidden="true">${messagesList[0]}</span>
+      <span class="sr-only">Pythos is processing your request. ${messagesList[0]}</span>
     </div>
   `;
 
@@ -534,7 +537,8 @@ function appendMessage(role, text, images = null) {
   const copyBtn = document.createElement("button");
   copyBtn.className = "msg-copy-btn";
   copyBtn.title = "Copy message";
-  copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+  copyBtn.setAttribute("aria-label", "Copy message text to clipboard");
+  copyBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
   copyBtn.addEventListener("click", () => {
     navigator.clipboard.writeText(text);
     copyBtn.innerHTML = `<span style="font-size:10px; color:#166534;">✓</span>`;
@@ -741,6 +745,7 @@ function showPythosConfirm(message = "Are you sure you wish to delete this chat 
     const quoteEl = document.getElementById("pythosConfirmQuote");
     const okBtn = document.getElementById("pythosConfirmOk");
     const cancelBtn = document.getElementById("pythosConfirmCancel");
+    const previouslyFocused = document.activeElement;
 
     if (!modal) {
       return resolve(window.confirm(message));
@@ -749,25 +754,45 @@ function showPythosConfirm(message = "Are you sure you wish to delete this chat 
     if (msgEl) msgEl.textContent = message;
     if (quoteEl) quoteEl.textContent = getRandomGreekQuote();
     modal.classList.add("visible");
+    modal.focus();
+    if (cancelBtn) cancelBtn.focus();
 
     const cleanup = (result) => {
       modal.classList.remove("visible");
       okBtn.removeEventListener("click", onOk);
       cancelBtn.removeEventListener("click", onCancel);
-      document.removeEventListener("keydown", onKey);
+      modal.removeEventListener("keydown", onKey);
+      if (previouslyFocused && typeof previouslyFocused.focus === "function") {
+        previouslyFocused.focus();
+      }
       resolve(result);
     };
 
     const onOk = () => cleanup(true);
     const onCancel = () => cleanup(false);
     const onKey = (e) => {
-      if (e.key === "Escape") cleanup(false);
-      if (e.key === "Enter") cleanup(true);
+      if (e.key === "Escape") {
+        e.preventDefault();
+        cleanup(false);
+      }
+      // Focus trap
+      if (e.key === "Tab") {
+        const focusable = [cancelBtn, okBtn].filter(Boolean);
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     };
 
     okBtn.addEventListener("click", onOk);
     cancelBtn.addEventListener("click", onCancel);
-    document.addEventListener("keydown", onKey);
+    modal.addEventListener("keydown", onKey);
   });
 }
 
@@ -1185,18 +1210,37 @@ document.addEventListener("keydown", (e) => {
 // ===== MATH INPUT GUIDE =====
 const guideOverlay = document.getElementById("mathGuideOverlay");
 const helpBtn = document.getElementById("helpBtn");
+const mathGuideClose = document.getElementById("mathGuideClose");
 
-helpBtn.addEventListener("click", () => {
+function openMathGuide() {
+  if (!guideOverlay) return;
   guideOverlay.classList.add("visible");
-});
+  if (helpBtn) helpBtn.setAttribute("aria-expanded", "true");
+  if (mathGuideClose) mathGuideClose.focus();
+}
 
-document.getElementById("mathGuideClose").addEventListener("click", () => {
+function closeMathGuide() {
+  if (!guideOverlay) return;
   guideOverlay.classList.remove("visible");
-});
+  if (helpBtn) {
+    helpBtn.setAttribute("aria-expanded", "false");
+    helpBtn.focus();
+  }
+}
 
-guideOverlay.addEventListener("click", (e) => {
-  if (e.target === guideOverlay) guideOverlay.classList.remove("visible");
-});
+if (helpBtn) {
+  helpBtn.addEventListener("click", openMathGuide);
+}
+
+if (mathGuideClose) {
+  mathGuideClose.addEventListener("click", closeMathGuide);
+}
+
+if (guideOverlay) {
+  guideOverlay.addEventListener("click", (e) => {
+    if (e.target === guideOverlay) closeMathGuide();
+  });
+}
 
 // Click-to-insert: clicking a guide example or starter phrase inserts text into the input
 document.querySelectorAll(".guide-item[data-insert], .starter-tag[data-insert]").forEach(item => {
@@ -1206,7 +1250,7 @@ document.querySelectorAll(".guide-item[data-insert], .starter-tag[data-insert]")
     // If it's a starter phrase, set it cleanly; if it's a math item, insert at cursor
     if (item.classList.contains("starter-tag")) {
       inputEl.value = text;
-      guideOverlay.classList.remove("visible");
+      closeMathGuide();
     } else {
       const start = inputEl.selectionStart;
       const end = inputEl.selectionEnd;
@@ -1220,8 +1264,8 @@ document.querySelectorAll(".guide-item[data-insert], .starter-tag[data-insert]")
 
 // Close guide with Escape key
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && guideOverlay.classList.contains("visible")) {
-    guideOverlay.classList.remove("visible");
+  if (e.key === "Escape" && guideOverlay && guideOverlay.classList.contains("visible")) {
+    closeMathGuide();
   }
 });
 
@@ -1259,19 +1303,48 @@ function setupFloatingTool(toggleBtnId, windowId, closeBtnId) {
   const toggleBtn = document.getElementById(toggleBtnId);
   const win = document.getElementById(windowId);
   const closeBtn = document.getElementById(closeBtnId);
+  if (!toggleBtn || !win || !closeBtn) return;
   const header = win.querySelector(".window-header");
 
-  makeDraggable(win, header);
+  if (header) makeDraggable(win, header);
+
+  function openTool() {
+    win.style.display = "flex";
+    toggleBtn.classList.add("active");
+    toggleBtn.setAttribute("aria-expanded", "true");
+    
+    // Focus first interactive control in floating window for screen reader & keyboard navigation
+    const targetInput = win.querySelector("input:not([readonly]), math-field, button");
+    if (targetInput) {
+      setTimeout(() => targetInput.focus(), 60);
+    }
+  }
+
+  function closeTool() {
+    win.style.display = "none";
+    toggleBtn.classList.remove("active");
+    toggleBtn.setAttribute("aria-expanded", "false");
+    toggleBtn.focus();
+  }
 
   toggleBtn.addEventListener("click", () => {
     const isVisible = win.style.display !== "none";
-    win.style.display = isVisible ? "none" : "flex";
-    toggleBtn.classList.toggle("active", !isVisible);
+    if (isVisible) {
+      closeTool();
+    } else {
+      openTool();
+    }
   });
 
   closeBtn.addEventListener("click", () => {
-    win.style.display = "none";
-    toggleBtn.classList.remove("active");
+    closeTool();
+  });
+
+  win.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      closeTool();
+    }
   });
 }
 

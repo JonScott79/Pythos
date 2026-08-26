@@ -7,7 +7,6 @@
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
     gtag('js', new Date());
-
     gtag('config', 'G-JFV7CSM9G9');
   </script>
 
@@ -15,47 +14,35 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="../assets/favicon.png">
   
-  <!-- =====================================
-       Metadata / SEO
-  ===================================== -->
   <title>Free AI Calculus Tutor & Problem Solver | Pythos</title>
-  <meta name="description" content="Master limits, derivatives, and integrals with Pythos, your free AI calculus tutor. Step-by-step Socratic assistance for Calculus I, II, and AP Calculus AB/BC.">
-  <meta name="keywords" content="AI calculus tutor, free calculus help, derivative calculator, integral solver, limits calculus, AP calculus help, college calculus study tools">
+  <meta name="description" content="Master limits, differentiation, integrals, and differential equations with Pythos, your free AI calculus study guide and solver.">
+  <meta name="keywords" content="AI calculus tutor, free AI math tutor, calculus derivative calculator, limits help, integration by parts solver, AP calculus tutor">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://pythos.lanzar.me/calculus/">
 
   <!-- OPEN GRAPH -->
   <meta property="og:title" content="Free AI Calculus Tutor & Problem Solver | Pythos">
-  <meta property="og:description" content="Master calculus concepts from epsilon-delta limits and chain rule derivatives to integration by parts and Riemann sums.">
+  <meta property="og:description" content="Step-by-step verified derivations for limits, optimization, chain rule, and integrals with Pythos AI.">
   <meta property="og:url" content="https://pythos.lanzar.me/calculus/">
   <meta property="og:type" content="article">
   <meta property="og:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
 
-  <!-- JSON-LD STRUCTURED DATA -->
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "WebPage",
-    "name": "Calculus Tutoring & Study Guide",
-    "description": "Step-by-step Socratic guidance for solving calculus problems with Pythos AI.",
-    "url": "https://pythos.lanzar.me/calculus/",
-    "publisher": {
-      "@type": "Organization",
-      "name": "LANZAR",
-      "url": "https://lanzar.me"
-    }
-  }
-  </script>
-
+  <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- KaTeX for math rendering -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+
   <style>
     :root {
       --bg-color: #fcfbf9;
       --surface-color: #ffffff;
+      --surface-card: rgba(255, 255, 255, 0.95);
       --text-main: #1e293b;
       --text-muted: #64748b;
       --primary-color: #2a728f;
@@ -63,9 +50,83 @@
       --accent-orange: #f46b45;
       --border-color: #e2e8f0;
       --card-bg: #f8fafc;
+      --badge-added-bg: #dcfce7;
+      --badge-added-text: #15803d;
+      --badge-perf-bg: #fef3c7;
+      --badge-perf-text: #b45309;
+      --code-bg: #f1f5f9;
+      --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    }
+
+    [data-theme="dark"] {
+      --bg-color: #0b1120;
+      --surface-color: #131d31;
+      --surface-card: rgba(19, 29, 49, 0.95);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary-color: #38bdf8;
+      --primary-hover: #0284c7;
+      --accent-orange: #fb923c;
+      --border-color: #334155;
+      --card-bg: #1e293b;
+      --badge-added-bg: rgba(34, 197, 94, 0.15);
+      --badge-added-text: #4ade80;
+      --badge-perf-bg: rgba(245, 158, 11, 0.15);
+      --badge-perf-text: #fbbf24;
+      --code-bg: #1e293b;
+      --card-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
     }
 
     * { box-sizing: border-box; }
+
+    /* Accessibility Focus & Reduced Motion */
+    *:focus-visible {
+      outline: 2px solid var(--primary-color) !important;
+      outline-offset: 2px !important;
+    }
+
+    .sr-only {
+      position: absolute !important;
+      width: 1px !important;
+      height: 1px !important;
+      padding: 0 !important;
+      margin: -1px !important;
+      overflow: hidden !important;
+      clip: rect(0, 0, 0, 0) !important;
+      white-space: nowrap !important;
+      border: 0 !important;
+    }
+
+    .skip-link {
+      position: absolute;
+      top: -60px;
+      left: 16px;
+      background: var(--primary-color);
+      color: #ffffff !important;
+      padding: 10px 16px;
+      z-index: 9999;
+      border-radius: 6px;
+      font-weight: 600;
+      text-decoration: none;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+      transition: top 0.2s ease-in-out;
+    }
+
+    .skip-link:focus,
+    .skip-link:focus-visible {
+      top: 16px;
+      outline: 3px solid #ffffff;
+      outline-offset: 2px;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
 
     body {
       margin: 0;
@@ -77,42 +138,58 @@
       background-repeat: repeat;
       color: var(--text-main);
       line-height: 1.6;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
     }
 
-    .nav-header {
-      background: var(--surface-color);
+    [data-theme="dark"] body {
+      background-image: linear-gradient(rgba(11, 17, 32, 0.94), rgba(11, 17, 32, 0.94)), url('../assets/math_bg.jpg');
+    }
+
+    /* Top Navigation */
+    .top-nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--surface-card);
+      backdrop-filter: blur(12px);
       border-bottom: 1px solid var(--border-color);
       padding: 12px 24px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      position: sticky;
-      top: 0;
-      z-index: 100;
+      gap: 12px;
+    }
+
+    .nav-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
     }
 
     .brand-group {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
       text-decoration: none;
       color: inherit;
     }
 
     .brand-logo {
-      width: 36px;
-      height: 36px;
+      width: 34px;
+      height: 34px;
       border-radius: 50%;
-      border: 2px solid var(--accent-orange);
+      border: 2px solid var(--primary-color);
       object-fit: cover;
     }
 
     .brand-title {
       font-family: 'Cinzel', serif;
-      font-size: 1.3rem;
+      font-size: 1.25rem;
       font-weight: 700;
       color: var(--primary-color);
-      letter-spacing: 1px;
+      letter-spacing: 0.5px;
     }
 
     .nav-links {
@@ -133,41 +210,90 @@
       color: var(--primary-color);
     }
 
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .theme-toggle {
+      background: var(--surface-color);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      border-radius: 8px;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: 0.88rem;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    .theme-toggle:hover {
+      color: var(--primary-color);
+      border-color: var(--primary-color);
+    }
+
     .btn-launch {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
       background: var(--primary-color);
       color: #ffffff;
-      padding: 7px 14px;
-      border-radius: 6px;
+      padding: 6px 14px;
+      border-radius: 8px;
       text-decoration: none;
       font-weight: 600;
       font-size: 0.85rem;
-      transition: background 0.2s;
+      transition: all 0.2s ease;
     }
 
     .btn-launch:hover {
       background: var(--primary-hover);
+      transform: translateY(-1px);
     }
 
     .container {
-      max-width: 840px;
-      margin: 40px auto;
-      padding: 0 20px;
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 40px 20px 80px;
+      width: 100%;
+      flex: 1;
     }
 
-    .content-card {
-      background: var(--surface-color);
+    .hero-card {
+      background: var(--surface-card);
       border: 1px solid var(--border-color);
-      border-radius: 12px;
+      border-radius: 16px;
       padding: 36px 32px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.04);
+      box-shadow: var(--card-shadow);
       margin-bottom: 30px;
+      backdrop-filter: blur(8px);
+    }
+
+    .hero-header-wrap {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+
+    .hero-avatar-large {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      border: 2px solid var(--primary-color);
+      box-shadow: 0 4px 12px rgba(42, 114, 143, 0.25);
+      object-fit: cover;
     }
 
     h1 {
       font-family: 'Cinzel', serif;
       font-size: 2rem;
       color: var(--primary-color);
-      margin: 0 0 10px 0;
+      margin: 0 0 6px 0;
       line-height: 1.2;
     }
 
@@ -175,16 +301,16 @@
       font-size: 1.05rem;
       color: var(--text-muted);
       font-weight: 500;
-      margin-bottom: 24px;
+      margin-bottom: 20px;
     }
 
     h2 {
       font-family: 'Cinzel', serif;
       font-size: 1.3rem;
       color: var(--primary-color);
-      margin: 28px 0 12px 0;
+      margin: 32px 0 14px 0;
       border-bottom: 1px solid var(--border-color);
-      padding-bottom: 6px;
+      padding-bottom: 8px;
     }
 
     p {
@@ -203,121 +329,183 @@
     .topic-box {
       background: var(--card-bg);
       border: 1px solid var(--border-color);
-      border-radius: 8px;
-      padding: 16px;
+      border-radius: 12px;
+      padding: 18px;
+      transition: all 0.2s ease;
     }
 
-    .topic-box h4 {
-      margin: 0 0 6px 0;
-      font-size: 0.95rem;
+    .topic-box:hover {
+      border-color: var(--primary-color);
+      transform: translateY(-2px);
+    }
+
+    .topic-box h3 {
+      margin: 0 0 8px 0;
+      font-size: 1.02rem;
       color: var(--primary-color);
+      font-family: 'Cinzel', serif;
     }
 
     .topic-box p {
       margin: 0;
-      font-size: 0.85rem;
+      font-size: 0.88rem;
       color: var(--text-muted);
+      line-height: 1.5;
     }
 
     .example-prompt {
-      background: #f1f5f9;
+      background: var(--card-bg);
       border-left: 3px solid var(--primary-color);
-      padding: 10px 14px;
-      font-family: monospace;
-      font-size: 0.88rem;
-      border-radius: 0 6px 6px 0;
-      margin: 12px 0 16px 0;
+      border-radius: 0 8px 8px 0;
+      padding: 12px 16px;
+      font-size: 0.92rem;
+      margin: 10px 0 14px 0;
       color: var(--text-main);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.02);
     }
 
-    .footer {
+    footer {
       text-align: center;
-      padding: 24px 20px;
-      font-size: 0.8rem;
+      padding: 24px;
+      font-size: 0.85rem;
       color: var(--text-muted);
       border-top: 1px solid var(--border-color);
-      margin-top: 40px;
-      background: var(--surface-color);
+      background: var(--surface-card);
+      margin-top: auto;
     }
 
-    .footer a {
-      color: var(--primary-color);
-      text-decoration: none;
-    }
-
-    @media (max-width: 600px) {
-      .content-card { padding: 24px 18px; }
+    @media (max-width: 768px) {
+      .top-nav { flex-wrap: wrap; }
+      .nav-links { display: none; }
+      .hero-card { padding: 24px 18px; }
       h1 { font-size: 1.6rem; }
-      .nav-links { gap: 10px; }
     }
   </style>
 </head>
 <body>
+  <a href="#mainContent" class="skip-link">Skip to main content</a>
 
   <!-- Navigation Header -->
-  <header class="nav-header">
-    <a href="../" class="brand-group">
-      <img src="../assets/pythos_avatar.jpg" alt="Pythos Avatar" class="brand-logo" />
-      <span class="brand-title">PYTHOS</span>
-    </a>
-    <nav class="nav-links">
-      <a href="../algebra/" class="nav-link">Algebra</a>
-      <a href="./" class="nav-link active">Calculus</a>
-      <a href="../physics/" class="nav-link">Physics</a>
-      <a href="../about/" class="nav-link">About</a>
-      <a href="../" class="btn-launch">Open Pythos ↵</a>
-    </nav>
-  </header>
+  <nav class="top-nav" role="navigation" aria-label="Main Navigation">
+    <div class="nav-left">
+      <a href="../" class="brand-group" aria-label="Pythos Home">
+        <img src="../assets/pythos_avatar.jpg" alt="Pythos Oracle" class="brand-logo" />
+        <span class="brand-title">PYTHOS</span>
+      </a>
+      <div class="nav-links">
+        <a href="../algebra/" class="nav-link">Algebra</a>
+        <a href="./" class="nav-link active" aria-current="page">Calculus</a>
+        <a href="../physics/" class="nav-link">Physics</a>
+        <a href="../tools/" class="nav-link">Tools</a>
+        <a href="../about/" class="nav-link">About</a>
+        <a href="../changelog.html#pythos-1-0-0" class="nav-link">v1.0.0</a>
+      </div>
+    </div>
+
+    <div class="nav-right">
+      <button id="themeToggleBtn" class="theme-toggle" title="Toggle Dark/Light Mode" aria-label="Toggle Dark and Light Mode">
+        <span id="themeIcon" aria-hidden="true">🌓</span>
+      </button>
+      <a href="../" class="btn-launch">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+        Back to Pythos Oracle
+      </a>
+    </div>
+  </nav>
 
   <!-- Main Content -->
-  <main class="container">
-    <article class="content-card">
-      <h1>AI Calculus Tutor & Problem Solver</h1>
-      <div class="tagline">Explore limits, differentiation rules, integration techniques, and series with clear conceptual explanations.</div>
-
-      <h2>Mastering Calculus with Socratic AI</h2>
-      <p>
-        Calculus connects algebra and geometry through change and accumulation. Pythos helps you master both computational techniques (power rule, product rule, u-substitution) and foundational concepts (the Fundamental Theorem of Calculus, tangent lines, Riemann sums).
-      </p>
-
-      <h2>Key Calculus Topics</h2>
-      <div class="topic-list">
-        <div class="topic-box">
-          <h4>Limits & Continuity</h4>
-          <p>Evaluate limits as x approaches values or infinity, apply L'Hôpital's Rule, and understand continuous functions.</p>
-        </div>
-        <div class="topic-box">
-          <h4>Derivatives & Optimization</h4>
-          <p>Differentiate polynomials, trig functions, and exponentials using the chain rule, product rule, and quotient rule.</p>
-        </div>
-        <div class="topic-box">
-          <h4>Definite & Indefinite Integrals</h4>
-          <p>Compute areas under curves, evaluate antiderivatives, and perform integration by parts and partial fractions.</p>
-        </div>
-        <div class="topic-box">
-          <h4>Differential Equations</h4>
-          <p>Solve separable first-order differential equations and model physical growth, cooling, and decay processes.</p>
+  <main id="mainContent" class="container" role="main">
+    <article class="hero-card">
+      <div class="hero-header-wrap">
+        <img src="../assets/pythos_avatar.jpg" alt="Pythos Oracle" class="hero-avatar-large" />
+        <div>
+          <h1>AI Calculus Tutor & Problem Solver</h1>
+          <div class="tagline">Explore limits, differentiation rules, integration techniques, and differential equations with verified Socratic rigor.</div>
         </div>
       </div>
 
-      <h2>Sample Calculus Questions for Pythos</h2>
+      <h2>Mastering Calculus with Verified AI Guidance</h2>
+      <p>
+        Calculus connects algebra and geometry through change and accumulation. Pythos helps you master both computational techniques (power rule, product rule, u-substitution, integration by parts) and foundational proofs (the Fundamental Theorem of Calculus, tangent slopes, optimization bounds).
+      </p>
+
+      <h2>Core Calculus Disciplines</h2>
+      <div class="topic-list">
+        <div class="topic-box">
+          <h3>✦ Limits & Continuity</h3>
+          <p>Evaluate limits as $x \to c$ or $x \to \infty$, apply L'Hôpital's Rule for $\frac{0}{0}$ and $\frac{\infty}{\infty}$, and examine continuity intervals.</p>
+        </div>
+        <div class="topic-box">
+          <h3>✦ Derivatives & Optimization</h3>
+          <p>Differentiate polynomials, trigonometric curves, and exponentials using chain, product, and quotient rules. Solve applied optimization problems.</p>
+        </div>
+        <div class="topic-box">
+          <h3>✦ Definite & Indefinite Integrals</h3>
+          <p>Compute enclosed areas, evaluate antiderivatives, and perform integration by parts: $$\int u \, dv = uv - \int v \, du$$</p>
+        </div>
+        <div class="topic-box">
+          <h3>✦ Differential Equations</h3>
+          <p>Solve separable first-order differential equations and model physical growth, cooling, velocity decay, and harmonic systems.</p>
+        </div>
+      </div>
+
+      <h2>Sample Calculus Problems for Pythos</h2>
       <p>Ask Pythos questions directly or test derivations:</p>
       
-      <div class="example-prompt">"What is the derivative of f(x) = x^3 * sin(x)?"</div>
-      <div class="example-prompt">"Evaluate the limit: lim x->0 (sin(x) / x)."</div>
-      <div class="example-prompt">"How do I use integration by parts on ∫ x * e^x dx?"</div>
-      <div class="example-prompt">"Find the local extrema and inflection points of y = x^3 - 3x."</div>
+      <div class="example-prompt">"What is the derivative of $f(x) = x^3 \sin(x)$ using the product rule?"</div>
+      <div class="example-prompt">"Evaluate the fundamental limit: $\lim_{x \to 0} \frac{\sin(x)}{x}$ with proof."</div>
+      <div class="example-prompt">"How do I evaluate $\int x e^x \, dx$ using integration by parts?"</div>
+      <div class="example-prompt">"Find the local extrema and inflection points of $y = x^3 - 3x$."</div>
 
-      <div style="text-align: center; margin-top: 32px;">
-        <a href="../" class="btn-launch" style="padding: 10px 24px; font-size: 1rem;">Practice Calculus in Pythos ↗</a>
+      <div style="text-align: center; margin-top: 36px;">
+        <a href="../" class="btn-launch" style="padding: 12px 28px; font-size: 1rem;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+          Practice Calculus in Pythos
+        </a>
       </div>
     </article>
   </main>
 
-  <footer class="footer">
-    <div><strong>Pythos</strong> — Mathematics & Physics Oracle. Developed by a student for students.</div>
-    <div style="margin-top: 6px;">A <a href="https://lanzar.me" target="_blank" rel="noopener">LANZAR</a> project. Free for all learners.</div>
+  <!-- Footer -->
+  <footer>
+    <div>🏛️ Developed by a student for students. Built on deterministic CAS verification.</div>
+    <div style="margin-top: 6px; opacity: 0.75;">Pythos &copy; 2026 <a href="https://lanzar.me" target="_blank" rel="noopener" style="color:var(--primary-color); text-decoration:none;">LANZAR</a>. All rights reserved.</div>
   </footer>
 
+  <script>
+    const toggleBtn = document.getElementById('themeToggleBtn');
+    const themeIcon = document.getElementById('themeIcon');
+    const savedTheme = localStorage.getItem('pythos_theme') || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+
+    function applyTheme(theme) {
+      if (theme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        themeIcon.textContent = '🌙';
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+        themeIcon.textContent = '☀️';
+      }
+      localStorage.setItem('pythos_theme', theme);
+    }
+
+    applyTheme(savedTheme);
+
+    toggleBtn.addEventListener('click', () => {
+      const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+      applyTheme(current === 'dark' ? 'light' : 'dark');
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      if (window.renderMathInElement) {
+        window.renderMathInElement(document.body, {
+          delimiters: [
+            { left: "$$", right: "$$", display: true },
+            { left: "$", right: "$", display: false }
+          ],
+          throwOnError: false
+        });
+      }
+    });
+  </script>
 </body>
 </html>
