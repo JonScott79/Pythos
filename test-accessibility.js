@@ -107,6 +107,7 @@ console.log('\n--- Auditing Pythos Interactive Main Workspace (index.html & app.
 const indexHtml = fs.readFileSync(path.join(ROOT_DIR, 'index.html'), 'utf8');
 const appJs = fs.readFileSync(path.join(ROOT_DIR, 'app.js'), 'utf8');
 const serverJs = fs.readFileSync(path.join(ROOT_DIR, 'server/server.js'), 'utf8');
+const modelFile = fs.readFileSync(path.join(ROOT_DIR, 'ModelFile'), 'utf8');
 const changelogHtml = fs.readFileSync(path.join(ROOT_DIR, 'changelog.html'), 'utf8');
 
 // Live region checks
@@ -183,7 +184,8 @@ const testMathCases = [
   { name: 'Integrals', input: 'The work done is $W = \\int_{0}^{5} (3x^2 - 2x + 1)\\,dx$.' },
   { name: 'Matrices', input: 'The transformation matrix is $\\begin{pmatrix} 1 & 2 \\\\ 3 & 4 \\end{pmatrix}$.' },
   { name: 'Units & Math Mode', input: 'The maximum area is $A_{\\text{max}} = 1250\\text{ m}^2$ with velocity $v = 100\\text{ m/s}$.' },
-  { name: 'Negative Values', input: 'Acceleration is $a = -9.8\\text{ m/s}^2$ and discriminant is $-4 < 0$.' }
+  { name: 'Negative Values', input: 'Acceleration is $a = -9.8\\text{ m/s}^2$ and discriminant is $-4 < 0$.' },
+  { name: 'Boxed Final Answers', input: 'Therefore, the solution is $\\boxed{x = 4}$ and $$\\boxed{A_{\\text{max}} = 1250\\text{ m}^2}$$.' }
 ];
 
 testMathCases.forEach(tCase => {
@@ -191,6 +193,12 @@ testMathCases.forEach(tCase => {
   const matches = tCase.input.match(mathRegex);
   assert(matches && matches.length > 0, `Math expression for ${tCase.name} is correctly recognized: ${matches ? matches.join(', ') : 'NONE'}`);
 });
+
+// 7. BOXED ANSWER ACCESSIBILITY & VISUAL EMPHASIS AUDIT
+console.log('\n--- Auditing Boxed Answer Accessibility & Visual Styling ---');
+assert(indexHtml.includes('.katex .fbox') && indexHtml.includes('border-radius'), 'Boxed final answers have high-contrast visual styling in index.html');
+assert(appJs.includes('Final answer:') && appJs.includes('.katex .fbox'), 'Boxed math answers are annotated with semantic ARIA role/label for screen readers');
+assert(serverJs.includes('\\boxed{') && modelFile.includes('\\boxed{'), 'System prompt in server.js and ModelFile mandate boxed final answers');
 
 // 7. SITEMAP, ROBOTS, MANIFEST & LLMS.TXT AUDIT
 console.log('\n--- Auditing Sitemap, Robots, Web App Manifest & llms.txt ---');

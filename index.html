@@ -675,6 +675,26 @@
       border-left: 3px solid var(--primary-color);
     }
 
+    /* Visual Emphasis: Circled / Boxed Final Answers */
+    .message-content .katex .fbox,
+    .message-content .katex-display .fbox {
+      border: 2px solid var(--primary-color) !important;
+      border-radius: 8px !important;
+      padding: 3px 8px !important;
+      background: rgba(42, 114, 143, 0.08) !important;
+      display: inline-block !important;
+      margin: 2px 0 !important;
+      font-weight: 600 !important;
+      box-shadow: 0 1px 6px rgba(42, 114, 143, 0.12) !important;
+    }
+
+    [data-theme="dark"] .message-content .katex .fbox,
+    [data-theme="dark"] .message-content .katex-display .fbox {
+      border-color: #38bdf8 !important;
+      background: rgba(56, 189, 248, 0.12) !important;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.2) !important;
+    }
+
     .message.user {
       background: var(--chat-user-bg);
       color: var(--text-main);

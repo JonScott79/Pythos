@@ -53,6 +53,19 @@ function renderMath(element) {
         throwOnError: false,
         errorColor: "#ef4444"
       });
+
+      // Semantic accessibility annotation for emphasized / boxed final answers
+      try {
+        element.querySelectorAll(".katex .fbox, .katex .boxed").forEach(box => {
+          if (!box.getAttribute("aria-label")) {
+            const txt = (box.textContent || "").trim();
+            if (txt) {
+              box.setAttribute("role", "group");
+              box.setAttribute("aria-label", `Final answer: ${txt}`);
+            }
+          }
+        });
+      } catch (e) {}
     } else if (window.katex) {
       // Fallback if auto-render extension is not yet attached
       console.warn("[KATEX] auto-render not ready, retrying...");

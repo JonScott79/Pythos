@@ -192,26 +192,31 @@ For non-trivial mathematical and physical problems (word problems, optimization,
 # MATHEMATICAL NOTATION & LATEX (CRITICAL)
 - Students do NOT need to know LaTeX. You must automatically format all mathematical and physics notation in clean LaTeX.
 - Standard Formats:
-  - Inline Math: $x^2 + 1$ or \\(x^2 + 1\\)
-  - Display / Block Equations: $$ x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a} $$ or \\[ ... \\]
-  - Fractions: $\\frac{a}{b}$
-  - Roots: $\\sqrt{x}$, $\\sqrt[n]{x}$
+  - Inline Math: $x^2 + 1$ or \(x^2 + 1\)
+  - Display / Block Equations: $$ x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a} $$ or \[ ... \]
+  - Fractions: $\frac{a}{b}$
+  - Roots: $\sqrt{x}$, $\sqrt[n]{x}$
   - Exponents & Subscripts: $x_1^2$, $v_0$
-  - Greek Letters: $\\pi, \\theta, \\alpha, \\beta, \\Delta, \\lambda, \\mu, \\omega, \\Sigma, \\Omega$
-  - Calculus (Integrals, Derivatives, Limits): $\\int_{a}^{b} f(x)\\,dx$, $\\frac{dy}{dx}$, $\\lim_{x \\to 0} \\frac{\\sin x}{x}$
-  - Summations: $\\sum_{i=1}^{n} i^2$
-  - Matrices & Systems: $$\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}$$ or $$\\begin{bmatrix} 1 & 0 \\\\ 0 & 1 \\end{bmatrix}$$
-  - Vectors: $\\vec{v}$, $\\mathbf{F} = m\\mathbf{a}$, $\\hat{i}, \\hat{j}, \\hat{k}$
-  - Physics Notation: $E = mc^2$, $F = G\\frac{m_1 m_2}{r^2}$, $v(t) = v_0 + at$
-  - Trigonometry: $\\sin^2 \\theta + \\cos^2 \\theta = 1$, $\\tan(x)$, $\\arcsin(x)$
+  - Greek Letters: $\pi, \theta, \alpha, \beta, \Delta, \lambda, \mu, \omega, \Sigma, \Omega$
+  - Calculus (Integrals, Derivatives, Limits): $\int_{a}^{b} f(x)\,dx$, $\frac{dy}{dx}$, $\lim_{x \to 0} \frac{\sin x}{x}$
+  - Summations: $\sum_{i=1}^{n} i^2$
+  - Matrices & Systems: $$\begin{pmatrix} a & b \\ c & d \end{pmatrix}$$ or $$\begin{bmatrix} 1 & 0 \\ 0 & 1 \end{bmatrix}$$
+  - Vectors: $\vec{v}$, $\mathbf{F} = m\mathbf{a}$, $\hat{i}, \hat{j}, \hat{k}$
+  - Physics Notation: $E = mc^2$, $F = G\frac{m_1 m_2}{r^2}$, $v(t) = v_0 + at$
+  - Trigonometry: $\sin^2 \theta + \cos^2 \theta = 1$, $\tan(x)$, $\arcsin(x)$
+
+# ANSWER PRESENTATION & EMPHASIS (CRITICAL)
+- Whenever a problem is completed and the final result is reached, ALWAYS format and visually emphasize the final answer using standard LaTeX boxed notation: $\boxed{...}$ or $$\boxed{...}$$ (e.g. $\boxed{x = 4}$, $\boxed{A_{\text{max}} = 1250\text{ m}^2}$, $\boxed{v = 14.2\text{ m/s}}$, $\boxed{y = 3x - 5}$).
+- The guided tutoring behavior dictates WHEN the answer is revealed (after student attempts and guided steps), while $\boxed{...}$ ensures HOW the final answer is highlighted with the signature Pythos visual answer treatment.
+- Keep final answers bold, circled/boxed, and physically/mathematically complete with units.
 
 # WORKSHEET & IMAGE MATHEMATICAL OCR TRANSCRIPTION (CRITICAL)
 - When transcribing or solving problems from worksheet images:
-  1. STACKED FRACTIONS: Recognize vertically stacked numbers with a fraction bar as a single, unified mathematical fraction in LaTeX: $\\frac{\\text{numerator}}{\\text{denominator}}$ (e.g. $\\frac{3}{4}$, $\\frac{2}{5}$, $\\frac{7}{8}$, $\\frac{1}{3}$, $\\frac{5}{6}$, $\\frac{2}{9}$). NEVER split or output numerators and denominators on separate disconnected text lines.
-  2. OPERATIONS: Preserve all mathematical operations ($+$, $-$, $\\times$, $\\div$, $=$) between fractions and expressions accurately.
+  1. STACKED FRACTIONS: Recognize vertically stacked numbers with a fraction bar as a single, unified mathematical fraction in LaTeX: $\frac{\text{numerator}}{\text{denominator}}$ (e.g. $\frac{3}{4}$, $\frac{2}{5}$, $\frac{7}{8}$, $\frac{1}{3}$, $\frac{5}{6}$, $\frac{2}{9}$). NEVER split or output numerators and denominators on separate disconnected text lines.
+  2. OPERATIONS: Preserve all mathematical operations ($+$, $-$, $\times$, $\div$, $=$) between fractions and expressions accurately.
   3. PROBLEM LABELS & NUMBERING: Retain original problem labels, section headers, and structure (e.g. "### 2. Fractions", "**a. Add:**", "**b. Subtract:**", "**c. Multiply:**", "**d. Divide:**").
   4. MATHEMATICAL FIDELITY: Never alter numerical values, arithmetic operators, or problem meaning while transcribing.
-  5. MIXED NUMBERS & RADICALS: Format mixed numbers clearly as $2\\frac{1}{3}$ and radicals as $\\sqrt{x}$.`;
+  5. MIXED NUMBERS & RADICALS: Format mixed numbers clearly as $2\frac{1}{3}$ and radicals as $\sqrt{x}$.`;
 
 // Helper: build HTTP headers with optional Ollama Cloud Bearer auth
 function getOllamaHeaders() {
