@@ -156,9 +156,32 @@
       border-color: var(--primary-color);
     }
 
+    /* Heading styles inside chat messages */
+    .message-content h1, .message-content .msg-h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin: 10px 0 6px 0;
+      color: var(--primary-color);
+      font-family: 'Cinzel', serif;
+    }
+    .message-content h2, .message-content .msg-h2 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin: 10px 0 6px 0;
+      color: var(--primary-color);
+      font-family: 'Cinzel', serif;
+    }
+    .message-content h3, .message-content .msg-h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin: 8px 0 4px 0;
+      color: var(--primary-color);
+      font-family: 'Cinzel', serif;
+    }
+
     /* Image Attachment Chip in input */
     .image-preview-bar {
-      display: flex;
+      display: none;
       align-items: center;
       gap: 8px;
       padding: 6px 12px;
@@ -802,29 +825,45 @@
 
     /* Calculator Styles */
     .calc-display-wrap {
-      background: #f1f5f9;
+      background: var(--input-bg);
       border: 1px solid var(--border-color);
-      border-radius: 6px;
-      padding: 6px 8px;
+      border-radius: 8px;
+      padding: 8px 12px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 2px;
+      min-height: 56px;
+      box-sizing: border-box;
+    }
+
+    .calc-history {
+      font-family: 'Inter', monospace;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      min-height: 16px;
       text-align: right;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      line-height: 1.2;
     }
 
     .calc-display {
       width: 100%;
       background: transparent;
       border: none;
+      padding: 0;
+      margin: 0;
       text-align: right;
       font-family: 'Inter', monospace;
-      font-size: 1.25rem;
+      font-size: 1.45rem;
       font-weight: 700;
       color: var(--text-main);
       outline: none;
-    }
-
-    .calc-history {
-      font-size: 0.7rem;
-      color: var(--text-muted);
-      min-height: 14px;
+      line-height: 1.2;
+      box-sizing: border-box;
+      flex: none;
     }
 
     .calc-keypad {
@@ -837,21 +876,26 @@
       padding: 8px 4px;
       border: 1px solid var(--border-color);
       border-radius: 4px;
-      background: #ffffff;
+      background: var(--surface-color);
       color: var(--text-main);
       font-size: 0.85rem;
       font-weight: 600;
       cursor: pointer;
-      transition: background 0.1s;
+      transition: background 0.1s, border-color 0.1s;
     }
 
     .calc-key:hover {
-      background: #f1f5f9;
+      background: var(--sidebar-hover);
     }
 
     .calc-key.op-key {
-      background: #f8fafc;
+      background: var(--sidebar-hover);
       color: var(--primary-color);
+      border-color: var(--border-color);
+    }
+
+    .calc-key.op-key:hover {
+      background: var(--border-color);
     }
 
     .calc-key.eq-key {
@@ -871,12 +915,15 @@
       gap: 6px;
       font-family: 'Inter', monospace;
       font-weight: 600;
+      color: var(--text-main);
     }
 
     .graph-input {
       flex: 1;
       padding: 4px 8px;
       border: 1px solid var(--border-color);
+      background: var(--input-bg);
+      color: var(--text-main);
       border-radius: 4px;
       font-family: 'Inter', monospace;
       font-size: 0.85rem;
@@ -894,7 +941,7 @@
     }
 
     .graph-canvas {
-      background: #ffffff;
+      background: var(--input-bg);
       border: 1px solid var(--border-color);
       border-radius: 6px;
       display: block;
@@ -910,17 +957,25 @@
       display: flex;
       flex-direction: column;
       gap: 4px;
+      color: var(--text-main);
+      font-size: 0.8rem;
+      font-weight: 500;
     }
 
     .check-row {
       display: flex;
       gap: 8px;
+      color: var(--text-main);
+      font-size: 0.8rem;
+      font-weight: 500;
     }
 
     .check-input {
       width: 100%;
       padding: 6px 8px;
       border: 1px solid var(--border-color);
+      background: var(--input-bg);
+      color: var(--text-main);
       border-radius: 4px;
       font-family: 'Inter', monospace;
       font-size: 0.85rem;
@@ -966,19 +1021,20 @@
     /* Inline Graph Card inside Chat Messages */
     .msg-inline-graph-card {
       margin: 12px 0 8px;
-      background: #ffffff;
+      background: var(--surface-color);
       border: 1px solid var(--border-color);
       border-radius: 8px;
       padding: 10px;
       display: inline-flex;
       flex-direction: column;
       align-items: center;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
       max-width: 100%;
     }
 
     .msg-graph-canvas {
-      border: 1px solid #e2e8f0;
+      border: 1px solid var(--border-color);
+      background: var(--input-bg);
       border-radius: 6px;
       max-width: 100%;
       height: auto;
@@ -999,9 +1055,9 @@
     }
 
     .msg-graph-open-btn {
-      background: #f0fdf4;
-      border: 1px solid #86efac;
-      color: #166534;
+      background: var(--sidebar-hover);
+      border: 1px solid var(--border-color);
+      color: var(--primary-color);
       font-size: 0.75rem;
       font-weight: 600;
       padding: 4px 8px;
@@ -1012,9 +1068,9 @@
     }
 
     .msg-graph-open-btn:hover {
-      background: #166534;
+      background: var(--primary-color);
       color: #ffffff;
-      border-color: #166534;
+      border-color: var(--primary-color);
     }
 
     .graph-render-fail {
@@ -1028,7 +1084,7 @@
 
     /* Visual Equation Editor Styles */
     .math-field-container {
-      background: #ffffff;
+      background: var(--input-bg);
       border: 1px solid var(--primary-color);
       border-radius: 8px;
       padding: 10px 12px;
@@ -1041,10 +1097,11 @@
       border: none;
       outline: none;
       background: transparent;
+      color: var(--text-main);
     }
 
     .palette-tabs {
-      background: #f8fafc;
+      background: var(--surface-color);
       border: 1px solid var(--border-color);
       border-radius: 8px;
       padding: 8px;
@@ -1057,7 +1114,7 @@
     }
 
     .palette-btn {
-      background: #ffffff;
+      background: var(--input-bg);
       border: 1px solid var(--border-color);
       border-radius: 6px;
       padding: 4px;
@@ -1078,7 +1135,7 @@
     }
 
     .palette-btn:hover {
-      background: #e0f2fe;
+      background: var(--sidebar-hover);
       border-color: var(--primary-color);
       color: var(--primary-color);
       transform: translateY(-1px);
@@ -1098,7 +1155,7 @@
       font-weight: 600;
       border-radius: 6px;
       border: 1px solid var(--border-color);
-      background: #ffffff;
+      background: var(--input-bg);
       color: var(--text-main);
       cursor: pointer;
       transition: all 0.15s;
@@ -1109,7 +1166,7 @@
     }
 
     .editor-action-btn:hover {
-      background: #f1f5f9;
+      background: var(--sidebar-hover);
       border-color: var(--text-muted);
     }
 
@@ -1743,9 +1800,18 @@
             </button>
           </div>
 
+          <!-- ATTACHED IMAGE PREVIEW BAR -->
+          <div id="imagePreviewBar" class="image-preview-bar">
+            <img id="imagePreviewThumb" class="image-preview-thumb" src="" alt="Worksheet preview" />
+            <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">Attached image / worksheet</span>
+            <button id="imagePreviewRemove" class="image-preview-remove" title="Remove image">&times;</button>
+          </div>
+
           <div class="input-wrapper">
             <button id="helpBtn" class="help-btn" title="Math Input Guide" aria-label="Math Input Guide">?</button>
-            <input id="userInput" type="text" placeholder="Speak to the Oracle or dictate..." autocomplete="off" maxlength="1500" />
+            <button id="imageUploadBtn" class="help-btn" title="Upload Math Problem / Worksheet Image" aria-label="Upload Image">🖼️</button>
+            <input type="file" id="imageFileInput" accept="image/*" style="display:none;" />
+            <input id="userInput" type="text" placeholder="Speak to the Oracle, dictate, or upload worksheet..." autocomplete="off" maxlength="1500" />
             <span id="charCounter" class="char-counter" style="display:none;">0/1500</span>
             <button id="voiceBtn" class="help-btn voice-btn" title="Voice Input (Speech-to-Text)" aria-label="Voice Input">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
@@ -1897,8 +1963,8 @@
     </div>
     <div class="window-body">
       <div class="calc-display-wrap">
-        <input type="text" id="calcDisplay" class="calc-display" readonly value="0" />
         <div id="calcHistory" class="calc-history"></div>
+        <input type="text" id="calcDisplay" class="calc-display" readonly value="0" />
       </div>
       <div class="calc-keypad">
         <button class="calc-key op-key" data-calc="rad-deg" id="calcDegRad">DEG</button>
@@ -2060,7 +2126,7 @@
         Equation Builder
       </div>
       <div class="window-controls">
-        <button class="win-btn" id="editorModeToggle" title="Toggle between Visual Palette and Keyboard typing mode" style="font-size:0.75rem; background:#e2e8f0; font-weight:600; padding:2px 8px;">⌨️ Keyboard Mode</button>
+        <button class="win-btn" id="editorModeToggle" title="Toggle between Visual Palette and Keyboard typing mode" style="font-size:0.75rem; background:var(--sidebar-hover); color:var(--text-main); border:1px solid var(--border-color); font-weight:600; padding:2px 8px;">⌨️ Keyboard Mode</button>
         <button class="win-btn win-close" id="editorCloseBtn" title="Close">×</button>
       </div>
     </div>

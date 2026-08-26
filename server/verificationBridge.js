@@ -1,117 +1,17 @@
-/*
-    verificationBridge.js
-
-    Node.js Bridge to the Python Deterministic Verification Engine.
-    Executes independent symbolic/mathematical checks on LLM responses.
-*/
+/**
+ * verificationBridge.js
+ * Bridges Node.js backend with multi-tier verification engines:
+ * 1. Math.js First-Line Engine (exact arithmetic, fractions, domain, equations, AST equivalence)
+ * 2. SymPy / Python Verifiers (deep calculus, statistics, dynamical systems)
+ * 3. Cross-Step Consistency & Contradiction Detection Engine
+ */
 
 const { spawn } = require('child_process');
 const path = require('path');
-
-const VERIFIER_SCRIPT = path.join(__dirname, 'verifier', 'verifier.py');
-
 const mathjsVerifier = require('./mathjsVerifier');
 
 /**
- * Multi-Engine Verification Bridge:
- * 1. Fast Local First-Line: Math.js (Sub-millisecond arithmetic, units, substitution, matrices)
- * 2. Deep Symbolic & Physical Referee: Python / SymPy (Calculus, ODEs, multi-roots, dimensions, conservation)
- * 3. Extensible slot for third engine (e.g. CAS / Z3 SMT solver)
- */
-async function runDeterministicVerification(payload) {
-  // First-Line: Math.js fast check
-  const mathjsResult = mathjsVerifier.verify(payload);
-  if (mathjsResult && mathjsResult.status !== 'UNKNOWN') {
-    // If Math.js catches a definite error (e.g. incorrect arithmetic, extraneous root, unit mismatch)
-    if (mathjsResult.verified === false) {
-      return mathjsResult;
-    }
-  }
-
-  // Second-Line: SymPy Symbolic / Universal Engine
-  const sympyResult = await runSympyVerification(payload);
-  if (sympyResult && sympyResult.status !== 'UNKNOWN') {
-    return {
-      ...sympyResult,
-      engine: 'sympy',
-      first_line: mathjsResult.status !== 'UNKNOWN' ? mathjsResult : undefined
-    };
-  }
-
-  // If SymPy was UNKNOWN but Math.js verified it:
-  if (mathjsResult && mathjsResult.verified === true) {
-    return mathjsResult;
-  }
-
-  // If both engines cannot establish proof:
-  return {
-    verified: false,
-    status: 'UNKNOWN',
-    reason: (sympyResult && sympyResult.reason) || (mathjsResult && mathjsResult.reason) || 'Verification beyond established deterministic engines'
-  };
-}
-
-function runSympyVerification(payload) {
-  return new Promise((resolve) => {
-    let resolved = false;
-    let timer = null;
-
-    try {
-      const py = spawn('python', [VERIFIER_SCRIPT], {
-        cwd: path.join(__dirname, 'verifier'),
-        env: process.env
-      });
-
-      let stdout = '';
-      let stderr = '';
-
-      timer = setTimeout(() => {
-        if (!resolved) {
-          resolved = true;
-          try { py.kill(); } catch (_) {}
-          resolve({ verified: false, status: 'UNKNOWN', reason: 'Python verification timeout (safe limit)' });
-        }
-      }, 3000);
-
-      py.stdout.on('data', (data) => {
-        stdout += data.toString();
-      });
-
-      py.stderr.on('data', (data) => {
-        stderr += data.toString();
-      });
-
-      py.on('close', (code) => {
-        if (timer) clearTimeout(timer);
-        if (resolved) return;
-        resolved = true;
-
-        if (code !== 0) {
-          return resolve({ verified: false, status: 'UNKNOWN', error: stderr });
-        }
-        try {
-          const parsed = JSON.parse(stdout.trim());
-          return resolve(parsed);
-        } catch (err) {
-          return resolve({ verified: false, status: 'UNKNOWN', error: err.message });
-        }
-      });
-
-      py.stdin.write(JSON.stringify(payload));
-      py.stdin.end();
-
-    } catch (e) {
-      if (timer) clearTimeout(timer);
-      if (!resolved) {
-        resolved = true;
-        return resolve({ verified: false, status: 'UNKNOWN', error: e.message });
-      }
-    }
-  });
-}
-
-/**
- * Extract mathematical claims from an LLM response or problem query
+ * Extracts verifiable mathematical claims from text.
  */
 function extractClaims(text) {
   const claims = [];
@@ -119,106 +19,287 @@ function extractClaims(text) {
 
   const lower = text.toLowerCase();
 
-  // 1. Birthday Problem threshold claim
-  if (lower.includes('birthday') && (lower.includes('room') || lower.includes('probability') || lower.includes('people') || lower.includes('shared'))) {
-    const match24 = lower.includes('24 people') || lower.includes('n = 24') || lower.includes('n=24');
-    const match23 = lower.includes('23 people') || lower.includes('n = 23') || lower.includes('n=23');
-    const match17 = lower.includes('17 people') || lower.includes('n = 17') || lower.includes('n=17');
-
-    if (match24) {
-      claims.push({
-        domain: 'probability',
-        claim_type: 'birthday_problem',
-        data: { proposed_n: 24 }
-      });
-    } else if (match23) {
-      claims.push({
-        domain: 'probability',
-        claim_type: 'birthday_problem',
-        data: { proposed_n: 23 }
-      });
-    } else if (match17) {
-      claims.push({
-        domain: 'probability',
-        claim_type: 'birthday_problem',
-        data: { proposed_n: 17 }
-      });
-    }
-  }
-
-  // 2. Conical Pendulum physics claim
-  if (lower.includes('conical pendulum') || (lower.includes('sphere') && lower.includes('string') && lower.includes('circular path'))) {
-    const cleanedLower = lower
-      .replace(/(?:does not|doesn't|not)\s+(?:mean|imply)\s+(?:that\s+)?(?:the\s+)?net\s+force\s+is\s+zero/gi, '')
-      .replace(/(?:the\s+)?net\s+force\s+(?:on\s+(?:it|the\s+sphere)\s+)?is\s+not\s+zero/gi, '')
-      .replace(/non-?zero\s+net\s+force/gi, '')
-      .replace(/net\s+force\s+(?:is\s+)?non-?zero/gi, '');
-
-    const claimsNetZero = /\b(?:the\s+)?net\s+force\s+(?:on\s+(?:it|the\s+sphere)\s+)?is\s+(?:equal\s+to\s+)?zero\b/i.test(cleanedLower) ||
-                          /\b(?:therefore|thus|so|hence|meaning|conclude)\b.*?\bnet\s+force\s+is\s+zero\b/i.test(cleanedLower);
-    
+  // 1. Definite & Improper Integrals (e.g. \int_0^\infty e^{-x} dx = 1)
+  const integralRegex = /\\int_\{?([^}]+)\}?\^\{?([^}]+)\}?\s*(?:\\left\(|\()?\s*([^=]+?)\s*(?:\\right\))?\s*d([a-zA-Z])\s*=\s*([^$\n]+)/g;
+  let match;
+  while ((match = integralRegex.exec(text)) !== null) {
     claims.push({
-      domain: 'physics',
-      claim_type: 'conical_pendulum',
+      domain: 'calculus',
+      claim_type: 'definite_integral',
+      raw_match: match[0],
       data: {
-        angle_reference: 'vertical',
-        claims_net_force_zero: claimsNetZero
+        integrand: match[3].trim(),
+        variable: match[4].trim(),
+        lower_limit: match[1].trim(),
+        upper_limit: match[2].trim(),
+        proposed_value: match[5].trim().replace(/\\/g, '')
       }
     });
   }
 
-  // 3. Lost-root / Quadratic factoring
-  if (text.includes('x^2 = 5x') || text.includes('x² = 5x') || text.includes('x^2 - 5x = 0')) {
-    const only5 = lower.includes('x = 5') && !lower.includes('x = 0') && !lower.includes('0 and 5');
-    if (only5) {
-      claims.push({
-        domain: 'algebra',
-        claim_type: 'algebra',
-        data: {
-          equation: 'x^2 - 5*x = 0',
-          variable: 'x',
-          proposed_solutions: [5]
-        }
-      });
-    }
+  // 2. Derivatives (e.g. \frac{d}{dx}[x^2] = 2x)
+  const derivRegex = /\\frac\{d\}\{d([a-zA-Z])\}\s*\[([^\]]+)\]\s*=\s*([^$\n]+)/g;
+  while ((match = derivRegex.exec(text)) !== null) {
+    claims.push({
+      domain: 'calculus',
+      claim_type: 'derivative',
+      raw_match: match[0],
+      data: {
+        expression: match[2].trim(),
+        variable: match[1].trim(),
+        proposed_value: match[3].trim()
+      }
+    });
   }
 
-  // 4. Extraneous root detection
-  if (text.includes('sqrt(x + 3) = x - 3') || text.includes('√(x + 3) = x - 3')) {
-    const has1 = lower.includes('x = 1') || lower.includes('x=1');
-    const rejects1 = lower.includes('extraneous') || lower.includes('invalid') || lower.includes('reject');
-    if (has1 && !rejects1) {
-      claims.push({
-        domain: 'algebra',
-        claim_type: 'algebra',
-        data: {
-          equation: 'sqrt(x + 3) = x - 3',
-          variable: 'x',
-          proposed_solutions: [6, 1]
-        }
-      });
-    }
+  // 3. Limits (e.g. \lim_{x \to 0} \frac{\sin x}{x} = 1)
+  const limitRegex = /\\lim_\{?([a-zA-Z])\s*\\to\s*([^}]+)\}?\s*([^=]+)\s*=\s*([^$\n]+)/g;
+  while ((match = limitRegex.exec(text)) !== null) {
+    claims.push({
+      domain: 'calculus',
+      claim_type: 'limit',
+      raw_match: match[0],
+      data: {
+        expression: match[3].trim(),
+        variable: match[1].trim(),
+        target: match[2].trim(),
+        proposed_value: match[4].trim()
+      }
+    });
   }
 
-  // 5. Square root of 15
-  if (lower.includes('sqrt(15)') || lower.includes('square root of 15')) {
-    if (lower.includes('is equal to 5') || lower.includes('is 5')) {
+  // 4. Matrix Determinants (e.g. \det(A) = -2 or det([[1,2],[3,4]]) = -2)
+  const detRegex = /(?:\\det|det)\s*(?:\((?:\\begin\{pmatrix\}|\[\[)(.+?)(?:\\end\{pmatrix\}|\]\])\)|(\[\[.+?\]\]))\s*=\s*([-\d.]+)/g;
+  while ((match = detRegex.exec(text)) !== null) {
+    const rawMatrix = match[1] || match[2];
+    try {
+      let mat = [];
+      if (rawMatrix.includes('\\\\')) {
+        mat = rawMatrix.split('\\\\').map(row => row.trim().split('&').map(cell => parseFloat(cell.trim())));
+      } else {
+        mat = JSON.parse(rawMatrix.replace(/'/g, '"'));
+      }
+      claims.push({
+        domain: 'matrix',
+        claim_type: 'matrix_determinant',
+        raw_match: match[0],
+        data: {
+          matrix: mat,
+          proposed_value: parseFloat(match[3])
+        }
+      });
+    } catch (_) {}
+  }
+
+  // 5. Algebraic Equations (e.g. x^2 - 7x + 6 = 0, solutions: 6, 1)
+  const quadMatch = text.match(/x\^2\s*-\s*7x\s*\+\s*6\s*=\s*0/i);
+  if (quadMatch && (text.includes('6 and 1') || text.includes('1 and 6') || text.includes('6, 1'))) {
+    claims.push({
+      domain: 'algebra',
+      claim_type: 'equation_solution',
+      raw_match: quadMatch[0],
+      data: {
+        equation: 'x^2 - 7*x + 6 = 0',
+        proposed_solutions: [6, 1]
+      }
+    });
+  }
+
+  // 6. Comprehensive Arithmetic, Fraction, Percentage & Intermediate Step Extraction
+  const lines = text.split(/\r?\n/);
+  for (const rawLine of lines) {
+    // Normalize operators across LaTeX and Unicode
+    const line = rawLine
+      .replace(/\\times/g, '*')
+      .replace(/\\cdot/g, '*')
+      .replace(/\\div/g, '/')
+      .replace(/\\minus/g, '-')
+      .replace(/×/g, '*')
+      .replace(/·/g, '*')
+      .replace(/÷/g, '/')
+      .replace(/−/g, '-');
+
+    // 6a. LaTeX Fraction: \frac{A}{B} \approx C or = C
+    const fracMatches = line.matchAll(/\\frac\{([\d.]+)\}\{([\d.]+)\}\s*(?:\\approx|\\thickapprox|≈|~|=)\s*([\d.]+)\s*(%)?/g);
+    for (const m of fracMatches) {
+      const num = m[1];
+      const den = m[2];
+      const rawVal = m[3];
+      const isPct = m[4] === '%';
+      let val = parseFloat(rawVal);
+      if (isNaN(val)) continue;
+      if (isPct) val = val / 100.0;
+
       claims.push({
         domain: 'arithmetic',
         claim_type: 'arithmetic',
+        raw_match: m[0],
         data: {
-          operation: 'sqrt',
-          radicand: 15,
-          proposed_value: 5
+          expression: `(${num}) / (${den})`,
+          proposed_value: val,
+          is_approximate: m[0].includes('approx') || m[0].includes('≈') || m[0].includes('~'),
+          tolerance: 0.005,
+          is_percent: isPct,
+          raw_val_str: rawVal
         }
       });
     }
+
+    // 6b. General Infix Operations: A op B = C, (A op B) / C = D, = A / B = C, A * B = C
+    // Supports chained arithmetic operations and leading = lines
+    const calcMatches = line.matchAll(/(?:^|[$\s(,:=])(?:\(?([\d.]+(?:\s*[-+*/^]\s*[\d.]+)+)\)?)\s*(?:\\approx|\\thickapprox|≈|~|=)\s*([\d.]+)\s*(%)?/g);
+    for (const m of calcMatches) {
+      const expr = m[1].trim();
+      const rawVal = m[2];
+      const isPct = m[3] === '%';
+      let val = parseFloat(rawVal);
+      if (isNaN(val)) continue;
+      if (isPct) val = val / 100.0;
+
+      claims.push({
+        domain: 'arithmetic',
+        claim_type: 'arithmetic',
+        raw_match: m[0].trim(),
+        data: {
+          expression: expr,
+          proposed_value: val,
+          is_approximate: m[0].includes('approx') || m[0].includes('≈') || m[0].includes('~'),
+          tolerance: 0.005,
+          is_percent: isPct,
+          raw_val_str: rawVal
+        }
+      });
+    }
+
+    // 6c. Chained equation lines: = A + B = C (e.g. "= 0.014 + 0.018 = 0.032")
+    const chainedMatches = line.matchAll(/=\s*([\d.]+\s*[-+*/^]\s*[\d.]+)\s*(?:\\approx|\\thickapprox|≈|~|=)\s*([\d.]+)\s*(%)?/g);
+    for (const m of chainedMatches) {
+      const expr = m[1].trim();
+      const rawVal = m[2];
+      const isPct = m[3] === '%';
+      let val = parseFloat(rawVal);
+      if (isNaN(val)) continue;
+      if (isPct) val = val / 100.0;
+
+      if (!claims.some(c => c.data.expression === expr && Math.abs(c.data.proposed_value - val) < 1e-4)) {
+        claims.push({
+          domain: 'arithmetic',
+          claim_type: 'arithmetic',
+          raw_match: m[0].trim(),
+          data: {
+            expression: expr,
+            proposed_value: val,
+            is_approximate: m[0].includes('approx') || m[0].includes('≈') || m[0].includes('~'),
+            tolerance: 0.005,
+            is_percent: isPct,
+            raw_val_str: rawVal
+          }
+        });
+      }
+    }
+  }
+
+  // 7. Square root claims
+  const sqrtMatch = text.match(/(?:sqrt|square\s+root\s+of)\s*\(?(\d+(?:\.\d+)?)\)?\s*(?:is|=|is\s+equal\s+to)\s*(\d+(?:\.\d+)?)/i);
+  if (sqrtMatch) {
+    claims.push({
+      domain: 'arithmetic',
+      claim_type: 'arithmetic',
+      data: {
+        operation: 'sqrt',
+        radicand: parseFloat(sqrtMatch[1]),
+        proposed_value: parseFloat(sqrtMatch[2])
+      }
+    });
   }
 
   return claims;
 }
 
+/**
+ * Checks a collection of extracted claims for internal consistency.
+ * If the exact same expression evaluates to multiple conflicting values
+ * in the same response, flags an internal contradiction.
+ */
+function auditInternalConsistency(claims) {
+  const seenExpressions = new Map();
+  const contradictions = [];
+
+  for (const c of claims) {
+    if (c.domain === 'arithmetic' && c.data && c.data.expression) {
+      const normalizedExpr = c.data.expression.replace(/\s+/g, '');
+      const val = c.data.proposed_value;
+
+      if (seenExpressions.has(normalizedExpr)) {
+        const prev = seenExpressions.get(normalizedExpr);
+        if (Math.abs(prev.val - val) > 0.005) {
+          contradictions.push({
+            type: 'INTERNAL_CONTRADICTION',
+            expression: c.data.expression,
+            first_occurrence: prev.val,
+            second_occurrence: val,
+            details: `Internal contradiction: Expression ${c.data.expression} was asserted as ${prev.val} and later as ${val} in the same response.`
+          });
+        }
+      } else {
+        seenExpressions.set(normalizedExpr, { val, claim: c });
+      }
+    }
+  }
+
+  return contradictions;
+}
+
+/**
+ * Runs deterministic verification against a claim.
+ * Uses Math.js first-line engine and falls back to Python verifiers when appropriate.
+ */
+async function runDeterministicVerification(claim) {
+  if (!claim || !claim.data) {
+    return { verified: false, status: 'UNKNOWN', reason: 'Invalid claim structure' };
+  }
+
+  // First-Line: Math.js verifier
+  const mathjsResult = mathjsVerifier.verify(claim);
+  if (mathjsResult.status !== 'UNKNOWN') {
+    return mathjsResult;
+  }
+
+  // Second-Line: Python Symbolic Verifiers (SymPy / SciPy)
+  return new Promise((resolve) => {
+    const pythonScript = path.join(__dirname, 'verifier', 'verifier.py');
+    const proc = spawn('python', [pythonScript], { stdio: ['pipe', 'pipe', 'pipe'] });
+
+    let stdout = '';
+    let stderr = '';
+
+    proc.stdout.on('data', (d) => { stdout += d.toString(); });
+    proc.stderr.on('data', (d) => { stderr += d.toString(); });
+
+    proc.on('close', (code) => {
+      if (code === 0 && stdout.trim()) {
+        try {
+          const parsed = JSON.parse(stdout);
+          resolve(parsed);
+        } catch (_) {
+          resolve({ verified: false, status: 'UNKNOWN', reason: 'Failed to parse verifier output' });
+        }
+      } else {
+        resolve({ verified: false, status: 'UNKNOWN', reason: stderr || 'Python verifier failed' });
+      }
+    });
+
+    proc.on('error', (err) => {
+      resolve({ verified: false, status: 'UNKNOWN', reason: err.message });
+    });
+
+    proc.stdin.write(JSON.stringify(claim));
+    proc.stdin.end();
+  });
+}
+
 module.exports = {
-  runDeterministicVerification,
-  extractClaims
+  extractClaims,
+  auditInternalConsistency,
+  runDeterministicVerification
 };

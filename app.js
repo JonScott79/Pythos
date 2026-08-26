@@ -100,77 +100,160 @@ function removeThinking(el) {
   if (el && el.parentNode) el.parentNode.removeChild(el);
 }
 
+// Helper: robust expression compiler supporting LaTeX and implicit multiplication
+function sanitizeGraphExpr(raw) {
+  if (!raw || typeof raw !== "string") return "";
+  let expr = raw.trim();
+
+  // Strip prefixes & LaTeX delimiters
+  expr = expr
+    .replace(/^f\(x\)\s*=\s*/i, "")
+    .replace(/^y\s*=\s*/i, "")
+    .replace(/=\s*0$/i, "")
+    .replace(/\\left\(/g, "(")
+    .replace(/\\right\)/g, ")")
+    .replace(/\\cdot/g, "*")
+    .replace(/\\times/g, "*");
+
+  // Fractions: \frac{a}{b} -> ((a)/(b))
+  while (/\\frac\{([^}]+)\}\{([^}]+)\}/.test(expr)) {
+    expr = expr.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, "(($1)/($2))");
+  }
+
+  // Roots & Trig
+  expr = expr
+    .replace(/\\sqrt\{([^}]+)\}/g, "sqrt($1)")
+    .replace(/\\sin/g, "sin")
+    .replace(/\\cos/g, "cos")
+    .replace(/\\tan/g, "tan")
+    .replace(/\\ln/g, "log")
+    .replace(/\\log/g, "log10")
+    .replace(/\\exp/g, "exp")
+    .replace(/\\pi/g, "pi");
+
+  // Implicit multiplication
+  expr = expr
+    .replace(/(\d+)\s*([a-zA-Z(])/g, "$1*$2")
+    .replace(/(\))\s*([a-zA-Z0-9(])/g, "$1*$2")
+    .replace(/([x])\s*([a-zA-Z(])/g, "$1*$2");
+
+  return expr;
+}
+
 function renderInlineGraph(canvas, exprString) {
   const ctx = canvas.getContext("2d");
   const width = canvas.width;
   const height = canvas.height;
   ctx.clearRect(0, 0, width, height);
 
-  const xMin = -10, xMax = 10, yMin = -10, yMax = 10;
-  const toCanvasX = x => ((x - xMin) / (xMax - xMin)) * width;
-  const toCanvasY = y => height - ((y - yMin) / (yMax - yMin)) * height;
-
-  // Background
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, width, height);
-
-  // Grid
-  ctx.strokeStyle = "#f1f5f9";
-  ctx.lineWidth = 1;
-  for (let x = xMin; x <= xMax; x += 2) {
-    ctx.beginPath();
-    ctx.moveTo(toCanvasX(x), 0);
-    ctx.lineTo(toCanvasX(x), height);
-    ctx.stroke();
-  }
-  for (let y = yMin; y <= yMax; y += 2) {
-    ctx.beginPath();
-    ctx.moveTo(0, toCanvasY(y));
-    ctx.lineTo(width, toCanvasY(y));
-    ctx.stroke();
-  }
-
-  // Axes
-  ctx.strokeStyle = "#cbd5e1";
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(0, toCanvasY(0));
-  ctx.lineTo(width, toCanvasY(0));
-  ctx.moveTo(toCanvasX(0), 0);
-  ctx.lineTo(toCanvasX(0), height);
-  ctx.stroke();
-
-  // Axis Labels
-  ctx.fillStyle = "#94a3b8";
-  ctx.font = "10px Inter, sans-serif";
-  ctx.fillText("x", width - 12, toCanvasY(0) - 4);
-  ctx.fillText("y", toCanvasX(0) + 4, 12);
-
-  if (!window.math || !exprString.trim()) return false;
+  if (!window.math || !exprString || !exprString.trim()) return false;
 
   try {
-    // Sanitize mathematical expression
-    let cleanExpr = exprString
-      .replace(/f\(x\)\s*=\s*/g, "")
-      .replace(/y\s*=\s*/g, "")
-      .replace(/=\s*0/g, "")
-      .replace(/\\cdot/g, "*")
-      .replace(/\\times/g, "*")
-      .replace(/(\d+)\s*x/g, "$1*x");
-
+    const cleanExpr = sanitizeGraphExpr(exprString);
     const compiled = window.math.compile(cleanExpr);
-    ctx.strokeStyle = "#2a728f";
+
+    const xMin = -10, xMax = 10;
+    let yMin = -10, yMax = 10;
+
+    // Sample function for adaptive bounds and extreme ranges
+    const samples = [];
+    const numSamples = 100;
+    const stepSample = (xMax - xMin) / numSamples;
+    for (let i = 0; i <= numSamples; i++) {
+      const x = xMin + i * stepSample;
+      try {
+        const y = compiled.evaluate({ x });
+        if (typeof y === "number" && isFinite(y) && !isNaN(y) && Math.abs(y) < 1e5) {
+          samples.push(y);
+        }
+      } catch (_) {}
+    }
+
+    if (samples.length > 0) {
+      samples.sort((a, b) => a - b);
+      const p5 = samples[Math.floor(samples.length * 0.05)] || samples[0];
+      const p95 = samples[Math.floor(samples.length * 0.95)] || samples[samples.length - 1];
+
+      // Auto-scale if function lies entirely outside [-10, 10] (e.g. x^2 + 50)
+      if (p5 > 10 || p95 < -10) {
+        const pad = Math.max((p95 - p5) * 0.15, 2);
+        yMin = p5 - pad;
+        yMax = p95 + pad;
+      }
+    }
+
+    const toCanvasX = x => ((x - xMin) / (xMax - xMin)) * width;
+    const toCanvasY = y => height - ((y - yMin) / (yMax - yMin)) * height;
+
+    const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+    const bgCol = isDark ? "#0b1120" : "#ffffff";
+    const gridCol = isDark ? "#1e293b" : "#f1f5f9";
+    const axisCol = isDark ? "#475569" : "#cbd5e1";
+    const labelCol = isDark ? "#94a3b8" : "#64748b";
+    const curveCol = isDark ? "#38bdf8" : "#2a728f";
+
+    // Background
+    ctx.fillStyle = bgCol;
+    ctx.fillRect(0, 0, width, height);
+
+    // Grid
+    ctx.strokeStyle = gridCol;
+    ctx.lineWidth = 1;
+    for (let x = xMin; x <= xMax; x += 2) {
+      ctx.beginPath();
+      ctx.moveTo(toCanvasX(x), 0);
+      ctx.lineTo(toCanvasX(x), height);
+      ctx.stroke();
+    }
+    const yGridStep = Math.max(2, Math.round((yMax - yMin) / 10));
+    for (let y = Math.floor(yMin); y <= Math.ceil(yMax); y += yGridStep) {
+      ctx.beginPath();
+      ctx.moveTo(0, toCanvasY(y));
+      ctx.lineTo(width, toCanvasY(y));
+      ctx.stroke();
+    }
+
+    // Axes
+    ctx.strokeStyle = axisCol;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    const clampedY0 = Math.max(0, Math.min(height, toCanvasY(0)));
+    const clampedX0 = Math.max(0, Math.min(width, toCanvasX(0)));
+    ctx.moveTo(0, clampedY0);
+    ctx.lineTo(width, clampedY0);
+    ctx.moveTo(clampedX0, 0);
+    ctx.lineTo(clampedX0, height);
+    ctx.stroke();
+
+    // Axis Labels
+    ctx.fillStyle = labelCol;
+    ctx.font = "10px Inter, sans-serif";
+    ctx.fillText("x", width - 12, clampedY0 > height - 15 ? clampedY0 - 15 : clampedY0 - 4);
+    ctx.fillText("y", clampedX0 < 15 ? clampedX0 + 15 : clampedX0 + 4, 12);
+
+    // Plot Curve with Discontinuity & Asymptote Detection
+    ctx.strokeStyle = curveCol;
     ctx.lineWidth = 2.5;
     ctx.beginPath();
 
     let started = false;
+    let prevY = null;
     const step = (xMax - xMin) / width;
+    const ySpan = yMax - yMin;
 
     for (let cx = 0; cx <= width; cx++) {
       const xVal = xMin + cx * step;
       try {
         const yVal = compiled.evaluate({ x: xVal });
-        if (typeof yVal === "number" && !isNaN(yVal) && isFinite(yVal)) {
+        if (typeof yVal === "number" && isFinite(yVal) && !isNaN(yVal)) {
+          // Check for vertical asymptote jump (e.g. 1/x, tan(x))
+          const isJump = prevY !== null && Math.abs(yVal - prevY) > ySpan * 0.7 && (yVal * prevY < 0 || Math.abs(yVal) > ySpan || Math.abs(prevY) > ySpan);
+          if (isJump) {
+            ctx.stroke();
+            ctx.beginPath();
+            started = false;
+          }
+
           const cy = toCanvasY(yVal);
           if (!started) {
             ctx.moveTo(cx, cy);
@@ -178,11 +261,22 @@ function renderInlineGraph(canvas, exprString) {
           } else {
             ctx.lineTo(cx, cy);
           }
+          prevY = yVal;
         } else {
-          started = false;
+          if (started) {
+            ctx.stroke();
+            ctx.beginPath();
+            started = false;
+          }
+          prevY = null;
         }
       } catch (e) {
-        started = false;
+        if (started) {
+          ctx.stroke();
+          ctx.beginPath();
+          started = false;
+        }
+        prevY = null;
       }
     }
     ctx.stroke();
@@ -193,10 +287,24 @@ function renderInlineGraph(canvas, exprString) {
   }
 }
 
-function appendMessage(role, text) {
+function appendMessage(role, text, images = null) {
   const div = document.createElement("div");
   div.className = `message ${role}`;
   
+  // If there are attached image payloads, display them at the top of the bubble
+  if (images && Array.isArray(images) && images.length > 0) {
+    const imgContainer = document.createElement("div");
+    imgContainer.className = "msg-image-attachment-wrap";
+    imgContainer.style.cssText = "margin-bottom:8px; display:flex; flex-wrap:wrap; gap:8px;";
+    images.forEach(imgData => {
+      const imgEl = document.createElement("img");
+      imgEl.src = typeof imgData === "string" && imgData.startsWith("data:") ? imgData : `data:image/jpeg;base64,${imgData}`;
+      imgEl.style.cssText = "max-width:240px; max-height:180px; border-radius:6px; border:1px solid var(--border-color); object-fit:contain; background:#000;";
+      imgContainer.appendChild(imgEl);
+    });
+    div.appendChild(imgContainer);
+  }
+
   const contentDiv = document.createElement("div");
   contentDiv.className = "message-content";
 
@@ -230,6 +338,11 @@ function appendMessage(role, text) {
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
 
+    // Convert markdown headers
+    protectedText = protectedText.replace(/^###\s+([^\n<]+)/gm, '<h3 class="msg-h3">$1</h3>');
+    protectedText = protectedText.replace(/^##\s+([^\n<]+)/gm, '<h2 class="msg-h2">$1</h2>');
+    protectedText = protectedText.replace(/^#\s+([^\n<]+)/gm, '<h1 class="msg-h1">$1</h1>');
+
     // Convert code ticks `...` to <code>...</code>
     protectedText = protectedText.replace(/`([^`]+)`/g, "<code>$1</code>");
 
@@ -241,6 +354,9 @@ function appendMessage(role, text) {
 
     // Convert newlines to <br> for regular text
     protectedText = protectedText.replace(/\n/g, "<br>");
+
+    // Remove redundant <br> immediately after heading tags
+    protectedText = protectedText.replace(/<\/h[1-6]><br>/g, (m) => m.slice(0, -4));
 
     // Insert legitimate graph placeholder container into HTML after escaping is complete
     protectedText = protectedText.replace("%%%INLINE_GRAPH_PLACEHOLDER%%%", '<div class="msg-inline-graph-card"></div>');
@@ -261,6 +377,7 @@ function appendMessage(role, text) {
     const graphCard = contentDiv.querySelector(".msg-inline-graph-card");
     if (graphCard) {
       const exprToGraph = graphMatch[1].trim();
+      graphCard.dataset.formula = exprToGraph;
       const canvas = document.createElement("canvas");
       canvas.className = "msg-graph-canvas";
       canvas.width = 360;
@@ -766,19 +883,39 @@ function setInputLocked(locked) {
 }
 
 async function askPythos(userText) {
-  if (!userText.trim()) return;
+  const hasText = userText && userText.trim();
+  if (!hasText && !pendingImageBase64) return;
   if (isProcessing) return; // Block spam
 
+  // Default prompt when an image is submitted without text
+  const promptText = hasText ? userText.trim() : "Please read, transcribe, and solve the math problems shown in this attached worksheet image.";
+
   // Cap input length
-  if (userText.length > MAX_INPUT_LENGTH) {
-    userText = userText.substring(0, MAX_INPUT_LENGTH);
+  let cleanText = promptText;
+  if (cleanText.length > MAX_INPUT_LENGTH) {
+    cleanText = cleanText.substring(0, MAX_INPUT_LENGTH);
   }
 
   setInputLocked(true);
 
+  // Check if image is attached
+  let attachedImages = null;
+  if (pendingImageBase64) {
+    attachedImages = [pendingImageBase64];
+    pendingImageBase64 = null;
+    const previewBar = document.getElementById("imagePreviewBar");
+    if (previewBar) previewBar.style.display = "none";
+    const fileInput = document.getElementById("imageFileInput");
+    if (fileInput) fileInput.value = "";
+  }
+
   // Append user message to history
-  messages.push({ role: "user", content: userText });
-  appendMessage("user", userText);
+  const userMsgObj = { role: "user", content: cleanText };
+  if (attachedImages) {
+    userMsgObj.images = attachedImages;
+  }
+  messages.push(userMsgObj);
+  appendMessage("user", cleanText, attachedImages);
   input.value = "";
   if (charCounter) charCounter.style.display = "none";
   // Hide the math preview
@@ -1082,7 +1219,7 @@ if (editorModeToggle) {
       showEditorStatus("Keyboard Mode: Type naturally (e.g. x^2 + sqrt(x))");
     } else {
       editorModeToggle.textContent = "⌨️ Keyboard Mode";
-      editorModeToggle.style.background = "#e2e8f0";
+      editorModeToggle.style.background = "var(--sidebar-hover)";
       editorModeToggle.style.color = "var(--text-main)";
       if (editorPaletteContainer) editorPaletteContainer.style.display = "block";
       showEditorStatus("Visual Mode: Click templates to build expressions");
@@ -1383,55 +1520,113 @@ function drawGraph(exprString) {
   const height = graphCanvas.height;
   graphCtx.clearRect(0, 0, width, height);
 
-  // Coordinate ranges
-  const xMin = -10, xMax = 10, yMin = -10, yMax = 10;
-  const toCanvasX = x => ((x - xMin) / (xMax - xMin)) * width;
-  const toCanvasY = y => height - ((y - yMin) / (yMax - yMin)) * height;
-
-  // Draw Grid
-  graphCtx.strokeStyle = "#e2e8f0";
-  graphCtx.lineWidth = 1;
-
-  for (let x = xMin; x <= xMax; x += 2) {
-    graphCtx.beginPath();
-    graphCtx.moveTo(toCanvasX(x), 0);
-    graphCtx.lineTo(toCanvasX(x), height);
-    graphCtx.stroke();
-  }
-  for (let y = yMin; y <= yMax; y += 2) {
-    graphCtx.beginPath();
-    graphCtx.moveTo(0, toCanvasY(y));
-    graphCtx.lineTo(width, toCanvasY(y));
-    graphCtx.stroke();
-  }
-
-  // Draw Axes
-  graphCtx.strokeStyle = "#94a3b8";
-  graphCtx.lineWidth = 1.5;
-  graphCtx.beginPath();
-  graphCtx.moveTo(0, toCanvasY(0));
-  graphCtx.lineTo(width, toCanvasY(0));
-  graphCtx.moveTo(toCanvasX(0), 0);
-  graphCtx.lineTo(toCanvasX(0), height);
-  graphCtx.stroke();
-
-  // Plot Function
-  if (!window.math || !exprString.trim()) return;
+  if (!window.math || !exprString || !exprString.trim()) return;
 
   try {
-    const compiled = window.math.compile(exprString);
-    graphCtx.strokeStyle = "#2a728f";
+    const cleanExpr = sanitizeGraphExpr(exprString);
+    const compiled = window.math.compile(cleanExpr);
+
+    const xMin = -10, xMax = 10;
+    let yMin = -10, yMax = 10;
+
+    // Sample function for adaptive bounds
+    const samples = [];
+    const numSamples = 100;
+    const stepSample = (xMax - xMin) / numSamples;
+    for (let i = 0; i <= numSamples; i++) {
+      const x = xMin + i * stepSample;
+      try {
+        const y = compiled.evaluate({ x });
+        if (typeof y === "number" && isFinite(y) && !isNaN(y) && Math.abs(y) < 1e5) {
+          samples.push(y);
+        }
+      } catch (_) {}
+    }
+
+    if (samples.length > 0) {
+      samples.sort((a, b) => a - b);
+      const p5 = samples[Math.floor(samples.length * 0.05)] || samples[0];
+      const p95 = samples[Math.floor(samples.length * 0.95)] || samples[samples.length - 1];
+
+      if (p5 > 10 || p95 < -10) {
+        const pad = Math.max((p95 - p5) * 0.15, 2);
+        yMin = p5 - pad;
+        yMax = p95 + pad;
+      }
+    }
+
+    const toCanvasX = x => ((x - xMin) / (xMax - xMin)) * width;
+    const toCanvasY = y => height - ((y - yMin) / (yMax - yMin)) * height;
+
+    const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+    const bgCol = isDark ? "#0b1120" : "#ffffff";
+    const gridCol = isDark ? "#1e293b" : "#f1f5f9";
+    const axisCol = isDark ? "#475569" : "#cbd5e1";
+    const labelCol = isDark ? "#94a3b8" : "#64748b";
+    const curveCol = isDark ? "#38bdf8" : "#2a728f";
+
+    // Draw Background
+    graphCtx.fillStyle = bgCol;
+    graphCtx.fillRect(0, 0, width, height);
+
+    // Draw Grid
+    graphCtx.strokeStyle = gridCol;
+    graphCtx.lineWidth = 1;
+
+    for (let x = xMin; x <= xMax; x += 2) {
+      graphCtx.beginPath();
+      graphCtx.moveTo(toCanvasX(x), 0);
+      graphCtx.lineTo(toCanvasX(x), height);
+      graphCtx.stroke();
+    }
+    const yGridStep = Math.max(2, Math.round((yMax - yMin) / 10));
+    for (let y = Math.floor(yMin); y <= Math.ceil(yMax); y += yGridStep) {
+      graphCtx.beginPath();
+      graphCtx.moveTo(0, toCanvasY(y));
+      graphCtx.lineTo(width, toCanvasY(y));
+      graphCtx.stroke();
+    }
+
+    // Draw Axes
+    graphCtx.strokeStyle = axisCol;
+    graphCtx.lineWidth = 1.5;
+    graphCtx.beginPath();
+    const clampedY0 = Math.max(0, Math.min(height, toCanvasY(0)));
+    const clampedX0 = Math.max(0, Math.min(width, toCanvasX(0)));
+    graphCtx.moveTo(0, clampedY0);
+    graphCtx.lineTo(width, clampedY0);
+    graphCtx.moveTo(clampedX0, 0);
+    graphCtx.lineTo(clampedX0, height);
+    graphCtx.stroke();
+
+    // Axis Labels
+    graphCtx.fillStyle = labelCol;
+    graphCtx.font = "10px Inter, sans-serif";
+    graphCtx.fillText("x", width - 12, clampedY0 > height - 15 ? clampedY0 - 15 : clampedY0 - 4);
+    graphCtx.fillText("y", clampedX0 < 15 ? clampedX0 + 15 : clampedX0 + 4, 12);
+
+    // Plot Curve with Discontinuity & Asymptote Detection
+    graphCtx.strokeStyle = curveCol;
     graphCtx.lineWidth = 2.5;
     graphCtx.beginPath();
 
     let started = false;
+    let prevY = null;
     const step = (xMax - xMin) / width;
+    const ySpan = yMax - yMin;
 
     for (let cx = 0; cx <= width; cx++) {
       const xVal = xMin + cx * step;
       try {
         const yVal = compiled.evaluate({ x: xVal });
         if (typeof yVal === "number" && !isNaN(yVal) && isFinite(yVal)) {
+          const isJump = prevY !== null && Math.abs(yVal - prevY) > ySpan * 0.7 && (yVal * prevY < 0 || Math.abs(yVal) > ySpan || Math.abs(prevY) > ySpan);
+          if (isJump) {
+            graphCtx.stroke();
+            graphCtx.beginPath();
+            started = false;
+          }
+
           const cy = toCanvasY(yVal);
           if (!started) {
             graphCtx.moveTo(cx, cy);
@@ -1439,11 +1634,22 @@ function drawGraph(exprString) {
           } else {
             graphCtx.lineTo(cx, cy);
           }
+          prevY = yVal;
         } else {
-          started = false;
+          if (started) {
+            graphCtx.stroke();
+            graphCtx.beginPath();
+            started = false;
+          }
+          prevY = null;
         }
       } catch (e) {
-        started = false;
+        if (started) {
+          graphCtx.stroke();
+          graphCtx.beginPath();
+          started = false;
+        }
+        prevY = null;
       }
     }
     graphCtx.stroke();
@@ -1551,6 +1757,25 @@ function applyTheme(theme) {
     if (themeIconSun) themeIconSun.style.display = "none";
     if (themeIconMoon) themeIconMoon.style.display = "block";
   }
+
+  // Redraw floating window graph if active
+  try {
+    const gInput = document.getElementById("graphFuncInput");
+    if (gInput && gInput.value && typeof drawGraph === "function") {
+      drawGraph(gInput.value);
+    }
+  } catch (_) {}
+
+  // Redraw all inline chat graph canvases
+  try {
+    document.querySelectorAll(".msg-inline-graph-card").forEach(card => {
+      const c = card.querySelector("canvas");
+      const f = card.dataset.formula || (card.querySelector("code") ? card.querySelector("code").textContent.replace(/^f\(x\)\s*=\s*/, "") : null);
+      if (c && f && typeof renderInlineGraph === "function") {
+        renderInlineGraph(c, f);
+      }
+    });
+  } catch (_) {}
 }
 
 // Load saved theme or system preference
@@ -1628,6 +1853,56 @@ if (voiceBtn) {
 // =========================
 // IMAGE PROBLEM UPLOAD / OCR PREVIEW
 // =========================
+let pendingImageBase64 = null;
+const imageUploadBtn = document.getElementById("imageUploadBtn");
+const imageFileInput = document.getElementById("imageFileInput");
+const imagePreviewBar = document.getElementById("imagePreviewBar");
+const imagePreviewThumb = document.getElementById("imagePreviewThumb");
+const imagePreviewRemove = document.getElementById("imagePreviewRemove");
+
+function handleFileSelect(file) {
+  if (!file || !file.type.startsWith("image/")) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    pendingImageBase64 = e.target.result;
+    if (imagePreviewThumb) imagePreviewThumb.src = pendingImageBase64;
+    if (imagePreviewBar) imagePreviewBar.style.display = "flex";
+    input.focus();
+  };
+  reader.readAsDataURL(file);
+}
+
+if (imageUploadBtn && imageFileInput) {
+  imageUploadBtn.addEventListener("click", () => imageFileInput.click());
+  imageFileInput.addEventListener("change", (e) => {
+    if (e.target.files && e.target.files[0]) {
+      handleFileSelect(e.target.files[0]);
+    }
+  });
+}
+
+if (imagePreviewRemove) {
+  imagePreviewRemove.addEventListener("click", () => {
+    pendingImageBase64 = null;
+    if (imagePreviewBar) imagePreviewBar.style.display = "none";
+    if (imageFileInput) imageFileInput.value = "";
+  });
+}
+
+// Support clipboard paste of images
+document.addEventListener("paste", (e) => {
+  if (e.clipboardData && e.clipboardData.items) {
+    for (let i = 0; i < e.clipboardData.items.length; i++) {
+      const item = e.clipboardData.items[i];
+      if (item.type.indexOf("image") !== -1) {
+        const blob = item.getAsFile();
+        handleFileSelect(blob);
+        break;
+      }
+    }
+  }
+});
+
 // ===== INIT =====
 clearChatUI();
 

@@ -99,6 +99,11 @@ const MathJSVerifier = {
           exactResult = math.evaluate(expression);
         }
 
+        // Numeric representation
+        const numResult = typeof exactResult === 'number'
+          ? exactResult
+          : (exactResult && exactResult.valueOf ? exactResult.valueOf() : Number(exactResult));
+
         if (typeof proposed_value !== 'undefined') {
           // Exact fraction string match e.g. "1/3"
           if (typeof proposed_value === 'string' && proposed_value.includes('/')) {
@@ -114,11 +119,6 @@ const MathJSVerifier = {
               };
             }
           }
-
-          // Numeric evaluation
-          const numResult = typeof exactResult === 'number'
-            ? exactResult
-            : (exactResult && exactResult.valueOf ? exactResult.valueOf() : Number(exactResult));
 
           // Catch floating-point underflow: if expression was non-zero but evaluated to 0 due to precision limit
           if (numResult === 0 && Number(proposed_value) === 0 && /[1-9]/.test(expression) && !/^[0\s+*./-]+$/.test(expression)) {

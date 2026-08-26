@@ -35,6 +35,23 @@ const PYTHOS_SYSTEM_PROMPT = `You are Pythos, a wise, warm, and sharp mathematic
 - CRITICAL: DO NOT use repetitive canned openings or catchphrases like "What a delightful challenge!", "Ah, a splendid query!", "My friend, I'm glad you asked!", or theatrical stock flourishes.
 - Personality comes from HOW you teach, explain, and listen—not from repeating catchphrases.
 
+# TWO-STAGE REASONING ARCHITECTURE (UNDERSTAND BEFORE SOLVING)
+For non-trivial mathematical and physical problems (word problems, optimization, probability/Bayes, paradoxes, kinematics/mechanics, systems of equations, calculus), ALWAYS structure your reasoning and solution in two distinct stages:
+
+1. SITUATION & MODEL IDENTIFICATION:
+   - Identify what the problem is actually about and what mathematical or physical structure is present.
+   - Establish the relevant relationships, constraints, and given parameters (e.g., Bayes prior/likelihood vs. posterior, optimization objective vs. boundary constraint, kinematic initial conditions).
+   - Identify common conceptual traps, ambiguities, or stated assumptions (e.g., confusing $P(B|A)$ with $P(A|B)$, 3-sided fence vs. 4-sided fence, vertical equilibrium vs. net radial force).
+   - Determine which quantities must be calculated and which parts are deterministic.
+
+2. MATHEMATICAL DERIVATION & SOLUTION:
+   - Execute the mathematical derivation step-by-step with exact calculations and standard LaTeX.
+   - Ground all calculations in deterministic truth and verify mathematical consistency.
+   - Interpret the final result clearly in the context of the physical or mathematical model.
+
+*EXCEPTION FOR TRIVIAL ARITHMETIC*:
+Do NOT apply this two-stage model to trivial deterministic arithmetic (e.g., "Calculate 72/120", "93/100", "15 * 342"). For simple calculations, calculate directly and immediately without extra meta-reasoning.
+
 # QUESTION TYPES & ADAPTIVE TEACHING
 1. DIRECT FACT / FORMULA / CONCEPT QUESTION (e.g. "What equation gives the time...", "Is sqrt(15) = 5?", "What is entropy?"):
    - Answer the question directly, accurately, and concisely with proper LaTeX.
@@ -134,7 +151,15 @@ const PYTHOS_SYSTEM_PROMPT = `You are Pythos, a wise, warm, and sharp mathematic
   - Matrices & Systems: $$\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}$$ or $$\\begin{bmatrix} 1 & 0 \\\\ 0 & 1 \\end{bmatrix}$$
   - Vectors: $\\vec{v}$, $\\mathbf{F} = m\\mathbf{a}$, $\\hat{i}, \\hat{j}, \\hat{k}$
   - Physics Notation: $E = mc^2$, $F = G\\frac{m_1 m_2}{r^2}$, $v(t) = v_0 + at$
-  - Trigonometry: $\\sin^2 \\theta + \\cos^2 \\theta = 1$, $\\tan(x)$, $\\arcsin(x)$`;
+  - Trigonometry: $\\sin^2 \\theta + \\cos^2 \\theta = 1$, $\\tan(x)$, $\\arcsin(x)$
+
+# WORKSHEET & IMAGE MATHEMATICAL OCR TRANSCRIPTION (CRITICAL)
+- When transcribing or solving problems from worksheet images:
+  1. STACKED FRACTIONS: Recognize vertically stacked numbers with a fraction bar as a single, unified mathematical fraction in LaTeX: $\\frac{\\text{numerator}}{\\text{denominator}}$ (e.g. $\\frac{3}{4}$, $\\frac{2}{5}$, $\\frac{7}{8}$, $\\frac{1}{3}$, $\\frac{5}{6}$, $\\frac{2}{9}$). NEVER split or output numerators and denominators on separate disconnected text lines.
+  2. OPERATIONS: Preserve all mathematical operations ($+$, $-$, $\\times$, $\\div$, $=$) between fractions and expressions accurately.
+  3. PROBLEM LABELS & NUMBERING: Retain original problem labels, section headers, and structure (e.g. "### 2. Fractions", "**a. Add:**", "**b. Subtract:**", "**c. Multiply:**", "**d. Divide:**").
+  4. MATHEMATICAL FIDELITY: Never alter numerical values, arithmetic operators, or problem meaning while transcribing.
+  5. MIXED NUMBERS & RADICALS: Format mixed numbers clearly as $2\\frac{1}{3}$ and radicals as $\\sqrt{x}$.`;
 
 // Helper: build HTTP headers with optional Ollama Cloud Bearer auth
 function getOllamaHeaders() {
@@ -145,7 +170,9 @@ function getOllamaHeaders() {
   return headers;
 }
 
-// Allowed origins for production security
+// Global set to track active request controllers for cancellation
+const activeControllers = new Set();
+
 const ALLOWED_ORIGINS = [
   'https://pythos.lanzar.me',
   'https://lanzar.me',
@@ -233,7 +260,21 @@ app.get('/health/ready', async (req, res) => {
 });
 
 const learningStore = require('./learningStore');
-const { runDeterministicVerification, extractClaims } = require('./verificationBridge');
+const { runDeterministicVerification, extractClaims, auditInternalConsistency } = require('./verificationBridge');
+const {
+  analyzeDeterministicIntent,
+  extractPreflightDeterministicFacts,
+  buildPreflightContext,
+  buildDeterministicResponse,
+  classifyProblem
+} = require('./deterministicRouter');
+// Concurrency limiter
+const concurrencyLimiter = require('./concurrencyLimiter');
+const adminRoutes = require('./adminRoutes');
+const { normalizeWorksheetMath } = require('./ocrMathNormalizer');
+
+// Mount Admin Routes
+app.use('/admin', adminRoutes);
 
 // =====================================
 // Public Chat / Inference Route
@@ -258,16 +299,58 @@ app.post('/api/chat', async (req, res) => {
     });
   }
 
-  // Extract latest user query to retrieve relevant verified lessons
+  // Extract latest user query
   const lastUserMsg = [...messages].reverse().find(m => m && m.role === 'user');
+
+  // Fast-Path: Deterministic First-Line Evaluation for pure calculation/conversions
+  // Note: Evaluated BEFORE acquiring concurrency slots so deterministic math is instantaneous
+  if (lastUserMsg && (!lastUserMsg.images || lastUserMsg.images.length === 0)) {
+    const deterministicIntent = analyzeDeterministicIntent(lastUserMsg.content);
+    if (deterministicIntent) {
+      const directResponse = buildDeterministicResponse(deterministicIntent);
+      if (directResponse) {
+        return res.status(200).json({
+          model: 'pythos-deterministic-router',
+          message: {
+            role: 'assistant',
+            content: directResponse
+          },
+          deterministic: true,
+          done: true
+        });
+      }
+    }
+  }
+
+  // Setup per-request AbortController for cancellation
+  const abortController = new AbortController();
+  activeControllers.add(abortController);
+  let acquiredSemaphore = false;
+
+  const clientCloseHandler = () => {
+    if (!res.writableEnded) {
+      abortController.abort();
+    }
+  };
+  req.on('close', clientCloseHandler);
+
+  // Pre-Flight Track: Classify problem domain and extract embedded mathematical calculations
+  const classification = lastUserMsg ? classifyProblem(lastUserMsg.content) : null;
+  if (classification) {
+    console.log(`[ROUTER] Classified Domain: ${classification.problemDomain} | Subtype: ${classification.problemSubtype} (Confidence: ${classification.confidence})`);
+  }
+
+  const preflightFacts = lastUserMsg ? extractPreflightDeterministicFacts(lastUserMsg.content) : [];
+  const preflightContext = buildPreflightContext(preflightFacts, classification);
+
   const relevantLessons = lastUserMsg ? learningStore.retrieveRelevantCorrections(lastUserMsg.content) : [];
   const learningContext = learningStore.formatLearningContext(relevantLessons);
 
-  // Ensure system instructions are always present and up-to-date
+  // Ensure system instructions are always present, up-to-date, and enriched with deterministic ground truth
   let preparedMessages = messages.filter(m => m && m.role !== 'system');
   preparedMessages.unshift({
     role: 'system',
-    content: PYTHOS_SYSTEM_PROMPT + learningContext
+    content: PYTHOS_SYSTEM_PROMPT + preflightContext + learningContext
   });
 
   // Detect if this request contains image payloads
@@ -290,6 +373,10 @@ app.post('/api/chat', async (req, res) => {
   const targetModel = hasImages ? (process.env.OLLAMA_VISION_MODEL || OLLAMA_VISION_MODEL) : OLLAMA_MODEL;
 
   try {
+    // Acquire concurrency slot (cancellable by signal and bounded by timeout)
+    await concurrencyLimiter.acquire(abortController.signal, REQUEST_TIMEOUT_MS);
+    acquiredSemaphore = true;
+
     const payload = JSON.stringify({
       model: targetModel,
       messages: preparedMessages,
@@ -306,7 +393,7 @@ app.post('/api/chat', async (req, res) => {
     ollamaHeaders['Content-Length'] = Buffer.byteLength(payload);
 
     const ollamaResponse = await new Promise((resolve, reject) => {
-      const req = httpLib.request({
+      const ollamaReq = httpLib.request({
         hostname: parsedUrl.hostname,
         port: parsedUrl.port || (isHttps ? 443 : 80),
         path: parsedUrl.pathname,
@@ -345,17 +432,25 @@ app.post('/api/chat', async (req, res) => {
         });
       });
 
-      req.on('timeout', () => {
-        req.destroy();
+      const onAbort = () => {
+        ollamaReq.destroy();
+        const abortErr = new Error('Request aborted');
+        abortErr.name = 'AbortError';
+        reject(abortErr);
+      };
+      abortController.signal.addEventListener('abort', onAbort, { once: true });
+
+      ollamaReq.on('timeout', () => {
+        ollamaReq.destroy();
         reject(new Error('ETIMEDOUT'));
       });
 
-      req.on('error', (err) => {
+      ollamaReq.on('error', (err) => {
         reject(err);
       });
 
-      req.write(payload);
-      req.end();
+      ollamaReq.write(payload);
+      ollamaReq.end();
     });
 
     // =====================================
@@ -363,92 +458,181 @@ app.post('/api/chat', async (req, res) => {
     // =====================================
     let finalContent = ollamaResponse.message ? ollamaResponse.message.content : '';
     const claims = extractClaims(finalContent);
+    const internalContradictions = auditInternalConsistency(claims);
 
-    if (claims.length > 0) {
+    if (claims.length > 0 || internalContradictions.length > 0) {
+      const invalidClaims = [];
+
       for (const claim of claims) {
+        if (abortController.signal.aborted) break;
         const verification = await runDeterministicVerification(claim);
         if (verification && verification.verified === false && verification.status !== 'UNKNOWN') {
-          console.warn('[VERIFIER] Contradiction detected in LLM response:', verification);
+          invalidClaims.push({ claim, verification });
+        }
+      }
 
-          // Revision step: Ask Pythos to correct its step given the deterministic verification feedback
-          try {
-            const revisionPrompt = [
-              ...preparedMessages,
-              { role: 'assistant', content: finalContent },
-              {
-                role: 'user',
-                content: `[VERIFICATION FEEDBACK]: An independent verification check found the following issue in your reasoning:\n- Issue: ${verification.error_type || verification.status}\n- Details: ${verification.details || verification.reason}\n\nPlease revise your solution and correct this mathematical/physical step precisely.`
-              }
-            ];
+      if ((invalidClaims.length > 0 || internalContradictions.length > 0) && !abortController.signal.aborted) {
+        console.warn(`[VERIFIER] Contradictions detected (Invalid claims: ${invalidClaims.length}, Internal: ${internalContradictions.length})`);
 
-            const revPayload = JSON.stringify({
-              model: targetModel,
-              messages: revisionPrompt,
-              stream: true,
-              options: options || { temperature: 0.1 }
-            });
+        // Revision step: Ask Pythos to revise its reasoning with precise verification feedback
+        try {
+          const feedbackLines = [];
+          invalidClaims.forEach(({ claim, verification }, i) => {
+            feedbackLines.push(`- Step ${i + 1} Error: ${verification.error_type || verification.status}: ${verification.details || verification.reason}`);
+          });
+          internalContradictions.forEach((ic, i) => {
+            feedbackLines.push(`- Internal Contradiction ${i + 1}: ${ic.details}`);
+          });
 
-            const revisedResponse = await new Promise((resolveRev, rejectRev) => {
-              const revReq = httpLib.request({
-                hostname: parsedUrl.hostname,
-                port: parsedUrl.port || (isHttps ? 443 : 80),
-                path: parsedUrl.pathname,
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Content-Length': Buffer.byteLength(revPayload),
-                  ...(OLLAMA_API_KEY ? { 'Authorization': `Bearer ${OLLAMA_API_KEY}` } : {})
-                },
-                timeout: REQUEST_TIMEOUT_MS
-              }, (revRes) => {
-                let revText = '';
-                revRes.on('data', (chunk) => {
-                  const lines = chunk.toString().split('\n').filter(Boolean);
-                  for (const l of lines) {
-                    try {
-                      const d = JSON.parse(l);
-                      if (d.message && d.message.content) revText += d.message.content;
-                    } catch (e) {}
-                  }
-                });
-                revRes.on('end', () => {
-                  resolveRev(revText);
-                });
+          const revisionPrompt = [
+            ...preparedMessages,
+            { role: 'assistant', content: finalContent },
+            {
+              role: 'user',
+              content: `[VERIFICATION FEEDBACK]: An independent verification check found mathematical contradictions in your steps:\n${feedbackLines.join('\n')}\n\nPlease revise your solution and provide the correct calculation and conclusions.`
+            }
+          ];
+
+          const revPayload = JSON.stringify({
+            model: targetModel,
+            messages: revisionPrompt,
+            stream: true,
+            options: options || { temperature: 0.1 }
+          });
+
+          const revisedResponse = await new Promise((resolveRev, rejectRev) => {
+            const revReq = httpLib.request({
+              hostname: parsedUrl.hostname,
+              port: parsedUrl.port || (isHttps ? 443 : 80),
+              path: parsedUrl.pathname,
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(revPayload),
+                ...(OLLAMA_API_KEY ? { 'Authorization': `Bearer ${OLLAMA_API_KEY}` } : {})
+              },
+              timeout: REQUEST_TIMEOUT_MS
+            }, (revRes) => {
+              let revText = '';
+              revRes.on('data', (chunk) => {
+                const lines = chunk.toString().split('\n').filter(Boolean);
+                for (const l of lines) {
+                  try {
+                    const d = JSON.parse(l);
+                    if (d.message && d.message.content) revText += d.message.content;
+                  } catch (e) {}
+                }
               });
-              revReq.on('error', (e) => rejectRev(e));
-              revReq.write(revPayload);
-              revReq.end();
+              revRes.on('end', () => {
+                resolveRev(revText);
+              });
             });
 
-            if (revisedResponse && revisedResponse.trim()) {
-              console.log('[VERIFIER] Solution revised successfully by Pythos.');
-              finalContent = revisedResponse.trim();
+            const onRevAbort = () => {
+              revReq.destroy();
+              const abortErr = new Error('Request aborted');
+              abortErr.name = 'AbortError';
+              rejectRev(abortErr);
+            };
+            abortController.signal.addEventListener('abort', onRevAbort, { once: true });
+
+            revReq.on('timeout', () => {
+              revReq.destroy();
+              rejectRev(new Error('ETIMEDOUT'));
+            });
+            revReq.on('error', (e) => rejectRev(e));
+            revReq.write(revPayload);
+            revReq.end();
+          });
+
+          if (revisedResponse && revisedResponse.trim()) {
+            console.log('[VERIFIER] Solution revised successfully by Pythos.');
+            finalContent = revisedResponse.trim();
+            ollamaResponse.message.content = finalContent;
+          }
+        } catch (revErr) {
+          console.error('[VERIFIER] Revision call failed:', revErr.message);
+        }
+
+        // Deterministic Supremacy: Enforce mathematical truth across all detected invalid calculations
+        for (const { claim, verification } of invalidClaims) {
+          if (claim.raw_match && verification.exact_value) {
+            const exactNum = typeof verification.exact_value === 'number'
+              ? verification.exact_value
+              : Number(verification.exact_value);
+            const exactFormatted = Number.isFinite(exactNum) ? exactNum.toFixed(4) : String(verification.exact_value);
+
+            if (finalContent.includes(claim.raw_match)) {
+              console.warn('[VERIFIER] Enforcing deterministic arithmetic override for:', claim.raw_match);
+              const correctedMatch = claim.raw_match.replace(
+                /[0-9.]+\s*%?$/,
+                claim.data.is_percent ? `${(exactNum * 100).toFixed(2)}%` : exactFormatted
+              );
+              finalContent = finalContent.replace(claim.raw_match, correctedMatch);
               ollamaResponse.message.content = finalContent;
             }
-          } catch (revErr) {
-            console.error('[VERIFIER] Revision call failed:', revErr.message);
           }
-          break; // Avoid nested cascading revisions in a single turn
         }
       }
     }
 
-    return res.status(200).json(ollamaResponse);
+    if (!res.headersSent && !res.writableEnded) {
+      if (finalContent) {
+        const normalizedContent = normalizeWorksheetMath(finalContent);
+        if (ollamaResponse && ollamaResponse.message) {
+          ollamaResponse.message.content = normalizedContent;
+        }
+      }
+      return res.status(200).json(ollamaResponse);
+    }
 
   } catch (error) {
-    if (error.message === 'ETIMEDOUT' || error.name === 'AbortError') {
-      console.error('[PYTHOS API] Request timed out after', REQUEST_TIMEOUT_MS, 'ms');
+    if (res.headersSent || res.writableEnded) {
+      return;
+    }
+
+    const isTimeout = error.message === 'ETIMEDOUT' || error.message.includes('timeout');
+    const isAbort = error.name === 'AbortError' || error.message.includes('aborted') || error.message.includes('AbortError');
+
+    if (isTimeout || isAbort) {
+      console.error(`[PYTHOS API] Request ${isTimeout ? 'timed out' : 'aborted'}:`, error.message);
+      
+      // If we already established pre-flight deterministic facts, deliver them rather than blanking!
+      if (preflightFacts && preflightFacts.length > 0) {
+        const fallbackContent = buildDeterministicResponse({
+          type: 'PREFLIGHT_FACTS_FALLBACK',
+          facts: preflightFacts
+        });
+        if (fallbackContent) {
+          return res.status(200).json({
+            model: 'pythos-deterministic-fallback',
+            message: {
+              role: 'assistant',
+              content: fallbackContent
+            },
+            deterministic: true,
+            done: true
+          });
+        }
+      }
+
       return res.status(504).json({
         error: 'gateway_timeout',
-        message: 'Inference brain timed out while generating mathematical solution.'
+        message: "⏳ That one gave me a workout. I couldn't finish checking it carefully enough, so I don't want to guess."
       });
     }
 
     console.error('[PYTHOS API] Connection failure to Ollama:', error.message);
     return res.status(502).json({
       error: 'upstream_unavailable',
-      message: 'Failed to connect to the Pythos inference host.'
+      message: "🤔 I don't have enough information to connect to the knowledge base right now. Please check your connection and try again."
     });
+  } finally {
+    activeControllers.delete(abortController);
+    if (acquiredSemaphore) {
+      concurrencyLimiter.release();
+    }
+    req.removeListener('close', clientCloseHandler);
   }
 });
 
@@ -480,22 +664,52 @@ app.post('/api/learning/record', (req, res) => {
 // =====================================
 // Server Startup & Lifecycle
 // =====================================
-const server = app.listen(PORT, () => {
-  console.log(`[PYTHOS BACKEND] Gateway listening on port ${PORT} -> Upstream: ${OLLAMA_HOST}`);
-});
+function clearActiveControllers() {
+  let aborted = 0;
+  activeControllers.forEach((c) => {
+    try {
+      c.abort();
+      aborted++;
+    } catch (_) {}
+  });
+  activeControllers.clear();
+  const queuedCleared = concurrencyLimiter.clearQueue();
+  return { aborted, queuedCleared };
+}
+
+let server = null;
+if (process.env.NODE_ENV !== 'test') {
+  server = app.listen(PORT, () => {
+    console.log(`[PYTHOS BACKEND] Gateway listening on port ${PORT} -> Upstream: ${OLLAMA_HOST}`);
+  });
+}
 
 // Graceful shutdown handling
 process.on('SIGTERM', () => {
   console.log('[PYTHOS BACKEND] SIGTERM received. Shutting down gracefully...');
-  server.close(() => {
-    console.log('[PYTHOS BACKEND] Process terminated.');
-    process.exit(0);
-  });
+  clearActiveControllers();
+  if (server) {
+    server.close(() => {
+      console.log('[PYTHOS BACKEND] Process terminated.');
+      process.exit(0);
+    });
+  }
 });
 
 process.on('SIGINT', () => {
   console.log('[PYTHOS BACKEND] SIGINT received. Shutting down gracefully...');
-  server.close(() => {
-    process.exit(0);
-  });
+  clearActiveControllers();
+  if (server) {
+    server.close(() => {
+      process.exit(0);
+    });
+  }
 });
+
+module.exports = {
+  app,
+  server,
+  activeControllers,
+  getActiveControllers: () => activeControllers,
+  clearActiveControllers
+};
