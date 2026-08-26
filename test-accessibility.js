@@ -185,7 +185,11 @@ const testMathCases = [
   { name: 'Matrices', input: 'The transformation matrix is $\\begin{pmatrix} 1 & 2 \\\\ 3 & 4 \\end{pmatrix}$.' },
   { name: 'Units & Math Mode', input: 'The maximum area is $A_{\\text{max}} = 1250\\text{ m}^2$ with velocity $v = 100\\text{ m/s}$.' },
   { name: 'Negative Values', input: 'Acceleration is $a = -9.8\\text{ m/s}^2$ and discriminant is $-4 < 0$.' },
-  { name: 'Boxed Final Answers', input: 'Therefore, the solution is $\\boxed{x = 4}$ and $$\\boxed{A_{\\text{max}} = 1250\\text{ m}^2}$$.' }
+  { name: 'Boxed Final Answers', input: 'Therefore, the solution is $\\boxed{x = 4}$ and $$\\boxed{A_{\\text{max}} = 1250\\text{ m}^2}$$.' },
+  { name: 'Polynomial Division Theorem', input: 'The polynomial division identity is \\[ P(x) = D(x)\\,Q(x) + R(x) \\]' },
+  { name: 'Leading Term Division', input: 'We divide leading terms: $\\frac{2x^4}{x^2} = 2x^2$' },
+  { name: 'Square Root Expressions', input: 'The hypotenuse is $\\sqrt{x^2+1}$.' },
+  { name: 'Indefinite Integrals', input: 'The antiderivative is $\\int x^2\\,dx = \\frac{x^3}{3} + C$.' }
 ];
 
 testMathCases.forEach(tCase => {
@@ -194,7 +198,13 @@ testMathCases.forEach(tCase => {
   assert(matches && matches.length > 0, `Math expression for ${tCase.name} is correctly recognized: ${matches ? matches.join(', ') : 'NONE'}`);
 });
 
-// 7. BOXED ANSWER ACCESSIBILITY & VISUAL EMPHASIS AUDIT
+// 7. ZERO-FLASH SYNCHRONOUS MATH COMPILATION & CODE-BLOCK PROTECTION AUDIT
+console.log('\n--- Auditing Zero-Flash Synchronous Math Compilation & Code Protection ---');
+assert(appJs.includes('renderToString') && appJs.includes('formatResponseText'), 'formatResponseText synchronously pre-compiles math to eliminate raw LaTeX flash');
+assert(appJs.includes('codeBlocks') && appJs.includes('%%%CODE_BLOCK_'), 'Code blocks (fenced & inline) are extracted and protected before math parsing');
+assert(appJs.includes('renderMath(contentDiv)') && appJs.includes('output.appendChild(div)'), 'Math rendering executes in memory prior to mounting to visible DOM');
+
+// 8. BOXED ANSWER ACCESSIBILITY & VISUAL EMPHASIS AUDIT
 console.log('\n--- Auditing Boxed Answer Accessibility & Visual Styling ---');
 assert(indexHtml.includes('.katex .fbox') && indexHtml.includes('border-radius'), 'Boxed final answers have high-contrast visual styling in index.html');
 assert(appJs.includes('Final answer:') && appJs.includes('.katex .fbox'), 'Boxed math answers are annotated with semantic ARIA role/label for screen readers');

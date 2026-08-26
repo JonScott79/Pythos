@@ -441,40 +441,57 @@ function appendMessage(role, text, images = null) {
     sanitized = sanitized.replace(graphTokenRegex, "%%%INLINE_GRAPH_PLACEHOLDER%%%");
   }
 
-  // Helper to safely format markdown while preserving LaTeX blocks without breaking them
+  // Helper to safely format markdown and pre-compile LaTeX blocks to eliminate any flash of raw math text
   function formatResponseText(raw) {
+    // 1. Protect and extract fenced multi-line and inline code blocks so math inside code is NEVER rendered
+    const codeBlocks = [];
+    let protectedText = raw.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, (match, lang, code) => {
+      const idx = codeBlocks.length;
+      const safeCode = code
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+      const langAttr = lang ? ` class="language-${lang}"` : "";
+      codeBlocks.push(`<pre><code${langAttr}>${safeCode}</code></pre>`);
+      return `%%%CODE_BLOCK_${idx}%%%`;
+    });
+
+    protectedText = protectedText.replace(/`([^`\n]+)`/g, (match, code) => {
+      const idx = codeBlocks.length;
+      const safeCode = code
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+      codeBlocks.push(`<code>${safeCode}</code>`);
+      return `%%%CODE_BLOCK_${idx}%%%`;
+    });
+
+    // 2. Protect and extract display and inline math blocks
     const mathBlocks = [];
-    // Protect display and inline math blocks so markdown/<br> transforms don't corrupt them
-    // Matches: $$, \[, \begin{...}...\end{...}, \(, $...$
     const mathRegex = /(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\begin\{[A-Za-z0-9_*]+\}[\s\S]*?\\end\{[A-Za-z0-9_*]+\}|\\\([\s\S]*?\\\)|\$(?!\s)[^$\n]+(?<!\s)\$)/g;
     
-    let protectedText = raw.replace(mathRegex, (match) => {
+    protectedText = protectedText.replace(mathRegex, (match) => {
       const idx = mathBlocks.length;
       mathBlocks.push(match);
       return `%%%MATH_BLOCK_${idx}%%%`;
     });
 
-    // Escape HTML special characters in the non-math prose
+    // 3. Escape HTML special characters in the remaining non-code, non-math prose
     protectedText = protectedText
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
 
-    // Convert markdown headers
+    // 4. Convert markdown headers
     protectedText = protectedText.replace(/^###\s+([^\n<]+)/gm, '<h3 class="msg-h3">$1</h3>');
     protectedText = protectedText.replace(/^##\s+([^\n<]+)/gm, '<h2 class="msg-h2">$1</h2>');
     protectedText = protectedText.replace(/^#\s+([^\n<]+)/gm, '<h1 class="msg-h1">$1</h1>');
 
-    // Convert code ticks `...` to <code>...</code>
-    protectedText = protectedText.replace(/`([^`]+)`/g, "<code>$1</code>");
-
-    // Convert **bold** to <strong>bold</strong>
+    // 5. Convert **bold** and *italic*
     protectedText = protectedText.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-
-    // Convert *italic* to <em>italic</em>
     protectedText = protectedText.replace(/\*([^*]+)\*/g, "<em>$1</em>");
 
-    // Convert newlines to <br> for regular text
+    // 6. Convert newlines to <br> for regular text
     protectedText = protectedText.replace(/\n/g, "<br>");
 
     // Remove redundant <br> immediately after heading tags
@@ -483,9 +500,52 @@ function appendMessage(role, text, images = null) {
     // Insert legitimate graph placeholder container into HTML after escaping is complete
     protectedText = protectedText.replace("%%%INLINE_GRAPH_PLACEHOLDER%%%", '<div class="msg-inline-graph-card"></div>');
 
-    // Restore protected math blocks verbatim
+    // 7. Restore code blocks
+    protectedText = protectedText.replace(/%%%CODE_BLOCK_(\d+)%%%/g, (_, idx) => {
+      return codeBlocks[parseInt(idx, 10)] || "";
+    });
+
+    // 8. Pre-compile math blocks synchronously into final KaTeX HTML (Zero Flash)
     protectedText = protectedText.replace(/%%%MATH_BLOCK_(\d+)%%%/g, (_, idx) => {
-      return mathBlocks[parseInt(idx, 10)] || "";
+      const rawMath = mathBlocks[parseInt(idx, 10)] || "";
+      if (!rawMath) return "";
+
+      let isDisplay = false;
+      let expr = rawMath;
+
+      if (rawMath.startsWith("$$") && rawMath.endsWith("$$")) {
+        isDisplay = true;
+        expr = rawMath.slice(2, -2).trim();
+      } else if (rawMath.startsWith("\\[") && rawMath.endsWith("\\]")) {
+        isDisplay = true;
+        expr = rawMath.slice(2, -2).trim();
+      } else if (rawMath.startsWith("\\(") && rawMath.endsWith("\\)")) {
+        isDisplay = false;
+        expr = rawMath.slice(2, -2).trim();
+      } else if (rawMath.startsWith("$") && rawMath.endsWith("$")) {
+        isDisplay = false;
+        expr = rawMath.slice(1, -1).trim();
+      } else if (rawMath.startsWith("\\begin{")) {
+        isDisplay = true;
+        expr = rawMath.trim();
+      }
+
+      if (window.katex && typeof window.katex.renderToString === "function") {
+        try {
+          return window.katex.renderToString(expr, {
+            displayMode: isDisplay,
+            throwOnError: false,
+            errorColor: "#ef4444",
+            output: "htmlAndMathml"
+          });
+        } catch (err) {
+          console.warn("[KATEX] renderToString error:", err);
+          return `<span class="katex-error">${expr.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</span>`;
+        }
+      }
+
+      // Fallback for deferred KaTeX auto-render
+      return rawMath;
     });
 
     return protectedText;
@@ -564,8 +624,9 @@ function appendMessage(role, text, images = null) {
   actionRow.appendChild(copyBtn);
   div.appendChild(actionRow);
 
-  output.appendChild(div);
+  // Pre-render math and attach accessibility attributes in memory before mounting to visible DOM
   renderMath(contentDiv);
+  output.appendChild(div);
   output.scrollTop = output.scrollHeight;
 }
 
