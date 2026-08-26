@@ -416,7 +416,9 @@ function appendMessage(role, text, images = null) {
   contentDiv.className = "message-content";
 
   // Filter out any raw TikZ blocks if LLM accidentally hallucinates them
-  let sanitized = text.replace(/\\begin\{tikzpicture\}[\s\S]*?\\end\{tikzpicture\}/gi, "");
+  let sanitized = text
+    .replace(/\\begin\{tikzpicture\}[\s\S]*?\\end\{tikzpicture\}/gi, "")
+    .replace(/\\\\([()[\]])/g, "\\$1"); // normalize double-escaped LaTeX delimiters
 
   // Detect [GRAPH: expr] tokens
   const graphTokenRegex = /\[GRAPH:\s*([^\]]+)\]/i;
@@ -430,8 +432,8 @@ function appendMessage(role, text, images = null) {
   function formatResponseText(raw) {
     const mathBlocks = [];
     // Protect display and inline math blocks so markdown/<br> transforms don't corrupt them
-    // Matches: $$, \[, \begin{...}...\end{...}, \(, $
-    const mathRegex = /(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\begin\{[a-z*]+\}[\s\S]*?\\end\{[a-z*]+\}|\\\([\s\S]*?\\\)|\$(?!\s)[^$\n]+(?<!\s)\$)/g;
+    // Matches: $$, \[, \begin{...}...\end{...}, \(, $...$
+    const mathRegex = /(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\begin\{[A-Za-z0-9_*]+\}[\s\S]*?\\end\{[A-Za-z0-9_*]+\}|\\\([\s\S]*?\\\)|\$(?!\s)[^$\n]+(?<!\s)\$)/g;
     
     let protectedText = raw.replace(mathRegex, (match) => {
       const idx = mathBlocks.length;
@@ -629,6 +631,13 @@ async function loadSidebarChats() {
     snapshot.forEach(docSnap => {
       const data = docSnap.data();
       const chatId = docSnap.id;
+      const title = (data.title || "Unknown Session").trim();
+
+      // Prevent developer test & benchmark artifacts from appearing in student-facing history
+      const isTestArtifact = /^(Math Exam \d+|Test Suite|Benchmark Run|Automated Test|E2E Test|CI_TEST)/i.test(title) ||
+                             (data.isTest === true) ||
+                             (data.testArtifact === true);
+      if (isTestArtifact) return;
 
       // Wrapper
       const wrapper = document.createElement("div");
@@ -637,7 +646,7 @@ async function loadSidebarChats() {
       // Chat title
       const titleEl = document.createElement("div");
       titleEl.className = "chat-item";
-      titleEl.textContent = data.title || "Unknown Session";
+      titleEl.textContent = title;
       if (chatId === currentChatId) titleEl.classList.add("active");
       titleEl.addEventListener("click", () => loadChat(chatId));
 
@@ -2006,7 +2015,72 @@ if (voiceBtn) {
       recognition.start();
     }
   });
-}
+// =========================
+// ACCESSIBILITY: SKIP LINKS & KEYBOARD FOCUS
+// =========================
+document.querySelectorAll(".skip-link").forEach(link => {
+  link.addEventListener("click", (e) => {
+    const targetId = link.getAttribute("href").replace(/^#/, "");
+    const targetEl = document.getElementById(targetId);
+    if (targetEl) {
+      e.preventDefault();
+      targetEl.focus();
+      targetEl.scrollIntoView({ behavior: "smooth", block: "start" });
+      const announcer = document.getElementById("srLiveRegion");
+      if (announcer) {
+        announcer.textContent = `Navigated to ${targetId === "userInput" ? "math problem input" : "conversation history"}`;
+      }
+    }
+  });
+});
+
+// =========================
+// ACCESSIBILITY: INTERACTIVE LANGUAGE SELECTOR
+// =========================
+const LANG_LOCALES = {
+  en: { code: "en-US", name: "English", placeholder: "Speak to the Oracle, dictate, or ask a math question..." },
+  es: { code: "es-MX", name: "Español", placeholder: "Habla con el Oráculo o haz una pregunta de matemáticas..." },
+  fr: { code: "fr-FR", name: "Français", placeholder: "Parlez à l'Oracle ou posez une question de maths..." },
+  de: { code: "de-DE", name: "Deutsch", placeholder: "Sprich mit dem Orakel oder stelle eine Matheaufgabe..." },
+  ja: { code: "ja-JP", name: "日本語", placeholder: "オラクルに数学や物理の質問をする..." },
+  zh: { code: "zh-CN", name: "中文", placeholder: "向神谕询问数学或物理问题..." },
+  ko: { code: "ko-KR", name: "한국어", placeholder: "오라클에게 수학이나 물리학 질문을 해보세요..." },
+  it: { code: "it-IT", name: "Italiano", placeholder: "Parla con l'Oracolo o fai una domanda di matematica..." },
+  hi: { code: "hi-IN", name: "हिन्दी", placeholder: "ओरेकल से गणित या भौतिकी का प्रश्न पूछें..." },
+  pt: { code: "pt-BR", name: "Português", placeholder: "Fale com o Oráculo ou faça uma pergunta de matemática..." }
+};
+
+document.querySelectorAll(".lang-chip").forEach(chip => {
+  chip.addEventListener("click", () => {
+    const langKey = chip.getAttribute("data-lang");
+    const langInfo = LANG_LOCALES[langKey] || LANG_LOCALES.en;
+
+    document.querySelectorAll(".lang-chip").forEach(c => {
+      c.classList.remove("active");
+      c.setAttribute("aria-pressed", "false");
+      const cName = c.getAttribute("data-lang-name") || "Language";
+      c.setAttribute("aria-label", `Switch language to ${cName}`);
+    });
+
+    chip.classList.add("active");
+    chip.setAttribute("aria-pressed", "true");
+    chip.setAttribute("aria-label", `Selected Language: ${langInfo.name}`);
+
+    if (input) {
+      input.placeholder = langInfo.placeholder;
+      input.focus();
+    }
+
+    if (recognition) {
+      recognition.lang = langInfo.code;
+    }
+
+    const announcer = document.getElementById("srLiveRegion");
+    if (announcer) {
+      announcer.textContent = `Language switched to ${langInfo.name}. You can type or dictate your math problem in ${langInfo.name}.`;
+    }
+  });
+});
 
 // ===== INIT =====
 clearChatUI();

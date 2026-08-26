@@ -1,0 +1,18 @@
+# Pythos — Free AI Mathematics & Physics Tutor
+
+> Pythos is an open, student-built mathematical tutoring oracle and physics study companion developed by Jon Scott under the LANZAR ecosystem.
+
+## Core Capabilities
+- **Algebra**: Linear equations, quadratic formulas, polynomial factoring, matrix arithmetic, determinants, matrix inverses, and system solving.
+- **Calculus**: Differential calculus, integral calculus, Riemann sums, limits, infinite series, and real-world optimization problems (e.g. geometric field constraints).
+- **Physics**: Classical mechanics, kinematics, projectile motion, Newton's laws of motion, rotational dynamics, work-energy theorem, and dimensional analysis.
+- **Verification Engine**: Two-stage reasoning architecture separating situation modeling from exact derivation, backed by deterministic Computer Algebra Systems (CAS) and Math.js calculation kernels.
+- **Accessibility**: Full WCAG 2.2 Level AA compliance, MathML assistive support, screen-reader polite live regions, and prefers-reduced-motion adaptations.
+
+## Public Study Guides & Documentation
+- [Algebra Study Guide](https://pythos.lanzar.me/algebra/): Comprehensive formulas, worked examples, and algebraic intuition.
+- [Calculus Study Guide](https://pythos.lanzar.me/calculus/): Foundations of limits, derivatives, integrals, and optimization techniques.
+- [Physics Study Guide](https://pythos.lanzar.me/physics/): Kinematics, Newtonian mechanics, and force analysis.
+- [Tool Catalog](https://pythos.lanzar.me/tools/): Overview of integrated scientific calculators, 2D graphers, and step verifiers.
+- [About Pythos](https://pythos.lanzar.me/about/): Background, mission, and the student-first philosophy behind Pythos.
+- [Release Changelog](https://pythos.lanzar.me/changelog.html): Authoritative milestone history and engine releases.

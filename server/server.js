@@ -577,11 +577,8 @@ app.post('/api/chat', async (req, res) => {
     }
 
     if (!res.headersSent && !res.writableEnded) {
-      if (finalContent) {
-        const normalizedContent = normalizeWorksheetMath(finalContent);
-        if (ollamaResponse && ollamaResponse.message) {
-          ollamaResponse.message.content = normalizedContent;
-        }
+      if (finalContent && ollamaResponse && ollamaResponse.message) {
+        ollamaResponse.message.content = finalContent;
       }
       return res.status(200).json(ollamaResponse);
     }

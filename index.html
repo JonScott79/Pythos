@@ -14,10 +14,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="assets/favicon.png">
+  <link rel="apple-touch-icon" href="assets/favicon.png">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#2563eb">
   
   <!-- SEO METADATA -->
   <title>Pythos | Free AI Mathematics & Physics Tutor</title>
-  <meta name="description" content="Pythos is a free AI mathematics and physics tutor developed by a student for students. Master algebra, calculus, and physics with Socratic guidance, interactive graphing, and study tools. A LANZAR project.">
+  <meta name="description" content="Free AI mathematics & physics tutor for students. Master algebra, calculus, and physics with Socratic guidance, verified derivations, and graphing tools.">
   <meta name="keywords" content="AI math tutor, free AI math tutor, AI physics tutor, college math help, calculus help, algebra problem solver, graphing calculator, LANZAR">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
@@ -25,30 +28,67 @@
 
   <!-- OPEN GRAPH -->
   <meta property="og:title" content="Pythos | Free AI Mathematics & Physics Tutor">
-  <meta property="og:description" content="Free AI mathematics and physics study companion developed by a student for students. Socratic step-by-step guidance, interactive graphing, and equation tools. A LANZAR project.">
+  <meta property="og:description" content="Free AI mathematics & physics tutor for students. Master algebra, calculus, and physics with Socratic guidance, verified derivations, and graphing tools.">
   <meta property="og:url" content="https://pythos.lanzar.me/">
   <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Pythos">
+  <meta property="og:locale" content="en_US">
   <meta property="og:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
+  <meta property="og:image:width" content="512">
+  <meta property="og:image:height" content="512">
+  <meta property="og:image:alt" content="Pythos - Ancient Greek Mathematical Scholar and AI Oracle">
 
-  <!-- JSON-LD -->
+  <!-- TWITTER CARD -->
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Pythos | Free AI Mathematics & Physics Tutor">
+  <meta name="twitter:description" content="Free AI mathematics & physics tutor for students. Master algebra, calculus, and physics with Socratic guidance, verified derivations, and graphing tools.">
+  <meta name="twitter:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
+  <meta name="twitter:image:alt" content="Pythos Oracle Avatar">
+
+  <!-- JSON-LD STRUCTURED DATA -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
-    "@type": "WebApplication",
-    "name": "Pythos",
-    "applicationCategory": "EducationalApplication",
-    "description": "A free AI-powered mathematics and physics tutor developed by a student for students.",
-    "operatingSystem": "Web",
-    "offers": {
-      "@type": "Offer",
-      "price": "0",
-      "priceCurrency": "USD"
-    },
-    "creator": {
-      "@type": "Organization",
-      "name": "LANZAR",
-      "url": "https://lanzar.me"
-    }
+    "@graph": [
+      {
+        "@type": "WebApplication",
+        "@id": "https://pythos.lanzar.me/#webapp",
+        "name": "Pythos",
+        "url": "https://pythos.lanzar.me/",
+        "applicationCategory": "EducationalApplication",
+        "operatingSystem": "All modern web browsers",
+        "description": "Free AI mathematics and physics tutor providing Socratic step-by-step guidance, deterministic computer algebra verification, 2D function plotting, and study tools.",
+        "inLanguage": "en",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "creator": {
+          "@type": "Person",
+          "@id": "https://lanzar.me/#jonscott",
+          "name": "Jon Scott",
+          "url": "https://lanzar.me"
+        },
+        "publisher": {
+          "@type": "Organization",
+          "@id": "https://lanzar.me/#organization",
+          "name": "LANZAR",
+          "url": "https://lanzar.me",
+          "logo": "https://pythos.lanzar.me/assets/pythos_avatar.jpg"
+        }
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://pythos.lanzar.me/#website",
+        "url": "https://pythos.lanzar.me/",
+        "name": "Pythos",
+        "description": "Free AI Mathematics & Physics Tutor",
+        "publisher": {
+          "@id": "https://lanzar.me/#organization"
+        }
+      }
+    ]
   }
   </script>
 
@@ -57,10 +97,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
   <!-- Deterministic Math Engine -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.1/math.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.1/math.js"></script>
   <!-- Visual Equation Editor (MathLive) -->
   <script defer src="https://unpkg.com/mathlive"></script>
 
@@ -732,33 +772,68 @@
     }
 
     .footer-disclaimer {
-      font-size: 0.66rem;
-      color: #94a3b8;
+      font-size: 0.72rem;
+      color: var(--text-muted);
       margin-top: 4px;
-      line-height: 1.3;
-      max-width: 540px;
+      line-height: 1.35;
+      max-width: 560px;
       margin-left: auto;
       margin-right: auto;
     }
     
-    .polyglot-footer .flag-row {
-      display: inline-flex;
+    .polyglot-footer .lang-selector-wrap {
+      display: flex;
+      flex-direction: column;
       align-items: center;
       gap: 4px;
-      margin-top: 3px;
+      margin-top: 4px;
+    }
+
+    .polyglot-footer .lang-chips-grid {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
       flex-wrap: wrap;
       justify-content: center;
+      margin-top: 2px;
     }
 
-    .polyglot-footer .flag-row img {
-      height: 13px;
+    .lang-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+      background: var(--surface-color);
+      color: var(--text-main);
+      font-size: 0.72rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      font-family: inherit;
+    }
+
+    .lang-chip:hover {
+      background: var(--sidebar-hover);
+      border-color: var(--primary-color);
+      color: var(--primary-color);
+    }
+
+    .lang-chip.active,
+    .lang-chip[aria-pressed="true"] {
+      background: rgba(37, 99, 235, 0.1);
+      border-color: var(--primary-color);
+      color: var(--primary-color);
+      font-weight: 600;
+    }
+
+    .lang-chip .lang-flag {
+      width: 14px;
+      height: 10px;
       border-radius: 2px;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-      transition: transform 0.15s;
-    }
-
-    .polyglot-footer .flag-row img:hover {
-      transform: scale(1.25);
+      object-fit: cover;
+      flex-shrink: 0;
     }
 
     .char-counter {
@@ -1798,7 +1873,7 @@
       <div class="sidebar-footer">
         <button id="loginBtn" class="login-btn">Login with Google</button>
         <div id="userInfo" style="display: none;" class="user-profile">
-          <img id="userAvatar" src="" alt="User profile avatar" />
+          <img id="userAvatar" src="" alt="User profile avatar" width="32" height="32" />
           <div style="flex:1; overflow:hidden;">
             <div id="userName" style="font-weight:600; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;"></div>
           </div>
@@ -1809,7 +1884,7 @@
           <a href="calculus/">Calculus</a>
           <a href="physics/">Physics</a>
           <a href="about/">About</a>
-          <a href="changelog.html#pythos-1-0-0" title="View Changelog">v1.0.0</a>
+          <a href="changelog.html#pythos-1-0-0" title="View Changelog" aria-label="Version 1.0.0 Release Notes">v1.0.0</a>
         </nav>
       </div>
     </aside>
@@ -1822,7 +1897,7 @@
 
       <div class="app-container">
         <header class="header">
-          <img class="header-avatar" src="assets/pythos_avatar.jpg" alt="Pythos Oracle" />
+          <img class="header-avatar" src="assets/pythos_avatar.jpg" alt="Pythos Oracle" width="40" height="40" />
           <div class="header-info">
             <h1>PYTHOS <a href="changelog.html#pythos-1-0-0" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.0.0)" aria-label="Version 1.0.0 Release Notes">v1.0.0</a></h1>
             <p>Mathematics & Physics Oracle</p>
@@ -1833,8 +1908,23 @@
           </button>
         </header>
 
+        <!-- STATIC CRAWLABLE FALLBACK (FOR SEARCH ENGINES & NO-JS) -->
+        <noscript>
+          <div style="padding: 20px; background: var(--surface-color); border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 16px;">
+            <h2>Free AI Mathematics & Physics Tutor</h2>
+            <p>Pythos is a dedicated educational platform created by a student for students. Explore our free study guides and interactive tools:</p>
+            <ul>
+              <li><a href="algebra/">Algebra Study Guide</a>: Linear equations, quadratic formulas, polynomials, and systems.</li>
+              <li><a href="calculus/">Calculus Study Guide</a>: Limits, derivatives, integration techniques, and optimization.</li>
+              <li><a href="physics/">Physics Study Guide</a>: Mechanics, kinematics, rotational dynamics, and Newton's laws.</li>
+              <li><a href="tools/">Interactive Toolset</a>: Scientific calculators, 2D function grapher, and step verifiers.</li>
+              <li><a href="changelog.html">Release Changelog</a>: Latest updates, verifier milestones, and version history.</li>
+            </ul>
+          </div>
+        </noscript>
+
         <!-- CHAT CONVERSATION LOG -->
-        <div id="output" role="log" aria-live="polite" aria-relevant="additions text" aria-atomic="false" aria-label="Conversation History with Pythos Oracle"></div>
+        <div id="output" role="log" aria-live="polite" aria-relevant="additions text" aria-atomic="false" aria-label="Conversation History with Pythos Oracle" tabindex="-1"></div>
 
         <div class="input-area">
           <!-- PYTHOS MATH TOOLBOX -->
@@ -1885,18 +1975,51 @@
         <footer class="polyglot-footer" role="contentinfo">
           <div class="footer-tagline">🏛️ Developed by a student for students.</div>
           <div>Fluent in 100+ Languages. Just type in your native tongue!</div>
-          <span class="flag-row" aria-label="Supported languages include English, Spanish, French, German, Japanese, Chinese, Korean, Italian, Hindi, and Portuguese">
-            <img src="https://flagcdn.com/w40/us.png" alt="English (US)" title="English" />
-            <img src="https://flagcdn.com/w40/mx.png" alt="Español (Mexico)" title="Español" />
-            <img src="https://flagcdn.com/w40/fr.png" alt="Français (France)" title="Français" />
-            <img src="https://flagcdn.com/w40/de.png" alt="Deutsch (Germany)" title="Deutsch" />
-            <img src="https://flagcdn.com/w40/jp.png" alt="日本語 (Japan)" title="日本語" />
-            <img src="https://flagcdn.com/w40/cn.png" alt="中文 (China)" title="中文" />
-            <img src="https://flagcdn.com/w40/kr.png" alt="한국어 (Korea)" title="한국어" />
-            <img src="https://flagcdn.com/w40/it.png" alt="Italiano (Italy)" title="Italiano" />
-            <img src="https://flagcdn.com/w40/in.png" alt="हिन्दी (India)" title="हिन्दी" />
-            <img src="https://flagcdn.com/w40/br.png" alt="Português (Brazil)" title="Português" />
-          </span>
+          <div class="lang-selector-wrap" role="region" aria-label="Language selection assistance">
+            <span class="sr-only">Choose your preferred language or type in your native tongue:</span>
+            <div class="lang-chips-grid" role="group" aria-label="Quick language selector">
+              <button type="button" class="lang-chip active" data-lang="en" data-lang-name="English" aria-pressed="true" aria-label="Selected Language: English">
+                <img src="https://flagcdn.com/w40/us.png" alt="" aria-hidden="true" class="lang-flag" />
+                <span class="lang-text">English</span>
+              </button>
+              <button type="button" class="lang-chip" data-lang="es" data-lang-name="Español" aria-pressed="false" aria-label="Switch language to Español">
+                <img src="https://flagcdn.com/w40/mx.png" alt="" aria-hidden="true" class="lang-flag" />
+                <span class="lang-text">Español</span>
+              </button>
+              <button type="button" class="lang-chip" data-lang="fr" data-lang-name="Français" aria-pressed="false" aria-label="Switch language to Français">
+                <img src="https://flagcdn.com/w40/fr.png" alt="" aria-hidden="true" class="lang-flag" />
+                <span class="lang-text">Français</span>
+              </button>
+              <button type="button" class="lang-chip" data-lang="de" data-lang-name="Deutsch" aria-pressed="false" aria-label="Switch language to Deutsch">
+                <img src="https://flagcdn.com/w40/de.png" alt="" aria-hidden="true" class="lang-flag" />
+                <span class="lang-text">Deutsch</span>
+              </button>
+              <button type="button" class="lang-chip" data-lang="ja" data-lang-name="日本語" aria-pressed="false" aria-label="Switch language to 日本語 (Japanese)">
+                <img src="https://flagcdn.com/w40/jp.png" alt="" aria-hidden="true" class="lang-flag" />
+                <span class="lang-text">日本語</span>
+              </button>
+              <button type="button" class="lang-chip" data-lang="zh" data-lang-name="中文" aria-pressed="false" aria-label="Switch language to 中文 (Chinese)">
+                <img src="https://flagcdn.com/w40/cn.png" alt="" aria-hidden="true" class="lang-flag" />
+                <span class="lang-text">中文</span>
+              </button>
+              <button type="button" class="lang-chip" data-lang="ko" data-lang-name="한국어" aria-pressed="false" aria-label="Switch language to 한국어 (Korean)">
+                <img src="https://flagcdn.com/w40/kr.png" alt="" aria-hidden="true" class="lang-flag" />
+                <span class="lang-text">한국어</span>
+              </button>
+              <button type="button" class="lang-chip" data-lang="it" data-lang-name="Italiano" aria-pressed="false" aria-label="Switch language to Italiano">
+                <img src="https://flagcdn.com/w40/it.png" alt="" aria-hidden="true" class="lang-flag" />
+                <span class="lang-text">Italiano</span>
+              </button>
+              <button type="button" class="lang-chip" data-lang="hi" data-lang-name="हिन्दी" aria-pressed="false" aria-label="Switch language to हिन्दी (Hindi)">
+                <img src="https://flagcdn.com/w40/in.png" alt="" aria-hidden="true" class="lang-flag" />
+                <span class="lang-text">हिन्दी</span>
+              </button>
+              <button type="button" class="lang-chip" data-lang="pt" data-lang-name="Português" aria-pressed="false" aria-label="Switch language to Português">
+                <img src="https://flagcdn.com/w40/br.png" alt="" aria-hidden="true" class="lang-flag" />
+                <span class="lang-text">Português</span>
+              </button>
+            </div>
+          </div>
           <div class="footer-disclaimer">Pythos is an AI tutor and, like any AI, can sometimes be wrong. Always check important answers and use your own judgment.</div>
         </footer>
       </div>
@@ -2298,7 +2421,7 @@
   <div id="pythosConfirmModal" class="pythos-modal-overlay" role="alertdialog" aria-modal="true" aria-labelledby="modalTitle" aria-describedby="pythosConfirmMessage" tabindex="-1">
     <div class="pythos-modal-card">
       <div class="pythos-modal-header">
-        <img src="assets/pythos_avatar.jpg" alt="Pythos Oracle" class="pythos-modal-avatar">
+        <img src="assets/pythos_avatar.jpg" alt="Pythos Oracle" class="pythos-modal-avatar" width="38" height="38">
         <div class="pythos-modal-title-group">
           <h3 id="modalTitle">Pythos Inquires</h3>
           <p>Confirmation of Dissolution</p>
