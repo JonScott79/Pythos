@@ -84,20 +84,124 @@ function renderInputPreview() {
   renderMath(preview);
 }
 
-// =========================
-// UI HELPERS
-// =========================
-function showThinking() {
+// ============================================================
+// DYNAMIC ROTATING WAIT-STATE SYSTEM
+// ============================================================
+
+const WAIT_STATE_MESSAGES = {
+  ARITHMETIC: [
+    "Crunching the numbers...",
+    "Checking the calculation...",
+    "Making sure the fractions behave..."
+  ],
+  ALGEBRA: [
+    "Untangling the equation...",
+    "Finding x...",
+    "Checking the algebra..."
+  ],
+  CALCULUS: [
+    "Working through the optimization...",
+    "Checking the critical point...",
+    "Making sure we found the maximum..."
+  ],
+  PROBABILITY: [
+    "Following the probabilities...",
+    "Checking the conditional relationships...",
+    "Making sure Bayes isn't sneaking around..."
+  ],
+  STATISTICS: [
+    "Looking at the data from another angle...",
+    "Checking the group sizes...",
+    "Making sure the averages aren't lying to us..."
+  ],
+  PHYSICS: [
+    "Setting up the physics...",
+    "Checking the units...",
+    "Making sure gravity is behaving...",
+    "Running the numbers..."
+  ],
+  CONCEPTUAL: [
+    "Working through the problem...",
+    "Thinking this one through...",
+    "Checking the details...",
+    "Putting the pieces together..."
+  ],
+  DEFAULT: [
+    "This one's making me think...",
+    "Taking a closer look...",
+    "Checking the problem from another angle...",
+    "Working through the details..."
+  ]
+};
+
+function inferClientDomain(text) {
+  if (!text) return 'DEFAULT';
+  const lower = text.toLowerCase();
+
+  if (lower.includes('probability') || lower.includes('bayes') || lower.includes('defect rate') || lower.includes('chance that')) {
+    return 'PROBABILITY';
+  }
+  if (lower.includes('simpson') || lower.includes('subgroup') || lower.includes('hospital') || lower.includes('statistics')) {
+    return 'STATISTICS';
+  }
+  if (lower.includes('fencing') || lower.includes('maximize') || lower.includes('minimize') || lower.includes('derivative') || lower.includes('integral') || lower.includes('tangent line') || lower.includes('optimization')) {
+    return 'CALCULUS';
+  }
+  if (lower.includes('projectile') || lower.includes('velocity') || lower.includes('gravity') || lower.includes('speed') || lower.includes('pendulum') || lower.includes('sphere') || lower.includes('angle of')) {
+    return 'PHYSICS';
+  }
+  if (lower.includes('solve for') || (lower.includes('=') && (lower.includes('x') || lower.includes('y')))) {
+    return 'ALGEBRA';
+  }
+  if (/^[-+*/^0-9.()\s,]+$/.test(text) || (text.includes('/') && /\d+\s*\/\s*\d+/.test(text) && !text.includes('x'))) {
+    return 'ARITHMETIC';
+  }
+  if (lower.includes('why') || lower.includes('explain') || lower.includes('meaning') || lower.includes('concept')) {
+    return 'CONCEPTUAL';
+  }
+  return 'DEFAULT';
+}
+
+function showThinking(userQuery = '') {
   const div = document.createElement("div");
   div.className = "message thinking";
-  div.innerHTML = `<em>The Oracle is pondering...</em>`;
+
+  const domain = inferClientDomain(userQuery);
+  const messagesList = WAIT_STATE_MESSAGES[domain] || WAIT_STATE_MESSAGES.DEFAULT;
+  let idx = 0;
+
+  div.innerHTML = `
+    <div class="thinking-status-wrap">
+      <span class="thinking-spinner"></span>
+      <span class="thinking-text">${messagesList[0]}</span>
+    </div>
+  `;
+
+  const textSpan = div.querySelector('.thinking-text');
+  div._waitInterval = setInterval(() => {
+    idx = (idx + 1) % messagesList.length;
+    if (textSpan) {
+      textSpan.style.opacity = '0';
+      setTimeout(() => {
+        textSpan.textContent = messagesList[idx];
+        textSpan.style.opacity = '1';
+      }, 200);
+    }
+  }, 3500);
+
   output.appendChild(div);
   output.scrollTop = output.scrollHeight;
   return div;
 }
 
 function removeThinking(el) {
-  if (el && el.parentNode) el.parentNode.removeChild(el);
+  if (el) {
+    if (el._waitInterval) {
+      clearInterval(el._waitInterval);
+      el._waitInterval = null;
+    }
+    if (el.parentNode) el.parentNode.removeChild(el);
+  }
 }
 
 // Helper: robust expression compiler supporting LaTeX and implicit multiplication
@@ -914,7 +1018,7 @@ async function askPythos(userText) {
     return;
   }
 
-  const thinking = showThinking();
+  const thinking = showThinking(cleanText);
 
   // Pythos API Endpoint (Local dev: port 3006, Prod: /api/chat or https://pythos-api.lanzar.me)
   const pythosApiUrl = window.location.hostname === "localhost" ? "http://localhost:3006/api/chat" : "https://pythos-api.lanzar.me/api/chat";
