@@ -1054,8 +1054,19 @@ async function askPythos(userText) {
 
   const thinking = showThinking(cleanText);
 
-  // Pythos API Endpoint (Local dev: port 3006, Prod: /api/chat or https://pythos-api.lanzar.me)
-  const pythosApiUrl = window.location.hostname === "localhost" ? "http://localhost:3006/api/chat" : "https://pythos-api.lanzar.me/api/chat";
+  // Pythos API Endpoint: Resilient local and production resolution
+  let pythosApiUrl = "/api/chat";
+  if (window.location.protocol === "file:") {
+    pythosApiUrl = "http://localhost:3006/api/chat";
+  } else if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+    if (window.location.port && window.location.port !== "3006") {
+      pythosApiUrl = `http://${window.location.hostname}:3006/api/chat`;
+    } else {
+      pythosApiUrl = "/api/chat";
+    }
+  } else if (window.location.hostname.includes("lanzar.me") || window.location.hostname.includes("netlify.app")) {
+    pythosApiUrl = "https://pythos-api.lanzar.me/api/chat";
+  }
 
   try {
     const res = await fetch(pythosApiUrl, {
@@ -2015,6 +2026,8 @@ if (voiceBtn) {
       recognition.start();
     }
   });
+}
+
 // =========================
 // ACCESSIBILITY: SKIP LINKS & KEYBOARD FOCUS
 // =========================

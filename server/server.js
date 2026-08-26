@@ -11,6 +11,7 @@
 */
 
 require('dotenv').config();
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
 
@@ -209,6 +210,7 @@ app.use(cors({
 }));
 
 app.use(express.json({ limit: '15mb' }));
+app.use(express.static(path.join(__dirname, '..')));
 
 // =====================================
 // Health Check Endpoint
