@@ -189,7 +189,8 @@ const testMathCases = [
   { name: 'Polynomial Division Theorem', input: 'The polynomial division identity is \\[ P(x) = D(x)\\,Q(x) + R(x) \\]' },
   { name: 'Leading Term Division', input: 'We divide leading terms: $\\frac{2x^4}{x^2} = 2x^2$' },
   { name: 'Square Root Expressions', input: 'The hypotenuse is $\\sqrt{x^2+1}$.' },
-  { name: 'Indefinite Integrals', input: 'The antiderivative is $\\int x^2\\,dx = \\frac{x^3}{3} + C$.' }
+  { name: 'Indefinite Integrals', input: 'The antiderivative is $\\int x^2\\,dx = \\frac{x^3}{3} + C$.' },
+  { name: 'Row Break Spacing', input: '$$\\begin{aligned} 2x^2(x^2 - x + 1) &= 2x^4 - 2x^3 + 2x^2, \\\\[4pt] \\text{Subtract:} \\end{aligned}$$' }
 ];
 
 testMathCases.forEach(tCase => {

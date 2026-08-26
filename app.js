@@ -431,7 +431,9 @@ function appendMessage(role, text, images = null) {
   // Filter out any raw TikZ blocks if LLM accidentally hallucinates them
   let sanitized = text
     .replace(/\\begin\{tikzpicture\}[\s\S]*?\\end\{tikzpicture\}/gi, "")
-    .replace(/\\\\([()[\]])/g, "\\$1"); // normalize double-escaped LaTeX delimiters
+    .replace(/\\\\([()])/g, "\\$1")
+    .replace(/\\\\\[(?!\s*-?\d+(?:\.\d+)?(?:pt|em|ex|cm|mm|in|px)\])/g, "\\[")
+    .replace(/\\\\\]/g, "\\]"); // normalize double-escaped LaTeX delimiters while preserving row break spacing \\[4pt]
 
   // Detect [GRAPH: expr] tokens
   const graphTokenRegex = /\[GRAPH:\s*([^\]]+)\]/i;
