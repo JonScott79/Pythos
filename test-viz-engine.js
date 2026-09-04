@@ -184,6 +184,63 @@ for (const item of allModels) {
 }
 console.log("✅ All 8 additional physics & mathematics models pass rigorous verification.");
 
+// --- TEST 8: Natural Language Physics Variations & Generic Graph Preservation ---
+console.log("\n▶ [TEST 8] Natural Language Force/Acceleration Routing & Generic Graphing Preservation");
+const naturalQueries = [
+  {
+    query: "Show the relationship between force and acceleration for a fixed mass of 2 kg.",
+    expectedMass: 2
+  },
+  {
+    query: "How does force affect acceleration if mass stays constant?",
+    expectedMass: 10
+  },
+  {
+    query: "What happens to acceleration when I increase the force?",
+    expectedMass: 10
+  },
+  {
+    query: "Show me F=ma interactively.",
+    expectedMass: 10
+  }
+];
+
+for (const { query, expectedMass } of naturalQueries) {
+  const intent = analyzeDeterministicIntent(query);
+  assert(intent, `Query "${query}" should match deterministic intent`);
+  assert.strictEqual(intent.type, 'CLASSICAL_MODEL_VIZ', `Query "${query}" should route to CLASSICAL_MODEL_VIZ`);
+  assert.strictEqual(intent.model, 'newtons_laws', `Query "${query}" should select newtons_laws model`);
+  assert.strictEqual(intent.customMass, expectedMass, `Query "${query}" should extract mass ${expectedMass}`);
+
+  const resp = buildDeterministicResponse(intent);
+  assert(resp.includes('[VIZ: {'), `Response should contain [VIZ: ...] token for "${query}"`);
+  assert(!resp.includes('[GRAPH:'), `Response must NOT contain generic [GRAPH: ...] for "${query}"`);
+
+  const specMatch = resp.match(/\[VIZ:\s*(\{[\s\S]*?\})\]/);
+  const spec = JSON.parse(specMatch[1]);
+  assert.strictEqual(spec.model, 'newtons_laws');
+  assert.strictEqual(spec.variables.mass.value, expectedMass);
+  console.log(`   ✔ Natural query "${query}" correctly routed to newtons_laws (m=${expectedMass}kg).`);
+}
+
+// Ensure generic scalar function graphing is PRESERVED and not broken
+const genericGraphQueries = [
+  "plot f(x) = x^3 - 4x",
+  "graph y = 2x + 3",
+  "plot sin(x)"
+];
+
+for (const gQuery of genericGraphQueries) {
+  const gIntent = analyzeDeterministicIntent(gQuery);
+  assert(gIntent, `Generic query "${gQuery}" should match deterministic intent`);
+  assert.strictEqual(gIntent.type, 'GRAPH_PLOT', `Generic query "${gQuery}" must remain GRAPH_PLOT`);
+  const gResp = buildDeterministicResponse(gIntent);
+  assert(gResp.includes('[GRAPH:'), `Generic query "${gQuery}" must emit [GRAPH: ...]`);
+  assert(!gResp.includes('[VIZ:'), `Generic query "${gQuery}" must NOT emit [VIZ: ...]`);
+  console.log(`   ✔ Generic scalar function "${gQuery}" preserved as standard [GRAPH: ...] plot.`);
+}
+console.log("✅ Natural language physics queries and generic scalar graphing verified.");
+
 console.log("\n==================================================");
 console.log("✔ ALL PYTHOS VIZ ENGINE TESTS PASSED (100%)");
 console.log("==================================================\n");

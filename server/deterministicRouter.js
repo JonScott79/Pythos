@@ -541,12 +541,16 @@ function analyzeDeterministicIntent(userText) {
     };
   }
 
-  // 0f. Newton's Second Law & Incline (e.g. "simulate newton's second law", "inclined plane simulation", "f = ma simulation")
-  const newtonMatch = clean.match(/(?:newton(?:'s)?\s+(?:second\s+law|laws?)|incline(?:d)?\s+plane|f\s*=\s*ma\s+simulation)/i);
+  // 0f. Newton's Second Law & Incline (e.g. "relationship between force and acceleration", "how does force affect acceleration", "f = ma", "simulate newtons second law")
+  const newtonMatch = clean.match(/(?:newton(?:'s)?\s+(?:second\s+law|laws?)|incline(?:d)?\s+plane|\bf\s*=\s*ma\b|force\s+(?:and|vs\.?|affect(?:s)?|relationship(?:\s+between)?)\s+(?:the\s+)?acceleration|acceleration\s+(?:and|vs\.?|when(?:\s+i)?\s+(?:increase|change|decrease))\s+(?:the\s+)?force)/i);
   if (newtonMatch) {
+    // Check if a fixed mass was specified (e.g. "fixed mass of 2 kg", "mass 5kg")
+    const massMatch = clean.match(/(?:mass\s*(?:of|=|is)?\s*)(\d+(?:\.\d+)?)\s*(?:kg|kilograms?)?/i);
+    const parsedMass = massMatch ? parseFloat(massMatch[1]) : 10;
     return {
       type: 'CLASSICAL_MODEL_VIZ',
-      model: 'newtons_laws'
+      model: 'newtons_laws',
+      customMass: parsedMass
     };
   }
 
@@ -874,13 +878,22 @@ Adjust the controls above to explore how launch angle $\\theta$ and velocity $v_
 
     const modelMod = modelMap[intent.model];
     if (modelMod && modelMod.defaultConfig) {
+      // Clone variables to avoid mutating base singleton
+      const vars = JSON.parse(JSON.stringify(modelMod.defaultConfig.variables));
+      if (intent.model === 'newtons_laws' && intent.customMass) {
+        if (vars.mass) {
+          vars.mass.value = intent.customMass;
+          vars.mass.default = intent.customMass;
+        }
+      }
+
       const spec = {
         type: modelMod.type || 'PHYSICS',
         model: modelMod.modelId,
         title: modelMod.defaultConfig.title,
         subtitle: modelMod.defaultConfig.subtitle,
         description: modelMod.defaultConfig.description,
-        variables: modelMod.defaultConfig.variables
+        variables: vars
       };
 
       return `🏛️ **Classical Mathematical Instrument: ${modelMod.defaultConfig.title}**\n\n${modelMod.defaultConfig.description}\n\n[VIZ: ${JSON.stringify(spec)}]\n\nExplore this model using the interactive controls above. Observe how changing the input parameters instantaneously updates the physical system and its metrics.`;

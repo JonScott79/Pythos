@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     7. *DC Circuits & Ohm's Law* (`circuits`): Closed schematic (ΚΥΚΛΩΜΑ) with electromotive battery source $V$, load resistance $R$, and dissipated power $P$.
     8. *Pythagorean Unit Circle* (`trigonometry`): Interactive unit circle (ΤΡΙΓΩΝΟΜΕΤΡΙΑ) with dynamic right triangle projections and radian metrics.
     9. *Differential Calculus* (`calculus_derivatives`): Instantaneous rate of change (ΑΠΕΙΡΟΣΤΙΚΟΣ ΛΟΓΙΣΜΟΣ), true tangent slope $f'(x_0)$, and secant convergence.
+  - LLM system prompt visualization awareness instructing Pythos on the `[VIZ: ...]` protocol, preferring specialized interactive models over generic `[GRAPH: ...]` for physics concepts.
+  - Natural-language physics intent routing mapping queries (e.g. force-acceleration relationships, fixed mass specifications) directly to interactive instruments without requiring explicit model naming.
 - **Accessible Markdown Table Rendering**:
   - Full GitHub-Flavored Markdown table parsing in the streaming response pipeline with zero math escaping collisions.
   - Responsive horizontal scroll wrapper (`.pythos-table-wrap`) and classical slate/marble table styling.
