@@ -141,27 +141,50 @@ def verify_simpsons_paradox(data: Dict[str, Any]) -> dict:
         }
         return _finalize(payload)
 
-    # Determine if every subgroup shares the same direction
+    # Premise Audit: Check if an explicit premise was stated about subgroup rates/directions
+    stated_subgroup_premise = data.get("stated_subgroup_direction") or data.get("stated_premise")
+    if stated_subgroup_premise:
+        # Check if stated premise (e.g. "A>B", "B>A", "X>Y", "higher in both") is contradicted by any subgroup
+        norm_premise = str(stated_subgroup_premise).upper()
+        expected_dir = None
+        if "A>B" in norm_premise or "X>Y" in norm_premise or "A HIGHER" in norm_premise or "X HIGHER" in norm_premise or "MEN>WOMEN" in norm_premise:
+            expected_dir = "MEN>WOMEN"
+        elif "B>A" in norm_premise or "Y>X" in norm_premise or "B HIGHER" in norm_premise or "Y HIGHER" in norm_premise or "WOMEN>MEN" in norm_premise:
+            expected_dir = "WOMEN>MEN"
+
+        if expected_dir:
+            violating_subgroups = [i + 1 for i, d in enumerate(subgroup_dirs) if d != expected_dir]
+            if violating_subgroups:
+                payload = {
+                    "verified": False,
+                    "status": "PREMISE_DATA_CONTRADICTION",
+                    "error_type": "PREMISE_DATA_CONTRADICTION",
+                    "paradox_present": False,
+                    "enabling_conditions_met": weights_differ,
+                    "defining_reversal_met": False,
+                    "subgroup_direction": "MIXED" if len(set(subgroup_dirs)) > 1 else subgroup_dirs[0],
+                    "aggregate_direction": overall_dir,
+                    "violating_subgroups": violating_subgroups,
+                    "reason": f"Stated premise that one group is higher across all subgroups is contradicted by the data in subgroup(s): {violating_subgroups}.",
+                    "details": f"Explicit premise contradicted by supplied arithmetic. Therefore defining conditions for a uniform subgroup relationship fail to hold."
+                }
+                return _finalize(payload)
+
+    # Determine if every subgroup shares the exact same direction
     first_dir = subgroup_dirs[0]
     all_subgroups_uniform = all(d == first_dir for d in subgroup_dirs)
 
-    # Defining Condition: An actual reversal of comparison direction
+    # Defining Condition: An actual reversal of comparison direction.
+    # Strictly requires that ALL subgroups share a uniform direction D,
+    # and the aggregate direction is the opposite (not equal, not mixed).
     is_genuine_paradox = False
-    if all_subgroups_uniform:
-        # If all subgroups have direction D, paradox occurs if and only if overall is opposite
-        is_genuine_paradox = (first_dir != overall_dir and overall_dir != "EQUAL")
-    else:
-        # Mixed directions among subgroups: overall differs from majority direction
-        from collections import Counter
-        maj_dir, _ = Counter(subgroup_dirs).most_common(1)[0]
-        is_genuine_paradox = (maj_dir != overall_dir and overall_dir != "EQUAL")
+    if all_subgroups_uniform and first_dir != "EQUAL" and overall_dir != "EQUAL":
+        is_genuine_paradox = (first_dir != overall_dir)
 
     claimed_paradox = data.get("claimed_paradox")
 
     if is_genuine_paradox:
         # Genuine Simpson's paradox is present
-        # In legacy tests: res["verified"] was False for SIMSONS_PARADOX_TRUE when testing absence,
-        # but if claimed_paradox is True, claiming a true paradox is valid reasoning.
         status_key = "SIMSONS_PARADOX_TRUE"
         verified_val = True if claimed_paradox is True else False
         reason_msg = "Direction reverses after aggregation – classic Simpson's paradox demonstrated."
@@ -172,7 +195,7 @@ def verify_simpsons_paradox(data: Dict[str, Any]) -> dict:
             "paradox_present": True,
             "enabling_conditions_met": True,
             "defining_reversal_met": True,
-            "subgroup_direction": first_dir if all_subgroups_uniform else "MIXED",
+            "subgroup_direction": first_dir,
             "aggregate_direction": overall_dir,
             "reason": reason_msg
         }
@@ -180,6 +203,11 @@ def verify_simpsons_paradox(data: Dict[str, Any]) -> dict:
         # No reversal: Simpson's paradox is absent
         # If the user/model falsely claimed Simpson's paradox occurred, flag FALSE_POSITIVE_PHENOMENON
         if claimed_paradox is True:
+            if not all_subgroups_uniform:
+                fail_reason = f"Simpson's paradox requires that all subgroups demonstrate a uniform directional trend that reverses upon aggregation. Here subgroup directions are mixed ({subgroup_dirs}), so there is no uniform subgroup advantage to reverse."
+            else:
+                fail_reason = f"Simpson's paradox requires an actual direction reversal between subgroup-level comparisons and aggregate. Here subgroup direction ({first_dir}) equals aggregate direction ({overall_dir}). Confounding/unequal weights make reversal possible, but no reversal occurred."
+
             payload = {
                 "verified": False,
                 "status": "FALSE_POSITIVE_PHENOMENON",
@@ -189,8 +217,8 @@ def verify_simpsons_paradox(data: Dict[str, Any]) -> dict:
                 "defining_reversal_met": False,
                 "subgroup_direction": first_dir if all_subgroups_uniform else "MIXED",
                 "aggregate_direction": overall_dir,
-                "reason": f"Simpson's paradox requires an actual direction reversal between subgroup-level comparisons and aggregate. Here subgroup direction ({first_dir}) equals aggregate direction ({overall_dir}). Confounding/unequal weights make reversal possible, but no reversal occurred.",
-                "details": f"False positive pattern-match: Model labeled data as Simpson's paradox based on enabling conditions (unequal subgroup weights), but the defining condition (directional reversal) did not occur."
+                "reason": fail_reason,
+                "details": f"False positive pattern-match: Model labeled data as Simpson's paradox, but the defining condition (directional reversal) did not occur."
             }
         else:
             payload = {
@@ -201,7 +229,7 @@ def verify_simpsons_paradox(data: Dict[str, Any]) -> dict:
                 "defining_reversal_met": False,
                 "subgroup_direction": first_dir if all_subgroups_uniform else "MIXED",
                 "aggregate_direction": overall_dir,
-                "reason": "All subgroups and overall share the same direction – no Simpson's paradox in this dataset."
+                "reason": "Subgroups and overall do not exhibit a directional reversal – no Simpson's paradox in this dataset."
             }
 
     # Preserve the optional flag for the user_message helper

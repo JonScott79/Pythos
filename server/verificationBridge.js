@@ -214,13 +214,13 @@ function extractClaims(text, userPrompt = '') {
   }
 
   // 8. Statistical Named Phenomenon Claims (e.g. Simpson's Paradox)
-  const assertsParadox = /\b(?:demonstrates?|exhibits?|is an example of|illustrates?|shows?)\s+Simpson(?:'s)?\s+paradox\b/i.test(text) ||
-                        /\bSimpson(?:'s)?\s+paradox\s+(?:occurs|holds|is present|applies)\b/i.test(text);
+  const assertsParadox = /\b(?:demonstrates?|exhibits?|is an example of|illustrates?|shows?|instance of)\s+(?:a\s+)?Simpson(?:'s)?\s+paradox\b/i.test(text) ||
+                        /\bSimpson(?:'s)?\s+paradox\s+(?:occurs|holds|is present|applies|is demonstrated)\b/i.test(text);
 
   const contextText = `${userPrompt || ''}\n${text}`;
   if (assertsParadox && (contextText.includes('/') || contextText.includes('%'))) {
     // Parse subgroup fractions from prompt/response if present
-    const sgRegex = /(?:([a-zA-Z0-9\s]+?):\s*)?([a-zA-Z0-9]+)\s*[:=]\s*(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)/g;
+    const sgRegex = /(?:([a-zA-Z0-9\s]+?):\s*)?(?:(?:program|treatment|group|hospital|department|dept|cohort)\s+)?([a-zA-Z0-9]+)\s*[:=]\s*(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)/gi;
     const matches = Array.from(contextText.matchAll(sgRegex));
     if (matches.length >= 4) {
       const parsedItems = matches.map(m => ({
@@ -230,10 +230,29 @@ function extractClaims(text, userPrompt = '') {
         total: parseFloat(m[4])
       })).filter(it => it.total > 0 && it.success <= it.total);
 
-      const aItems = parsedItems.filter(it => it.entity === 'A' || it.entity === 'TREATMENT' || it.entity === 'MEN');
-      const bItems = parsedItems.filter(it => it.entity === 'B' || it.entity === 'CONTROL' || it.entity === 'WOMEN');
+      // Dynamically discover entity pair
+      const entityCounts = {};
+      for (const it of parsedItems) {
+        entityCounts[it.entity] = (entityCounts[it.entity] || 0) + 1;
+      }
+      const sortedEntities = Object.keys(entityCounts).sort((a, b) => entityCounts[b] - entityCounts[a]);
 
-      if (aItems.length >= 2 && bItems.length >= 2) {
+      let entity1 = sortedEntities[0];
+      let entity2 = sortedEntities[1];
+      if (sortedEntities.includes('A') && sortedEntities.includes('B')) {
+        entity1 = 'A'; entity2 = 'B';
+      } else if (sortedEntities.includes('X') && sortedEntities.includes('Y')) {
+        entity1 = 'X'; entity2 = 'Y';
+      } else if (sortedEntities.includes('MEN') && sortedEntities.includes('WOMEN')) {
+        entity1 = 'MEN'; entity2 = 'WOMEN';
+      } else if (sortedEntities.includes('TREATMENT') && sortedEntities.includes('CONTROL')) {
+        entity1 = 'TREATMENT'; entity2 = 'CONTROL';
+      }
+
+      if (entity1 && entity2 && entityCounts[entity1] >= 2 && entityCounts[entity2] >= 2) {
+        const aItems = parsedItems.filter(it => it.entity === entity1);
+        const bItems = parsedItems.filter(it => it.entity === entity2);
+
         const numSubgroups = Math.min(aItems.length, bItems.length);
         const subgroupsPayload = [];
         for (let i = 0; i < numSubgroups; i++) {
@@ -251,12 +270,19 @@ function extractClaims(text, userPrompt = '') {
         }
 
         if (subgroupsPayload.length >= 2) {
+          // Check if the prompt/text also asserts a premise that one entity is higher in both/all
+          let statedPremise = null;
+          if (/(?:within|in)\s+(?:both|all|each).*?higher|higher.*?in\s+(?:both|all|each)/i.test(contextText)) {
+            statedPremise = `${entity1}>${entity2} in both`;
+          }
+
           claims.push({
             domain: 'statistics',
             claim_type: 'simpsons_paradox',
             data: {
               subgroups: subgroupsPayload,
-              claimed_paradox: true
+              claimed_paradox: true,
+              stated_subgroup_direction: statedPremise
             }
           });
         }

@@ -277,14 +277,117 @@ def verify_phenomenon_entailment(claim: dict) -> dict:
             })
 
 
+def verify_premise_data_consistency(claim: dict) -> dict:
+    """
+    Verifies explicit factual, comparative, or numerical premises against supplied data facts.
+    Detects contradictions between stated premises and actual calculations before premises are adopted.
+    """
+    if not claim or not isinstance(claim, dict):
+        return _finalize({"verified": False, "status": "UNKNOWN", "reason": "Empty claim provided"})
+
+    premises = claim.get("premises") or claim.get("premise") or []
+    if isinstance(premises, str):
+        premises = [premises]
+
+    data_facts = claim.get("data_facts") or claim.get("facts") or {}
+    comparisons = claim.get("comparisons") or []
+
+    contradictions = []
+
+    # 1. Check direct comparative premises against comparison items
+    # Example premise: "X > Y in both programs" or "Program X has higher admission rate in both"
+    for p in premises:
+        p_str = str(p).strip()
+        p_lower = p_str.lower()
+
+        # Comparative premise patterns across categories
+        # Pattern: [Entity 1] higher/exceeds/greater than [Entity 2] in both/all
+        both_match = (
+            "both" in p_lower or "all" in p_lower or "each" in p_lower or
+            "every" in p_lower or "consistently" in p_lower
+        )
+        higher_match = any(w in p_lower for w in ["higher", "greater", "exceeds", ">", "better", "more"])
+        lower_match = any(w in p_lower for w in ["lower", "less", "worse", "<", "fewer"])
+
+        if both_match and (higher_match or lower_match):
+            for comp in comparisons:
+                # comp structure: { "category": "Humanities", "entity1": "X", "val1": 0.20, "entity2": "Y", "val2": 0.60 }
+                val1 = comp.get("val1") if comp.get("val1") is not None else comp.get("rateA")
+                val2 = comp.get("val2") if comp.get("val2") is not None else comp.get("rateB")
+                cat = comp.get("category") or comp.get("name") or "subgroup"
+
+                if val1 is not None and val2 is not None:
+                    # Check if premise asserted entity 1 > entity 2, but actual is val1 < val2
+                    if higher_match and not lower_match:
+                        if val1 < val2 - 1e-6:
+                            contradictions.append({
+                                "premise": p_str,
+                                "category": cat,
+                                "expected": "val1 > val2",
+                                "actual": f"{comp.get('entity1', 'Entity 1')} ({val1}) < {comp.get('entity2', 'Entity 2')} ({val2})",
+                                "details": f"In {cat}, {comp.get('entity2', 'Entity 2')} is higher than {comp.get('entity1', 'Entity 1')} ({val2} vs {val1}), contradicting the assertion that {comp.get('entity1', 'Entity 1')} is higher in all/both."
+                            })
+                    elif lower_match:
+                        if val1 > val2 + 1e-6:
+                            contradictions.append({
+                                "premise": p_str,
+                                "category": cat,
+                                "expected": "val1 < val2",
+                                "actual": f"{comp.get('entity1', 'Entity 1')} ({val1}) > {comp.get('entity2', 'Entity 2')} ({val2})",
+                                "details": f"In {cat}, {comp.get('entity1', 'Entity 1')} is higher than {comp.get('entity2', 'Entity 2')} ({val1} vs {val2}), contradicting the assertion that {comp.get('entity1', 'Entity 1')} is lower in all/both."
+                            })
+
+    # 2. Check explicit numerical equality premises (e.g. "X = 50", "total = 100")
+    for key, stated_val in (claim.get("stated_values") or {}).items():
+        if key in data_facts:
+            actual_val = data_facts[key]
+            try:
+                if abs(float(stated_val) - float(actual_val)) > 1e-4:
+                    contradictions.append({
+                        "key": key,
+                        "stated_value": stated_val,
+                        "actual_value": actual_val,
+                        "details": f"Stated premise for '{key}' ({stated_val}) contradicts actual calculated value ({actual_val})."
+                    })
+            except (ValueError, TypeError):
+                if str(stated_val).strip() != str(actual_val).strip():
+                    contradictions.append({
+                        "key": key,
+                        "stated_value": stated_val,
+                        "actual_value": actual_val,
+                        "details": f"Stated premise for '{key}' ({stated_val}) does not match actual value ({actual_val})."
+                    })
+
+    if contradictions:
+        first_detail = contradictions[0]["details"]
+        return _finalize({
+            "verified": False,
+            "status": "PREMISE_DATA_CONTRADICTION",
+            "error_type": "PREMISE_DATA_CONTRADICTION",
+            "contradictions": contradictions,
+            "reason": f"Premise-data contradiction detected: {first_detail}",
+            "details": first_detail
+        })
+
+    return _finalize({
+        "verified": True,
+        "status": "VERIFIED",
+        "details": "All stated premises are consistent with the supplied numerical evidence."
+    })
+
+
 def verify_logical_entailment(claim: dict) -> dict:
     """
     Main entry point for logic and analytical reasoning verification.
     Routes between propositional reasoning, algebraic conditional entailment,
-    and named-phenomenon pattern-matching verification.
+    named-phenomenon pattern-matching verification, and premise-data consistency checks.
     """
     if not claim or not isinstance(claim, dict):
         return _finalize({"verified": False, "status": "UNKNOWN", "reason": "Empty claim provided"})
+
+    # Check for premise-data consistency check
+    if claim.get("claim_type") in ["premise_consistency", "premise_data_consistency", "premise_check"]:
+        return verify_premise_data_consistency(claim)
 
     # Check for named-phenomenon audit
     if claim.get("claim_type") == "phenomenon_entailment" or claim.get("phenomenon_name"):
@@ -303,3 +406,4 @@ def verify_logical_entailment(claim: dict) -> dict:
 
     # Propositional / Syllogistic logic
     return verify_propositional_logic(claim)
+

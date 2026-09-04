@@ -111,8 +111,29 @@ async function auditPhenomenonEntailment(phenomenonName, enablingMet, definingMe
   return await runDeterministicVerification(payload);
 }
 
+/**
+ * Audits explicit premises against supplied numerical data and calculations.
+ * Detects contradictions between stated premises and actual facts.
+ */
+async function auditPremiseDataConsistency(premises, comparisons, statedValues = {}, dataFacts = {}) {
+  const payload = {
+    domain: 'logic',
+    claim_type: 'premise_data_consistency',
+    data: {
+      premises,
+      comparisons,
+      stated_values: statedValues,
+      data_facts: dataFacts
+    }
+  };
+
+  return await runDeterministicVerification(payload);
+}
+
 module.exports = {
   auditLogicalEntailment,
   auditPhenomenonEntailment,
+  auditPremiseDataConsistency,
   verifyTriAspect
 };
+

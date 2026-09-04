@@ -89,7 +89,10 @@ def dispatch_verification(payload: dict) -> dict:
         elif domain == "statistics" or claim_type == "simpsons_paradox":
             return verify_simpsons_paradox(data)
 
-        elif domain == "logic" or claim_type in ["logical_entailment", "implication", "logic", "deduction", "fallacy", "assumption_audit"]:
+        elif domain == "logic" or claim_type in ["logical_entailment", "implication", "logic", "deduction", "fallacy", "assumption_audit", "premise_data_consistency", "premise_consistency", "phenomenon_entailment"]:
+            # Ensure claim_type is passed in data dictionary for logic_verifier
+            if isinstance(data, dict) and "claim_type" not in data and claim_type:
+                data["claim_type"] = claim_type
             return verify_logical_entailment(data)
 
         else:

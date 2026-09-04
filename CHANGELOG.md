@@ -5,6 +5,30 @@ All notable changes to the Pythos project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Pythos 1.3.0
+**Release Date:** 2026-09-04
+
+### Added
+- **General Premise-Data Consistency Verification Layer** (`server/verifier/logic_verifier.py`, `server/reasoningVerifier.js`):
+  - Added `verify_premise_data_consistency` to independently extract, compute, and audit explicit qualitative and comparative premises asserted in user prompts against the prompt's own numerical data.
+  - Automatically flags `PREMISE_DATA_CONTRADICTION` whenever an explicit premise (e.g., *"Within both programs, Program X has the higher admission rate"*) contradicts actual calculations (e.g., *Humanities: Program Y (60%) > Program X (20%)*).
+  - Explicitly details contradictory counterexamples in diagnostics and outward-facing pedagogical explanations.
+- **Strict Defining Condition for Simpson's Paradox** (`server/verifier/statistics_verifier.py`):
+  - Removed flawed majority-direction fallback.
+  - Enforced that Simpson's paradox is strictly **ABSENT** if subgroups exhibit mixed directions ($X > Y$ in one group, $Y > X$ in another), as aggregation cannot reverse a trend that does not exist uniformly across subgroups.
+  - Cross-checks asserted subgroup premises against actual subgroup outcomes before evaluating phenomenon entailment.
+- **Dynamic Subgroup Entity Extraction & Preflight Auditing** (`server/deterministicRouter.js`, `server/verificationBridge.js`):
+  - Generalized subgroup entity extraction to dynamically discover and pair any two entities ($X$ vs $Y$, Program $X$ vs Program $Y$, Treatment vs Control, $A$ vs $B$, etc.).
+  - Injects preflight contradiction directives instructing the reasoning layer to expose false assertions directly.
+  - Formulates verified deterministic responses explaining the contradiction and why the defining condition for Simpson's paradox fails to hold.
+- **Adversarial Regression Test Suite** (`test-premise-consistency.js`):
+  - Added Suite 11 covering:
+    1. Correct premise + matching data.
+    2. Explicit premise contradicted by supplied arithmetic.
+    3. Named phenomenon asserted by user but defining conditions absent.
+    4. Named phenomenon not mentioned but defining conditions actually present.
+  - Integrated into master regression harness (`test-regression-harness.js`) with 11/11 passing suites (100%).
+
 ## Pythos 1.2.0
 **Release Date:** 2026-09-04
 

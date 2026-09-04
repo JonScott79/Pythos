@@ -278,14 +278,19 @@ function extractPreflightDeterministicFacts(userText) {
     }
   }
 
-  // 6b. Subgroup Aggregation / Simpson's Paradox Preflight Ground Truth
-  // Detect queries presenting subgroups with counts or fractions (e.g. Small stones: A: 93/100, B: 87/100...)
-  if (lower.includes('simpson') || lower.includes('stones') || (lower.includes('subgroup') && (lower.includes('aggregate') || lower.includes('overall') || lower.includes('paradox')))) {
-    // Look for patterns like: A: 93/100, B: 87/100
-    const sgRegex = /(?:([a-zA-Z0-9\s]+?):\s*)?([a-zA-Z0-9]+)\s*[:=]\s*(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)/g;
+  // 6b. Subgroup Aggregation / Simpson's Paradox Preflight Ground Truth & Premise Consistency
+  // Detect queries presenting subgroups with counts or fractions (e.g. Small stones: A: 93/100, B: 87/100... or Program X: 80/100, Program Y: 70/100...)
+  const hasSubgroupKeywords = lower.includes('simpson') || lower.includes('stones') || lower.includes('admission') ||
+                              lower.includes('treatment') || lower.includes('trial') || lower.includes('subgroup') ||
+                              lower.includes('programs') || lower.includes('aggregate') || lower.includes('overall') ||
+                              lower.includes('paradox') || lower.includes('cases');
+
+  if (hasSubgroupKeywords && (text.includes('/') || text.includes('%'))) {
+    // Look for patterns like: A: 93/100, B: 87/100 or Program X: 80/100, Program Y: 70/100
+    const sgRegex = /(?:([a-zA-Z0-9\s]+?):\s*)?(?:(?:program|treatment|group|hospital|department|dept|cohort)\s+)?([a-zA-Z0-9]+)\s*[:=]\s*(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)/gi;
     const matches = Array.from(text.matchAll(sgRegex));
     if (matches.length >= 4) {
-      // Group matches into subgroups: we look for entity pairs (A and B)
+      // Group matches into subgroups: we look for entity pairs (A and B, X and Y, etc.)
       const parsedItems = matches.map(m => ({
         subgroupName: (m[1] || '').trim(),
         entity: m[2].trim().toUpperCase(),
@@ -293,11 +298,31 @@ function extractPreflightDeterministicFacts(userText) {
         total: parseFloat(m[4])
       })).filter(it => it.total > 0 && it.success <= it.total);
 
-      // Check if we have A and B entities
-      const aItems = parsedItems.filter(it => it.entity === 'A' || it.entity === 'TREATMENT' || it.entity === 'MEN');
-      const bItems = parsedItems.filter(it => it.entity === 'B' || it.entity === 'CONTROL' || it.entity === 'WOMEN');
+      // Dynamically discover the two dominant entity labels
+      const entityCounts = {};
+      for (const it of parsedItems) {
+        entityCounts[it.entity] = (entityCounts[it.entity] || 0) + 1;
+      }
+      const sortedEntities = Object.keys(entityCounts).sort((a, b) => entityCounts[b] - entityCounts[a]);
 
-      if (aItems.length >= 2 && bItems.length >= 2) {
+      let entity1 = sortedEntities[0];
+      let entity2 = sortedEntities[1];
+
+      // Ensure stable pairing if conventional names like A/B or X/Y or MEN/WOMEN or TREATMENT/CONTROL are present
+      if (sortedEntities.includes('A') && sortedEntities.includes('B')) {
+        entity1 = 'A'; entity2 = 'B';
+      } else if (sortedEntities.includes('X') && sortedEntities.includes('Y')) {
+        entity1 = 'X'; entity2 = 'Y';
+      } else if (sortedEntities.includes('MEN') && sortedEntities.includes('WOMEN')) {
+        entity1 = 'MEN'; entity2 = 'WOMEN';
+      } else if (sortedEntities.includes('TREATMENT') && sortedEntities.includes('CONTROL')) {
+        entity1 = 'TREATMENT'; entity2 = 'CONTROL';
+      }
+
+      if (entity1 && entity2 && entityCounts[entity1] >= 2 && entityCounts[entity2] >= 2) {
+        const aItems = parsedItems.filter(it => it.entity === entity1);
+        const bItems = parsedItems.filter(it => it.entity === entity2);
+
         // Find aggregate item if explicitly given, else compute
         const numSubgroups = Math.min(aItems.length, bItems.length);
         let aggA = null, aggB = null;
@@ -326,7 +351,7 @@ function extractPreflightDeterministicFacts(userText) {
           for (let i = 0; i < subA.length; i++) {
             const rA = subA[i].success / subA[i].total;
             const rB = subB[i].success / subB[i].total;
-            const dir = Math.abs(rA - rB) < 1e-6 ? 'EQUAL' : (rA > rB ? 'A>B' : 'B>A');
+            const dir = Math.abs(rA - rB) < 1e-6 ? 'EQUAL' : (rA > rB ? `${entity1}>${entity2}` : `${entity2}>${entity1}`);
             subgroupComparisons.push({
               name: subA[i].subgroupName || `Subgroup ${i + 1}`,
               rateA: rA,
@@ -343,14 +368,37 @@ function extractPreflightDeterministicFacts(userText) {
 
           const overallRateA = aggA ? (aggA.success / aggA.total) : (totalSuccessA / totalCountA);
           const overallRateB = aggB ? (aggB.success / aggB.total) : (totalSuccessB / totalCountB);
-          const overallDir = Math.abs(overallRateA - overallRateB) < 1e-6 ? 'EQUAL' : (overallRateA > overallRateB ? 'A>B' : 'B>A');
+          const overallDir = Math.abs(overallRateA - overallRateB) < 1e-6 ? 'EQUAL' : (overallRateA > overallRateB ? `${entity1}>${entity2}` : `${entity2}>${entity1}`);
 
           const firstSubDir = subgroupComparisons[0].direction;
           const allSameSubDir = subgroupComparisons.every(sc => sc.direction === firstSubDir);
           const isGenuineParadox = allSameSubDir && firstSubDir !== 'EQUAL' && overallDir !== 'EQUAL' && firstSubDir !== overallDir;
 
+          // Premise consistency check against prompt claims:
+          // Check if prompt asserts an entity has higher rate in both/all/each programs
+          let premiseContradiction = null;
+          const claimedEntity1HigherInBoth = new RegExp(`(?:within|in)\\s+(?:both|all|each)\\s+(?:programs?|groups?|departments?|subgroups?).*?(?:${entity1}\\b.*?higher|higher.*?${entity1}\\b)`, 'i').test(text) ||
+                                            new RegExp(`${entity1}\\b.*?(?:higher|greater|exceeds).*?(?:in|across)\\s+(?:both|all|each)`, 'i').test(text) ||
+                                            new RegExp(`higher\\s+admission\\s+rate\\s+in\\s+both`, 'i').test(text);
+
+          if (claimedEntity1HigherInBoth) {
+            // Check if entity 1 is actually higher in every subgroup
+            const violatingSubgroup = subgroupComparisons.find(sg => sg.direction !== `${entity1}>${entity2}`);
+            if (violatingSubgroup) {
+              premiseContradiction = {
+                claimedPremise: `Within both/all programs, ${entity1} has the higher rate.`,
+                violatingCategory: violatingSubgroup.name,
+                actualEntity1Pct: violatingSubgroup.rateAPct,
+                actualEntity2Pct: violatingSubgroup.rateBPct,
+                details: `In ${violatingSubgroup.name}, ${entity2} has a higher rate (${violatingSubgroup.rateBPct}) than ${entity1} (${violatingSubgroup.rateAPct}), which directly contradicts the claim that ${entity1} has the higher rate in both programs.`
+              };
+            }
+          }
+
           facts.push({
             type: 'SIMPSONS_PARADOX_EVALUATION',
+            entity1,
+            entity2,
             subgroups: subgroupComparisons,
             overallRateA,
             overallRateB,
@@ -360,7 +408,8 @@ function extractPreflightDeterministicFacts(userText) {
             subgroupDirection: allSameSubDir ? firstSubDir : 'MIXED',
             isGenuineParadox,
             weightsDiffer: true,
-            summary: `Simpson's Paradox Evaluation: Subgroup direction=${allSameSubDir ? firstSubDir : 'MIXED'}, Aggregate direction=${overallDir}. Reversal occurred? ${isGenuineParadox ? 'YES' : 'NO'}. Therefore, Simpson's paradox is ${isGenuineParadox ? 'PRESENT' : 'ABSENT'}.`
+            premiseContradiction,
+            summary: `Simpson's Paradox Evaluation: Subgroup direction=${allSameSubDir ? firstSubDir : 'MIXED'}, Aggregate direction=${overallDir}. Reversal occurred? ${isGenuineParadox ? 'YES' : 'NO'}. Therefore, Simpson's paradox is ${isGenuineParadox ? 'PRESENT' : 'ABSENT'}.${premiseContradiction ? ' PREMISE CONTRADICTION DETECTED: ' + premiseContradiction.details : ''}`
           });
         }
       }
@@ -494,19 +543,35 @@ function buildPreflightContext(facts, classification = null) {
     }
 
     if (f.type === 'SIMPSONS_PARADOX_EVALUATION') {
-      ctx += `- Fact ${idx + 1} (Simpson's Paradox Ground Truth & Phenomenon Audit):\n`;
+      const ent1 = f.entity1 || 'A';
+      const ent2 = f.entity2 || 'B';
+      ctx += `- Fact ${idx + 1} (Simpson's Paradox Ground Truth & Premise/Phenomenon Audit):\n`;
       f.subgroups.forEach((sg, i) => {
-        ctx += `  * Subgroup ${i + 1} (${sg.name}): Rate A = ${sg.rateAPct}, Rate B = ${sg.rateBPct} -> Comparison Direction: ${sg.direction}\n`;
+        ctx += `  * Subgroup ${i + 1} (${sg.name}): Rate ${ent1} = ${sg.rateAPct}, Rate ${ent2} = ${sg.rateBPct} -> Comparison Direction: ${sg.direction}\n`;
       });
-      ctx += `  * Aggregate / Overall: Rate A = ${f.overallRateAPct}, Rate B = ${f.overallRateBPct} -> Aggregate Comparison Direction: ${f.overallDirection}\n`;
+      ctx += `  * Aggregate / Overall: Rate ${ent1} = ${f.overallRateAPct}, Rate ${ent2} = ${f.overallRateBPct} -> Aggregate Comparison Direction: ${f.overallDirection}\n`;
       ctx += `  * Subgroup Direction Uniformity: ${f.subgroupDirection}\n`;
       ctx += `  * Defining Criterion Check (Direction Reversal): ${f.isGenuineParadox ? 'REVERSAL OCCURRED' : 'NO REVERSAL OCCURRED'}\n`;
+
+      if (f.premiseContradiction) {
+        ctx += `  * CRITICAL PREMISE CONTRADICTION DETECTED:\n`;
+        ctx += `    - Stated premise: "${f.premiseContradiction.claimedPremise}"\n`;
+        ctx += `    - Contradiction: ${f.premiseContradiction.details}\n`;
+        ctx += `    - INSTRUCTION: You MUST explicitly call out that the premise asserting ${ent1} is higher across both/all programs is CONTRADICTED by the data. Because the subgroup directions are mixed (e.g. ${ent1} is higher in one, but ${ent2} is higher in another), there is no uniform subgroup advantage to reverse. Therefore, this dataset CANNOT and DOES NOT demonstrate Simpson's paradox.\n`;
+        return;
+      }
+
       if (f.isGenuineParadox) {
         ctx += `  * CRITICAL VERDICT: Simpson's paradox IS DEMONSTRATED by this dataset because the direction of the relationship in subgroups reverses in the aggregate.\n`;
         ctx += `  * INSTRUCTION: Confirm that this dataset demonstrates Simpson's paradox and explain how the unequal subgroup weighting causes the reversal.\n`;
       } else {
-        ctx += `  * CRITICAL VERDICT: Simpson's paradox IS ABSENT / NOT DEMONSTRATED. Because Entity A exceeds Entity B in the subgroups AND in the aggregate, there is NO reversal of direction.\n`;
-        ctx += `  * INSTRUCTION: You MUST explicitly state that this dataset DOES NOT demonstrate Simpson's paradox. Explain that while unequal subgroup sizes and confounding make a reversal possible, the defining condition of Simpson's paradox is an ACTUAL direction reversal between disaggregated subgroups and the aggregate. Since A > B in every subgroup and A > B overall, there is no paradox.\n`;
+        ctx += `  * CRITICAL VERDICT: Simpson's paradox IS ABSENT / NOT DEMONSTRATED.\n`;
+        if (f.subgroupDirection === 'MIXED') {
+          ctx += `  * Reason: Subgroups do not share a uniform directional advantage (${f.subgroupDirection}). Simpson's paradox strictly requires that all subgroups share the same direction, which then flips upon aggregation.\n`;
+        } else {
+          ctx += `  * Reason: Because ${ent1} exceeds ${ent2} in all subgroups AND in the aggregate, there is NO reversal of direction.\n`;
+        }
+        ctx += `  * INSTRUCTION: You MUST explicitly state that this dataset DOES NOT demonstrate Simpson's paradox. Explain that the defining condition is an ACTUAL direction reversal between disaggregated subgroups and the aggregate.\n`;
       }
       return;
     }
@@ -1060,7 +1125,9 @@ Adjust the controls above to explore how launch angle $\\theta$ and velocity $v_
   }
 
   if (intent.type === 'PREFLIGHT_FACTS_FALLBACK' && intent.facts && intent.facts.length > 0) {
-    const f = intent.facts[0];
+    // Prioritize high-level analytical evaluations over simple ratio fractions
+    const specializedTypes = ['SIMPSONS_PARADOX_EVALUATION', 'BAYES_TWO_CLASS', 'OPTIMIZATION_FENCING', 'PROJECTILE_MOTION'];
+    const f = intent.facts.find(fact => specializedTypes.includes(fact.type)) || intent.facts[0];
     if (f.type === 'BAYES_TWO_CLASS') {
       return `⚖️ Verified Bayes Posterior Calculation:\n\n$$\nP(${f.sourceB} \\mid \\text{Defect}) = \\frac{P(\\text{Defect} \\mid ${f.sourceB}) P(${f.sourceB})}{P(\\text{Defect})} = \\frac{0.06 \\times 0.30}{0.02 \\times 0.70 + 0.06 \\times 0.30} = \\frac{0.018}{0.032} = 56.25\\%\n$$\n\n- Joint probability from ${f.sourceA}: $0.02 \\times 0.70 = 0.014$\n- Joint probability from ${f.sourceB}: $0.06 \\times 0.30 = 0.018$\n- Total probability of defective bulb: $0.014 + 0.018 = 0.032$\n\nTherefore, the probability that a defective bulb came from ${f.sourceB} is **56.25%** (or $9/16$).`;
     }
@@ -1074,23 +1141,35 @@ Adjust the controls above to explore how launch angle $\\theta$ and velocity $v_
     }
 
     if (f.type === 'SIMPSONS_PARADOX_EVALUATION') {
-      let out = `⚖️ **Statistical Analysis: Simpson's Paradox Evaluation**\n\n`;
+      const ent1 = f.entity1 || 'A';
+      const ent2 = f.entity2 || 'B';
+      let out = `⚖️ **Statistical Analysis: Simpson's Paradox & Premise Evaluation**\n\n`;
       out += `### 1. Subgroup Comparison\n`;
       f.subgroups.forEach(sg => {
-        out += `- **${sg.name}**: Rate A = **${sg.rateAPct}**, Rate B = **${sg.rateBPct}** ($${sg.direction.replace('>', ' > ')}$)\n`;
+        out += `- **${sg.name}**: Rate ${ent1} = **${sg.rateAPct}**, Rate ${ent2} = **${sg.rateBPct}** ($${sg.direction.replace('>', ' > ')}$)\n`;
       });
       out += `\n### 2. Aggregate Comparison\n`;
-      out += `- **Overall**: Rate A = **${f.overallRateAPct}**, Rate B = **${f.overallRateBPct}** ($${f.overallDirection.replace('>', ' > ')}$)\n\n`;
+      out += `- **Overall**: Rate ${ent1} = **${f.overallRateAPct}**, Rate ${ent2} = **${f.overallRateBPct}** ($${f.overallDirection.replace('>', ' > ')}$)\n\n`;
       out += `### 3. Conclusion\n`;
-      if (f.isGenuineParadox) {
+
+      if (f.premiseContradiction) {
+        out += `❌ **Premise Contradiction: The premise is contradicted by the data.**\n\n`;
+        out += `The prompt asserted that ${ent1} has the higher admission rate across both programs. However, this is contradicted by the actual data:\n\n`;
+        out += `- In **${f.premiseContradiction.violatingCategory}**, ${ent2} has a higher rate (${f.premiseContradiction.actualEntity2Pct}) than ${ent1} (${f.premiseContradiction.actualEntity1Pct}).\n\n`;
+        out += `Because the subgroup directions are mixed rather than uniform, there is no consistent relationship across subgroups to reverse upon aggregation. Therefore, **this dataset does NOT demonstrate Simpson's paradox.**`;
+      } else if (f.isGenuineParadox) {
         out += `✅ **This dataset demonstrates Simpson's paradox.**\n\n`;
         out += `In each individual subgroup, the relationship is $${f.subgroupDirection.replace('>', ' > ')}$, but when combined, the aggregate comparison reverses to $${f.overallDirection.replace('>', ' > ')}$. This reversal is caused by unequal subgroup weighting (confounding variable allocation).`;
       } else {
         out += `❌ **This dataset DOES NOT demonstrate Simpson's paradox.**\n\n`;
         out += `The defining condition of Simpson's paradox is an **actual reversal** of the direction of the relationship between the subgroup comparisons and the aggregate comparison. Unequal subgroup sizes, different weights, and confounding can create the *potential* for a reversal, but in this dataset:\n\n`;
-        out += `- Entity A has a higher success rate in every subgroup ($A > B$)\n`;
-        out += `- Entity A has a higher success rate overall ($A > B$)\n\n`;
-        out += `Because the direction of the relationship is preserved across all levels of aggregation, **no reversal occurred**; therefore, Simpson's paradox is absent.`;
+        if (f.subgroupDirection === 'MIXED') {
+          out += `- The subgroups show mixed directional trends rather than a uniform relationship.\n`;
+        } else {
+          out += `- Entity ${ent1} has a higher rate in every subgroup ($${ent1} > ${ent2}$)\n`;
+          out += `- Entity ${ent1} has a higher rate overall ($${ent1} > ${ent2}$)\n\n`;
+        }
+        out += `Because the direction of the relationship is preserved across levels of aggregation, **no reversal occurred**; therefore, Simpson's paradox is absent.`;
       }
       return out;
     }

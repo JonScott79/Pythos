@@ -59,6 +59,7 @@ _USER_MESSAGES = {
     "INVALID_FORMULA": "❌ The formula used isn't mathematically correct.",
     "INCORRECT_THRESHOLD": "❌ That threshold value doesn't match the exact calculation.",
     # Logical and Analytical Reasoning
+    "PREMISE_DATA_CONTRADICTION": "❌ Premise contradiction: Stated premise contradicts the supplied data.",
     "INVALID_INFERENCE": "❌ That inference does not logically follow from the premises.",
     "UNESTABLISHED_ASSUMPTION": "❌ That deduction requires an unstated assumption that has not been established.",
     "AFFIRMING_CONSEQUENT": "❌ Logical fallacy: affirming the consequent does not prove the premise.",
