@@ -1470,6 +1470,11 @@
     }
 
     /* Classical Pythos Visualization Engine Instrument Styles */
+    .message.assistant.has-wide-viz {
+      max-width: 98%;
+      width: 100%;
+    }
+
     .pythos-viz-instrument {
       width: 100%;
       max-width: 680px;
@@ -1483,6 +1488,13 @@
       flex-direction: column;
       gap: 14px;
       position: relative;
+      box-sizing: border-box;
+    }
+
+    /* Substantial Interactive Instrument Wide Mode */
+    .pythos-viz-instrument.pythos-viz-wide {
+      max-width: 100%;
+      padding: 18px;
     }
 
     [data-theme="dark"] .pythos-viz-instrument {
@@ -1554,6 +1566,39 @@
       border-color: var(--primary-color);
     }
 
+    /* Responsive Two-Column Body for Desktop */
+    .pythos-viz-body {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      width: 100%;
+    }
+
+    .pythos-viz-stage-col {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-width: 0;
+      width: 100%;
+    }
+
+    .pythos-viz-controls-col {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-width: 0;
+      width: 100%;
+    }
+
+    @media (min-width: 900px) {
+      .pythos-viz-instrument.pythos-viz-wide .pythos-viz-body {
+        display: grid;
+        grid-template-columns: minmax(0, 1.55fr) minmax(270px, 1fr);
+        gap: 16px;
+        align-items: start;
+      }
+    }
+
     .pythos-viz-stage-wrap {
       width: 100%;
       border-radius: 8px;
@@ -1563,12 +1608,14 @@
       display: flex;
       justify-content: center;
       align-items: center;
+      box-sizing: border-box;
     }
 
     .pythos-viz-canvas {
       width: 100%;
       height: auto;
       display: block;
+      aspect-ratio: 640 / 300;
     }
 
     .pythos-viz-metrics-row {
@@ -1576,6 +1623,7 @@
       grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
       gap: 8px;
       width: 100%;
+      box-sizing: border-box;
     }
 
     .pythos-viz-metric-card {
@@ -1586,6 +1634,7 @@
       display: flex;
       flex-direction: column;
       gap: 2px;
+      box-sizing: border-box;
     }
 
     .pythos-metric-label {
@@ -1610,6 +1659,16 @@
       border: 1px solid var(--border-color);
       border-radius: 8px;
       padding: 12px 14px;
+      box-sizing: border-box;
+    }
+
+    /* Tablet reflow: 600px - 899px allows 2-column slider arrangement */
+    @media (min-width: 600px) and (max-width: 899px) {
+      .pythos-viz-instrument.pythos-viz-wide .pythos-viz-controls-panel {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 12px;
+      }
     }
 
     .pythos-slider-group {

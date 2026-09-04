@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     9. *Differential Calculus* (`calculus_derivatives`): Instantaneous rate of change (ΑΠΕΙΡΟΣΤΙΚΟΣ ΛΟΓΙΣΜΟΣ), true tangent slope $f'(x_0)$, and secant convergence.
   - LLM system prompt visualization awareness instructing Pythos on the `[VIZ: ...]` protocol, preferring specialized interactive models over generic `[GRAPH: ...]` for physics concepts.
   - Natural-language physics intent routing mapping queries (e.g. force-acceleration relationships, fixed mass specifications) directly to interactive instruments without requiring explicit model naming.
+  - **Responsive Wide Viewport Layout**: Removed 680px constraint for substantial interactive instruments (`.has-wide-viz`); implemented responsive two-column desktop grid ($\ge 900\text{px}$) placing the simulation canvas and metrics on the left and controls/sliders on the right side-by-side with zero vertical scrolling, reflowing intelligently to 2-column controls on tablet (600–899px) and touch-friendly vertical stack on mobile (<600px).
 - **Accessible Markdown Table Rendering**:
   - Full GitHub-Flavored Markdown table parsing in the streaming response pipeline with zero math escaping collisions.
   - Responsive horizontal scroll wrapper (`.pythos-table-wrap`) and classical slate/marble table styling.

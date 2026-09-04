@@ -84,7 +84,17 @@
     `;
     container.appendChild(header);
 
-    // 2. Canvas Stage Container
+    // 2. Responsive Visualization Body Wrapper
+    const vizBody = document.createElement("div");
+    vizBody.className = "pythos-viz-body";
+
+    const stageCol = document.createElement("div");
+    stageCol.className = "pythos-viz-stage-col";
+
+    const controlsCol = document.createElement("div");
+    controlsCol.className = "pythos-viz-controls-col";
+
+    // 2a. Canvas Stage Container
     const stageWrap = document.createElement("div");
     stageWrap.className = "pythos-viz-stage-wrap";
 
@@ -93,17 +103,21 @@
     canvas.width = 640;
     canvas.height = 300;
     stageWrap.appendChild(canvas);
-    container.appendChild(stageWrap);
+    stageCol.appendChild(stageWrap);
 
-    // 3. Metric Tablets / Readout Row
+    // 2b. Metric Tablets / Readout Row
     const metricsRow = document.createElement("div");
     metricsRow.className = "pythos-viz-metrics-row";
-    container.appendChild(metricsRow);
+    stageCol.appendChild(metricsRow);
 
-    // 4. Interactive Sliders / Controls Panel
+    // 2c. Interactive Sliders / Controls Panel
     const controlsPanel = document.createElement("div");
     controlsPanel.className = "pythos-viz-controls-panel";
-    container.appendChild(controlsPanel);
+    controlsCol.appendChild(controlsPanel);
+
+    vizBody.appendChild(stageCol);
+    vizBody.appendChild(controlsCol);
+    container.appendChild(vizBody);
 
     // Draw onto canvas
     function drawCanvas(calcResult) {

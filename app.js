@@ -1176,7 +1176,13 @@ function appendMessage(role, text, images = null, metadata = {}) {
         if (protocol && renderer) {
           const validation = protocol.validateVisualizationSpec(parsedSpec);
           if (validation.valid) {
-            renderer.renderInstrument(vizContainer, validation.spec);
+            const spec = validation.spec;
+            const isWideInstrument = (spec.type === "PHYSICS" || spec.type === "INTERACTIVE" || (spec.variables && Object.keys(spec.variables).length >= 2));
+            if (isWideInstrument) {
+              div.classList.add("has-wide-viz");
+              vizContainer.classList.add("pythos-viz-wide");
+            }
+            renderer.renderInstrument(vizContainer, spec);
           } else {
             vizContainer.innerHTML = `<div class="viz-render-fail">⚠️ Visualization Specification Error: ${validation.error}</div>`;
           }
@@ -1187,7 +1193,15 @@ function appendMessage(role, text, images = null, metadata = {}) {
             const rend = window.PythosVizRenderer;
             if (proto && rend) {
               const val = proto.validateVisualizationSpec(parsedSpec);
-              if (val.valid) rend.renderInstrument(vizContainer, val.spec);
+              if (val.valid) {
+                const spec = val.spec;
+                const isWide = (spec.type === "PHYSICS" || spec.type === "INTERACTIVE" || (spec.variables && Object.keys(spec.variables).length >= 2));
+                if (isWide) {
+                  div.classList.add("has-wide-viz");
+                  vizContainer.classList.add("pythos-viz-wide");
+                }
+                rend.renderInstrument(vizContainer, spec);
+              }
             }
           }, 200);
         }
