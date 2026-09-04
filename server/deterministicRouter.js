@@ -865,15 +865,23 @@ Adjust the controls above to explore how launch angle $\\theta$ and velocity $v_
   }
 
   if (intent.type === 'CLASSICAL_MODEL_VIZ') {
+    function loadModel(name) {
+      try {
+        return require(`../vizEngine/models/${name}`);
+      } catch (_) {
+        return require(`./vizEngine/models/${name}`);
+      }
+    }
+
     const modelMap = {
-      newtons_laws: require('../vizEngine/models/newtons_laws'),
-      energy_transfer: require('../vizEngine/models/energy_transfer'),
-      momentum: require('../vizEngine/models/momentum'),
-      hookes_law: require('../vizEngine/models/hookes_law'),
-      waves: require('../vizEngine/models/waves'),
-      circuits: require('../vizEngine/models/circuits'),
-      trigonometry: require('../vizEngine/models/trigonometry'),
-      calculus_derivatives: require('../vizEngine/models/calculus_derivatives')
+      newtons_laws: loadModel('newtons_laws'),
+      energy_transfer: loadModel('energy_transfer'),
+      momentum: loadModel('momentum'),
+      hookes_law: loadModel('hookes_law'),
+      waves: loadModel('waves'),
+      circuits: loadModel('circuits'),
+      trigonometry: loadModel('trigonometry'),
+      calculus_derivatives: loadModel('calculus_derivatives')
     };
 
     const modelMod = modelMap[intent.model];
