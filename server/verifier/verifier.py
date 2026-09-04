@@ -17,6 +17,7 @@ from physics_universal_verifier import verify_dimensions, verify_conservation_la
 from physics_mechanics_verifier import verify_gravity_invariance, verify_inclined_plane_forces, verify_energy_vs_acceleration, verify_unsupported_assumptions, verify_compound_claim
 from dynamical_systems_verifier import verify_map_fixed_point, verify_map_stability, verify_chaos_concepts
 from statistics_verifier import verify_simpsons_paradox
+from logic_verifier import verify_logical_entailment
 def dispatch_verification(payload: dict) -> dict:
     """
     Dispatches a structured claim payload to the appropriate deterministic verifier.
@@ -87,6 +88,9 @@ def dispatch_verification(payload: dict) -> dict:
         
         elif domain == "statistics" or claim_type == "simpsons_paradox":
             return verify_simpsons_paradox(data)
+
+        elif domain == "logic" or claim_type in ["logical_entailment", "implication", "logic", "deduction", "fallacy", "assumption_audit"]:
+            return verify_logical_entailment(data)
 
         else:
             return {"verified": False, "status": "UNKNOWN", "reason": f"Unknown verification domain: {domain}"}

@@ -21,11 +21,22 @@ const DOMAINS = {
   DISCRETE_MATH: 'DISCRETE_MATH',
   PHYSICS: 'PHYSICS',
   CONCEPTUAL: 'CONCEPTUAL',
+  INTERDISCIPLINARY: 'INTERDISCIPLINARY',
+  OFF_TOPIC: 'OFF_TOPIC',
   MIXED: 'MIXED',
   UNKNOWN: 'UNKNOWN'
 };
 
 const PROTOCOLS = {
+  OFF_TOPIC_REDIRECT: [
+    'Acknowledge the student\'s casual remark or question warmly and naturally in one sentence',
+    'Gently and courteously steer the dialogue back to mathematics, physics, or active study without hostility'
+  ],
+  INTERDISCIPLINARY: [
+    'Identify real-world, biological, economic, or computational phenomenon',
+    'Extract underlying mathematical or physical relationships and governing equations',
+    'Model the problem analytically with verified formulas and quantitative rigor'
+  ],
   ARITHMETIC: [
     'Direct numerical calculation via deterministic calculator',
     'Preserve exact fractional and percentage representations'
@@ -511,7 +522,38 @@ function classifyProblem(userText) {
   }
 
   // -------------------------------------------------------------
-  // 11. Conceptual / Direct Inquiry
+  // 11. Subject Drift / Purely Off-Topic Detection (Priority 5)
+  // -------------------------------------------------------------
+  const offTopicPatterns = [
+    /\b(what is your favorite (?:color|food|movie|song|video game|animal|pizza|topping|book|band))\b/i,
+    /\b(who is (?:taylor swift|beyonce|elon musk|messi|ronaldo|lebron|drake))\b/i,
+    /\b(tell me a joke|tell me a story|write a poem|write a song|write a story)\b/i,
+    /\b(how to bake|how to cook|recipe for|best pizza|best burger)\b/i,
+    /\b(weather today|what should i wear|play a game with me)\b/i,
+    /\b(what do you think about (?:politics|elections|presidents))\b/i
+  ];
+  const hasMathPhysicsTokens = /\b(math|physics|equation|formula|solve|calculate|derivative|integral|vector|angle|gravity|velocity|force|energy|speed|acceleration|number|function|graph|fraction|percentage|ratio|matrix|determinant|triangle|circle|sphere|pendulum|probability|statistics|mean|median|mode)\b/i.test(text) ||
+                               /[+\-*/=^<>]/.test(text) || /\d/.test(text);
+
+  const isOffTopic = offTopicPatterns.some(p => p.test(text)) && !hasMathPhysicsTokens;
+  if (isOffTopic) {
+    return {
+      problemDomain: DOMAINS.OFF_TOPIC,
+      problemSubtype: 'CASUAL_OR_UNRELATED',
+      confidence: 'high',
+      knownQuantities: {},
+      unknownQuantities: [],
+      assumptions: [],
+      constraints: [],
+      requiredMethod: 'Gentle, warm redirection back to mathematics or physics study',
+      specializedProtocol: PROTOCOLS.OFF_TOPIC_REDIRECT,
+      deterministicWorkAvailable: false,
+      canShortCircuit: false
+    };
+  }
+
+  // -------------------------------------------------------------
+  // 12. Conceptual / Direct Inquiry
   // -------------------------------------------------------------
   if (lower.includes('what is') || lower.includes('explain') || lower.includes('difference between') || lower.includes('why is')) {
     return {
@@ -530,7 +572,27 @@ function classifyProblem(userText) {
   }
 
   // -------------------------------------------------------------
-  // 12. Fallback / Mixed / Unknown
+  // 13. Interdisciplinary Applied Mathematics
+  // -------------------------------------------------------------
+  const interdisciplinaryMarkers = /\b(basketball|trajectory of a (?:baseball|ball|shot)|projectile of a|rocket|orbit|population growth|half[- ]life|radioactive decay|compound interest|mortgage|cryptography|rsa|dna sequence|quantum|circuit|voltage|resistor|kinetic energy of|momentum of)\b/i;
+  if (interdisciplinaryMarkers.test(text)) {
+    return {
+      problemDomain: DOMAINS.INTERDISCIPLINARY,
+      problemSubtype: 'APPLIED_MATHEMATICAL_MODEL',
+      confidence: 'high',
+      knownQuantities: knowns,
+      unknownQuantities: unknowns,
+      assumptions: ['Physical / mathematical modeling principles apply'],
+      constraints: [],
+      requiredMethod: 'Model applied phenomenon through formal mathematical and physical equations',
+      specializedProtocol: PROTOCOLS.INTERDISCIPLINARY,
+      deterministicWorkAvailable: true,
+      canShortCircuit: false
+    };
+  }
+
+  // -------------------------------------------------------------
+  // 14. Fallback / Mixed / Unknown
   // -------------------------------------------------------------
   return {
     problemDomain: DOMAINS.UNKNOWN,

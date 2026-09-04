@@ -29,6 +29,19 @@ function extractArithmeticExpressions(text) {
   const expressions = [];
   if (!text || typeof text !== 'string') return expressions;
 
+  // If the query is an explicit request for plotting, graphing, or creating a table of values,
+  // or contains explicit functional/algebraic notation (e.g. f(x) = x^2 - 4, Table of values for x^2),
+  // NEVER extract arithmetic subexpressions (like 2 - 4 from x^2 - 4).
+  const vizOrAlgebraPattern = /\b(plot|graph|table|draw|sketch|chart|diagram|number\s*line)\b/i;
+  const funcPattern = /\b(?:f\(x\)|y\s*=|[a-zA-Z]\^|\b[a-zA-Z]\s*[-+*^/]\s*\d|\d\s*[-+*^/]\s*[a-zA-Z])\b/i;
+  if (vizOrAlgebraPattern.test(text) || funcPattern.test(text)) {
+    // Only permit arithmetic extraction if the line is an explicit standalone arithmetic command
+    const isPureCalc = /^(?:calculate|compute|evaluate|what is|find|solve)?\s*[-+*/^0-9.()\s]+$/i.test(text.trim());
+    if (!isPureCalc) {
+      return expressions;
+    }
+  }
+
   // Split into lines
   const lines = text.split(/\r?\n/);
 
@@ -420,6 +433,186 @@ function analyzeDeterministicIntent(userText) {
     return null;
   }
 
+  // 0. Direct Function Plotting / Graphing Requests (e.g. "plot f(x) = x^2 - 4", "graph y = 2x + 3", "plot sin(x)", "plot the curve x^2 - 4", "draw a graph of x^2 - 4")
+  const plotMatch = clean.match(/^(?:plot|graph|draw)\s+(.+)$/i);
+  if (plotMatch) {
+    let rawExpr = plotMatch[1].trim();
+    rawExpr = rawExpr
+      .replace(/^(?:(?:a|the)\s+(?:graph|curve|function|plot)\s+of\s+|(?:a|the)\s+(?:graph|curve|function|plot)\s+|(?:f\(x\)|y)\s*=\s*|the\s+function\s+|of\s+)/i, '')
+      .trim();
+    if (/[a-zA-Z]/.test(rawExpr) && !hasConceptualIntent(rawExpr)) {
+      return {
+        type: 'GRAPH_PLOT',
+        expression: rawExpr,
+        formatted: rawExpr
+      };
+    }
+  }
+
+  // 0a. Function Table / Values Request (e.g. "table of values for x^2 - 4", "table of values for f(x) = x^2 - 4", "make a table for x^2 - 4")
+  const tableMatch = clean.match(/(?:table\s+(?:of\s+values\s+)?(?:for\s+)?|make\s+a\s+table\s+(?:of\s+values\s+)?(?:for\s+)?|create\s+a\s+table\s+(?:for\s+)?)(?:f\(x\)\s*=\s*|y\s*=\s*)?([a-zA-Z0-9.\s*+^/()_-]+)/i);
+  if (tableMatch) {
+    const rawExpr = tableMatch[1].trim();
+    if (/[a-zA-Z]/.test(rawExpr)) {
+      const cleanExpr = rawExpr
+        .replace(/^(?:f\(x\)|y)\s*=\s*/i, '')
+        .trim();
+      if (cleanExpr) {
+        // Deterministically compute table of values across integer range [-3, 3]
+        const rows = [];
+        try {
+          const compiled = math.compile(cleanExpr);
+          for (let xVal = -3; xVal <= 3; xVal++) {
+            const yVal = compiled.evaluate({ x: xVal });
+            if (typeof yVal === 'number' && !isNaN(yVal) && isFinite(yVal)) {
+              rows.push({ x: xVal, y: yVal % 1 === 0 ? yVal : parseFloat(yVal.toFixed(4)) });
+            }
+          }
+        } catch (_) {}
+
+        if (rows.length > 0) {
+          return {
+            type: 'TABLE_VALUES',
+            expression: cleanExpr,
+            rows
+          };
+        }
+      }
+    }
+  }
+
+  // 0b. Number Line Visualization Requests (e.g. "show interval [-2, 3) on a number line", "number line [-3, 5]")
+  const nlMatch = clean.match(/(?:number\s+line|interval)\s*(?:for\s+)?([\[\(]\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*[\]\)])/i);
+  if (nlMatch) {
+    const intervalStr = nlMatch[1].replace(/\s+/g, '');
+    const numMatch = intervalStr.match(/([\[\(])\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*([\]\)])/);
+    if (numMatch) {
+      const left = parseFloat(numMatch[2]);
+      const right = parseFloat(numMatch[3]);
+      const min = Math.floor(Math.min(left, right) - 2);
+      const max = Math.ceil(Math.max(left, right) + 2);
+      return {
+        type: 'NUMBER_LINE_VIZ',
+        min,
+        max,
+        interval: intervalStr,
+        points: [left, right]
+      };
+    }
+  }
+
+  // 0c. Geometric Figure Visualization Requests (e.g. "show a right triangle with legs 3 and 4", "triangle with sides 3, 4, 5")
+  const triangleMatch = clean.match(/(?:right\s+triangle|triangle).*?(?:legs|sides)?\s*(\d+(?:\.\d+)?)\s*(?:and|,)\s*(\d+(?:\.\d+)?)(?:\s*(?:and|,)\s*(\d+(?:\.\d+)?))?/i);
+  if (triangleMatch) {
+    const a = parseFloat(triangleMatch[1]);
+    const b = parseFloat(triangleMatch[2]);
+    const c = triangleMatch[3] ? parseFloat(triangleMatch[3]) : Math.round(Math.hypot(a, b) * 100) / 100;
+    return {
+      type: 'GEOMETRY_VIZ',
+      figType: 'triangle',
+      a,
+      b,
+      c,
+      right_angle: 'C'
+    };
+  }
+
+  // 0d. Probability / Coin Toss Chart Requests (e.g. "show a coin toss distribution", "coin toss distribution")
+  const coinMatch = clean.match(/(?:coin\s+toss|coin\s+flip).*?distribution/i);
+  if (coinMatch) {
+    return {
+      type: 'CHART_VIZ',
+      chartType: 'bar',
+      title: 'Fair Coin Distribution',
+      labels: ['Heads', 'Tails'],
+      values: [0.5, 0.5]
+    };
+  }
+
+  // 0e. Classical Projectile Motion Interactive Simulation Requests (e.g. "simulate projectile motion", "projectile trajectory")
+  const projectileMatch = clean.match(/(?:simulate\s+projectile|interactive\s+projectile|projectile\s+motion|projectile\s+trajectory|ballistics?\s+simulation)/i);
+  if (projectileMatch) {
+    return {
+      type: 'PROJECTILE_VIZ',
+      title: 'Kinematics: Classical Projectile Motion',
+      velocity: 25,
+      angle: 45,
+      gravity: 9.8
+    };
+  }
+
+  // 0f. Newton's Second Law & Incline (e.g. "simulate newton's second law", "inclined plane simulation", "f = ma simulation")
+  const newtonMatch = clean.match(/(?:newton(?:'s)?\s+(?:second\s+law|laws?)|incline(?:d)?\s+plane|f\s*=\s*ma\s+simulation)/i);
+  if (newtonMatch) {
+    return {
+      type: 'CLASSICAL_MODEL_VIZ',
+      model: 'newtons_laws'
+    };
+  }
+
+  // 0g. Conservation of Energy (e.g. "simulate conservation of energy", "energy transfer simulation", "kinetic and potential energy")
+  const energyMatch = clean.match(/(?:conservation\s+of\s+energy|energy\s+transfer|kinetic\s+(?:and|to)\s+potential)/i);
+  if (energyMatch) {
+    return {
+      type: 'CLASSICAL_MODEL_VIZ',
+      model: 'energy_transfer'
+    };
+  }
+
+  // 0h. Momentum & Collisions (e.g. "simulate momentum", "collision simulation", "elastic collision")
+  const momentumMatch = clean.match(/(?:simulate\s+momentum|momentum\s+conservation|elastic\s+collision|collision\s+simulation)/i);
+  if (momentumMatch) {
+    return {
+      type: 'CLASSICAL_MODEL_VIZ',
+      model: 'momentum'
+    };
+  }
+
+  // 0i. Hooke's Law & Springs (e.g. "simulate hooke's law", "spring simulation", "harmonic oscillator")
+  const hookeMatch = clean.match(/(?:hooke(?:'s)?\s+law|spring\s+oscillator|harmonic\s+oscillator)/i);
+  if (hookeMatch) {
+    return {
+      type: 'CLASSICAL_MODEL_VIZ',
+      model: 'hookes_law'
+    };
+  }
+
+  // 0j. Wave Mechanics (e.g. "simulate waves", "wave propagation", "wave mechanics")
+  const waveMatch = clean.match(/(?:simulate\s+waves?|wave\s+propagation|wave\s+mechanics|harmonic\s+wave)/i);
+  if (waveMatch) {
+    return {
+      type: 'CLASSICAL_MODEL_VIZ',
+      model: 'waves'
+    };
+  }
+
+  // 0k. Circuits & Ohm's Law (e.g. "simulate circuit", "ohm's law simulation", "dc circuit")
+  const circuitMatch = clean.match(/(?:simulate\s+(?:a\s+)?circuit|ohm(?:'s)?\s+law\s+simulation|dc\s+circuit)/i);
+  if (circuitMatch) {
+    return {
+      type: 'CLASSICAL_MODEL_VIZ',
+      model: 'circuits'
+    };
+  }
+
+  // 0l. Unit Circle Trigonometry (e.g. "unit circle", "trigonometry simulation", "unit circle simulation")
+  const trigMatch = clean.match(/(?:unit\s+circle|trigonometry\s+simulation|pythagorean\s+circle)/i);
+  if (trigMatch) {
+    return {
+      type: 'CLASSICAL_MODEL_VIZ',
+      model: 'trigonometry'
+    };
+  }
+
+  // 0m. Differential Calculus & Derivatives (e.g. "simulate derivative", "tangent line simulation", "calculus derivative")
+  const calcMatch = clean.match(/(?:tangent\s+line\s+simulation|derivative\s+simulation|secant\s+to\s+tangent)/i);
+  if (calcMatch) {
+    return {
+      type: 'CLASSICAL_MODEL_VIZ',
+      model: 'calculus_derivatives'
+    };
+  }
+
   // 1. Direct Unit Conversions (e.g. "convert 50 lbs to kg", "100 miles in km", "32 fahrenheit to celsius")
   const unitMatch = clean.match(/^convert\s+([\d.]+\s*[a-zA-Z]+(?:\^[\d]+)?)\s+(?:to|in|into)\s+([a-zA-Z]+(?:\^[\d]+)?)$/i) ||
                     clean.match(/^([\d.]+\s*[a-zA-Z]+(?:\^[\d]+)?)\s+(?:to|in|into)\s+([a-zA-Z]+(?:\^[\d]+)?)$/i);
@@ -567,6 +760,132 @@ function analyzeDeterministicIntent(userText) {
  */
 function buildDeterministicResponse(intent) {
   if (!intent) return null;
+
+  if (intent.type === 'GRAPH_PLOT') {
+    return `📈 **Function Visualization**
+
+Here is the plot for $f(x) = ${intent.expression}$:
+
+[GRAPH: ${intent.expression}]
+
+The curve shows the behavior of the function over the real domain. Would you like to explore its roots, extrema, or derivatives?`;
+  }
+
+  if (intent.type === 'TABLE_VALUES') {
+    const tableHeader = `| $x$ | $f(x) = ${intent.expression}$ |\n| :---: | :---: |\n`;
+    const tableBody = intent.rows.map(r => `| $${r.x}$ | $${r.y}$ |`).join('\n');
+    return `📊 **Table of Values for $f(x) = ${intent.expression}$**
+
+${tableHeader}${tableBody}
+
+Would you like to plot these points, calculate specific function values, or find its intercepts?`;
+  }
+
+  if (intent.type === 'NUMBER_LINE_VIZ') {
+    return `📏 **Number Line Visualization**
+
+Here is the representation of the interval $${intent.interval}$ on the real number line:
+
+[NUMBER_LINE: min=${intent.min}, max=${intent.max}, interval=${intent.interval}, points=[${intent.points.join(', ')}]]
+
+Points within the highlighted segment satisfy the condition. Would you like to solve an inequality corresponding to this interval?`;
+  }
+
+  if (intent.type === 'GEOMETRY_VIZ') {
+    return `📐 **Geometric Construction**
+
+Here is the requested geometric figure:
+
+[GEOMETRY: triangle, a=${intent.a}, b=${intent.b}, c=${intent.c}, right_angle=C]
+
+By the Pythagorean theorem: $a^2 + b^2 = ${intent.a}^2 + ${intent.b}^2 = ${intent.a * intent.a + intent.b * intent.b} = c^2$, confirming $c = ${intent.c}$. Would you like to find the acute angles or area?`;
+  }
+
+  if (intent.type === 'CHART_VIZ') {
+    return `📊 **Probability Distribution**
+
+Here is the discrete distribution for a fair coin toss:
+
+[CHART: bar, title=Fair Coin Distribution, labels=[Heads, Tails], values=[0.5, 0.5]]
+
+Each outcome has an equal theoretical probability of $P = 0.5$ (50%). Would you like to analyze binomial probabilities for multiple flips?`;
+  }
+
+  if (intent.type === 'PROJECTILE_VIZ') {
+    const spec = {
+      type: 'PHYSICS',
+      model: 'projectile',
+      title: 'Kinematics: Classical Projectile Motion',
+      subtitle: 'BALLISTICS & PARABOLIC TRAJECTORIES (ΒΛΗΜΑ)',
+      description: 'An object launched with initial speed $v_0$ at an angle $\\theta$ relative to the horizontal under uniform downward gravitational acceleration $g$.',
+      variables: {
+        velocity: {
+          label: 'Initial Speed (v₀)',
+          value: intent.velocity || 25,
+          default: 25,
+          min: 1,
+          max: 60,
+          step: 1,
+          unit: 'm/s'
+        },
+        angle: {
+          label: 'Launch Angle (θ)',
+          value: intent.angle || 45,
+          default: 45,
+          min: 5,
+          max: 85,
+          step: 1,
+          unit: '°'
+        },
+        gravity: {
+          label: 'Gravity (g)',
+          value: intent.gravity || 9.8,
+          default: 9.8,
+          min: 1.6,
+          max: 24.8,
+          step: 0.1,
+          unit: 'm/s²'
+        }
+      }
+    };
+
+    return `🏛️ **Classical Projectile Instrument**
+
+Under uniform gravitational acceleration $g$, the horizontal and vertical motions decouple:
+- Horizontal displacement: $x(t) = (v_0 \\cos\\theta) t$
+- Vertical displacement: $y(t) = (v_0 \\sin\\theta) t - \\frac{1}{2} g t^2$
+
+[VIZ: ${JSON.stringify(spec)}]
+
+Adjust the controls above to explore how launch angle $\\theta$ and velocity $v_0$ affect flight time $T = \\frac{2 v_0 \\sin\\theta}{g}$, maximum height $H = \\frac{(v_0 \\sin\\theta)^2}{2g}$, and total range $R = \\frac{v_0^2 \\sin(2\\theta)}{g}$.`;
+  }
+
+  if (intent.type === 'CLASSICAL_MODEL_VIZ') {
+    const modelMap = {
+      newtons_laws: require('../vizEngine/models/newtons_laws'),
+      energy_transfer: require('../vizEngine/models/energy_transfer'),
+      momentum: require('../vizEngine/models/momentum'),
+      hookes_law: require('../vizEngine/models/hookes_law'),
+      waves: require('../vizEngine/models/waves'),
+      circuits: require('../vizEngine/models/circuits'),
+      trigonometry: require('../vizEngine/models/trigonometry'),
+      calculus_derivatives: require('../vizEngine/models/calculus_derivatives')
+    };
+
+    const modelMod = modelMap[intent.model];
+    if (modelMod && modelMod.defaultConfig) {
+      const spec = {
+        type: modelMod.type || 'PHYSICS',
+        model: modelMod.modelId,
+        title: modelMod.defaultConfig.title,
+        subtitle: modelMod.defaultConfig.subtitle,
+        description: modelMod.defaultConfig.description,
+        variables: modelMod.defaultConfig.variables
+      };
+
+      return `🏛️ **Classical Mathematical Instrument: ${modelMod.defaultConfig.title}**\n\n${modelMod.defaultConfig.description}\n\n[VIZ: ${JSON.stringify(spec)}]\n\nExplore this model using the interactive controls above. Observe how changing the input parameters instantaneously updates the physical system and its metrics.`;
+    }
+  }
 
   if (intent.type === 'ARITHMETIC') {
     if (intent.wantsOnly) {

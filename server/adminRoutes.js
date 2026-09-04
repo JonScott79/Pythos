@@ -80,4 +80,94 @@ router.get('/metrics', (req, res) => {
   });
 });
 
+// =====================================
+// Bug Report Management (Priority 1 & 6)
+// =====================================
+const reportService = require('./reportService');
+
+// GET /admin/reports: List reports with optional status and date filters
+router.get('/reports', (req, res) => {
+  const { date, status, limit } = req.query;
+  const reports = reportService.listReports({
+    date,
+    status,
+    limit: limit ? parseInt(limit, 10) : 50
+  });
+
+  res.status(200).json({
+    status: 'ok',
+    reportingEnabled: reportService.isReportingEnabled(),
+    count: reports.length,
+    reports
+  });
+});
+
+// GET /admin/reports/:reportId: Fetch complete report details
+router.get('/reports/:reportId', (req, res) => {
+  const found = reportService.findReportById(req.params.reportId);
+  if (!found) {
+    return res.status(404).json({
+      error: 'not_found',
+      message: `Report "${req.params.reportId}" not found.`
+    });
+  }
+
+  res.status(200).json({
+    status: 'ok',
+    report: found.report,
+    dateFolder: found.dateFolder
+  });
+});
+
+// PATCH /admin/reports/:reportId/review: Advance review status
+router.patch('/reports/:reportId/review', (req, res) => {
+  const { status, notes, reviewer, regressionTestCreated } = req.body;
+
+  if (!status) {
+    return res.status(400).json({
+      error: 'invalid_request',
+      message: 'A "status" field is required. Allowed: ' + reportService.VALID_REVIEW_STATUSES.join(', ')
+    });
+  }
+
+  try {
+    const updated = reportService.updateReportReview(req.params.reportId, {
+      status,
+      notes,
+      reviewer: reviewer || 'admin',
+      regressionTestCreated
+    });
+
+    res.status(200).json({
+      status: 'ok',
+      message: `Report ${req.params.reportId} review status updated to "${status}".`,
+      report: updated
+    });
+  } catch (err) {
+    res.status(400).json({
+      error: 'update_failed',
+      message: err.message
+    });
+  }
+});
+
+// POST /admin/reporting/toggle: Administrative feature flag switch
+router.post('/reporting/toggle', (req, res) => {
+  const { enabled } = req.body;
+  if (typeof enabled !== 'boolean') {
+    return res.status(400).json({
+      error: 'invalid_request',
+      message: 'A boolean "enabled" property is required.'
+    });
+  }
+
+  const newState = reportService.setReportingEnabled(enabled);
+  res.status(200).json({
+    status: 'ok',
+    reportingEnabled: newState,
+    message: `Student bug reporting is now ${newState ? 'ENABLED' : 'DISABLED'}.`
+  });
+});
+
 module.exports = router;
+

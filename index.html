@@ -103,6 +103,18 @@
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.1/math.js"></script>
   <!-- Visual Equation Editor (MathLive) -->
   <script defer src="https://unpkg.com/mathlive"></script>
+  <!-- Pythos Classical Visualization Engine -->
+  <script defer src="vizEngine/vizProtocol.js"></script>
+  <script defer src="vizEngine/models/projectile.js"></script>
+  <script defer src="vizEngine/models/newtons_laws.js"></script>
+  <script defer src="vizEngine/models/energy_transfer.js"></script>
+  <script defer src="vizEngine/models/momentum.js"></script>
+  <script defer src="vizEngine/models/hookes_law.js"></script>
+  <script defer src="vizEngine/models/waves.js"></script>
+  <script defer src="vizEngine/models/circuits.js"></script>
+  <script defer src="vizEngine/models/trigonometry.js"></script>
+  <script defer src="vizEngine/models/calculus_derivatives.js"></script>
+  <script defer src="vizEngine/vizRenderer.js"></script>
 
   <style>
     :root {
@@ -676,6 +688,171 @@
       border-color: var(--primary-color);
     }
 
+    .msg-report-btn {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      padding: 2px 6px;
+      cursor: pointer;
+      color: var(--text-muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.72rem;
+      font-family: 'Inter', sans-serif;
+      transition: all 0.15s;
+      margin-right: 6px;
+    }
+
+    .msg-report-btn:hover {
+      background: rgba(239, 68, 68, 0.08);
+      color: #ef4444;
+      border-color: rgba(239, 68, 68, 0.4);
+    }
+
+    .msg-report-btn svg {
+      flex-shrink: 0;
+    }
+
+    /* Report Modal Styles */
+    .report-modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(3px);
+      z-index: 2100;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .report-modal-overlay.visible {
+      display: flex;
+    }
+
+    .report-modal-card {
+      background: var(--surface-color);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      width: 100%;
+      max-width: 520px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      animation: guideIn 0.2s ease;
+    }
+
+    .report-modal-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--chat-ai-bg);
+    }
+
+    .report-modal-title-group h3 {
+      margin: 0;
+      font-size: 1.05rem;
+      font-family: 'Cinzel', serif;
+      color: var(--primary-color);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .report-modal-title-group p {
+      margin: 2px 0 0;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .report-modal-body {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .report-context-box {
+      background: var(--bg-color);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      max-height: 110px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .report-textarea {
+      width: 100%;
+      min-height: 90px;
+      padding: 10px 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      background: var(--input-bg);
+      color: var(--text-main);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.88rem;
+      resize: vertical;
+      box-sizing: border-box;
+    }
+
+    .report-textarea:focus {
+      outline: none;
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 2px rgba(42, 114, 143, 0.2);
+    }
+
+    .report-modal-actions {
+      padding: 14px 20px;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      background: var(--surface-color);
+    }
+
+    .report-btn {
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .report-btn.cancel {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+    }
+
+    .report-btn.cancel:hover {
+      background: var(--chat-ai-bg);
+      color: var(--text-main);
+    }
+
+    .report-btn.submit {
+      background: #ef4444;
+      border: 1px solid #dc2626;
+      color: #ffffff;
+    }
+
+    .report-btn.submit:hover {
+      background: #dc2626;
+    }
+
+    .report-btn.submit:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
     .message.assistant {
       background: var(--chat-ai-bg);
       color: var(--text-main);
@@ -1178,8 +1355,9 @@
       border: 1px solid #fca5a5;
     }
 
-    /* Inline Graph Card inside Chat Messages */
-    .msg-inline-graph-card {
+    /* Inline Graph & Visualization Cards inside Chat Messages */
+    .msg-inline-graph-card,
+    .msg-inline-viz-card {
       margin: 12px 0 8px;
       background: var(--surface-color);
       border: 1px solid var(--border-color);
@@ -1192,7 +1370,8 @@
       max-width: 100%;
     }
 
-    .msg-graph-canvas {
+    .msg-graph-canvas,
+    .msg-viz-canvas {
       border: 1px solid var(--border-color);
       background: var(--input-bg);
       border-radius: 6px;
@@ -1200,7 +1379,8 @@
       height: auto;
     }
 
-    .msg-graph-footer {
+    .msg-graph-footer,
+    .msg-viz-footer {
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -1209,12 +1389,14 @@
       gap: 12px;
     }
 
-    .msg-graph-caption {
+    .msg-graph-caption,
+    .msg-viz-caption {
       font-size: 0.8rem;
       color: var(--text-muted);
     }
 
-    .msg-graph-open-btn {
+    .msg-graph-open-btn,
+    .msg-viz-badge {
       background: var(--sidebar-hover);
       border: 1px solid var(--border-color);
       color: var(--primary-color);
@@ -1233,13 +1415,270 @@
       border-color: var(--primary-color);
     }
 
-    .graph-render-fail {
+    .graph-render-fail,
+    .viz-render-fail {
       padding: 8px 12px;
       background: #fef2f2;
       border: 1px solid #fecaca;
       border-radius: 6px;
       font-size: 0.85rem;
       color: #991b1b;
+    }
+
+    /* Markdown Data Table Styling */
+    .pythos-table-wrap {
+      width: 100%;
+      overflow-x: auto;
+      margin: 12px 0;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      background: var(--surface-color);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+    }
+
+    .pythos-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.95rem;
+    }
+
+    .pythos-table th,
+    .pythos-table td {
+      padding: 8px 14px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .pythos-table th {
+      background: var(--sidebar-hover);
+      color: var(--text-main);
+      font-weight: 600;
+      font-size: 0.88rem;
+      letter-spacing: 0.02em;
+    }
+
+    .pythos-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .pythos-table tr:hover td {
+      background: rgba(42, 114, 143, 0.04);
+    }
+
+    [data-theme="dark"] .pythos-table tr:hover td {
+      background: rgba(56, 189, 248, 0.06);
+    }
+
+    /* Classical Pythos Visualization Engine Instrument Styles */
+    .pythos-viz-instrument {
+      width: 100%;
+      max-width: 680px;
+      margin: 16px 0;
+      background: var(--surface-color);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 16px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      position: relative;
+    }
+
+    [data-theme="dark"] .pythos-viz-instrument {
+      background: #0f172a;
+      border-color: #334155;
+      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+    }
+
+    .pythos-viz-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 10px;
+      gap: 12px;
+    }
+
+    .pythos-viz-title-group {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .pythos-viz-tag {
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: var(--primary-color);
+      text-transform: uppercase;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .pythos-viz-title {
+      font-family: 'Cinzel', serif;
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text-main);
+      margin: 0;
+      line-height: 1.25;
+    }
+
+    .pythos-viz-subtitle {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      font-family: 'Cinzel', serif;
+    }
+
+    .pythos-viz-reset-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--sidebar-hover);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 5px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+
+    .pythos-viz-reset-btn:hover {
+      background: var(--primary-color);
+      color: #ffffff;
+      border-color: var(--primary-color);
+    }
+
+    .pythos-viz-stage-wrap {
+      width: 100%;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border-color);
+      background: var(--input-bg);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .pythos-viz-canvas {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .pythos-viz-metrics-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+      gap: 8px;
+      width: 100%;
+    }
+
+    .pythos-viz-metric-card {
+      background: var(--bg-color);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .pythos-metric-label {
+      font-size: 0.68rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      letter-spacing: 0.02em;
+    }
+
+    .pythos-metric-value {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text-main);
+      font-family: 'Inter', sans-serif;
+    }
+
+    .pythos-viz-controls-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      background: var(--bg-color);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+
+    .pythos-slider-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .pythos-slider-label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
+    }
+
+    .pythos-slider-name {
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .pythos-slider-val-badge {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--primary-color);
+      background: var(--sidebar-hover);
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid var(--border-color);
+      font-family: monospace;
+    }
+
+    .pythos-classical-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 6px;
+      background: var(--border-color);
+      border-radius: 3px;
+      outline: none;
+      transition: background 0.15s;
+    }
+
+    .pythos-classical-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--primary-color);
+      cursor: pointer;
+      border: 2px solid #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+      transition: transform 0.1s, background 0.15s;
+    }
+
+    .pythos-classical-slider::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--primary-color);
+      cursor: pointer;
+      border: 2px solid #ffffff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+      transition: transform 0.1s, background 0.15s;
+    }
+
+    .pythos-classical-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.15);
+      background: var(--primary-hover);
     }
 
     /* Visual Equation Editor Styles */
@@ -2462,6 +2901,34 @@
       <div class="pythos-modal-actions">
         <button id="pythosConfirmCancel" class="pythos-modal-btn cancel" aria-label="Cancel and keep discussion">Keep Discussion</button>
         <button id="pythosConfirmOk" class="pythos-modal-btn confirm-delete" aria-label="Confirm and erase discussion session">Erase Session</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PYTHOS PROBLEM / BUG REPORT MODAL (Priority 1 & 6) -->
+  <div id="pythosReportModal" class="report-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="reportModalTitle" aria-describedby="reportModalDesc" tabindex="-1">
+    <div class="report-modal-card">
+      <div class="report-modal-header">
+        <div class="report-modal-title-group">
+          <h3 id="reportModalTitle">🐞 Report a Problem</h3>
+          <p id="reportModalDesc">Help Pythos learn: Report a mathematical or reasoning discrepancy</p>
+        </div>
+        <button id="reportModalCloseBtn" class="math-guide-close" title="Close modal" aria-label="Close Report Dialog">×</button>
+      </div>
+      <div class="report-modal-body">
+        <div>
+          <label style="font-size:0.75rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:4px;">Context Under Review</label>
+          <div id="reportContextSnippet" class="report-context-box"></div>
+        </div>
+        <div>
+          <label for="reportStudentNotes" style="font-size:0.75rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:4px;">What seems incorrect or unclear? (Optional)</label>
+          <textarea id="reportStudentNotes" class="report-textarea" placeholder="e.g. 'Step 2 dropped a negative sign' or 'The final answer does not match the equation'"></textarea>
+        </div>
+        <div id="reportStatusMessage" style="font-size:0.8rem; display:none;" role="status" aria-live="polite"></div>
+      </div>
+      <div class="report-modal-actions">
+        <button id="reportCancelBtn" class="report-btn cancel">Cancel</button>
+        <button id="reportSubmitBtn" class="report-btn submit">Submit Report</button>
       </div>
     </div>
   </div>

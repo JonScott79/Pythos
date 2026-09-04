@@ -29,6 +29,24 @@ const button = document.getElementById("submitBtn");
 let messages = [];
 let currentUser = null;
 let currentChatId = null;
+let reportingEnabled = false;
+
+// =========================
+// API URL RESOLUTION
+// =========================
+function getPythosApiBase() {
+  if (window.location.protocol === "file:") {
+    return "http://localhost:3006";
+  } else if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+    if (window.location.port && window.location.port !== "3006") {
+      return `http://${window.location.hostname}:3006`;
+    }
+    return "";
+  } else if (window.location.hostname.includes("lanzar.me") || window.location.hostname.includes("netlify.app")) {
+    return "https://pythos-api.lanzar.me";
+  }
+  return "";
+}
 
 // =========================
 // KATEX RENDERING
@@ -411,9 +429,325 @@ function renderInlineGraph(canvas, exprString) {
   }
 }
 
-function appendMessage(role, text, images = null) {
+/**
+ * Renders a deterministic mathematical Number Line onto a 2D canvas (Priority 4).
+ * Config format: { min: -5, max: 5, interval: '[-2, 3)', points: [-2, 0, 3] }
+ */
+function renderInlineNumberLine(canvas, config) {
+  try {
+    const ctx = canvas.getContext("2d");
+    const width = canvas.width;
+    const height = canvas.height;
+    ctx.clearRect(0, 0, width, height);
+
+    const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+    const bgCol = isDark ? "#0b1120" : "#ffffff";
+    const lineCol = isDark ? "#cbd5e1" : "#1e293b";
+    const highlightCol = isDark ? "#38bdf8" : "#0284c7";
+    const textCol = isDark ? "#94a3b8" : "#475569";
+
+    ctx.fillStyle = bgCol;
+    ctx.fillRect(0, 0, width, height);
+
+    const min = typeof config.min === "number" ? config.min : -5;
+    const max = typeof config.max === "number" ? config.max : 5;
+    const paddingX = 40;
+    const axisY = height / 2;
+    const scaleX = (val) => paddingX + ((val - min) / (max - min)) * (width - 2 * paddingX);
+
+    // Main axis line with arrows
+    ctx.strokeStyle = lineCol;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(paddingX - 15, axisY);
+    ctx.lineTo(width - paddingX + 15, axisY);
+    ctx.stroke();
+
+    // Arrows on both ends
+    const arrowSize = 6;
+    ctx.fillStyle = lineCol;
+    ctx.beginPath();
+    ctx.moveTo(paddingX - 15, axisY);
+    ctx.lineTo(paddingX - 15 + arrowSize, axisY - arrowSize);
+    ctx.lineTo(paddingX - 15 + arrowSize, axisY + arrowSize);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(width - paddingX + 15, axisY);
+    ctx.lineTo(width - paddingX + 15 - arrowSize, axisY - arrowSize);
+    ctx.lineTo(width - paddingX + 15 - arrowSize, axisY + arrowSize);
+    ctx.closePath();
+    ctx.fill();
+
+    // Tick marks and integer labels
+    ctx.font = "11px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    ctx.fillStyle = textCol;
+
+    const span = max - min;
+    const step = span <= 12 ? 1 : Math.ceil(span / 10);
+    for (let v = Math.ceil(min); v <= Math.floor(max); v += step) {
+      const cx = scaleX(v);
+      ctx.strokeStyle = lineCol;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(cx, axisY - 5);
+      ctx.lineTo(cx, axisY + 5);
+      ctx.stroke();
+      ctx.fillText(String(v), cx, axisY + 8);
+    }
+
+    // Interval Shading (e.g. [-2, 3), (1, 5], [0, 4])
+    if (config.interval && typeof config.interval === "string") {
+      const intMatch = config.interval.match(/([\[\(])\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*([\]\)])/);
+      if (intMatch) {
+        const leftOpen = intMatch[1] === "(";
+        const leftVal = parseFloat(intMatch[2]);
+        const rightVal = parseFloat(intMatch[3]);
+        const rightOpen = intMatch[4] === ")";
+
+        const leftX = scaleX(Math.max(min, Math.min(max, leftVal)));
+        const rightX = scaleX(Math.max(min, Math.min(max, rightVal)));
+
+        // Draw shaded line
+        ctx.strokeStyle = highlightCol;
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.moveTo(leftX, axisY);
+        ctx.lineTo(rightX, axisY);
+        ctx.stroke();
+
+        // Left endpoint circle
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = highlightCol;
+        ctx.beginPath();
+        ctx.arc(leftX, axisY, 5, 0, 2 * Math.PI);
+        if (!leftOpen) {
+          ctx.fillStyle = highlightCol;
+          ctx.fill();
+        } else {
+          ctx.fillStyle = bgCol;
+          ctx.fill();
+          ctx.stroke();
+        }
+
+        // Right endpoint circle
+        ctx.beginPath();
+        ctx.arc(rightX, axisY, 5, 0, 2 * Math.PI);
+        if (!rightOpen) {
+          ctx.fillStyle = highlightCol;
+          ctx.fill();
+        } else {
+          ctx.fillStyle = bgCol;
+          ctx.fill();
+          ctx.stroke();
+        }
+      }
+    }
+
+    // Individual Points (e.g. points=[-2, 0, 3])
+    if (Array.isArray(config.points)) {
+      config.points.forEach((ptVal) => {
+        const num = parseFloat(ptVal);
+        if (!isNaN(num) && num >= min && num <= max) {
+          const ptX = scaleX(num);
+          ctx.fillStyle = "#ef4444";
+          ctx.beginPath();
+          ctx.arc(ptX, axisY, 5, 0, 2 * Math.PI);
+          ctx.fill();
+        }
+      });
+    }
+
+    return true;
+  } catch (err) {
+    console.warn("[NUMBER LINE RENDERING ERROR]:", err.message);
+    return false;
+  }
+}
+
+/**
+ * Renders a deterministic 2D Geometric Figure (Triangle / Polygon) onto a canvas (Priority 4).
+ * Config format: { type: 'triangle', a: 3, b: 4, c: 5, right_angle: 'C', labels: ['A', 'B', 'C'] }
+ */
+function renderInlineGeometry(canvas, config) {
+  try {
+    const ctx = canvas.getContext("2d");
+    const width = canvas.width;
+    const height = canvas.height;
+    ctx.clearRect(0, 0, width, height);
+
+    const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+    const bgCol = isDark ? "#0b1120" : "#ffffff";
+    const strokeCol = isDark ? "#38bdf8" : "#0284c7";
+    const textCol = isDark ? "#e2e8f0" : "#1e293b";
+    const fillCol = isDark ? "rgba(56, 189, 248, 0.12)" : "rgba(2, 132, 199, 0.08)";
+
+    ctx.fillStyle = bgCol;
+    ctx.fillRect(0, 0, width, height);
+
+    // Default right-angled or general triangle rendering
+    const a = parseFloat(config.a) || 3;
+    const b = parseFloat(config.b) || 4;
+    const c = parseFloat(config.c) || Math.hypot(a, b);
+
+    // Compute coordinate vertices centered on canvas
+    const pad = 35;
+    const availW = width - 2 * pad;
+    const availH = height - 2 * pad;
+    const scale = Math.min(availW / b, availH / a);
+
+    // Right angle at bottom left (C)
+    const C = { x: pad + 15, y: height - pad };
+    const B = { x: C.x + b * scale, y: C.y };
+    const A = { x: C.x, y: C.y - a * scale };
+
+    // Fill triangle
+    ctx.fillStyle = fillCol;
+    ctx.beginPath();
+    ctx.moveTo(A.x, A.y);
+    ctx.lineTo(B.x, B.y);
+    ctx.lineTo(C.x, C.y);
+    ctx.closePath();
+    ctx.fill();
+
+    // Outline triangle
+    ctx.strokeStyle = strokeCol;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(A.x, A.y);
+    ctx.lineTo(B.x, B.y);
+    ctx.lineTo(C.x, C.y);
+    ctx.closePath();
+    ctx.stroke();
+
+    // Right angle indicator at C if applicable
+    if (config.right_angle || Math.abs(a * a + b * b - c * c) < 0.1) {
+      const sq = 12;
+      ctx.strokeStyle = strokeCol;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(C.x, C.y - sq);
+      ctx.lineTo(C.x + sq, C.y - sq);
+      ctx.lineTo(C.x + sq, C.y);
+      ctx.stroke();
+    }
+
+    // Side length and vertex labels
+    ctx.font = "bold 12px system-ui, sans-serif";
+    ctx.fillStyle = textCol;
+
+    // Vertices
+    ctx.textAlign = "right";
+    ctx.fillText("A", A.x - 6, A.y);
+    ctx.textAlign = "center";
+    ctx.fillText("B", B.x + 8, B.y + 4);
+    ctx.textAlign = "right";
+    ctx.fillText("C", C.x - 6, C.y + 4);
+
+    // Side measurements
+    ctx.font = "11px system-ui, sans-serif";
+    ctx.textAlign = "right";
+    ctx.fillText(`a = ${a}`, C.x - 8, (A.y + C.y) / 2);
+    ctx.textAlign = "center";
+    ctx.fillText(`b = ${b}`, (C.x + B.x) / 2, C.y + 16);
+    ctx.textAlign = "left";
+    ctx.fillText(`c = ${c}`, (A.x + B.x) / 2 + 10, (A.y + B.y) / 2 - 4);
+
+    return true;
+  } catch (err) {
+    console.warn("[GEOMETRY RENDERING ERROR]:", err.message);
+    return false;
+  }
+}
+
+/**
+ * Renders a deterministic Bar Chart onto a canvas (Priority 4).
+ * Config format: { type: 'bar', title: 'Distribution', labels: ['H', 'T'], values: [0.5, 0.5] }
+ */
+function renderInlineChart(canvas, config) {
+  try {
+    const ctx = canvas.getContext("2d");
+    const width = canvas.width;
+    const height = canvas.height;
+    ctx.clearRect(0, 0, width, height);
+
+    const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+    const bgCol = isDark ? "#0b1120" : "#ffffff";
+    const barCol = isDark ? "#38bdf8" : "#0284c7";
+    const textCol = isDark ? "#94a3b8" : "#475569";
+    const titleCol = isDark ? "#e2e8f0" : "#1e293b";
+    const gridCol = isDark ? "#1e293b" : "#f1f5f9";
+
+    ctx.fillStyle = bgCol;
+    ctx.fillRect(0, 0, width, height);
+
+    const labels = Array.isArray(config.labels) ? config.labels : ["A", "B"];
+    const values = Array.isArray(config.values) ? config.values.map(v => parseFloat(v) || 0) : [0.5, 0.5];
+    const maxVal = Math.max(...values, 1);
+
+    const padLeft = 40;
+    const padBottom = 35;
+    const padTop = 30;
+    const padRight = 20;
+
+    // Title
+    if (config.title) {
+      ctx.font = "bold 12px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillStyle = titleCol;
+      ctx.fillText(String(config.title), width / 2, 18);
+    }
+
+    const chartW = width - padLeft - padRight;
+    const chartH = height - padTop - padBottom;
+    const n = labels.length;
+    const barSpacing = chartW / n;
+    const barWidth = Math.min(48, barSpacing * 0.6);
+
+    // Baseline axis
+    ctx.strokeStyle = isDark ? "#475569" : "#cbd5e1";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(padLeft, height - padBottom);
+    ctx.lineTo(width - padRight, height - padBottom);
+    ctx.stroke();
+
+    // Bars & labels
+    ctx.font = "11px system-ui, sans-serif";
+    for (let i = 0; i < n; i++) {
+      const val = values[i] || 0;
+      const h = (val / maxVal) * chartH;
+      const cx = padLeft + i * barSpacing + barSpacing / 2;
+      const x = cx - barWidth / 2;
+      const y = height - padBottom - h;
+
+      // Bar
+      ctx.fillStyle = barCol;
+      ctx.fillRect(x, y, barWidth, h);
+
+      // Value label on top
+      ctx.textAlign = "center";
+      ctx.fillStyle = textCol;
+      ctx.fillText(String(val), cx, y - 5);
+
+      // Category label below axis
+      ctx.fillText(String(labels[i]), cx, height - padBottom + 16);
+    }
+
+    return true;
+  } catch (err) {
+    console.warn("[CHART RENDERING ERROR]:", err.message);
+    return false;
+  }
+}
+
+function appendMessage(role, text, images = null, metadata = {}) {
   const div = document.createElement("div");
   div.className = `message ${role}`;
+  div.dataset.role = role;
   
   // If there are attached image payloads, display them at the top of the bubble
   if (images && Array.isArray(images) && images.length > 0) {
@@ -432,9 +766,10 @@ function appendMessage(role, text, images = null) {
   const contentDiv = document.createElement("div");
   contentDiv.className = "message-content";
 
-  // Filter out any raw TikZ blocks if LLM accidentally hallucinates them
+  // Filter out any raw TikZ or raw SVG blocks if LLM accidentally emits them
   let sanitized = text
     .replace(/\\begin\{tikzpicture\}[\s\S]*?\\end\{tikzpicture\}/gi, "")
+    .replace(/<svg\b[^>]*>[\s\S]*?<\/svg>/gi, "") // Enforce controlled visualizer by removing unauthorized raw SVG injections
     .replace(/\\\\([()])/g, "\\$1")
     .replace(/\\\\\[(?!\s*-?\d+(?:\.\d+)?(?:pt|em|ex|cm|mm|in|px)\])/g, "\\[")
     .replace(/\\\\\]/g, "\\]"); // normalize double-escaped LaTeX delimiters while preserving row break spacing \\[4pt]
@@ -442,9 +777,36 @@ function appendMessage(role, text, images = null) {
   // Detect [GRAPH: expr] tokens
   const graphTokenRegex = /\[GRAPH:\s*([^\]]+)\]/i;
   const graphMatch = sanitized.match(graphTokenRegex);
-
   if (graphMatch) {
     sanitized = sanitized.replace(graphTokenRegex, "%%%INLINE_GRAPH_PLACEHOLDER%%%");
+  }
+
+  // Detect [NUMBER_LINE: ...] tokens
+  const numberLineTokenRegex = /\[NUMBER_LINE:\s*([^\]]+)\]/i;
+  const numberLineMatch = sanitized.match(numberLineTokenRegex);
+  if (numberLineMatch) {
+    sanitized = sanitized.replace(numberLineTokenRegex, "%%%INLINE_NUMBERLINE_PLACEHOLDER%%%");
+  }
+
+  // Detect [GEOMETRY: ...] tokens
+  const geometryTokenRegex = /\[GEOMETRY:\s*([^\]]+)\]/i;
+  const geometryMatch = sanitized.match(geometryTokenRegex);
+  if (geometryMatch) {
+    sanitized = sanitized.replace(geometryTokenRegex, "%%%INLINE_GEOMETRY_PLACEHOLDER%%%");
+  }
+
+  // Detect [CHART: ...] tokens
+  const chartTokenRegex = /\[CHART:\s*([^\]]+)\]/i;
+  const chartMatch = sanitized.match(chartTokenRegex);
+  if (chartMatch) {
+    sanitized = sanitized.replace(chartTokenRegex, "%%%INLINE_CHART_PLACEHOLDER%%%");
+  }
+
+  // Detect [VIZ: ...] Classical Visualization Engine structured tokens
+  const vizTokenRegex = /\[VIZ:\s*(\{[\s\S]*?\})\]/i;
+  const vizMatch = sanitized.match(vizTokenRegex);
+  if (vizMatch) {
+    sanitized = sanitized.replace(vizTokenRegex, "%%%INLINE_VIZ_INSTRUMENT_PLACEHOLDER%%%");
   }
 
   // Helper to safely format markdown and pre-compile LaTeX blocks to eliminate any flash of raw math text
@@ -497,14 +859,84 @@ function appendMessage(role, text, images = null) {
     protectedText = protectedText.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
     protectedText = protectedText.replace(/\*([^*]+)\*/g, "<em>$1</em>");
 
-    // 6. Convert newlines to <br> for regular text
+    // 5b. Convert Markdown Tables into accessible HTML tables (before converting \n to <br>)
+    // Matches contiguous lines starting and ending with '|'
+    protectedText = protectedText.replace(/(?:^[ \t]*\|[^\n]+\|[ \t]*(?:\r?\n|$))+/gm, (tableBlock) => {
+      const lines = tableBlock.trim().split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      if (lines.length < 2) return tableBlock;
+
+      // Extract rows
+      const rows = lines.map(line => {
+        // Strip leading and trailing pipe
+        const content = line.replace(/^\|/, '').replace(/\|$/, '');
+        return content.split('|').map(cell => cell.trim());
+      });
+
+      // Check if second row is a markdown delimiter row (e.g. | :---: | :---: | or | --- | --- |)
+      const delimiterIndex = rows.findIndex(row => row.every(cell => /^:?-+:?$/.test(cell)));
+      if (delimiterIndex === -1) {
+        return tableBlock;
+      }
+
+      const alignments = rows[delimiterIndex].map(cell => {
+        const left = cell.startsWith(':');
+        const right = cell.endsWith(':');
+        if (left && right) return 'center';
+        if (right) return 'right';
+        if (left) return 'left';
+        return 'left';
+      });
+
+      const headerRows = rows.slice(0, delimiterIndex);
+      const bodyRows = rows.slice(delimiterIndex + 1);
+
+      let tableHtml = '<div class="pythos-table-wrap"><table class="pythos-table">';
+
+      if (headerRows.length > 0) {
+        tableHtml += '<thead>';
+        headerRows.forEach(row => {
+          tableHtml += '<tr>';
+          row.forEach((cell, i) => {
+            const align = alignments[i] || 'left';
+            tableHtml += `<th style="text-align: ${align};">${cell}</th>`;
+          });
+          tableHtml += '</tr>';
+        });
+        tableHtml += '</thead>';
+      }
+
+      if (bodyRows.length > 0) {
+        tableHtml += '<tbody>';
+        bodyRows.forEach(row => {
+          tableHtml += '<tr>';
+          row.forEach((cell, i) => {
+            const align = alignments[i] || 'left';
+            tableHtml += `<td style="text-align: ${align};">${cell}</td>`;
+          });
+          tableHtml += '</tr>';
+        });
+        tableHtml += '</tbody>';
+      }
+
+      tableHtml += '</table></div>';
+      return tableHtml;
+    });
+
+    // 6. Convert newlines to <br> for regular text (ignoring inside tags)
     protectedText = protectedText.replace(/\n/g, "<br>");
 
-    // Remove redundant <br> immediately after heading tags
-    protectedText = protectedText.replace(/<\/h[1-6]><br>/g, (m) => m.slice(0, -4));
+    // Remove redundant <br> immediately after heading tags or table blocks
+    protectedText = protectedText
+      .replace(/<\/h[1-6]><br>/g, (m) => m.slice(0, -4))
+      .replace(/<\/div><br>/g, (m) => m.slice(0, -4));
 
-    // Insert legitimate graph placeholder container into HTML after escaping is complete
-    protectedText = protectedText.replace("%%%INLINE_GRAPH_PLACEHOLDER%%%", '<div class="msg-inline-graph-card"></div>');
+    // Insert legitimate graph & visualization placeholder containers into HTML after escaping is complete
+    protectedText = protectedText
+      .replace("%%%INLINE_GRAPH_PLACEHOLDER%%%", '<div class="msg-inline-graph-card"></div>')
+      .replace("%%%INLINE_NUMBERLINE_PLACEHOLDER%%%", '<div class="msg-inline-viz-card" data-viz-type="numberline"></div>')
+      .replace("%%%INLINE_GEOMETRY_PLACEHOLDER%%%", '<div class="msg-inline-viz-card" data-viz-type="geometry"></div>')
+      .replace("%%%INLINE_CHART_PLACEHOLDER%%%", '<div class="msg-inline-viz-card" data-viz-type="chart"></div>')
+      .replace("%%%INLINE_VIZ_INSTRUMENT_PLACEHOLDER%%%", '<div class="pythos-viz-instrument-container"></div>');
 
     // 7. Restore code blocks
     protectedText = protectedText.replace(/%%%CODE_BLOCK_(\d+)%%%/g, (_, idx) => {
@@ -610,11 +1042,188 @@ function appendMessage(role, text, images = null) {
     }
   }
 
+  // Parse helper for key-value viz token arguments (e.g. min=-5, max=5, interval=[-2, 3), points=[-2, 0, 3])
+  function parseVizArgs(raw) {
+    const config = {};
+    if (!raw) return config;
+    // Match keys followed by either [bracketed list/range] or unquoted values
+    const parts = raw.split(/,\s*(?=[a-zA-Z0-9_]+[:=])/);
+    for (const part of parts) {
+      const idx = part.indexOf("=");
+      const colIdx = part.indexOf(":");
+      const splitIdx = idx !== -1 ? idx : colIdx;
+      if (splitIdx !== -1) {
+        const key = part.slice(0, splitIdx).trim().toLowerCase();
+        let val = part.slice(splitIdx + 1).trim();
+        // Array or interval format
+        if (val.startsWith("[") && val.endsWith("]") && key !== "interval") {
+          const inner = val.slice(1, -1).trim();
+          config[key] = inner ? inner.split(",").map(s => s.trim()) : [];
+        } else if (!isNaN(Number(val)) && val !== "") {
+          config[key] = Number(val);
+        } else {
+          config[key] = val;
+        }
+      } else {
+        // Positional type flag (e.g. "triangle", "bar")
+        const trimmed = part.trim();
+        if (trimmed && !config.type) config.type = trimmed;
+      }
+    }
+    return config;
+  }
+
+  // If a Number Line was detected, instantiate the live canvas
+  if (numberLineMatch) {
+    const vizCard = contentDiv.querySelector('.msg-inline-viz-card[data-viz-type="numberline"]');
+    if (vizCard) {
+      const config = parseVizArgs(numberLineMatch[1]);
+      const canvas = document.createElement("canvas");
+      canvas.className = "msg-viz-canvas";
+      canvas.width = 440;
+      canvas.height = 100;
+
+      const success = renderInlineNumberLine(canvas, config);
+      if (success) {
+        const infoRow = document.createElement("div");
+        infoRow.className = "msg-viz-footer";
+        const caption = document.createElement("div");
+        caption.className = "msg-viz-caption";
+        caption.innerHTML = `<strong>📏 Number Line:</strong> ${config.interval ? `<code>${config.interval}</code>` : `<code>[${config.min || -5}, ${config.max || 5}]</code>`}`;
+        const badge = document.createElement("span");
+        badge.className = "msg-viz-badge";
+        badge.textContent = "Verified Visual";
+        infoRow.appendChild(caption);
+        infoRow.appendChild(badge);
+        vizCard.appendChild(canvas);
+        vizCard.appendChild(infoRow);
+      } else {
+        vizCard.remove();
+      }
+    }
+  }
+
+  // If Geometry was detected, instantiate the live canvas
+  if (geometryMatch) {
+    const vizCard = contentDiv.querySelector('.msg-inline-viz-card[data-viz-type="geometry"]');
+    if (vizCard) {
+      const config = parseVizArgs(geometryMatch[1]);
+      const canvas = document.createElement("canvas");
+      canvas.className = "msg-viz-canvas";
+      canvas.width = 360;
+      canvas.height = 200;
+
+      const success = renderInlineGeometry(canvas, config);
+      if (success) {
+        const infoRow = document.createElement("div");
+        infoRow.className = "msg-viz-footer";
+        const caption = document.createElement("div");
+        caption.className = "msg-viz-caption";
+        caption.innerHTML = `<strong>📐 Geometry:</strong> <code>${config.type || "Triangle"} (a=${config.a || 3}, b=${config.b || 4}, c=${config.c || 5})</code>`;
+        const badge = document.createElement("span");
+        badge.className = "msg-viz-badge";
+        badge.textContent = "Geometric Model";
+        infoRow.appendChild(caption);
+        infoRow.appendChild(badge);
+        vizCard.appendChild(canvas);
+        vizCard.appendChild(infoRow);
+      } else {
+        vizCard.remove();
+      }
+    }
+  }
+
+  // If Chart was detected, instantiate the live canvas
+  if (chartMatch) {
+    const vizCard = contentDiv.querySelector('.msg-inline-viz-card[data-viz-type="chart"]');
+    if (vizCard) {
+      const config = parseVizArgs(chartMatch[1]);
+      const canvas = document.createElement("canvas");
+      canvas.className = "msg-viz-canvas";
+      canvas.width = 380;
+      canvas.height = 180;
+
+      const success = renderInlineChart(canvas, config);
+      if (success) {
+        const infoRow = document.createElement("div");
+        infoRow.className = "msg-viz-footer";
+        const caption = document.createElement("div");
+        caption.className = "msg-viz-caption";
+        caption.innerHTML = `<strong>📊 Distribution:</strong> <code>${config.title || "Data Chart"}</code>`;
+        const badge = document.createElement("span");
+        badge.className = "msg-viz-badge";
+        badge.textContent = "Probability / Stats";
+        infoRow.appendChild(caption);
+        infoRow.appendChild(badge);
+        vizCard.appendChild(canvas);
+        vizCard.appendChild(infoRow);
+      } else {
+        vizCard.remove();
+      }
+    }
+  }
+
+  // If a Pythos Classical Visualization Engine Instrument was detected, validate and instantiate it
+  if (vizMatch) {
+    const vizContainer = contentDiv.querySelector(".pythos-viz-instrument-container");
+    if (vizContainer) {
+      try {
+        const rawJson = vizMatch[1];
+        const parsedSpec = JSON.parse(rawJson);
+        const protocol = window.PythosVizProtocol;
+        const renderer = window.PythosVizRenderer;
+
+        if (protocol && renderer) {
+          const validation = protocol.validateVisualizationSpec(parsedSpec);
+          if (validation.valid) {
+            renderer.renderInstrument(vizContainer, validation.spec);
+          } else {
+            vizContainer.innerHTML = `<div class="viz-render-fail">⚠️ Visualization Specification Error: ${validation.error}</div>`;
+          }
+        } else {
+          // Fallback if engine scripts are still loading
+          setTimeout(() => {
+            const proto = window.PythosVizProtocol;
+            const rend = window.PythosVizRenderer;
+            if (proto && rend) {
+              const val = proto.validateVisualizationSpec(parsedSpec);
+              if (val.valid) rend.renderInstrument(vizContainer, val.spec);
+            }
+          }, 200);
+        }
+      } catch (err) {
+        console.warn("[VIZ INSTRUMENT PARSE ERROR]:", err.message);
+        vizContainer.innerHTML = `<div class="viz-render-fail">⚠️ Invalid visualization specification JSON.</div>`;
+      }
+    }
+  }
+
   div.appendChild(contentDiv);
 
-  // Copy button for easy clipboard copying
+  // Action buttons container (Copy + optional Report a Problem)
   const actionRow = document.createElement("div");
   actionRow.className = "msg-actions";
+
+  // Report button (Priority 1 & 6) — only for assistant responses and when feature flag is active
+  if (role === "assistant" && reportingEnabled) {
+    const reportBtn = document.createElement("button");
+    reportBtn.className = "msg-report-btn";
+    reportBtn.title = "Report a Problem with this response";
+    reportBtn.setAttribute("aria-label", "Report a Problem with this response");
+    reportBtn.innerHTML = `🐞 <span>Report</span>`;
+    reportBtn.addEventListener("click", () => {
+      openReportModal({
+        response: text,
+        question: metadata.question || (messages.find(m => m.role === "user")?.content || ""),
+        claims: metadata.claims || [],
+        verification: metadata.verification || [],
+        model: metadata.model || "pythos:latest"
+      });
+    });
+    actionRow.appendChild(reportBtn);
+  }
+
+  // Copy button for easy clipboard copying
   const copyBtn = document.createElement("button");
   copyBtn.className = "msg-copy-btn";
   copyBtn.title = "Copy message";
@@ -1164,7 +1773,12 @@ async function askPythos(userText) {
     if (data.message && data.message.content) {
         const botReply = data.message.content.trim();
         messages.push({ role: "assistant", content: botReply });
-        appendMessage("assistant", botReply);
+        appendMessage("assistant", botReply, null, {
+          question: cleanText,
+          claims: data.claims || [],
+          verification: data.verification || [],
+          model: data.model || "pythos:latest"
+        });
         
         // Save to Firebase
         await saveChatState(userText, botReply);
@@ -2175,8 +2789,144 @@ document.querySelectorAll(".lang-chip").forEach(chip => {
   });
 });
 
+// =========================
+// BUG & ERROR REPORTING MODAL (Priority 1 & 6)
+// =========================
+let activeReportContext = null;
+
+function openReportModal(context) {
+  activeReportContext = context;
+  const modal = document.getElementById("pythosReportModal");
+  const snippet = document.getElementById("reportContextSnippet");
+  const notes = document.getElementById("reportStudentNotes");
+  const statusMsg = document.getElementById("reportStatusMessage");
+  const submitBtn = document.getElementById("reportSubmitBtn");
+
+  if (!modal) return;
+
+  const qSnippet = context.question ? `Question: "${context.question.slice(0, 150)}..."\n\n` : "";
+  const rSnippet = context.response ? `Pythos: "${context.response.slice(0, 200)}..."` : "";
+  if (snippet) snippet.textContent = (qSnippet + rSnippet) || "No context attached";
+  if (notes) notes.value = "";
+  if (statusMsg) {
+    statusMsg.style.display = "none";
+    statusMsg.textContent = "";
+  }
+  if (submitBtn) {
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Submit Report";
+  }
+
+  modal.classList.add("visible");
+  if (notes) notes.focus();
+}
+
+function closeReportModal() {
+  const modal = document.getElementById("pythosReportModal");
+  if (modal) modal.classList.remove("visible");
+  activeReportContext = null;
+}
+
+async function submitProblemReport() {
+  if (!activeReportContext) return;
+  const notesInput = document.getElementById("reportStudentNotes");
+  const statusMsg = document.getElementById("reportStatusMessage");
+  const submitBtn = document.getElementById("reportSubmitBtn");
+
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Submitting...";
+  }
+
+  const payload = {
+    question: activeReportContext.question || "",
+    response: activeReportContext.response || "",
+    claims: activeReportContext.claims || [],
+    verification: activeReportContext.verification || [],
+    model: activeReportContext.model || "pythos:latest",
+    description: notesInput ? notesInput.value.trim() : "",
+    metadata: {
+      url: window.location.href,
+      userAgent: navigator.userAgent
+    }
+  };
+
+  try {
+    const apiBase = getPythosApiBase();
+    const res = await fetch(`${apiBase}/api/report`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+    if (res.ok && data.status === "ok") {
+      if (statusMsg) {
+        statusMsg.style.display = "block";
+        statusMsg.style.color = "#166534";
+        statusMsg.textContent = `✓ Report logged successfully! Ref: ${data.reportId}`;
+      }
+      setTimeout(() => {
+        closeReportModal();
+      }, 1800);
+    } else {
+      throw new Error(data.message || "Submission rejected");
+    }
+  } catch (err) {
+    console.error("[REPORT SUBMISSION ERROR]:", err);
+    if (statusMsg) {
+      statusMsg.style.display = "block";
+      statusMsg.style.color = "#dc2626";
+      statusMsg.textContent = `Could not submit report: ${err.message}`;
+    }
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Try Again";
+    }
+  }
+}
+
+// Modal event bindings
+const reportCloseBtn = document.getElementById("reportModalCloseBtn");
+const reportCancelBtn = document.getElementById("reportCancelBtn");
+const reportSubmitBtn = document.getElementById("reportSubmitBtn");
+const reportModalEl = document.getElementById("pythosReportModal");
+
+if (reportCloseBtn) reportCloseBtn.addEventListener("click", closeReportModal);
+if (reportCancelBtn) reportCancelBtn.addEventListener("click", closeReportModal);
+if (reportSubmitBtn) reportSubmitBtn.addEventListener("click", submitProblemReport);
+
+if (reportModalEl) {
+  reportModalEl.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      closeReportModal();
+    }
+  });
+}
+
+// Check if feature flag for bug reporting is enabled on backend
+async function checkReportingStatus() {
+  try {
+    const apiBase = getPythosApiBase();
+    const res = await fetch(`${apiBase}/api/report/status`);
+    if (res.ok) {
+      const data = await res.json();
+      reportingEnabled = Boolean(data.reportingEnabled);
+      // If disabled, hide any existing report buttons
+      if (!reportingEnabled) {
+        document.querySelectorAll(".msg-report-btn").forEach(btn => btn.remove());
+      }
+    }
+  } catch (e) {
+    // If report endpoint unreachable or disabled, default to false safely
+    reportingEnabled = false;
+  }
+}
+
 // ===== INIT =====
 clearChatUI();
+checkReportingStatus();
 
 // Render KaTeX mathematical typography on the Equation Builder palette
 setTimeout(() => {

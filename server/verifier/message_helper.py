@@ -52,11 +52,16 @@ _USER_MESSAGES = {
     "GENERAL_REASONING_INVALID": "🤔 The general reasoning about Simpson's paradox is incorrect.",
     "EQUAL_RATES": "⚖️ Rates are equal; no paradox.",
     "INSUFFICIENT_DATA": "⏳ Not enough data to evaluate.",
-    # Compound claims
+    # Default
     "COMPOUND_HAS_ERRORS": "❌ The reasoning chain has an error — let me show you where.",
     # Probability
     "INVALID_FORMULA": "❌ The formula used isn't mathematically correct.",
     "INCORRECT_THRESHOLD": "❌ That threshold value doesn't match the exact calculation.",
+    # Logical and Analytical Reasoning
+    "INVALID_INFERENCE": "❌ That inference does not logically follow from the premises.",
+    "UNESTABLISHED_ASSUMPTION": "❌ That deduction requires an unstated assumption that has not been established.",
+    "AFFIRMING_CONSEQUENT": "❌ Logical fallacy: affirming the consequent does not prove the premise.",
+    "DENYING_ANTECEDENT": "❌ Logical fallacy: denying the antecedent does not prove the negation of the conclusion.",
     # Default
     "DEFAULT": "ℹ️ I'm not sure how to handle that problem right now."
 }
