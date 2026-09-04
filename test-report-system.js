@@ -105,7 +105,7 @@ async function runTests() {
 
   // Test 4: Listing Reports
   console.log('▶ [TEST 4] Report Listing & Filtering');
-  const allReports = reportService.listReports({ date: expectedFolder });
+  const allReports = reportService.listReports({ date: expectedFolder, limit: 1000 });
   assert(allReports.length >= 1, 'Should list at least 1 report for today');
   const matched = allReports.find(r => r.report_id === reportResult.reportId);
   assert(matched, 'Report ID must appear in listing');
