@@ -5,6 +5,32 @@ All notable changes to the Pythos project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Pythos 1.2.0
+**Release Date:** 2026-09-04
+
+### Added
+- **General Named-Phenomenon & Statistical Reasoning Verifier** (`server/verifier/statistics_verifier.py`, `server/verifier/logic_verifier.py`, `server/reasoningVerifier.js`):
+  - Differentiates conditions that make a statistical phenomenon *possible* (enabling conditions like confounding or unequal subgroup weights) from conditions that *demonstrate* it (the defining condition: an actual direction reversal between disaggregated subgroups and the aggregate).
+  - Eliminates false-positive pattern matching where models attribute phenomena (such as Simpson's paradox) to datasets merely possessing enabling characteristics without the defining property.
+  - Returns `FALSE_POSITIVE_PHENOMENON` diagnostics when a phenomenon is claimed without its defining condition.
+  - Generalized `verify_simpsons_paradox` to support arbitrary comparative keys (Group A vs B, Treatment vs Control, Group 1 vs 2, etc.) alongside legacy schemas.
+  - Added `verify_phenomenon_entailment` in `logic_verifier.py` and `auditPhenomenonEntailment` in `reasoningVerifier.js` for generalized analytical reasoning.
+- **Deterministic Preflight Ground Truth for Subgroup Comparative Datasets** (`server/deterministicRouter.js`):
+  - Extracts subgroup comparative counts and rates, computes exact directions across all subgroups and overall, and injects `Fact: SIMPSONS_PARADOX_EVALUATION` directly into system prompt preflight context.
+  - Guarantees accurate pedagogical explanation and prevents arithmetic or directional hallucinations.
+- **Context-Aware Verification Bridge & Revision Engine** (`server/verificationBridge.js`, `server/server.js`):
+  - Audits assistant statistical assertions against ground truth dataset numbers. If an assistant response claims a phenomenon occurred when defining conditions are absent, flags the contradiction to trigger Pythos's deterministic revision loop.
+- **Updated Problem Classifier Protocol** (`server/problemClassifier.js`):
+  - Updated `PROTOCOLS.SIMPSONS_PARADOX` to enforce the 4-tier reasoning protocol prior to assigning named phenomenon labels.
+
+### Verification & Testing
+- Dedicated regression test suite (`test-simpsons-reasoning.js`) verifying:
+  - Case A: False-positive stone dataset ($A > B$ everywhere $\implies$ Simpson's paradox ABSENT).
+  - Case B: Genuine Simpson's paradox with actual reversal ($A > B$ in subgroups, $B > A$ overall $\implies$ PRESENT).
+  - Case C: Extreme subgroup weight asymmetry ($1000$ vs $100$) without reversal $\implies$ ABSENT.
+  - Case D: General phenomenon entailment auditing distinguishing enabling conditions from defining conditions.
+- Updated Master Regression Test Harness (`test-regression-harness.js`) to **10 comprehensive test suites**, passing with a **100% success rate**.
+
 ## Pythos 1.1.0
 **Release Date:** 2026-09-04
 

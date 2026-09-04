@@ -91,7 +91,28 @@ async function verifyTriAspect(claim) {
   return results;
 }
 
+/**
+ * Audits named-phenomenon claims (e.g. Simpson's paradox, Berkson's fallacy, etc.)
+ * Distinguishes enabling conditions from defining conditions to prevent false-positive pattern matching.
+ */
+async function auditPhenomenonEntailment(phenomenonName, enablingMet, definingMet, claimedPresent = true, details = '') {
+  const payload = {
+    domain: 'logic',
+    claim_type: 'phenomenon_entailment',
+    data: {
+      phenomenon_name: phenomenonName,
+      enabling_conditions_met: enablingMet,
+      defining_condition_met: definingMet,
+      claimed_present: claimedPresent,
+      details
+    }
+  };
+
+  return await runDeterministicVerification(payload);
+}
+
 module.exports = {
   auditLogicalEntailment,
+  auditPhenomenonEntailment,
   verifyTriAspect
 };

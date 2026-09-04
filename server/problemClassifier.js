@@ -78,10 +78,11 @@ const PROTOCOLS = {
     'Verify denominator consistency and interpret result against prior base rates'
   ],
   SIMPSONS_PARADOX: [
-    'Identify aggregated population vs disaggregated subgroups',
-    'Examine subgroup sample size weights and confounding variables',
-    'Demonstrate how unequal group allocation causes aggregate trend reversal',
-    'Provide clear intuition explaining why the apparent contradiction occurs'
+    'Identify aggregated population vs disaggregated subgroups and compute exact success rates for both entities in every subgroup and overall',
+    'Evaluate enabling conditions: examine subgroup sample size weights and check whether unequal group allocation / confounding creates the mathematical potential for reversal',
+    'Audit the DEFINING CONDITION before assigning the label: strictly test whether the direction of the relationship reverses between subgroup comparisons and the aggregate comparison',
+    'Distinguish potential from actuality: if no reversal occurred (e.g. A > B in all subgroups and A > B overall), explicitly conclude that Simpson\'s paradox is ABSENT; do NOT assign the label merely because weights differ or confounding exists',
+    'If a genuine reversal occurred, provide clear mathematical intuition explaining how unequal weighting produced the flip'
   ],
   STATISTICS: [
     'Identify dataset properties, sample size n, and random variables',

@@ -217,13 +217,78 @@ def verify_algebraic_entailment(claim: dict) -> dict:
         return _finalize({"verified": False, "status": "UNKNOWN", "reason": f"Algebraic entailment error: {str(e)}"})
 
 
+def verify_phenomenon_entailment(claim: dict) -> dict:
+    """
+    General Reasoning Verifier for Named-Phenomenon Claims:
+    Distinguishes:
+    1. Conditions that make a phenomenon POSSIBLE (enabling conditions / confounding / unequal weights).
+    2. Conditions that actually DEMONSTRATE the phenomenon (defining condition).
+    3. A named phenomenon that is merely related to the topic.
+    4. A false-positive pattern match where the model recognizes ingredients but the defining property is absent.
+    """
+    phenomenon_name = claim.get("phenomenon_name", "named_phenomenon")
+    enabling_conditions_met = bool(claim.get("enabling_conditions_met", True))
+    defining_condition_met = bool(claim.get("defining_condition_met", False))
+    claimed_present = bool(claim.get("claimed_present", True))
+    details = claim.get("details", "")
+
+    if claimed_present:
+        if defining_condition_met:
+            return _finalize({
+                "verified": True,
+                "status": "VERIFIED",
+                "phenomenon_name": phenomenon_name,
+                "enabling_conditions_met": enabling_conditions_met,
+                "defining_condition_met": True,
+                "details": f"The defining condition of {phenomenon_name} is satisfied."
+            })
+        else:
+            reason = (
+                f"False positive pattern match: '{phenomenon_name}' was claimed, but its defining condition did not occur. "
+                f"Enabling conditions (making it possible) do not constitute demonstration."
+            )
+            return _finalize({
+                "verified": False,
+                "status": "FALSE_POSITIVE_PHENOMENON",
+                "error_type": "FALSE_POSITIVE_PHENOMENON",
+                "phenomenon_name": phenomenon_name,
+                "enabling_conditions_met": enabling_conditions_met,
+                "defining_condition_met": False,
+                "reason": reason,
+                "details": details or reason
+            })
+    else:
+        # Claim is that phenomenon is NOT present / absent
+        if not defining_condition_met:
+            return _finalize({
+                "verified": True,
+                "status": "VERIFIED",
+                "phenomenon_name": phenomenon_name,
+                "enabling_conditions_met": enabling_conditions_met,
+                "defining_condition_met": False,
+                "details": f"Correctly identified that {phenomenon_name} does not occur."
+            })
+        else:
+            return _finalize({
+                "verified": False,
+                "status": "INVALID_INFERENCE",
+                "phenomenon_name": phenomenon_name,
+                "details": f"{phenomenon_name} does occur, but was claimed to be absent."
+            })
+
+
 def verify_logical_entailment(claim: dict) -> dict:
     """
     Main entry point for logic and analytical reasoning verification.
-    Routes between propositional reasoning and algebraic conditional entailment.
+    Routes between propositional reasoning, algebraic conditional entailment,
+    and named-phenomenon pattern-matching verification.
     """
     if not claim or not isinstance(claim, dict):
         return _finalize({"verified": False, "status": "UNKNOWN", "reason": "Empty claim provided"})
+
+    # Check for named-phenomenon audit
+    if claim.get("claim_type") == "phenomenon_entailment" or claim.get("phenomenon_name"):
+        return verify_phenomenon_entailment(claim)
 
     # Algebraic entailment: contains algebraic operators or variable equations
     has_algebraic_markers = (

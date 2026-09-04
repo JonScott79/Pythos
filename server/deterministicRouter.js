@@ -17,7 +17,7 @@ const mathjsVerifier = require('./mathjsVerifier');
  */
 function hasConceptualIntent(text) {
   if (!text || typeof text !== 'string') return false;
-  const conceptualPattern = /\b(explain|why|how come|concept|intuition|derive|derivation|interpret|interpretation|meaning|proof|prove|guide|teach|what does it mean|understand|reasoning|significance|discuss|difference between)\b/i;
+  const conceptualPattern = /\b(explain|why|how come|concept|intuition|derive|derivation|interpret|interpretation|meaning|proof|prove|guide|teach|what does it mean|understand|reasoning|significance|discuss|difference between|demonstrate|exhibit|illustrate|is this|does this|paradox|fallacy|reversal)\b/i;
   return conceptualPattern.test(text);
 }
 
@@ -278,6 +278,95 @@ function extractPreflightDeterministicFacts(userText) {
     }
   }
 
+  // 6b. Subgroup Aggregation / Simpson's Paradox Preflight Ground Truth
+  // Detect queries presenting subgroups with counts or fractions (e.g. Small stones: A: 93/100, B: 87/100...)
+  if (lower.includes('simpson') || lower.includes('stones') || (lower.includes('subgroup') && (lower.includes('aggregate') || lower.includes('overall') || lower.includes('paradox')))) {
+    // Look for patterns like: A: 93/100, B: 87/100
+    const sgRegex = /(?:([a-zA-Z0-9\s]+?):\s*)?([a-zA-Z0-9]+)\s*[:=]\s*(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)/g;
+    const matches = Array.from(text.matchAll(sgRegex));
+    if (matches.length >= 4) {
+      // Group matches into subgroups: we look for entity pairs (A and B)
+      const parsedItems = matches.map(m => ({
+        subgroupName: (m[1] || '').trim(),
+        entity: m[2].trim().toUpperCase(),
+        success: parseFloat(m[3]),
+        total: parseFloat(m[4])
+      })).filter(it => it.total > 0 && it.success <= it.total);
+
+      // Check if we have A and B entities
+      const aItems = parsedItems.filter(it => it.entity === 'A' || it.entity === 'TREATMENT' || it.entity === 'MEN');
+      const bItems = parsedItems.filter(it => it.entity === 'B' || it.entity === 'CONTROL' || it.entity === 'WOMEN');
+
+      if (aItems.length >= 2 && bItems.length >= 2) {
+        // Find aggregate item if explicitly given, else compute
+        const numSubgroups = Math.min(aItems.length, bItems.length);
+        let aggA = null, aggB = null;
+        let subA = [], subB = [];
+
+        // Distinguish subgroup items from aggregate
+        for (let i = 0; i < numSubgroups; i++) {
+          const itemA = aItems[i];
+          const itemB = bItems[i];
+          const isAgg = /aggregate|overall|total/i.test(itemA.subgroupName) || (i === numSubgroups - 1 && numSubgroups > 2);
+          if (isAgg && !aggA) {
+            aggA = itemA;
+            aggB = itemB;
+          } else {
+            subA.push(itemA);
+            subB.push(itemB);
+          }
+        }
+
+        if (subA.length >= 2) {
+          // Compute exact rates
+          const subgroupComparisons = [];
+          let totalSuccessA = 0, totalCountA = 0;
+          let totalSuccessB = 0, totalCountB = 0;
+
+          for (let i = 0; i < subA.length; i++) {
+            const rA = subA[i].success / subA[i].total;
+            const rB = subB[i].success / subB[i].total;
+            const dir = Math.abs(rA - rB) < 1e-6 ? 'EQUAL' : (rA > rB ? 'A>B' : 'B>A');
+            subgroupComparisons.push({
+              name: subA[i].subgroupName || `Subgroup ${i + 1}`,
+              rateA: rA,
+              rateB: rB,
+              rateAPct: (rA * 100).toFixed(2) + '%',
+              rateBPct: (rB * 100).toFixed(2) + '%',
+              direction: dir
+            });
+            totalSuccessA += subA[i].success;
+            totalCountA += subA[i].total;
+            totalSuccessB += subB[i].success;
+            totalCountB += subB[i].total;
+          }
+
+          const overallRateA = aggA ? (aggA.success / aggA.total) : (totalSuccessA / totalCountA);
+          const overallRateB = aggB ? (aggB.success / aggB.total) : (totalSuccessB / totalCountB);
+          const overallDir = Math.abs(overallRateA - overallRateB) < 1e-6 ? 'EQUAL' : (overallRateA > overallRateB ? 'A>B' : 'B>A');
+
+          const firstSubDir = subgroupComparisons[0].direction;
+          const allSameSubDir = subgroupComparisons.every(sc => sc.direction === firstSubDir);
+          const isGenuineParadox = allSameSubDir && firstSubDir !== 'EQUAL' && overallDir !== 'EQUAL' && firstSubDir !== overallDir;
+
+          facts.push({
+            type: 'SIMPSONS_PARADOX_EVALUATION',
+            subgroups: subgroupComparisons,
+            overallRateA,
+            overallRateB,
+            overallRateAPct: (overallRateA * 100).toFixed(2) + '%',
+            overallRateBPct: (overallRateB * 100).toFixed(2) + '%',
+            overallDirection: overallDir,
+            subgroupDirection: allSameSubDir ? firstSubDir : 'MIXED',
+            isGenuineParadox,
+            weightsDiffer: true,
+            summary: `Simpson's Paradox Evaluation: Subgroup direction=${allSameSubDir ? firstSubDir : 'MIXED'}, Aggregate direction=${overallDir}. Reversal occurred? ${isGenuineParadox ? 'YES' : 'NO'}. Therefore, Simpson's paradox is ${isGenuineParadox ? 'PRESENT' : 'ABSENT'}.`
+          });
+        }
+      }
+    }
+  }
+
   // 7. LaTeX fraction embedded in query: \frac{A}{B} \approx C or = C
   const fracMatches = text.matchAll(/\\frac\{([\d.]+)\}\{([\d.]+)\}\s*(?:=|\\approx|\\thickapprox|≈|~|is)?\s*([\d.]+)?\s*(%)?/g);
   for (const m of fracMatches) {
@@ -401,6 +490,24 @@ function buildPreflightContext(facts, classification = null) {
       ctx += `  * Total Flight Time: T_flight = 2 * v0y / g = 2 * (${f.v0y}) / ${f.g} = ${f.tFlight} s.\n`;
       ctx += `  * Horizontal Range: R = v0x * T_flight = ${f.range} m.\n`;
       ctx += `  * INSTRUCTION: State these exact values with proper physics units. Walk through the derivation concisely.\n`;
+      return;
+    }
+
+    if (f.type === 'SIMPSONS_PARADOX_EVALUATION') {
+      ctx += `- Fact ${idx + 1} (Simpson's Paradox Ground Truth & Phenomenon Audit):\n`;
+      f.subgroups.forEach((sg, i) => {
+        ctx += `  * Subgroup ${i + 1} (${sg.name}): Rate A = ${sg.rateAPct}, Rate B = ${sg.rateBPct} -> Comparison Direction: ${sg.direction}\n`;
+      });
+      ctx += `  * Aggregate / Overall: Rate A = ${f.overallRateAPct}, Rate B = ${f.overallRateBPct} -> Aggregate Comparison Direction: ${f.overallDirection}\n`;
+      ctx += `  * Subgroup Direction Uniformity: ${f.subgroupDirection}\n`;
+      ctx += `  * Defining Criterion Check (Direction Reversal): ${f.isGenuineParadox ? 'REVERSAL OCCURRED' : 'NO REVERSAL OCCURRED'}\n`;
+      if (f.isGenuineParadox) {
+        ctx += `  * CRITICAL VERDICT: Simpson's paradox IS DEMONSTRATED by this dataset because the direction of the relationship in subgroups reverses in the aggregate.\n`;
+        ctx += `  * INSTRUCTION: Confirm that this dataset demonstrates Simpson's paradox and explain how the unequal subgroup weighting causes the reversal.\n`;
+      } else {
+        ctx += `  * CRITICAL VERDICT: Simpson's paradox IS ABSENT / NOT DEMONSTRATED. Because Entity A exceeds Entity B in the subgroups AND in the aggregate, there is NO reversal of direction.\n`;
+        ctx += `  * INSTRUCTION: You MUST explicitly state that this dataset DOES NOT demonstrate Simpson's paradox. Explain that while unequal subgroup sizes and confounding make a reversal possible, the defining condition of Simpson's paradox is an ACTUAL direction reversal between disaggregated subgroups and the aggregate. Since A > B in every subgroup and A > B overall, there is no paradox.\n`;
+      }
       return;
     }
 
@@ -964,6 +1071,28 @@ Adjust the controls above to explore how launch angle $\\theta$ and velocity $v_
 
     if (f.type === 'PROJECTILE_MOTION') {
       return `🚀 **Physics Kinematics: Projectile Motion Analysis**\n\n### 1. Velocity Components\n$$\nv_{0x} = v_0 \\cos(${f.deg}^\\circ) = ${f.v0} \\cos(${f.deg}^\\circ) = ${f.v0x}\\text{ m/s}\n$$\n$$\nv_{0y} = v_0 \\sin(${f.deg}^\\circ) = ${f.v0} \\sin(${f.deg}^\\circ) = ${f.v0y}\\text{ m/s}\n$$\n\n### 2. Maximum Height\nAt peak height, vertical velocity $v_y = 0$:\n$$\nH_{\\text{max}} = \\frac{v_{0y}^2}{2g} = \\frac{(${f.v0y})^2}{2(${f.g})} = \\mathbf{${f.hMax}\\text{ m}}\n$$\n\n### 3. Total Flight Time & Range\n$$\nT_{\\text{flight}} = \\frac{2 v_{0y}}{g} = \\frac{2(${f.v0y})}{${f.g}} = \\mathbf{${f.tFlight}\\text{ s}}\n$$\n$$\nR = v_{0x} \\cdot T_{\\text{flight}} = ${f.v0x} \\times ${f.tFlight} = \\mathbf{${f.range}\\text{ m}}\n$$`;
+    }
+
+    if (f.type === 'SIMPSONS_PARADOX_EVALUATION') {
+      let out = `⚖️ **Statistical Analysis: Simpson's Paradox Evaluation**\n\n`;
+      out += `### 1. Subgroup Comparison\n`;
+      f.subgroups.forEach(sg => {
+        out += `- **${sg.name}**: Rate A = **${sg.rateAPct}**, Rate B = **${sg.rateBPct}** ($${sg.direction.replace('>', ' > ')}$)\n`;
+      });
+      out += `\n### 2. Aggregate Comparison\n`;
+      out += `- **Overall**: Rate A = **${f.overallRateAPct}**, Rate B = **${f.overallRateBPct}** ($${f.overallDirection.replace('>', ' > ')}$)\n\n`;
+      out += `### 3. Conclusion\n`;
+      if (f.isGenuineParadox) {
+        out += `✅ **This dataset demonstrates Simpson's paradox.**\n\n`;
+        out += `In each individual subgroup, the relationship is $${f.subgroupDirection.replace('>', ' > ')}$, but when combined, the aggregate comparison reverses to $${f.overallDirection.replace('>', ' > ')}$. This reversal is caused by unequal subgroup weighting (confounding variable allocation).`;
+      } else {
+        out += `❌ **This dataset DOES NOT demonstrate Simpson's paradox.**\n\n`;
+        out += `The defining condition of Simpson's paradox is an **actual reversal** of the direction of the relationship between the subgroup comparisons and the aggregate comparison. Unequal subgroup sizes, different weights, and confounding can create the *potential* for a reversal, but in this dataset:\n\n`;
+        out += `- Entity A has a higher success rate in every subgroup ($A > B$)\n`;
+        out += `- Entity A has a higher success rate overall ($A > B$)\n\n`;
+        out += `Because the direction of the relationship is preserved across all levels of aggregation, **no reversal occurred**; therefore, Simpson's paradox is absent.`;
+      }
+      return out;
     }
 
     if (f.is_valid === false && typeof f.proposed_formatted !== 'undefined') {

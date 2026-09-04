@@ -50,6 +50,7 @@ _USER_MESSAGES = {
     "SIMSONS_PARADOX_TRUE": "❌ The data exhibits Simpson's paradox.",
     "SIMSONS_PARADOX_FALSE": "✅ No Simpson's paradox in this dataset.",
     "GENERAL_REASONING_INVALID": "🤔 The general reasoning about Simpson's paradox is incorrect.",
+    "FALSE_POSITIVE_PHENOMENON": "❌ False positive: The defining condition of this phenomenon is absent despite enabling factors.",
     "EQUAL_RATES": "⚖️ Rates are equal; no paradox.",
     "INSUFFICIENT_DATA": "⏳ Not enough data to evaluate.",
     # Default

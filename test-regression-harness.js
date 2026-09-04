@@ -234,6 +234,16 @@ runSuite('Classical Interactive Visualization Engine Foundation & Models', () =>
   console.log(out.trim());
 });
 
+// 10. Simpson's Paradox & Named-Phenomenon Reasoning Suite
+runSuite("Simpson's Paradox & Named-Phenomenon Verification Suite", () => {
+  const out = execSync('node test-simpsons-reasoning.js', {
+    cwd: __dirname,
+    encoding: 'utf-8',
+    stdio: 'pipe'
+  });
+  console.log(out.trim());
+});
+
 console.log(`\n${colors.bold}${colors.green}====================================================${colors.reset}`);
 console.log(`${colors.bold}${colors.green}ALL ${passedSuites}/${totalSuites} REGRESSION SUITES PASSED (100%)${colors.reset}`);
 console.log(`${colors.bold}${colors.green}====================================================${colors.reset}\n`);

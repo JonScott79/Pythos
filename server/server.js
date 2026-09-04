@@ -606,7 +606,7 @@ app.post('/api/chat', async (req, res) => {
     // Deterministic Verification & Revision Loop
     // =====================================
     let finalContent = ollamaResponse.message ? ollamaResponse.message.content : '';
-    const claims = extractClaims(finalContent);
+    const claims = extractClaims(finalContent, lastUserMsg ? lastUserMsg.content : '');
     const internalContradictions = auditInternalConsistency(claims);
 
     if (claims.length > 0 || internalContradictions.length > 0) {

@@ -13,7 +13,7 @@ const mathjsVerifier = require('./mathjsVerifier');
 /**
  * Extracts verifiable mathematical claims from text.
  */
-function extractClaims(text) {
+function extractClaims(text, userPrompt = '') {
   const claims = [];
   if (!text || typeof text !== 'string') return claims;
 
@@ -211,6 +211,57 @@ function extractClaims(text) {
         proposed_value: parseFloat(sqrtMatch[2])
       }
     });
+  }
+
+  // 8. Statistical Named Phenomenon Claims (e.g. Simpson's Paradox)
+  const assertsParadox = /\b(?:demonstrates?|exhibits?|is an example of|illustrates?|shows?)\s+Simpson(?:'s)?\s+paradox\b/i.test(text) ||
+                        /\bSimpson(?:'s)?\s+paradox\s+(?:occurs|holds|is present|applies)\b/i.test(text);
+
+  const contextText = `${userPrompt || ''}\n${text}`;
+  if (assertsParadox && (contextText.includes('/') || contextText.includes('%'))) {
+    // Parse subgroup fractions from prompt/response if present
+    const sgRegex = /(?:([a-zA-Z0-9\s]+?):\s*)?([a-zA-Z0-9]+)\s*[:=]\s*(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)/g;
+    const matches = Array.from(contextText.matchAll(sgRegex));
+    if (matches.length >= 4) {
+      const parsedItems = matches.map(m => ({
+        subgroupName: (m[1] || '').trim(),
+        entity: m[2].trim().toUpperCase(),
+        success: parseFloat(m[3]),
+        total: parseFloat(m[4])
+      })).filter(it => it.total > 0 && it.success <= it.total);
+
+      const aItems = parsedItems.filter(it => it.entity === 'A' || it.entity === 'TREATMENT' || it.entity === 'MEN');
+      const bItems = parsedItems.filter(it => it.entity === 'B' || it.entity === 'CONTROL' || it.entity === 'WOMEN');
+
+      if (aItems.length >= 2 && bItems.length >= 2) {
+        const numSubgroups = Math.min(aItems.length, bItems.length);
+        const subgroupsPayload = [];
+        for (let i = 0; i < numSubgroups; i++) {
+          const itemA = aItems[i];
+          const itemB = bItems[i];
+          const isAgg = /aggregate|overall|total/i.test(itemA.subgroupName) || (i === numSubgroups - 1 && numSubgroups > 2);
+          if (!isAgg) {
+            subgroupsPayload.push({
+              a_success: itemA.success,
+              a_total: itemA.total,
+              b_success: itemB.success,
+              b_total: itemB.total
+            });
+          }
+        }
+
+        if (subgroupsPayload.length >= 2) {
+          claims.push({
+            domain: 'statistics',
+            claim_type: 'simpsons_paradox',
+            data: {
+              subgroups: subgroupsPayload,
+              claimed_paradox: true
+            }
+          });
+        }
+      }
+    }
   }
 
   return claims;

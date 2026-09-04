@@ -40,27 +40,41 @@ def _direction(men_rate: float, women_rate: float) -> str:
     return "MEN>WOMEN" if men_rate > women_rate else "WOMEN>MEN"
 
 
-def verify_simpsons_paradox(data: Dict[str, Any]) -> dict:
-    """Verify whether a claim about Simpson's paradox is correct.
-
-    Expected ``data`` dictionary format (example)::
-
-        {
-            "subgroups": [
-                {"men_success": 80, "men_total": 100,
-                 "women_success": 20, "women_total": 50},
-                {"men_success": 19, "men_total": 20,
-                 "women_success": 9, "women_total": 30}
-            ],
-            "general_reasoning_invalid": true   # optional flag
-        }
-
-    The function computes success rates for each subgroup and the overall
-    population, then determines if the direction (men > women, women > men,
-    or equal) reverses after aggregation. It returns a payload containing a
-    ``status`` key that maps to an emoji‑prefixed user message.
+def _extract_group_counts(sg: Dict[str, Any]) -> tuple:
+    """Extract success and total counts for Entity 1 (A/Men/Treatment) and Entity 2 (B/Women/Control).
+    Supports:
+    - men_success, men_total / women_success, women_total
+    - a_success, a_total / b_success, b_total (also stone A / stone B)
+    - group1_success, group1_total / group2_success, group2_total
+    - treatment_success, treatment_total / control_success, control_total
     """
-    subgroups: List[Dict[str, int]] = data.get("subgroups", [])
+    # Entity 1 / Group A
+    s1 = sg.get("a_success", sg.get("men_success", sg.get("group1_success", sg.get("treatment_success", sg.get("group_a_success", 0)))))
+    t1 = sg.get("a_total", sg.get("men_total", sg.get("group1_total", sg.get("treatment_total", sg.get("group_a_total", 0)))))
+
+    # Entity 2 / Group B
+    s2 = sg.get("b_success", sg.get("women_success", sg.get("group2_success", sg.get("control_success", sg.get("group_b_success", 0)))))
+    t2 = sg.get("b_total", sg.get("women_total", sg.get("group2_total", sg.get("control_total", sg.get("group_b_total", 0)))))
+
+    return int(s1), int(t1), int(s2), int(t2)
+
+
+def verify_simpsons_paradox(data: Dict[str, Any]) -> dict:
+    """Verify whether a dataset demonstrates Simpson's paradox and audit phenomenon claims.
+
+    Differentiates:
+    1. Conditions that make a phenomenon POSSIBLE:
+       - Unequal sample sizes / weights across subgroups (enabling condition / confounding).
+    2. Conditions that actually DEMONSTRATE the phenomenon:
+       - The DEFINING CRITERION: an actual reversal of the direction of the relationship
+         between subgroup-level comparisons and the aggregate comparison.
+    3. Conceptual discussion vs Demonstration:
+       - Acknowledges that weighted averaging creates the potential for reversal,
+         while verifying whether a reversal actually occurred.
+    4. False-positive avoidance:
+       - If claimed_paradox is True when defining condition is absent, flags as false positive.
+    """
+    subgroups: List[Dict[str, Any]] = data.get("subgroups", [])
 
     # Guard against missing or empty input
     if not subgroups:
@@ -68,57 +82,127 @@ def verify_simpsons_paradox(data: Dict[str, Any]) -> dict:
         return _finalize(payload)
 
     # Aggregate totals for overall rates
-    total_men_success = total_men = total_women_success = total_women = 0
+    total_a_success = total_a = total_b_success = total_b = 0
+    subgroup_weights = []
+
     for sg in subgroups:
-        total_men_success += sg.get("men_success", 0)
-        total_men += sg.get("men_total", 0)
-        total_women_success += sg.get("women_success", 0)
-        total_women += sg.get("women_total", 0)
+        s1, t1, s2, t2 = _extract_group_counts(sg)
+        total_a_success += s1
+        total_a += t1
+        total_b_success += s2
+        total_b += t2
+        subgroup_weights.append((t1, t2))
 
     # Compute overall rates, handle division‑by‑zero
-    overall_men_rate = _compute_rate(total_men_success, total_men)
-    overall_women_rate = _compute_rate(total_women_success, total_women)
-    if overall_men_rate is None or overall_women_rate is None:
+    overall_a_rate = _compute_rate(total_a_success, total_a)
+    overall_b_rate = _compute_rate(total_b_success, total_b)
+    if overall_a_rate is None or overall_b_rate is None:
         payload = {"verified": False, "status": "INSUFFICIENT_DATA", "reason": "Zero denominator in overall totals."}
         return _finalize(payload)
 
-    overall_dir = _direction(overall_men_rate, overall_women_rate)
+    overall_dir = _direction(overall_a_rate, overall_b_rate)
     if overall_dir == "UNKNOWN":
         payload = {"verified": False, "status": "INSUFFICIENT_DATA", "reason": "Overall rates could not be computed."}
         return _finalize(payload)
 
-    # Track subgroup directions
+    # Track subgroup rates and directions
     subgroup_dirs = []
+    subgroup_rates = []
     for sg in subgroups:
-        men_rate = _compute_rate(sg.get("men_success", 0), sg.get("men_total", 0))
-        women_rate = _compute_rate(sg.get("women_success", 0), sg.get("women_total", 0))
-        if men_rate is None or women_rate is None:
+        s1, t1, s2, t2 = _extract_group_counts(sg)
+        rate_a = _compute_rate(s1, t1)
+        rate_b = _compute_rate(s2, t2)
+        if rate_a is None or rate_b is None:
             payload = {"verified": False, "status": "INSUFFICIENT_DATA", "reason": "Zero denominator in a subgroup."}
             return _finalize(payload)
-        dir_label = _direction(men_rate, women_rate)
+        subgroup_rates.append((rate_a, rate_b))
+        dir_label = _direction(rate_a, rate_b)
         subgroup_dirs.append(dir_label)
+
+    # Check enabling condition: are subgroup weights/sample sizes unbalanced?
+    # Unbalanced allocation creates the mathematical potential/possibility for Simpson's paradox
+    weights_differ = False
+    if len(subgroup_weights) > 1:
+        first_ratio = (subgroup_weights[0][0] / max(1, subgroup_weights[0][1]))
+        for w1, w2 in subgroup_weights[1:]:
+            ratio = (w1 / max(1, w2))
+            if abs(ratio - first_ratio) > 1e-4:
+                weights_differ = True
+                break
 
     # If any subgroup has equal rates, we use the EQUAL_RATES status
     if any(d == "EQUAL" for d in subgroup_dirs):
-        payload = {"verified": False, "status": "EQUAL_RATES", "reason": "At least one subgroup has equal men/women rates."}
+        payload = {
+            "verified": False,
+            "status": "EQUAL_RATES",
+            "enabling_conditions_met": weights_differ,
+            "defining_reversal_met": False,
+            "reason": "At least one subgroup has equal comparison rates; no clean directional reversal."
+        }
         return _finalize(payload)
 
     # Determine if every subgroup shares the same direction
     first_dir = subgroup_dirs[0]
-    if all(d == first_dir for d in subgroup_dirs):
-        # Uniform direction across subgroups – compare with overall
-        if first_dir == overall_dir:
-            payload = {"verified": True, "status": "SIMSONS_PARADOX_FALSE", "reason": "All subgroups and overall share the same direction."}
-        else:
-            payload = {"verified": False, "status": "SIMSONS_PARADOX_TRUE", "reason": "Direction reverses after aggregation – classic Simpson's paradox."}
+    all_subgroups_uniform = all(d == first_dir for d in subgroup_dirs)
+
+    # Defining Condition: An actual reversal of comparison direction
+    is_genuine_paradox = False
+    if all_subgroups_uniform:
+        # If all subgroups have direction D, paradox occurs if and only if overall is opposite
+        is_genuine_paradox = (first_dir != overall_dir and overall_dir != "EQUAL")
     else:
-        # Mixed directions among subgroups – still a paradox if overall disagrees with majority
+        # Mixed directions among subgroups: overall differs from majority direction
         from collections import Counter
         maj_dir, _ = Counter(subgroup_dirs).most_common(1)[0]
-        if maj_dir == overall_dir:
-            payload = {"verified": True, "status": "SIMSONS_PARADOX_FALSE", "reason": "Mixed subgroup directions but overall matches majority."}
+        is_genuine_paradox = (maj_dir != overall_dir and overall_dir != "EQUAL")
+
+    claimed_paradox = data.get("claimed_paradox")
+
+    if is_genuine_paradox:
+        # Genuine Simpson's paradox is present
+        # In legacy tests: res["verified"] was False for SIMSONS_PARADOX_TRUE when testing absence,
+        # but if claimed_paradox is True, claiming a true paradox is valid reasoning.
+        status_key = "SIMSONS_PARADOX_TRUE"
+        verified_val = True if claimed_paradox is True else False
+        reason_msg = "Direction reverses after aggregation – classic Simpson's paradox demonstrated."
+
+        payload = {
+            "verified": verified_val,
+            "status": status_key,
+            "paradox_present": True,
+            "enabling_conditions_met": True,
+            "defining_reversal_met": True,
+            "subgroup_direction": first_dir if all_subgroups_uniform else "MIXED",
+            "aggregate_direction": overall_dir,
+            "reason": reason_msg
+        }
+    else:
+        # No reversal: Simpson's paradox is absent
+        # If the user/model falsely claimed Simpson's paradox occurred, flag FALSE_POSITIVE_PHENOMENON
+        if claimed_paradox is True:
+            payload = {
+                "verified": False,
+                "status": "FALSE_POSITIVE_PHENOMENON",
+                "error_type": "FALSE_POSITIVE_PHENOMENON",
+                "paradox_present": False,
+                "enabling_conditions_met": weights_differ,
+                "defining_reversal_met": False,
+                "subgroup_direction": first_dir if all_subgroups_uniform else "MIXED",
+                "aggregate_direction": overall_dir,
+                "reason": f"Simpson's paradox requires an actual direction reversal between subgroup-level comparisons and aggregate. Here subgroup direction ({first_dir}) equals aggregate direction ({overall_dir}). Confounding/unequal weights make reversal possible, but no reversal occurred.",
+                "details": f"False positive pattern-match: Model labeled data as Simpson's paradox based on enabling conditions (unequal subgroup weights), but the defining condition (directional reversal) did not occur."
+            }
         else:
-            payload = {"verified": False, "status": "SIMSONS_PARADOX_TRUE", "reason": "Mixed subgroup directions and overall differs from majority – paradox present."}
+            payload = {
+                "verified": True,
+                "status": "SIMSONS_PARADOX_FALSE",
+                "paradox_present": False,
+                "enabling_conditions_met": weights_differ,
+                "defining_reversal_met": False,
+                "subgroup_direction": first_dir if all_subgroups_uniform else "MIXED",
+                "aggregate_direction": overall_dir,
+                "reason": "All subgroups and overall share the same direction – no Simpson's paradox in this dataset."
+            }
 
     # Preserve the optional flag for the user_message helper
     if data.get("general_reasoning_invalid"):
