@@ -1584,14 +1584,14 @@ async function saveChatState(userMessage, botReply) {
 // EASTER EGG: DEEP THOUGHT
 // =========================
 const DEEP_THOUGHT_PATTERNS = [
-  /meaning\s+of\s+life/i,
-  /answer\s+to\s+life/i,
-  /life[,]?\s*(the\s+)?universe[,]?\s*(and\s+)?(everything|all)/i,
-  /ultimate\s+answer/i,
-  /what('s|\s+is)\s+the\s+(meaning|purpose|point)\s+of\s+(life|existence)/i,
-  /hitchhiker/i,
-  /deep\s+thought/i,
-  /42\s*(the\s+)?answer/i
+  /^(what('s|\s+is)\s+)?(the\s+)?meaning\s+of\s+life[\?\.\!]*$/i,
+  /^(what('s|\s+is)\s+)?(the\s+)?answer\s+to\s+(the\s+ultimate\s+question\s+of\s+)?life[,]?\s*(the\s+)?universe[,]?\s*(and\s+)?(everything|all)[\?\.\!]*$/i,
+  /^(what('s|\s+is)\s+)?(the\s+)?ultimate\s+answer(\s+to\s+(the\s+ultimate\s+question\s+of\s+)?life[,]?\s*(the\s+)?universe[,]?\s*(and\s+)?(everything|all))?[\?\.\!]*$/i,
+  /^what('s|\s+is)\s+the\s+(meaning|purpose|point)\s+of\s+(life|existence)[\?\.\!]*$/i,
+  /^(what\s+is\s+)?the\s+ultimate\s+question\s+of\s+life[\?\.\!]*$/i,
+  /^hitchhiker('s)?(\s+guide)?[\?\.\!]*$/i,
+  /^deep\s+thought[\?\.\!]*$/i,
+  /^(what\s+is\s+)?42[\?\.\!]*$/i
 ];
 
 function isDeepThoughtQuestion(text) {
@@ -1616,21 +1616,10 @@ function showDeepThoughtResponse() {
   div.className = "message assistant deep-thought";
   div.innerHTML = `
     <div class="dt-header">PYTHOS // DEEP THOUGHT MODE</div>
-    <div class="dt-answer">42</div>
     <div class="dt-fields">
-      <span class="dt-label">ULTIMATE ANSWER:</span> 42<br>
-      <span class="dt-label">QUESTION:</span> UNKNOWN
+      “The Answer to the Ultimate Question of Life, the Universe, and Everything.”
     </div>
-    <div class="dt-explanation">
-      Long ago, a civilization of hyper-intelligent beings built an enormous supercomputer 
-      and asked it to determine the Answer to the Ultimate Question of Life, the Universe, 
-      and Everything. After computing for 7.5 million years, the machine finally delivered 
-      its verdict: <strong>42</strong>.<br><br>
-      The catch? Nobody had ever figured out what the actual <em>Question</em> was. 
-      So while the Answer is technically correct — the best kind of correct — it remains 
-      spectacularly unhelpful without knowing what was being asked in the first place.<br><br>
-      <em style="opacity:0.6;">Don't panic.</em>
-    </div>
+    <div class="dt-answer">42</div>
   `;
   output.appendChild(div);
   output.scrollTop = output.scrollHeight;
