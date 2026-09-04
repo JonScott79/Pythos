@@ -1538,7 +1538,11 @@ async function loadChat(chatId) {
     if (docSnap.exists()) {
       messages = docSnap.data().messages || [];
       messages.forEach(msg => {
-        appendMessage(msg.role, msg.content, msg.images || null);
+        if (msg.role === "assistant" && msg.isDeepThought) {
+          showDeepThoughtResponse();
+        } else {
+          appendMessage(msg.role, msg.content, msg.images || null);
+        }
       });
     }
     loadSidebarChats(); // Refresh to update active state
@@ -1589,9 +1593,8 @@ const DEEP_THOUGHT_PATTERNS = [
   /^(what('s|\s+is)\s+)?(the\s+)?ultimate\s+answer(\s+to\s+(the\s+ultimate\s+question\s+of\s+)?life[,]?\s*(the\s+)?universe[,]?\s*(and\s+)?(everything|all))?[\?\.\!]*$/i,
   /^what('s|\s+is)\s+the\s+(meaning|purpose|point)\s+of\s+(life|existence)[\?\.\!]*$/i,
   /^(what\s+is\s+)?the\s+ultimate\s+question\s+of\s+life[\?\.\!]*$/i,
-  /^hitchhiker('s)?(\s+guide)?[\?\.\!]*$/i,
-  /^deep\s+thought[\?\.\!]*$/i,
-  /^(what\s+is\s+)?42[\?\.\!]*$/i
+  /^hitchhiker('?s)?(\s+guide)?[\?\.\!]*$/i,
+  /^deep\s+thought[\?\.\!]*$/i
 ];
 
 function isDeepThoughtQuestion(text) {
@@ -1616,9 +1619,8 @@ function showDeepThoughtResponse() {
   div.className = "message assistant deep-thought";
   div.innerHTML = `
     <div class="dt-header">PYTHOS // DEEP THOUGHT MODE</div>
-    <div class="dt-fields">
-      “The Answer to the Ultimate Question of Life, the Universe, and Everything.”
-    </div>
+    <div class="dt-quote">“The Answer to the Ultimate Question of Life, the Universe, and Everything.”</div>
+    <div class="dt-author">— Deep Thought</div>
     <div class="dt-answer">42</div>
   `;
   output.appendChild(div);
@@ -1737,8 +1739,8 @@ async function askPythos(userText) {
   if (isDeepThoughtQuestion(userText)) {
     await fakeThinkingDelay(2500);
     showDeepThoughtResponse();
-    const eggContent = "42 — The Ultimate Answer to Life, the Universe, and Everything.";
-    messages.push({ role: "assistant", content: eggContent });
+    const eggContent = "“The Answer to the Ultimate Question of Life, the Universe, and Everything.”\n\n— Deep Thought\n\n42";
+    messages.push({ role: "assistant", content: eggContent, isDeepThought: true });
     await saveChatState(userText, eggContent);
     setTimeout(() => setInputLocked(false), 1000);
     return;
