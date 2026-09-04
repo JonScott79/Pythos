@@ -53,7 +53,10 @@ def dispatch_verification(payload: dict) -> dict:
             else:
                 return {"verified": False, "status": "UNKNOWN", "reason": f"Unsupported calculus claim_type: {claim_type}"}
         
-        elif domain == "probability" or claim_type == "birthday_problem":
+        elif domain == "probability" or claim_type in ["birthday_problem", "conditional_probability", "bayes"]:
+            if claim_type in ["conditional_probability", "bayes"] or "base_rate" in data:
+                from probability_verifier import verify_conditional_probability
+                return verify_conditional_probability(data)
             return verify_birthday_problem(data)
 
         elif domain == "dynamical_systems" or domain == "chaos":
@@ -86,10 +89,25 @@ def dispatch_verification(payload: dict) -> dict:
             else:
                 return {"verified": False, "status": "UNKNOWN", "reason": f"Unsupported physics claim_type: {claim_type}"}
         
-        elif domain == "statistics" or claim_type == "simpsons_paradox":
+        elif domain == "statistics" or claim_type in ["simpsons_paradox", "causal_inference", "statistical_significance", "sample_uncertainty"]:
+            if claim_type == "causal_inference" or "study_type" in data:
+                from statistics_verifier import verify_causal_inference
+                return verify_causal_inference(data)
+            elif claim_type == "statistical_significance" or "p_value" in data:
+                from statistics_verifier import verify_statistical_significance
+                return verify_statistical_significance(data)
+            elif claim_type == "sample_uncertainty" or "sample_size" in data:
+                from statistics_verifier import verify_sample_uncertainty
+                return verify_sample_uncertainty(data)
             return verify_simpsons_paradox(data)
 
-        elif domain == "logic" or claim_type in ["logical_entailment", "implication", "logic", "deduction", "fallacy", "assumption_audit", "premise_data_consistency", "premise_consistency", "phenomenon_entailment"]:
+        elif domain == "logic" or claim_type in [
+            "logical_entailment", "implication", "logic", "deduction", "fallacy",
+            "assumption_audit", "premise_data_consistency", "premise_consistency",
+            "phenomenon_entailment", "evidence_strength", "condition_verification",
+            "condition_reasoning", "unsupported_precision", "universal_refutation",
+            "reasoning_step_audit"
+        ]:
             # Ensure claim_type is passed in data dictionary for logic_verifier
             if isinstance(data, dict) and "claim_type" not in data and claim_type:
                 data["claim_type"] = claim_type

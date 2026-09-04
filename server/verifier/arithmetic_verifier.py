@@ -85,11 +85,12 @@ def verify_arithmetic(claim: dict) -> dict:
                         "verified": False,
                         "status": "INCORRECT_RESULT",
                         "exact_value": computed_val,
+                        "calculated_value": computed_val,
                         "proposed_value": proposed,
                         "error_type": "INCORRECT_RESULT",
                         "details": f"Expression {expr_str} = {computed_val:.4f}, differing from proposed {proposed}"
                     })
-            return _finalize({"verified": True, "status": "VERIFIED", "exact_value": computed_val})
+            return _finalize({"verified": True, "status": "VERIFIED", "exact_value": computed_val, "calculated_value": computed_val})
         except Exception as e:
             if "division by zero" in str(e).lower() or "zerodivision" in str(e).lower():
                 return _finalize({

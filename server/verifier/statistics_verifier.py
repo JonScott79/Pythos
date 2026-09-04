@@ -59,7 +59,7 @@ def _extract_group_counts(sg: Dict[str, Any]) -> tuple:
     return int(s1), int(t1), int(s2), int(t2)
 
 
-def verify_simpsons_paradox(data: Dict[str, Any]) -> dict:
+def verify_simpsons_paradox(data: Any, claimed_paradox: Optional[bool] = None) -> dict:
     """Verify whether a dataset demonstrates Simpson's paradox and audit phenomenon claims.
 
     Differentiates:
@@ -74,7 +74,16 @@ def verify_simpsons_paradox(data: Dict[str, Any]) -> dict:
     4. False-positive avoidance:
        - If claimed_paradox is True when defining condition is absent, flags as false positive.
     """
-    subgroups: List[Dict[str, Any]] = data.get("subgroups", [])
+    if isinstance(data, list):
+        subgroups = data
+        data_dict = {"subgroups": subgroups}
+        if claimed_paradox is not None:
+            data_dict["claimed_paradox"] = claimed_paradox
+        data = data_dict
+    else:
+        subgroups = data.get("subgroups", [])
+        if claimed_paradox is not None:
+            data["claimed_paradox"] = claimed_paradox
 
     # Guard against missing or empty input
     if not subgroups:
@@ -237,6 +246,101 @@ def verify_simpsons_paradox(data: Dict[str, Any]) -> dict:
         payload["general_reasoning_invalid"] = True
 
     return _finalize(payload)
+
+def verify_causal_inference(claim: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Verifies causal claims against study methodology and confounders.
+    Distinguishes:
+      - Randomized Controlled Trials (RCTs) -> Causal warrant permitted
+      - Observational correlation -> Causal assertion FORBIDDEN (CORRELATION_NOT_CAUSATION)
+      - Spurious correlations with unmeasured/measured confounders
+    """
+    study_type = str(claim.get("study_type", "")).lower().strip()
+    claimed_causation = bool(claim.get("claimed_causation", False))
+    confounder = claim.get("identified_confounder")
+    randomized = bool(claim.get("randomized", False))
+    control_group = bool(claim.get("control_group", False))
+
+    if "observational" in study_type or not (randomized and control_group):
+        if claimed_causation:
+            conf_str = f" Known confounder: {confounder}." if confounder else ""
+            return _finalize({
+                "verified": False,
+                "status": "CORRELATION_NOT_CAUSATION",
+                "error_type": "CORRELATION_NOT_CAUSATION",
+                "details": f"Observational correlation does not establish causation without controlled intervention.{conf_str}"
+            })
+    elif "randomized" in study_type or (randomized and control_group):
+        # Positive control: RCT with control group
+        if claimed_causation:
+            return _finalize({
+                "verified": True,
+                "status": "VERIFIED",
+                "details": "Randomized controlled experiment with active control validly supports causal conclusion."
+            })
+
+    return _finalize({
+        "verified": False,
+        "status": "UNKNOWN",
+        "reason": f"Unable to assess causal warrant for study type '{study_type}'"
+    })
+
+def verify_statistical_significance(claim: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Verifies statistical significance claims:
+      - p > 0.05 does NOT prove the null hypothesis (absence of evidence != evidence of absence)
+      - Statistical significance does NOT imply practical magnitude
+    """
+    p_val = claim.get("p_value")
+    claimed_interp = str(claim.get("claimed_interpretation", "")).lower()
+    claimed_magnitude = str(claim.get("claimed_practical_magnitude", "")).lower()
+    effect_size = claim.get("effect_size")
+
+    if p_val is not None and float(p_val) > 0.05:
+        if "null" in claimed_interp or "no effect" in claimed_interp or "proves" in claimed_interp:
+            return _finalize({
+                "verified": False,
+                "status": "UNSUPPORTED_CONCLUSION",
+                "error_type": "UNSUPPORTED_CONCLUSION",
+                "details": f"Failing to reject the null hypothesis (p = {p_val}) does not prove the null hypothesis has zero effect."
+            })
+
+    if claimed_magnitude in ["massive", "revolutionary", "huge"] and effect_size is not None and float(effect_size) < 0.01:
+        return _finalize({
+            "verified": False,
+            "status": "EVIDENCE_STRENGTH_MISMATCH",
+            "error_type": "EVIDENCE_STRENGTH_MISMATCH",
+            "details": f"Statistical significance (p = {p_val}) with tiny effect size ({effect_size}) does not justify claiming practical magnitude '{claimed_magnitude}'."
+        })
+
+    return _finalize({
+        "verified": True,
+        "status": "VERIFIED",
+        "details": "Statistical significance interpretation is verified."
+    })
+
+def verify_sample_uncertainty(claim: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Verifies sample size and uncertainty extrapolation:
+      - Small sample sizes (e.g. N <= 10) cannot establish exact population guarantees.
+    """
+    n = claim.get("sample_size")
+    claimed_certainty = bool(claim.get("claimed_certainty", False))
+
+    if n is not None and int(n) < 30 and claimed_certainty:
+        return _finalize({
+            "verified": False,
+            "status": "EVIDENCE_STRENGTH_MISMATCH",
+            "error_type": "EVIDENCE_STRENGTH_MISMATCH",
+            "details": f"Sample size N = {n} carries substantial sampling error and cannot establish population certainty."
+        })
+
+    return _finalize({
+        "verified": True,
+        "status": "VERIFIED",
+        "details": "Sample uncertainty bounds respected."
+    })
+
 
 if __name__ == "__main__":
     import sys

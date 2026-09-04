@@ -64,6 +64,14 @@ _USER_MESSAGES = {
     "UNESTABLISHED_ASSUMPTION": "❌ That deduction requires an unstated assumption that has not been established.",
     "AFFIRMING_CONSEQUENT": "❌ Logical fallacy: affirming the consequent does not prove the premise.",
     "DENYING_ANTECEDENT": "❌ Logical fallacy: denying the antecedent does not prove the negation of the conclusion.",
+    # Evidence Strength & Epistemic Bounds
+    "EVIDENCE_STRENGTH_MISMATCH": "⚖️ Claim strength exceeds evidence strength: the conclusion makes a stronger claim than the premises support.",
+    "UNSUPPORTED_CONCLUSION": "🤔 The conclusion is not established by the supplied evidence.",
+    "NOT_ESTABLISHED": "🤔 The conclusion is not established by the supplied evidence.",
+    "UNSUPPORTED_NUMERICAL_PRECISION": "🤔 That qualitative term does not establish an exact numerical measurement.",
+    "CONDITION_CONFUSION": "❌ Necessary and sufficient conditions are confused in this inference.",
+    "CORRELATION_NOT_CAUSATION": "⚖️ Correlation does not establish causation without controlled experimental evidence.",
+    "TRANSPOSED_CONDITIONAL": "❌ That transposes the conditional probability P(A|B) with P(B|A).",
     # Default
     "DEFAULT": "ℹ️ I'm not sure how to handle that problem right now."
 }

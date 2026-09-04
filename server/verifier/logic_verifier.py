@@ -393,6 +393,31 @@ def verify_logical_entailment(claim: dict) -> dict:
     if claim.get("claim_type") == "phenomenon_entailment" or claim.get("phenomenon_name"):
         return verify_phenomenon_entailment(claim)
 
+    # Check for evidence strength and qualifier proportionality
+    if claim.get("claim_type") == "evidence_strength" or "evidence_strength" in claim or "premise_qualifier" in claim:
+        from evidence_strength_verifier import verify_evidence_strength
+        return verify_evidence_strength(claim)
+
+    # Check for condition reasoning (necessary vs. sufficient)
+    if claim.get("claim_type") in ["condition_verification", "condition_reasoning", "necessary_sufficient"]:
+        from evidence_strength_verifier import verify_condition_reasoning
+        return verify_condition_reasoning(claim)
+
+    # Check for unsupported numerical precision
+    if claim.get("claim_type") in ["unsupported_precision", "unsupported_numerical_precision"]:
+        from evidence_strength_verifier import verify_unsupported_precision
+        return verify_unsupported_precision(claim)
+
+    # Check for universal vs probabilistic refutation & counterexample rules
+    if claim.get("claim_type") in ["universal_refutation", "counterexample_verification"]:
+        from evidence_strength_verifier import verify_universal_refutation
+        return verify_universal_refutation(claim)
+
+    # Check for multi-step reasoning audit
+    if claim.get("claim_type") in ["reasoning_step_audit", "reasoning_audit"]:
+        from evidence_strength_verifier import verify_reasoning_step_audit
+        return verify_reasoning_step_audit(claim)
+
     # Algebraic entailment: contains algebraic operators or variable equations
     has_algebraic_markers = (
         claim.get("premise") is not None or
@@ -406,4 +431,5 @@ def verify_logical_entailment(claim: dict) -> dict:
 
     # Propositional / Syllogistic logic
     return verify_propositional_logic(claim)
+
 

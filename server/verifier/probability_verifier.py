@@ -58,3 +58,76 @@ def verify_birthday_problem(claim: dict) -> dict:
             return {"verified": False, "status": "UNKNOWN", "reason": str(e)}
 
     return {"verified": False, "status": "UNKNOWN", "reason": "No n parameter provided"}
+
+def verify_conditional_probability(claim: dict) -> dict:
+    """
+    Deterministically verifies conditional probability and Bayes' theorem claims:
+      P(H|E) = (P(E|H) * P(H)) / P(E)
+      where P(E) = P(E|H)*P(H) + P(E|~H)*(1 - P(H))
+    
+    Also detects the transposed conditional fallacy where P(E|H) is asserted as P(H|E).
+    """
+    base_rate = claim.get("base_rate")  # P(H)
+    p_pos_given_disease = claim.get("p_positive_given_disease")  # P(E|H)
+    p_pos_given_no_disease = claim.get("p_positive_given_no_disease")  # P(E|~H)
+    claimed_posterior = claim.get("claimed_posterior")  # Claimed P(H|E)
+    transposed_asserted = bool(claim.get("transposed_conditional_asserted", False))
+    tolerance = float(claim.get("tolerance", 0.005))
+
+    if base_rate is None or p_pos_given_disease is None:
+        return {"verified": False, "status": "UNKNOWN", "reason": "Missing base_rate or p_positive_given_disease in probability claim"}
+
+    if p_pos_given_no_disease is None:
+        p_pos_given_no_disease = 0.0
+
+    # Calculate exact Bayes posterior:
+    p_h = float(base_rate)
+    p_e_given_h = float(p_pos_given_disease)
+    p_e_given_not_h = float(p_pos_given_no_disease)
+
+    p_e = (p_e_given_h * p_h) + (p_e_given_not_h * (1.0 - p_h))
+    if p_e == 0:
+        return {"verified": False, "status": "UNDEFINED", "reason": "P(E) = 0, conditional probability undefined"}
+
+    true_posterior = (p_e_given_h * p_h) / p_e
+
+    # Detect Transposed Conditional Trap:
+    if transposed_asserted or (claimed_posterior is not None and abs(float(claimed_posterior) - p_e_given_h) < 1e-4 and abs(true_posterior - p_e_given_h) > 0.05):
+        return {
+            "verified": False,
+            "status": "TRANSPOSED_CONDITIONAL",
+            "error_type": "TRANSPOSED_CONDITIONAL",
+            "claimed_posterior": claimed_posterior,
+            "true_posterior": round(true_posterior, 5),
+            "details": (
+                f"Transposed conditional fallacy: Confused P(Test+|Disease) = {p_e_given_h} with P(Disease|Test+). "
+                f"Taking base rate ({p_h}) into account, actual posterior probability is only {true_posterior:.4f} ({true_posterior*100:.2f}%)."
+            )
+        }
+
+    if claimed_posterior is not None:
+        claimed_val = float(claimed_posterior)
+        if abs(claimed_val - true_posterior) <= tolerance:
+            return {
+                "verified": True,
+                "status": "VERIFIED",
+                "calculated_posterior": round(true_posterior, 5),
+                "details": f"Deterministic Bayes verification confirmed: P(H|E) = {true_posterior:.4f}."
+            }
+        else:
+            return {
+                "verified": False,
+                "status": "INCORRECT_RESULT",
+                "error_type": "INCORRECT_RESULT",
+                "claimed_posterior": claimed_val,
+                "calculated_posterior": round(true_posterior, 5),
+                "details": f"Claimed posterior {claimed_val} does not match exact Bayes calculation ({true_posterior:.4f})."
+            }
+
+    return {
+        "verified": True,
+        "status": "VERIFIED",
+        "calculated_posterior": round(true_posterior, 5),
+        "details": f"Exact Bayes calculation P(H|E) = {true_posterior:.4f}."
+    }
+
