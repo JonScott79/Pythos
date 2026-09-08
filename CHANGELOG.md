@@ -5,6 +5,19 @@ All notable changes to the Pythos project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Pythos 1.3.1
+**Release Date:** 2026-09-07
+
+### Added
+- Updated version links and documentation to reflect v1.3.1.
+- Updated accessibility tests for new version identifier.
+- Minor UI wording adjustments.
+
+### Verification & Testing
+- All UI components display v1.3.1 correctly.
+- Test suite passes with updated version checks.
+
+---
 ## Pythos 1.3.0
 **Release Date:** 2026-09-04
 

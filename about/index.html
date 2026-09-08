@@ -302,7 +302,7 @@
       align-items: center;
       gap: 20px;
       margin-bottom: 24px;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
     }
 
     .hero-avatar-large {
@@ -448,7 +448,7 @@
         <a href="../physics/" class="nav-link">Physics</a>
         <a href="../tools/" class="nav-link">Tools</a>
         <a href="./" class="nav-link active" aria-current="page">About</a>
-        <a href="../changelog.html#pythos-1-3-0" class="nav-link">v1.3.0</a>
+        <a href="../changelog.html#pythos-1-3-1" class="nav-link">v1.3.1</a>
       </div>
     </div>
 
@@ -485,24 +485,27 @@
       <p>
         Unlike a traditional chatbot that generates a guess and moves on, Pythos is engineered with multiple safeguards designed specifically for educational rigor:
       </p>
+      <p style="margin-top:12px;">Pythos uses three complementary verification layers: (1) deterministic Math.js arithmetic for exact calculations, (2) a Python/SymPy symbolic fallback for advanced algebra and calculus, and (3) an independent logical‑entailment and tri‑aspect check that validates interpretation, math, and reasoning.</p>
       <div class="features-grid">
         <div class="feature-card">
-          <h3>🔬 Independent CAS Verification</h3>
-          <p>Every mathematical derivation can be checked by deterministic engines—auditing equations, roots, probabilities, and physical vector balances.</p>
+          <h3>🧮 Deterministic Math.js Verification</h3>
+          <p>Fast exact arithmetic using Math.js, handling fractions, roots, matrices, units and step‑by‑step checks.</p>
         </div>
         <div class="feature-card">
-          <h3>🔄 Two-Stage Reasoning Architecture</h3>
-          <p>Separates model identification and trap detection from step-by-step verified derivations, catching arithmetic oversights before delivery.</p>
+          <h3>🐍 Python/SymPy Symbolic Fallback</h3>
+          <p>When Math.js cannot resolve a claim, a SymPy‑powered Python engine provides symbolic reasoning for calculus, differential equations, and deeper algebra.</p>
         </div>
         <div class="feature-card">
-          <h3>🛡️ Zero-Hallucination Ground Truth</h3>
-          <p>Pre-flight calculations inject mathematical invariants into the prompt context so complex word problems never suffer from drift.</p>
+          <h3>🧩 Logical Entailment & Tri‑Aspect Verification</h3>
+          <p>Independently checks interpretation, mathematics, and logical entailment, detecting contradictions and providing counter‑examples.</p>
         </div>
         <div class="feature-card">
           <h3>🧠 Verified Learning & Socratic Dialogue</h3>
           <p>When students challenge derivations, Pythos verifies proposed corrections independently—reinforcing conceptual understanding over guesswork.</p>
         </div>
       </div>
+      <h2>Think You Can Stump Pythos?</h2>
+      <p>We want you to. If you find something Pythos gets wrong, let us know. Every mistake helps us make Pythos better.</p>
 
       <h2>Designed for Parents & Educators: Why You Can Trust It</h2>
       <p>
@@ -541,6 +544,7 @@
       <div class="disclaimer-box">
         <strong>💡 The Pythos Philosophy:</strong> Pythos exists to help students <em>learn</em> math — not just <em>finish</em> math. Embrace modern tools with healthy skepticism, rigorous verification, and genuine curiosity.
       </div>
+        <p style="font-size:0.85rem; text-align:center; margin-top:12px;">🔒 We don't collect personal information.</p>
 
       <div style="text-align: center; margin-top: 36px;">
         <a href="../" class="btn-launch" style="padding: 12px 28px; font-size: 1rem;">
