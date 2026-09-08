@@ -592,6 +592,39 @@ function buildPreflightContext(facts, classification = null) {
 }
 
 /**
+ * Returns true if a string looks like a mathematical expression
+ * suitable for plotting — as opposed to a contextual English pronoun
+ * or demonstrative ("it", "this", "that", "these", "those").
+ *
+ * Requires at least one of:
+ *  - A standalone common math variable name (x, y, z, t)
+ *  - A mathematical operator (+, -, *, /, ^)
+ *  - A named math function (sin, cos, tan, log, ln, sqrt, exp, ...)
+ *  - Algebraic juxtaposition of digit and letter (e.g. 2x, 3t)
+ *
+ * A string that is *only* a standalone contextual English pronoun/demonstrative
+ * (it, this, that, these, those) will always return false regardless of the
+ * checks above, because those words are never valid math expressions.
+ */
+function looksLikeMathExpression(expr) {
+  if (!expr || typeof expr !== 'string') return false;
+  const s = expr.trim().toLowerCase();
+
+  // Reject standalone English demonstratives and pronouns that can never be math.
+  // This is the complete set of standalone contextual reference words in English
+  // that could surface after stripping "a graph of" / "a function of" prefixes.
+  if (/^(it|this|that|these|those)$/.test(s)) return false;
+
+  // At least one indicator of a mathematical expression must be present:
+  const hasMathOperator = /[+\-*/^]/.test(s);
+  const hasNamedMathFn  = /\b(sin|cos|tan|cot|sec|csc|log|ln|sqrt|exp|abs|floor|ceil|pi|e)\b/.test(s);
+  const hasMathVariable = /\b[xyzt]\b/.test(s);          // common isolated variable names
+  const hasAlgebraic    = /\d[a-zA-Z]|[a-zA-Z]\d/.test(s); // algebraic: 2x, x2, 3t
+
+  return hasMathOperator || hasNamedMathFn || hasMathVariable || hasAlgebraic;
+}
+
+/**
  * Detects if a query is a direct deterministic mathematical problem
  * that can be solved and explained with 100% verified certainty.
  */
@@ -612,7 +645,7 @@ function analyzeDeterministicIntent(userText) {
     rawExpr = rawExpr
       .replace(/^(?:(?:a|the)\s+(?:graph|curve|function|plot)\s+of\s+|(?:a|the)\s+(?:graph|curve|function|plot)\s+|(?:f\(x\)|y)\s*=\s*|the\s+function\s+|of\s+)/i, '')
       .trim();
-    if (/[a-zA-Z]/.test(rawExpr) && !hasConceptualIntent(rawExpr)) {
+    if (looksLikeMathExpression(rawExpr) && !hasConceptualIntent(rawExpr)) {
       return {
         type: 'GRAPH_PLOT',
         expression: rawExpr,
