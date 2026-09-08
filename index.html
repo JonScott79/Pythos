@@ -2101,6 +2101,9 @@
       cursor: pointer;
       transition: all 0.15s;
       user-select: none;
+      /* Button reset */
+      font-family: 'Inter', sans-serif;
+      line-height: 1.4;
     }
 
     .starter-tag:hover {
@@ -2140,6 +2143,12 @@
       cursor: pointer;
       transition: all 0.15s;
       gap: 8px;
+      /* Button reset */
+      font-family: 'Inter', sans-serif;
+      font-size: inherit;
+      text-align: left;
+      width: 100%;
+      color: var(--text-main);
     }
 
     .guide-item:hover {
@@ -2424,7 +2433,7 @@
   <div class="layout">
     
     <!-- MOBILE SIDEBAR BACKDROP OVERLAY -->
-    <div id="sidebarOverlay" class="sidebar-overlay"></div>
+    <div id="sidebarOverlay" class="sidebar-overlay" aria-hidden="true"></div>
 
     <!-- SIDEBAR -->
     <aside class="sidebar" id="sidebar" aria-label="Session Navigation and History">
@@ -2441,14 +2450,14 @@
       </div>
       
       <div class="sidebar-footer">
-        <button id="loginBtn" class="login-btn">Login with Google</button>
+        <button id="loginBtn" class="login-btn" aria-label="Sign in with Google">Login with Google</button>
         <div id="userInfo" style="display: none;" class="user-profile">
           <img id="userAvatar" src="" alt="User profile avatar" width="32" height="32" />
           <div style="flex:1; overflow:hidden;">
             <div id="userName" style="font-weight:600; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;"></div>
           </div>
         </div>
-        <button id="logoutBtn" class="logout-btn" style="display: none;">Logout</button>
+        <button id="logoutBtn" class="logout-btn" style="display: none;" aria-label="Sign out">Logout</button>
         <nav class="sidebar-nav-links" aria-label="Study Guides and Changelog">
           <a href="algebra/">Algebra</a>
           <a href="calculus/">Calculus</a>
@@ -2614,80 +2623,80 @@
           <h3>💬 How to Talk to Pythos</h3>
           <p>You don't need special prompts or complex commands. Just talk naturally:</p>
           <div class="starter-phrases">
-            <span class="starter-tag" data-insert="Why is this step valid?">"Why is this step valid?"</span>
-            <span class="starter-tag" data-insert="I don't understand this.">"I don't understand this."</span>
-            <span class="starter-tag" data-insert="Give me a hint.">"Give me a hint."</span>
-            <span class="starter-tag" data-insert="Check my answer: ">"Check my answer."</span>
-            <span class="starter-tag" data-insert="Can you explain this another way?">"Explain it another way."</span>
-            <span class="starter-tag" data-insert="Show me the solution and let's work backward.">"Show me the solution."</span>
+            <button type="button" class="starter-tag" data-insert="Why is this step valid?" aria-label="Insert: Why is this step valid?">&ldquo;Why is this step valid?&rdquo;</button>
+            <button type="button" class="starter-tag" data-insert="I don't understand this." aria-label="Insert: I don't understand this.">&ldquo;I don't understand this.&rdquo;</button>
+            <button type="button" class="starter-tag" data-insert="Give me a hint." aria-label="Insert: Give me a hint.">&ldquo;Give me a hint.&rdquo;</button>
+            <button type="button" class="starter-tag" data-insert="Check my answer: " aria-label="Insert: Check my answer.">&ldquo;Check my answer.&rdquo;</button>
+            <button type="button" class="starter-tag" data-insert="Can you explain this another way?" aria-label="Insert: Explain it another way.">&ldquo;Explain it another way.&rdquo;</button>
+            <button type="button" class="starter-tag" data-insert="Show me the solution and let's work backward." aria-label="Insert: Show me the solution.">&ldquo;Show me the solution.&rdquo;</button>
           </div>
         </div>
 
         <div class="guide-category">
           <h3>Quick Math Symbols & Syntax</h3>
           <div class="guide-grid">
-            <div class="guide-item" data-insert="x^2"><span class="guide-type">x^2</span><span class="guide-arrow">→</span><span class="guide-render">x²</span></div>
-            <div class="guide-item" data-insert="x_1"><span class="guide-type">x_1</span><span class="guide-arrow">→</span><span class="guide-render">x₁</span></div>
-            <div class="guide-item" data-insert="sqrt(x)"><span class="guide-type">sqrt(x)</span><span class="guide-arrow">→</span><span class="guide-render">√x</span></div>
-            <div class="guide-item" data-insert="(a)/(b)"><span class="guide-type">(a)/(b)</span><span class="guide-arrow">→</span><span class="guide-render">a⁄b</span></div>
-            <div class="guide-item" data-insert="abs(x)"><span class="guide-type">abs(x)</span><span class="guide-arrow">→</span><span class="guide-render">|x|</span></div>
-            <div class="guide-item" data-insert="+/- "><span class="guide-type">+/-</span><span class="guide-arrow">→</span><span class="guide-render">±</span></div>
+            <button type="button" class="guide-item" data-insert="x^2" aria-label="Insert x squared (x^2)"><span class="guide-type">x^2</span><span class="guide-arrow" aria-hidden="true">→</span><span class="guide-render">x²</span></button>
+            <button type="button" class="guide-item" data-insert="x_1" aria-label="Insert subscript (x_1)"><span class="guide-type">x_1</span><span class="guide-arrow" aria-hidden="true">→</span><span class="guide-render">x₁</span></button>
+            <button type="button" class="guide-item" data-insert="sqrt(x)" aria-label="Insert square root (sqrt(x))"><span class="guide-type">sqrt(x)</span><span class="guide-arrow" aria-hidden="true">→</span><span class="guide-render">√x</span></button>
+            <button type="button" class="guide-item" data-insert="(a)/(b)" aria-label="Insert fraction (a)/(b)"><span class="guide-type">(a)/(b)</span><span class="guide-arrow" aria-hidden="true">→</span><span class="guide-render">a⁄b</span></button>
+            <button type="button" class="guide-item" data-insert="abs(x)" aria-label="Insert absolute value abs(x)"><span class="guide-type">abs(x)</span><span class="guide-arrow" aria-hidden="true">→</span><span class="guide-render">|x|</span></button>
+            <button type="button" class="guide-item" data-insert="+/- " aria-label="Insert plus or minus symbol"><span class="guide-type">+/-</span><span class="guide-arrow" aria-hidden="true">→</span><span class="guide-render">±</span></button>
           </div>
         </div>
 
         <div class="guide-category">
           <h3>Symbols</h3>
           <div class="guide-grid">
-            <div class="guide-item" data-insert="pi"><span class="guide-type">pi</span><span class="guide-arrow">→</span><span class="guide-render">π</span></div>
-            <div class="guide-item" data-insert="inf"><span class="guide-type">inf</span><span class="guide-arrow">→</span><span class="guide-render">∞</span></div>
-            <div class="guide-item" data-insert="<="><span class="guide-type">&lt;=</span><span class="guide-arrow">→</span><span class="guide-render">≤</span></div>
-            <div class="guide-item" data-insert=">="><span class="guide-type">&gt;=</span><span class="guide-arrow">→</span><span class="guide-render">≥</span></div>
-            <div class="guide-item" data-insert="!="><span class="guide-type">!=</span><span class="guide-arrow">→</span><span class="guide-render">≠</span></div>
-            <div class="guide-item" data-insert="delta"><span class="guide-type">delta</span><span class="guide-arrow">→</span><span class="guide-render">Δ</span></div>
-            <div class="guide-item" data-insert="theta"><span class="guide-type">theta</span><span class="guide-arrow">→</span><span class="guide-render">θ</span></div>
-            <div class="guide-item" data-insert="mu"><span class="guide-type">mu</span><span class="guide-arrow">→</span><span class="guide-render">μ</span></div>
-            <div class="guide-item" data-insert="lambda"><span class="guide-type">lambda</span><span class="guide-arrow">→</span><span class="guide-render">λ</span></div>
-            <div class="guide-item" data-insert="omega"><span class="guide-type">omega</span><span class="guide-arrow">→</span><span class="guide-render">ω</span></div>
+            <button type="button" class="guide-item" data-insert="pi" aria-label="Insert pi symbol"><span class="guide-type">pi</span><span class="guide-arrow" aria-hidden="true">→</span><span class="guide-render">π</span></button>
+            <button type="button" class="guide-item" data-insert="inf" aria-label="Insert infinity symbol"><span class="guide-type">inf</span><span class="guide-arrow" aria-hidden="true">→</span><span class="guide-render">∞</span></button>
+            <button type="button" class="guide-item" data-insert="<=" aria-label="Insert less than or equal symbol"><span class="guide-type">&lt;=</span><span class="guide-arrow" aria-hidden="true">→</span><span class="guide-render">≤</span></button>
+            <button type="button" class="guide-item" data-insert=">=" aria-label="Insert greater than or equal symbol"><span class="guide-type">&gt;=</span><span class="guide-arrow" aria-hidden="true">→</span><span class="guide-render">≥</span></button>
+            <button type="button" class="guide-item" data-insert="!=" aria-label="Insert not equal symbol"><span class="guide-type">!=</span><span class="guide-arrow" aria-hidden="true">→</span><span class="guide-render">≠</span></button>
+            <button type="button" class="guide-item" data-insert="delta" aria-label="Insert delta symbol"><span class="guide-type">delta</span><span class="guide-arrow" aria-hidden="true">→</span><span class="guide-render">Δ</span></button>
+            <button type="button" class="guide-item" data-insert="theta" aria-label="Insert theta symbol"><span class="guide-type">theta</span><span class="guide-arrow" aria-hidden="true">→</span><span class="guide-render">θ</span></button>
+            <button type="button" class="guide-item" data-insert="mu" aria-label="Insert mu symbol"><span class="guide-type">mu</span><span class="guide-arrow" aria-hidden="true">→</span><span class="guide-render">μ</span></button>
+            <button type="button" class="guide-item" data-insert="lambda" aria-label="Insert lambda symbol"><span class="guide-type">lambda</span><span class="guide-arrow" aria-hidden="true">→</span><span class="guide-render">λ</span></button>
+            <button type="button" class="guide-item" data-insert="omega" aria-label="Insert omega symbol"><span class="guide-type">omega</span><span class="guide-arrow" aria-hidden="true">→</span><span class="guide-render">ω</span></button>
           </div>
         </div>
 
         <div class="guide-category">
           <h3>Algebra</h3>
           <div class="guide-grid">
-            <div class="guide-item" data-insert="2x + 5 = 11"><span class="guide-type">2x + 5 = 11</span><span class="guide-arrow">→</span><span class="guide-render">solve for x</span></div>
-            <div class="guide-item" data-insert="x^2 - 4 = 0"><span class="guide-type">x^2 - 4 = 0</span><span class="guide-arrow">→</span><span class="guide-render">quadratic</span></div>
-            <div class="guide-item" data-insert="log_2(x)"><span class="guide-type">log_2(x)</span><span class="guide-arrow">→</span><span class="guide-render">log₂x</span></div>
-            <div class="guide-item" data-insert="ln(x)"><span class="guide-type">ln(x)</span><span class="guide-arrow">→</span><span class="guide-render">natural log</span></div>
+            <button type="button" class="guide-item" data-insert="2x + 5 = 11" aria-label="Insert linear equation: 2x + 5 = 11"><span class="guide-type">2x + 5 = 11</span><span class="guide-arrow" aria-hidden="true">→</span><span class="guide-render">solve for x</span></button>
+            <button type="button" class="guide-item" data-insert="x^2 - 4 = 0" aria-label="Insert quadratic: x squared minus 4 equals 0"><span class="guide-type">x^2 - 4 = 0</span><span class="guide-arrow" aria-hidden="true">→</span><span class="guide-render">quadratic</span></button>
+            <button type="button" class="guide-item" data-insert="log_2(x)" aria-label="Insert log base 2"><span class="guide-type">log_2(x)</span><span class="guide-arrow" aria-hidden="true">→</span><span class="guide-render">log₂x</span></button>
+            <button type="button" class="guide-item" data-insert="ln(x)" aria-label="Insert natural logarithm"><span class="guide-type">ln(x)</span><span class="guide-arrow" aria-hidden="true">→</span><span class="guide-render">natural log</span></button>
           </div>
         </div>
 
         <div class="guide-category">
           <h3>Trigonometry</h3>
           <div class="guide-grid">
-            <div class="guide-item" data-insert="sin(x)"><span class="guide-type">sin(x)</span><span class="guide-arrow">→</span><span class="guide-render">sine</span></div>
-            <div class="guide-item" data-insert="cos(x)"><span class="guide-type">cos(x)</span><span class="guide-arrow">→</span><span class="guide-render">cosine</span></div>
-            <div class="guide-item" data-insert="tan(x)"><span class="guide-type">tan(x)</span><span class="guide-arrow">→</span><span class="guide-render">tangent</span></div>
-            <div class="guide-item" data-insert="sin^2(x) + cos^2(x) = 1"><span class="guide-type">sin^2 + cos^2 = 1</span><span class="guide-arrow">→</span><span class="guide-render">identity</span></div>
+            <button type="button" class="guide-item" data-insert="sin(x)" aria-label="Insert sine function"><span class="guide-type">sin(x)</span><span class="guide-arrow" aria-hidden="true">→</span><span class="guide-render">sine</span></button>
+            <button type="button" class="guide-item" data-insert="cos(x)" aria-label="Insert cosine function"><span class="guide-type">cos(x)</span><span class="guide-arrow" aria-hidden="true">→</span><span class="guide-render">cosine</span></button>
+            <button type="button" class="guide-item" data-insert="tan(x)" aria-label="Insert tangent function"><span class="guide-type">tan(x)</span><span class="guide-arrow" aria-hidden="true">→</span><span class="guide-render">tangent</span></button>
+            <button type="button" class="guide-item" data-insert="sin^2(x) + cos^2(x) = 1" aria-label="Insert Pythagorean trig identity"><span class="guide-type">sin^2 + cos^2 = 1</span><span class="guide-arrow" aria-hidden="true">→</span><span class="guide-render">identity</span></button>
           </div>
         </div>
 
         <div class="guide-category">
           <h3>Calculus</h3>
           <div class="guide-grid">
-            <div class="guide-item" data-insert="dy/dx"><span class="guide-type">dy/dx</span><span class="guide-arrow">→</span><span class="guide-render">derivative</span></div>
-            <div class="guide-item" data-insert="integral of x^2 dx"><span class="guide-type">integral of x^2 dx</span><span class="guide-arrow">→</span><span class="guide-render">∫x²dx</span></div>
-            <div class="guide-item" data-insert="lim x->0"><span class="guide-type">lim x-&gt;0</span><span class="guide-arrow">→</span><span class="guide-render">limit</span></div>
-            <div class="guide-item" data-insert="d/dx(x^3)"><span class="guide-type">d/dx(x^3)</span><span class="guide-arrow">→</span><span class="guide-render">differentiate</span></div>
+            <button type="button" class="guide-item" data-insert="dy/dx" aria-label="Insert derivative dy over dx"><span class="guide-type">dy/dx</span><span class="guide-arrow" aria-hidden="true">→</span><span class="guide-render">derivative</span></button>
+            <button type="button" class="guide-item" data-insert="integral of x^2 dx" aria-label="Insert integral of x squared"><span class="guide-type">integral of x^2 dx</span><span class="guide-arrow" aria-hidden="true">→</span><span class="guide-render">∫x²dx</span></button>
+            <button type="button" class="guide-item" data-insert="lim x->0" aria-label="Insert limit as x approaches 0"><span class="guide-type">lim x-&gt;0</span><span class="guide-arrow" aria-hidden="true">→</span><span class="guide-render">limit</span></button>
+            <button type="button" class="guide-item" data-insert="d/dx(x^3)" aria-label="Insert differentiate d over dx of x cubed"><span class="guide-type">d/dx(x^3)</span><span class="guide-arrow" aria-hidden="true">→</span><span class="guide-render">differentiate</span></button>
           </div>
         </div>
 
         <div class="guide-category">
           <h3>Physics</h3>
           <div class="guide-grid">
-            <div class="guide-item" data-insert="F = ma"><span class="guide-type">F = ma</span><span class="guide-arrow">→</span><span class="guide-render">Newton's 2nd</span></div>
-            <div class="guide-item" data-insert="E = mc^2"><span class="guide-type">E = mc^2</span><span class="guide-arrow">→</span><span class="guide-render">mass-energy</span></div>
-            <div class="guide-item" data-insert="v = v_0 + at"><span class="guide-type">v = v_0 + at</span><span class="guide-arrow">→</span><span class="guide-render">kinematics</span></div>
-            <div class="guide-item" data-insert="F = G(m_1)(m_2)/r^2"><span class="guide-type">F = Gm₁m₂/r²</span><span class="guide-arrow">→</span><span class="guide-render">gravity</span></div>
+            <button type="button" class="guide-item" data-insert="F = ma" aria-label="Insert Newton's second law F equals ma"><span class="guide-type">F = ma</span><span class="guide-arrow" aria-hidden="true">→</span><span class="guide-render">Newton's 2nd</span></button>
+            <button type="button" class="guide-item" data-insert="E = mc^2" aria-label="Insert mass-energy equivalence E equals mc squared"><span class="guide-type">E = mc^2</span><span class="guide-arrow" aria-hidden="true">→</span><span class="guide-render">mass-energy</span></button>
+            <button type="button" class="guide-item" data-insert="v = v_0 + at" aria-label="Insert kinematic equation v equals v naught plus at"><span class="guide-type">v = v_0 + at</span><span class="guide-arrow" aria-hidden="true">→</span><span class="guide-render">kinematics</span></button>
+            <button type="button" class="guide-item" data-insert="F = G(m_1)(m_2)/r^2" aria-label="Insert Newton's law of gravitation"><span class="guide-type">F = Gm₁m₂/r²</span><span class="guide-arrow" aria-hidden="true">→</span><span class="guide-render">gravity</span></button>
           </div>
         </div>
 
@@ -3020,8 +3029,8 @@
       </div>
       <div class="report-modal-body">
         <div>
-          <label style="font-size:0.75rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:4px;">Context Under Review</label>
-          <div id="reportContextSnippet" class="report-context-box"></div>
+          <p id="reportContextLabel" style="font-size:0.75rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:4px;">Context Under Review</p>
+          <div id="reportContextSnippet" class="report-context-box" role="region" aria-labelledby="reportContextLabel"></div>
         </div>
         <div>
           <label for="reportStudentNotes" style="font-size:0.75rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:4px;">What seems incorrect or unclear? (Optional)</label>
@@ -3030,8 +3039,8 @@
         <div id="reportStatusMessage" style="font-size:0.8rem; display:none;" role="status" aria-live="polite"></div>
       </div>
       <div class="report-modal-actions">
-        <button id="reportCancelBtn" class="report-btn cancel">Cancel</button>
-        <button id="reportSubmitBtn" class="report-btn submit">Submit Report</button>
+        <button id="reportCancelBtn" class="report-btn cancel" aria-label="Cancel and close report dialog">Cancel</button>
+        <button id="reportSubmitBtn" class="report-btn submit" aria-label="Submit problem report">Submit Report</button>
       </div>
     </div>
   </div>
