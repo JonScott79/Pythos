@@ -7,6 +7,7 @@
 const express = require('express');
 const router = express.Router();
 const reportService = require('./reportService');
+const firebaseAdmin = require('./firebaseAdmin');
 
 /**
  * GET /api/report/status
@@ -23,8 +24,12 @@ router.get('/status', (req, res) => {
  * POST /api/report
  * Student-facing bug / problem submission endpoint.
  * Strictly guarded by the reportingEnabled feature flag.
+ *
+ * Optionally attaches reporterUid if the request includes a valid
+ * Firebase ID token in the Authorization: Bearer header. Anonymous
+ * submissions (no token, or invalid token) are fully supported.
  */
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   // Feature flag check: If disabled, reject immediately with 403 Forbidden
   if (!reportService.isReportingEnabled()) {
     return res.status(403).json({
@@ -42,6 +47,24 @@ router.post('/', (req, res) => {
     });
   }
 
+  // ── Optional reporter identity ─────────────────────────────────────────────
+  // If the student is logged in, their Firebase ID token arrives in the
+  // Authorization: Bearer header. We try to verify it — if valid, we attach
+  // their UID to the report so an admin can optionally follow up.
+  // Any failure here is silently swallowed; anonymity is the safe default.
+  let reporterUid = null;
+  const authHeader = req.headers['authorization'];
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.slice(7).trim();
+    const looksLikeJwt = (token.match(/\./g) || []).length >= 2;
+    if (looksLikeJwt && firebaseAdmin.isAdminSdkAvailable()) {
+      const decoded = await firebaseAdmin.verifyIdToken(token).catch(() => null);
+      if (decoded?.uid) {
+        reporterUid = decoded.uid;
+      }
+    }
+  }
+
   try {
     const result = reportService.createReport({
       question: question || '',
@@ -51,7 +74,8 @@ router.post('/', (req, res) => {
       model: model || 'pythos:latest',
       description: description || '',
       source: 'student',
-      metadata: metadata || {}
+      metadata: metadata || {},
+      reporterUid
     });
 
     return res.status(201).json({

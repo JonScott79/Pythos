@@ -10,11 +10,15 @@
  * 4. Manage isolated review lifecycle state:
  *    unreviewed -> investigation -> confirmed | rejected | ambiguous | technical
  * 5. Support automatic system error flagging for detected contradictions.
+ * 6. Dual-write reports to Firestore (pythos/app/bug_reports) for cloud persistence
+ *    and admin console access. Firestore writes are async/non-blocking — a Firestore
+ *    failure never delays or breaks the student-facing report submission flow.
  */
 
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const firestoreService = require('./firestoreService');
 
 // Base reports directory at project root
 const REPORTS_BASE_DIR = path.resolve(__dirname, '..', 'reports');
@@ -119,6 +123,10 @@ function sanitizeObjectDeep(obj) {
 /**
  * Creates and persists a new problem report.
  *
+ * Dual-write: saves to both the local flat-file system and Firestore
+ * (pythos/app/bug_reports/{reportId}). The Firestore write is async and
+ * non-blocking — a Firestore outage never affects the student-facing response.
+ *
  * @param {Object} params
  * @param {string} params.question - Original student question
  * @param {string} params.response - Pythos response
@@ -128,6 +136,7 @@ function sanitizeObjectDeep(obj) {
  * @param {string} [params.description] - Student-provided description of the problem
  * @param {string} [params.source] - 'student' or 'system_auto_flag'
  * @param {Object} [params.metadata] - Additional debugging context
+ * @param {string|null} [params.reporterUid] - Optional Firebase UID of the submitter
  * @returns {Object} { status: 'ok', reportId, filePath, dateFolder }
  */
 function createReport({
@@ -138,7 +147,8 @@ function createReport({
   model = 'pythos:latest',
   description = '',
   source = 'student',
-  metadata = {}
+  metadata = {},
+  reporterUid = null
 }) {
   const reportId = generateReportId();
   const now = new Date();
@@ -184,6 +194,12 @@ function createReport({
   };
 
   fs.writeFileSync(filePath, JSON.stringify(reportData, null, 2), 'utf8');
+
+  // Dual-write to Firestore: async, non-blocking, failure-safe.
+  // Runs in the background — never awaited, never blocks the HTTP response.
+  firestoreService.saveBugReport(reportId, reportData, reporterUid).catch(err => {
+    console.error(`[REPORT SERVICE] Firestore dual-write failed for ${reportId}:`, err.message);
+  });
 
   return {
     status: 'ok',
@@ -267,6 +283,11 @@ function updateReportReview(reportId, { status, notes = '', reviewer = 'admin', 
   });
 
   fs.writeFileSync(filePath, JSON.stringify(report, null, 2), 'utf8');
+
+  // Mirror review update to Firestore: async, non-blocking, failure-safe.
+  firestoreService.updateBugReportReview(reportId, { status, notes, reviewer, regressionTestCreated }).catch(err => {
+    console.error(`[REPORT SERVICE] Firestore review sync failed for ${reportId}:`, err.message);
+  });
 
   return report;
 }

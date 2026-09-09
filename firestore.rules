@@ -1,0 +1,163 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============================================================
+    //  Helper Functions
+    //  Shared across all LANZAR apps in this Firebase project.
+    // ============================================================
+
+    // Checks whether the requesting user is an active LANZAR administrator.
+    // Admin status is managed via the /admins/{uid} Firestore collection
+    // (out-of-band, server-side only — the collection has no write rule).
+    function isAdmin() {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.active == true;
+    }
+
+    // Checks whether the authenticated user belongs to an active tenant account.
+    // Used by Threadline and Auth Hub multi-tenant data.
+    function belongsToAccount(accountId) {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.accountId == accountId &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.active == true;
+    }
+
+    // ============================================================
+    //  LANZAR Auth Hub — Customer Registry (Legacy)
+    // ============================================================
+    // Customer registry profiles (legacy — retained for backward compatibility)
+    match /customers/{customerId} {
+      allow read: if request.auth != null && 
+        (request.auth.uid == customerId || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    // ============================================================
+    //  LANZAR Auth Hub — User Profiles (Multi-Tenant)
+    // ============================================================
+    // User profiles (new multi-tenant model)
+    match /users/{userId} {
+      allow read: if request.auth != null && 
+        (request.auth.uid == userId || isAdmin());
+      allow write: if isAdmin();
+      
+      // Pythos AI Chat History — owned by the authenticated user
+      match /pythos_chats/{chatId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // ============================================================
+    //  LANZAR / Threadline — Account & Asset Management
+    // ============================================================
+    // Account organization profiles (Strictly Tenant-Isolated)
+    match /accounts/{accountId} {
+      allow read: if belongsToAccount(accountId) || isAdmin();
+      allow write: if isAdmin();
+
+      // Location subcollections
+      match /locations/{locationId} {
+        allow read: if belongsToAccount(accountId) || isAdmin();
+        allow write: if isAdmin();
+      }
+
+      // Asset subcollections
+      match /assets/{assetId} {
+        allow read: if belongsToAccount(accountId) || isAdmin();
+        allow write: if isAdmin();
+      }
+    }
+
+    // ============================================================
+    //  LANZAR Auth Hub — Administrator Registry
+    // ============================================================
+    // Administrator registry — read-only for own document; write denied (out-of-band)
+    match /admins/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      // Write access is denied (managed out-of-band/server-side only)
+    }
+
+    // ============================================================
+    //  LANZAR / Threadline — Service Counters
+    // ============================================================
+    // Service counter documents (IT, WEB, THREADLINE counters)
+    match /counters/{serviceId} {
+      allow read: if request.auth != null;
+      // Allow customers to increment counter during transaction, but only by exactly 1
+      allow update: if request.auth != null && (
+        isAdmin() || (
+          request.resource.data.nextNumber == resource.data.nextNumber + 1 &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nextNumber'])
+        )
+      );
+      allow create, delete: if isAdmin();
+    }
+
+    // ============================================================
+    //  LANZAR / Threadline — Support Tickets
+    // ============================================================
+    // Support tickets
+    match /tickets/{ticketId} {
+      // Validate ticket schema and owner on creation
+      allow create: if request.auth != null && (
+        isAdmin() || (
+          request.resource.data.authUid == request.auth.uid &&
+          request.resource.data.customerId == request.auth.uid &&
+          request.resource.data.status == 'PENDING' &&
+          request.resource.data.history.size() == 0
+        )
+      );
+      // Read access isolated to owners and admins
+      allow read: if request.auth != null && 
+        (resource.data.authUid == request.auth.uid || isAdmin());
+      // Updates (approvals, more info status changes) restricted to admins only
+      allow update: if isAdmin();
+      // Deletions are completely denied
+    }
+
+    // ============================================================
+    //  PYTHOS — Dedicated Namespace
+    //
+    //  All Pythos data lives under: pythos/app/{subcollection}
+    //
+    //  pythos/
+    //    └── app                    ← anchor document (app identity)
+    //          ├── bug_reports/     ← student-submitted error reports
+    //          └── config/          ← feature flags & admin settings
+    //
+    //  Server (Firebase Admin SDK) bypasses these rules entirely for writes.
+    //  These rules govern what browser clients can do directly.
+    // ============================================================
+    match /pythos/{anchor} {
+      // Anchor document: readable by admins, writable server-side only.
+      allow read: if isAdmin();
+      allow write: if false; // Managed exclusively by the Pythos server via Admin SDK
+
+      // ── Bug Reports ────────────────────────────────────────────
+      // Students and anonymous users can submit (create) reports.
+      // All reads, updates, and deletes are admin-only.
+      match /bug_reports/{reportId} {
+        allow create: if (
+          // Report must start in the unreviewed state
+          request.resource.data.review.status == 'unreviewed' &&
+          // reporterUid must be null (anonymous) or match the authenticated user's UID
+          (
+            request.resource.data.reporterUid == null ||
+            (request.auth != null && request.resource.data.reporterUid == request.auth.uid)
+          )
+        );
+        allow read, update, delete: if isAdmin();
+      }
+
+      // ── Config / Feature Flags ─────────────────────────────────
+      // Admin read/write only. No browser client should write config.
+      match /config/{key} {
+        allow read, write: if isAdmin();
+      }
+    }
+
+  }
+}

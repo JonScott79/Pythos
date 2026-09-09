@@ -5,6 +5,79 @@ All notable changes to the Pythos project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Pythos 1.4.0
+**Release Date:** 2026-09-08
+
+### Added
+- **Firestore Data Layer** (`server/firestoreService.js`) — New dedicated module
+  establishing a clean Pythos namespace in the shared company-wide `lanzar-95ae3`
+  Firebase project:
+  ```
+  pythos/
+    └── app                    ← anchor document (Pythos app identity)
+          ├── bug_reports/     ← student-submitted & auto-flagged reports
+          └── config/          ← feature flags & admin settings
+  ```
+  - `ensurePythosNamespace()` — creates/updates the `pythos/app` anchor document
+    at server startup, establishing Pythos's identity in the shared Firebase Console.
+  - `saveBugReport()` — saves sanitized report to `pythos/app/bug_reports/{reportId}`.
+  - `updateBugReportReview()` — mirrors review lifecycle changes to Firestore using
+    `FieldValue.arrayUnion` for append-only history.
+  - `getConfig()` / `setConfig()` — reads and writes feature flags to
+    `pythos/app/config/{key}`.
+
+- **Bug Report Dual-Write** (`server/reportService.js`):
+  - `createReport()` now dual-writes to both the flat-file system and Firestore.
+    Firestore write is async, non-blocking, and failure-safe — a Firestore outage
+    never delays or breaks a student's report submission.
+  - `updateReportReview()` now mirrors review status changes to Firestore.
+  - Added optional `reporterUid` parameter to `createReport()`.
+
+- **Optional Reporter Identity** (`server/reportRoutes.js`):
+  - `POST /api/report` now accepts an `Authorization: Bearer <firebase-id-token>`
+    header. If present and valid, the submitter's UID is attached to the Firestore
+    report document (`reporterUid` field) for optional admin follow-up.
+  - Anonymous submissions (no token, logged-out users) continue to work identically.
+    Anonymity is the safe default.
+
+- **Frontend ID Token Attachment** (`app.js`):
+  - Report submissions from signed-in users now include their Firebase ID token as an
+    `Authorization: Bearer` header, enabling the optional `reporterUid` linkage.
+  - Graceful fallback: if token retrieval fails for any reason, report is submitted
+    anonymously. No user-facing change.
+
+- **Pythos Namespace Init at Server Startup** (`server/server.js`):
+  - `ensurePythosNamespace()` is called (async, non-blocking) when the server begins
+    listening. Server is fully available regardless of Firestore init outcome.
+
+- **Merged Firestore Security Rules** (`firestore.rules`):
+  - New file containing the complete merged rules for the `lanzar-95ae3` project:
+    all existing rules (LANZAR Auth Hub, Threadline) preserved verbatim, plus new
+    `pythos/{anchor}` rules.
+  - **Deploy to Firebase Console before 3D admin console launch.**
+  - `pythos/app/bug_reports`: anonymous/authenticated create with schema validation;
+    admin-only read/update/delete.
+  - `pythos/app/config`: admin read/write only.
+  - `pythos/app` anchor: admin read; write denied to browser clients (server-only).
+
+### Changed
+- `server/reportService.js`: `createReport()` gains optional `reporterUid` param
+  (null by default — fully backward compatible).
+- `server/reportRoutes.js`: Handler changed from sync to `async` to support
+  optional token verification. Report submission behavior otherwise unchanged.
+
+### Solved
+- **Bug reports lost on redeploy.** The existing flat-file system stored reports on
+  the Railway container filesystem, wiped on every deployment. Reports are now
+  dual-written to Firestore — permanent, durable, and accessible after any redeploy.
+
+### Verification & Testing
+- `test-report-system.js`: 6/6 (100%) ✅ — all report lifecycle tests pass with
+  Firestore layer inactive (graceful degradation when Admin SDK not configured).
+- Flat-file system and all existing admin endpoints fully operational.
+
+---
+
 ## Pythos 1.3.2
 **Release Date:** 2026-09-08
 

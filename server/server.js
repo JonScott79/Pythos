@@ -867,6 +867,13 @@ let server = null;
 if (process.env.NODE_ENV !== 'test') {
   server = app.listen(PORT, () => {
     console.log(`[PYTHOS BACKEND] Gateway listening on port ${PORT} -> Upstream: ${OLLAMA_HOST}`);
+
+    // Initialize Pythos namespace in company-wide Firebase Firestore.
+    // Runs async, non-blocking — server is already listening regardless.
+    const firestoreService = require('./firestoreService');
+    firestoreService.ensurePythosNamespace().catch(err => {
+      console.error('[PYTHOS BACKEND] Firestore namespace init failed (non-fatal):', err.message);
+    });
   });
 }
 

@@ -2858,9 +2858,23 @@ async function submitProblemReport() {
 
   try {
     const apiBase = getPythosApiBase();
+
+    // Attach Firebase ID token if user is signed in — lets the server optionally
+    // link the report to the submitter's UID for admin follow-up.
+    // Falls back to anonymous submission if user is logged out or token fails.
+    const headers = { "Content-Type": "application/json" };
+    if (currentUser) {
+      try {
+        const idToken = await currentUser.getIdToken(/* forceRefresh= */ false);
+        if (idToken) headers["Authorization"] = `Bearer ${idToken}`;
+      } catch (_) {
+        // Token unavailable — submit anonymously, no impact on report flow
+      }
+    }
+
     const res = await fetch(`${apiBase}/api/report`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify(payload)
     });
 
