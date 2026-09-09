@@ -4,31 +4,84 @@
 const express = require('express');
 const router = express.Router();
 const concurrencyLimiter = require('./concurrencyLimiter');
+const firebaseAdmin = require('./firebaseAdmin');
 
-// Middleware to guard admin endpoints: requires ADMIN_API_KEY or non-production environment
-function adminAuth(req, res, next) {
+// =====================================
+// Admin Authentication Middleware
+// =====================================
+// Dual-mode authentication: prefers Firebase ID token (browser admin console)
+// with fallback to ADMIN_API_KEY (server-to-server / CLI tooling).
+//
+// Firebase ID token path:
+//   Authorization: Bearer <firebase-id-token>
+//   → verifyIdToken() decodes and validates the token
+//   → isFirestoreAdmin(uid) checks /admins/{uid}.active == true in Firestore,
+//     exactly mirroring the deployed Firestore Security Rules' isAdmin() function.
+//
+// ADMIN_API_KEY fallback path:
+//   Authorization: Bearer <api-key>  OR  X-Admin-Key: <api-key>
+//   → compared against the ADMIN_API_KEY environment variable.
+//   → Used for Railway health-check scripts, CI, and CLI tooling.
+//
+// If neither method is available in production: 403 Forbidden.
+// In development/test without any key: open access (existing behaviour preserved).
+async function adminAuth(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const customHeader = req.headers['x-admin-key'];
+  const bearerToken = authHeader && authHeader.startsWith('Bearer ')
+    ? authHeader.slice(7).trim()
+    : null;
+
+  // ── Path 1: Firebase ID Token (browser-based admin console) ───────────────
+  // Only attempted when the Admin SDK is available and the bearer looks like
+  // a Firebase ID token (they are long JWTs, not short API keys).
+  if (bearerToken && firebaseAdmin.isAdminSdkAvailable()) {
+    // Heuristic: Firebase ID tokens are JWTs (contain two dots).
+    // API keys are typically short alphanumeric strings with no dots.
+    // This avoids an unnecessary async Firestore round-trip for API key requests.
+    const looksLikeJwt = (bearerToken.match(/\./g) || []).length >= 2;
+
+    if (looksLikeJwt) {
+      const decoded = await firebaseAdmin.verifyIdToken(bearerToken);
+      if (decoded) {
+        const isAdmin = await firebaseAdmin.isFirestoreAdmin(decoded.uid);
+        if (isAdmin) {
+          req.adminUid = decoded.uid;
+          req.adminEmail = decoded.email || null;
+          return next();
+        }
+        // Valid Firebase token but not in /admins collection
+        return res.status(403).json({
+          error: 'forbidden',
+          message: 'Authenticated user does not have admin privileges.'
+        });
+      }
+      // Token failed verification — fall through to API key check
+    }
+  }
+
+  // ── Path 2: Static ADMIN_API_KEY (server-to-server / CLI) ─────────────────
   const adminKey = process.env.ADMIN_API_KEY;
-
   if (adminKey) {
-    const authHeader = req.headers['authorization'];
-    const customHeader = req.headers['x-admin-key'];
-    const bearer = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
-
+    const bearer = bearerToken;
     if (bearer === adminKey || customHeader === adminKey) {
       return next();
     }
-    return res.status(401).json({ error: 'unauthorized', message: 'Invalid or missing ADMIN_API_KEY' });
-  }
-
-  // If no ADMIN_API_KEY is defined in production, block access
-  if (process.env.NODE_ENV === 'production') {
-    return res.status(403).json({
-      error: 'forbidden',
-      message: 'Admin endpoints are disabled in production when ADMIN_API_KEY is not configured.'
+    return res.status(401).json({
+      error: 'unauthorized',
+      message: 'Invalid or missing admin credentials.'
     });
   }
 
-  // Development/Test mode allowed
+  // ── Path 3: Production lockout ─────────────────────────────────────────────
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(403).json({
+      error: 'forbidden',
+      message: 'Admin endpoints require FIREBASE_SERVICE_ACCOUNT_JSON or ADMIN_API_KEY in production.'
+    });
+  }
+
+  // Development / test mode: open access (existing behaviour preserved)
   next();
 }
 

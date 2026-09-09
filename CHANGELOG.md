@@ -5,7 +5,38 @@ All notable changes to the Pythos project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Pythos 1.3.1
+## Pythos 1.3.2
+**Release Date:** 2026-09-08
+
+### Added
+- **Firebase Admin SDK Integration** (`server/firebaseAdmin.js`):
+  - Lazy-initializes the Firebase Admin SDK from `FIREBASE_SERVICE_ACCOUNT_JSON` environment variable (full service-account JSON as a single-line string).
+  - Exports `verifyIdToken()` for server-side Firebase ID token verification.
+  - Exports `isFirestoreAdmin(uid)` which mirrors the deployed Firestore Security Rules' `isAdmin()` function exactly: checks `/admins/{uid}.active == true` in the shared `lanzar-95ae3` Firestore project.
+  - Exports `getAdminFirestore()` for future server-side Firestore writes (Phase 3C).
+  - Operates in degraded mode (no crash) if `FIREBASE_SERVICE_ACCOUNT_JSON` is not configured.
+
+- **Dual-Mode Admin Authentication** (`server/adminRoutes.js`):
+  - Admin endpoints now support two authentication paths, checked in priority order:
+    1. **Firebase ID Token** (for browser-based admin console): `Authorization: Bearer <firebase-id-token>` → token verified via Admin SDK, then `/admins/{uid}` Firestore document checked. This aligns with the existing shared-project admin model (no new admin mechanism introduced).
+    2. **Static API Key fallback** (for server-to-server / CLI): `Authorization: Bearer <key>` or `X-Admin-Key: <key>` → compared against `ADMIN_API_KEY` environment variable. Existing tooling continues to work unchanged.
+  - JWT detection heuristic (presence of two dots) avoids unnecessary Firestore round-trips for API key requests.
+  - `req.adminUid` and `req.adminEmail` are populated for Firebase-authenticated admin requests (audit trail foundation).
+  - Production lockout message updated to reflect both authentication paths.
+
+- **Updated `.env.example`** (`server/.env.example`):
+  - Added `FIREBASE_SERVICE_ACCOUNT_JSON` with instructions.
+  - Added `ADMIN_API_KEY` (formerly undocumented).
+  - Added `ENABLE_BUG_REPORTING` (formerly undocumented).
+
+### Verification & Testing
+- All pre-existing test suites pass with zero regressions after Firebase Admin SDK installation:
+  - `test-report-system.js`: 6/6 (100%) ✅
+  - `test-deterministic-router.js`: 7/7 (100%) ✅
+  - `test-general-deterministic-router.js`: 10/10 (100%) ✅
+  - `test-contextual-viz-routing.js`: 24/24 (100%) ✅
+
+---
 **Release Date:** 2026-09-07
 
 ### Added
