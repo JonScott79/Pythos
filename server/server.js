@@ -308,6 +308,8 @@ For non-trivial mathematical and physical problems (word problems, optimization,
   - Vectors: $\vec{v}$, $\mathbf{F} = m\mathbf{a}$, $\hat{i}, \hat{j}, \hat{k}$
   - Physics Notation: $E = mc^2$, $F = G\frac{m_1 m_2}{r^2}$, $v(t) = v_0 + at$
   - Trigonometry: $\sin^2 \theta + \cos^2 \theta = 1$, $\tan(x)$, $\arcsin(x)$
+- CRITICAL DELIMITER RULE: ALWAYS enclose ALL mathematical expressions, equations, formulas, fractions, and algebraic steps in math delimiters ($...$ or $$...$$). NEVER emit unwrapped math commands like \\frac{15}{12} or y^2 - 10y + 41 = 0 outside delimiters. Always write $\theta = \frac{15}{12} = \frac{5}{4}\text{ rad}$ or $y^2 - 10y + 41 = 0$.
+- DIMENSIONAL UNIT CONSISTENCY: Always verify that given quantities share compatible, consistent units before applying physical or geometric formulas (e.g. arc length $s = r\theta$, where $s$ and $r$ MUST have identical length units). If a problem specifies $r = 6\text{ m}$ and $s = 700\text{ cm}$, explicitly convert to consistent units ($700\text{ cm} = 7\text{ m}$) BEFORE dividing: $\theta = \frac{s}{r} = \frac{7\text{ m}}{6\text{ m}} = \frac{7}{6}\text{ rad} \approx 1.17\text{ rad}$. NEVER divide raw numbers with mixed units ($700/6 = 116.7$ is WRONG).
 
 # ANSWER PRESENTATION & EMPHASIS (CRITICAL)
 - Whenever a problem is completed and the final result is reached, ALWAYS format and visually emphasize the final answer using standard LaTeX boxed notation: $\boxed{...}$ or $$\boxed{...}$$ (e.g. $\boxed{x = 4}$, $\boxed{A_{\text{max}} = 1250\text{ m}^2}$, $\boxed{v = 14.2\text{ m/s}}$, $\boxed{y = 3x - 5}$).

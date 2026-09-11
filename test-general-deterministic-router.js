@@ -100,6 +100,30 @@ const testCases = [
     prompt: "Why does low disease prevalence make false positives dominate the total positive test results?",
     expectDeterministic: false,
     expectPreflightFacts: false
+  },
+
+  // 11. Issue 3 Regression: Leading-decimal arithmetic expression (904.78/260)
+  {
+    name: "Issue 3 Regression: Leading-decimal arithmetic (904.78/260)",
+    prompt: "904.78/260",
+    expectDeterministic: true,
+    expectedResults: ["3.479923"]
+  },
+
+  // 12. Issue 3 Regression: Numbered list item preserved
+  {
+    name: "Issue 3 Regression: Legitimate numbered list item (1. 93/100)",
+    prompt: "1. 93/100",
+    expectDeterministic: true,
+    expectedResults: ["93/100", "0.93"]
+  },
+
+  // 13. Issue 3 Regression: Problem labeled item preserved (a. Add: 3/4 + 2/5)
+  {
+    name: "Issue 3 Regression: Legitimate problem label (a. Add: 3/4 + 2/5)",
+    prompt: "a. Add: 3/4 + 2/5",
+    expectDeterministic: true,
+    expectedResults: ["23/20", "1.15"]
   }
 ];
 

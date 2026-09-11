@@ -844,6 +844,25 @@ function appendMessage(role, text, images = null, metadata = {}) {
       return `%%%MATH_BLOCK_${idx}%%%`;
     });
 
+    // 2b. Auto-delimit unwrapped mathematical expressions (fractions, quadratic formulas/equations)
+    // Only applied outside code blocks and outside already-delimited math
+    const unwrappedMathPatterns = [
+      // Standalone or chained equations with \\frac: e.g. \theta = \frac{15}{12} = \frac{5}{4} or s/r = 15/12
+      /(?:^|[ \t])((?:(?:\\[a-zA-Z]+|[a-zA-Z\u0370-\u03ff])\s*=\s*)?\\frac\{[^{}]*\}\{[^{}]*\}(?:\s*=\s*(?:\\frac\{[^{}]*\}\{[^{}]*\}|[a-zA-Z0-9.\u0370-\u03ff]+))*)/g,
+      // Standalone quadratic equations: y^2 - 10y + 41 = 0 or x^2 + 5x + 6 = 0
+      /(?:^|[ \t])([a-zA-Z]\^2\s*[-+]\s*(?:\d*[a-zA-Z])\s*[-+]\s*\d+\s*=\s*0)/g,
+      // Standalone quadratic formula / radical fractions: (y = )? \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}
+      /(?:^|[ \t])((?:[a-zA-Z]\s*=\s*)?\\frac\{(?:[^{}]|\{[^{}]*\})*\}\{(?:[^{}]|\{[^{}]*\})*\})/g
+    ];
+
+    unwrappedMathPatterns.forEach((pattern) => {
+      protectedText = protectedText.replace(pattern, (match, expr) => {
+        const idx = mathBlocks.length;
+        mathBlocks.push(`$${expr.trim()}$`);
+        return match.replace(expr, `%%%MATH_BLOCK_${idx}%%%`);
+      });
+    });
+
     // 3. Escape HTML special characters in the remaining non-code, non-math prose
     protectedText = protectedText
       .replace(/&/g, "&amp;")

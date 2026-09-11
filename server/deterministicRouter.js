@@ -50,7 +50,8 @@ function extractArithmeticExpressions(text) {
     if (!line) continue;
 
     // Check if line contains a bullet/list prefix (e.g. "1. 93/100" or "- 93/100")
-    const cleanLine = line.replace(/^(?:[•\-\*#]|\d+[\.\)])\s*/, '').replace(/[,;]+$/, '').trim();
+    // Note: Do NOT match decimal points in floating point numbers like "904.78"
+    const cleanLine = line.replace(/^(?:[•\-\*#]|\d+(?:\.(?!\d)|\)))\s*/, '').replace(/[,;]+$/, '').trim();
     const cleanExprLine = cleanLine.replace(/^(?:calculate|compute|evaluate|what is|find|how much is|is)\s+/i, '').replace(/[?!.]+$/, '').trim();
 
     // Check for "A / B equal to C" or "A / B = C%" pattern
@@ -63,8 +64,9 @@ function extractArithmeticExpressions(text) {
     }
 
     // Check if line contains a problem label like "a. Add: 3/4 + 2/5", "b. Subtract: 7/8 - 1/3", "1. Multiply: 5/6 * 2/9"
+    // Note: Do NOT match decimal points in floating point numbers like "904.78" by requiring non-digit after period or explicit label delimiter
     const strippedLabelLine = cleanExprLine
-      .replace(/^[a-zA-Z0-9]+[\.\)]\s*(?:add|subtract|multiply|divide|compute|evaluate|simplify|find)?[:\s]*/i, '')
+      .replace(/^[a-zA-Z0-9]+(?:\.(?!\d)|\))\s*(?:add|subtract|multiply|divide|compute|evaluate|simplify|find)?[:\s]*/i, '')
       .replace(/[×✕✖]/g, '*')
       .replace(/[÷]/g, '/')
       .replace(/[−–—]/g, '-')
@@ -1034,6 +1036,28 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   const extractedExprs = extractArithmeticExpressions(userText);
   if (extractedExprs.length === 0) {
     return null;
+  }
+
+  // 4a. Contextual Dimensional Check: If this arithmetic is a follow-up to an active
+  // problem with dimensional/unit requirements or unit mismatches, do NOT silently calculate raw numbers.
+  if (conversationHistory && conversationHistory.length > 0) {
+    try {
+      const { extractActiveProblemState } = require('./contextManager');
+      const state = extractActiveProblemState(conversationHistory);
+      if (state && state.active && state.active.knownVariables) {
+        const kv = state.active.knownVariables;
+        if (kv.hasUnitMismatch) {
+          // If the expression uses numbers matching the incompatible quantities (e.g. 700 and 6)
+          const allNums = extractedExprs.join(' ').match(/\d+(?:\.\d+)?/g) || [];
+          const knownNums = (kv.lengths || []).map(l => (l.match(/\d+(?:\.\d+)?/) || [])[0]).filter(Boolean);
+          const overlaps = knownNums.filter(n => allNums.includes(n));
+          if (overlaps.length >= 2 || (knownNums.length > 0 && overlaps.length === knownNums.length)) {
+            // Student is calculating raw values from active problem with incompatible units -> let Socratic tutor guide unit normalization
+            return null;
+          }
+        }
+      }
+    } catch (_) {}
   }
 
   // Evaluate all extracted expressions

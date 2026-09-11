@@ -203,6 +203,10 @@ function formatActiveProblemContext(state) {
   if (act.requiredMethod) {
     out += `- **Governing Method**: ${act.requiredMethod}\n`;
   }
+  if (act.knownVariables && act.knownVariables.hasUnitMismatch && act.knownVariables.normalizedLengths) {
+    const norms = act.knownVariables.normalizedLengths.map(n => `${n.original} = ${n.normalized}`).join(', ');
+    out += `- **CRITICAL DIMENSIONAL UNIT NOTICE**: The problem contains mixed units of the same dimension (${norms}). Before computing ratios, products, or formulas (e.g., arc length $\\theta = s/r$), you MUST convert all quantities to consistent units. If the student divides incompatible raw numbers (e.g. 700 / 6), gently point out the unit discrepancy and show the converted calculation.\n`;
+  }
 
   // If there are archived problems in this session, provide a brief 1-line note
   if (state.archived && state.archived.length > 0) {

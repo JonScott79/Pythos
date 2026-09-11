@@ -320,6 +320,39 @@ test('H4: Bounded window: Does not reach beyond last 4 turns', () => {
   assert.strictEqual(resolved, null, 'Older turns outside the 4-turn bounded window must not be used');
 });
 
+// ============================================================================
+// SUITE K: Unit-Aware Contextual Arithmetic Routing
+// ============================================================================
+console.log('--- Suite K: Unit-Aware Contextual Arithmetic Routing ---');
+
+test('K1: Follow-up arithmetic with active dimensional unit mismatch falls through to LLM', () => {
+  const history = [
+    { role: 'user', content: 'A circle has radius 6 m and intercepts an arc of length 700 cm. Find the central angle in radians.' },
+    { role: 'assistant', content: 'We can find the angle using $\\theta = s/r$. What is your next step?' }
+  ];
+  // Student proposes dividing the raw incompatible numbers: 700/6
+  const intent = analyzeDeterministicIntent('700/6???', history);
+  assert.strictEqual(intent, null, 'Expected null intent so Socratic tutor guides unit normalization');
+});
+
+test('K2: Raw arithmetic without unit-mismatched active history evaluates deterministically', () => {
+  const intent = analyzeDeterministicIntent('700/6');
+  assert(intent, 'Expected non-null intent for standalone arithmetic');
+  assert.strictEqual(intent.type, 'ARITHMETIC');
+  assert.strictEqual(intent.result, 700 / 6);
+});
+
+test('K3: Active problem with matching units allows normal calculation', () => {
+  const history = [
+    { role: 'user', content: 'Find the radian measure of the central angle of a circle of radius 12 yards that intercepts an arc of length 15 yards.' },
+    { role: 'assistant', content: 'We use $\\theta = s/r$. What do you get?' }
+  ];
+  const intent = analyzeDeterministicIntent('15/12', history);
+  assert(intent, 'Expected non-null intent when units are identical (yards and yards)');
+  assert.strictEqual(intent.type, 'ARITHMETIC');
+  assert.strictEqual(intent.result, 1.25);
+});
+
 console.log(`\n====================================================`);
 console.log(`Phase A Tests: ${passedTests}/${totalTests} Passed (100%)`);
 console.log(`====================================================\n`);

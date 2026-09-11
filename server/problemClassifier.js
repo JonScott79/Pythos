@@ -154,10 +154,30 @@ function extractKnownQuantities(text) {
     knowns.velocity = `${velMatch[1]} ${velMatch[2] || 'm/s'}`.trim();
   }
 
-  // Length / Distance: 100 meters, 50 m, L = 10
-  const lenMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:meters|m|feet|ft|cm|km|inches)\b/i);
-  if (lenMatch) {
-    knowns.distanceOrLength = lenMatch[0];
+  // Length / Distance: preserve all quantities (e.g. 6 m, 700 cm, 12 yards, 15 yards)
+  const lengthRegex = /(\d+(?:\.\d+)?)\s*(meters|meter|m|centimeters|centimeter|cm|feet|foot|ft|inches|inch|in|km|kilometers|yards|yard|yd)\b/gi;
+  const lengthMatches = [...text.matchAll(lengthRegex)];
+  if (lengthMatches.length > 0) {
+    knowns.lengths = lengthMatches.map(m => m[0]);
+    knowns.distanceOrLength = lengthMatches[0][0]; // backward compatibility
+
+    // Check for dimensional compatibility & multi-unit variations using math.unit
+    if (lengthMatches.length > 1) {
+      try {
+        const units = lengthMatches.map(m => math.unit(m[0]));
+        const baseUnit = units[0].formatUnits();
+        const hasUnitMismatch = units.some(u => u.formatUnits() !== baseUnit);
+        if (hasUnitMismatch) {
+          knowns.hasUnitMismatch = true;
+          knowns.unitMismatchType = 'LENGTH';
+          knowns.normalizedLengths = units.map(u => ({
+            original: u.toString(),
+            normalized: u.to(baseUnit).toString(),
+            numericValue: u.to(baseUnit).toNumber()
+          }));
+        }
+      } catch (_) {}
+    }
   }
 
   // Mass: 5 kg, 500 g, mass M
@@ -506,16 +526,20 @@ function classifyProblem(userText) {
   // -------------------------------------------------------------
   // 10. Trigonometry
   // -------------------------------------------------------------
-  if (lower.includes('trigonometry') || lower.includes('sin^2') || lower.includes('unit circle') || (lower.includes('triangle') && (lower.includes('hypotenuse') || lower.includes('sine') || lower.includes('cosine')))) {
+  const isTrigProblem = lower.includes('trigonometry') || lower.includes('sin^2') || lower.includes('unit circle') ||
+    (lower.includes('triangle') && (lower.includes('hypotenuse') || lower.includes('sine') || lower.includes('cosine'))) ||
+    ((lower.includes('arc') || lower.includes('central angle') || lower.includes('radian')) && (lower.includes('circle') || lower.includes('radius') || lower.includes('intercepts')));
+
+  if (isTrigProblem) {
     return {
       problemDomain: DOMAINS.TRIGONOMETRY,
       problemSubtype: 'TRIGONOMETRIC_RELATIONS',
       confidence: 'high',
       knownQuantities: knowns,
       unknownQuantities: unknowns,
-      assumptions: ['Euclidean plane trigonometry'],
+      assumptions: ['Euclidean plane geometry & trigonometry ($s = r\\theta$, with $\\theta$ in radians)'],
       constraints: [],
-      requiredMethod: 'Trigonometric identities and angle relationships',
+      requiredMethod: 'Trigonometric identities and angle relationships ($s = r\\theta$)',
       specializedProtocol: PROTOCOLS.TRIGONOMETRY,
       deterministicWorkAvailable: true,
       canShortCircuit: false
