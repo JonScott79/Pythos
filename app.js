@@ -3219,6 +3219,9 @@ if (memoryClearAllBtn) {
 // ===== INIT =====
 clearChatUI();
 checkReportingStatus();
+if (input) {
+  input.focus();
+}
 
 // Render KaTeX mathematical typography on the Equation Builder palette
 setTimeout(() => {
