@@ -67,8 +67,8 @@ function configRef() {
  */
 function serverTimestamp() {
   try {
-    const admin = require('firebase-admin');
-    return admin.firestore.FieldValue.serverTimestamp();
+    const { FieldValue } = require('firebase-admin/firestore');
+    return FieldValue.serverTimestamp();
   } catch (_) {
     return null;
   }
@@ -202,8 +202,7 @@ async function updateBugReportReview(reportId, { status, notes = '', reviewer = 
   if (!col) return false;
 
   try {
-    const admin = require('firebase-admin');
-    const FieldValue = admin.firestore.FieldValue;
+    const { FieldValue } = require('firebase-admin/firestore');
     const ts = serverTimestamp();
 
     const updatePayload = {

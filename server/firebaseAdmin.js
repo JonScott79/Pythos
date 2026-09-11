@@ -43,23 +43,23 @@ function initAdminSDK() {
   }
 
   try {
-    // Dynamically require firebase-admin so the server still loads when
-    // the package is absent (e.g. in stripped CI environments).
-    const admin = require('firebase-admin');
+    const { initializeApp, cert, getApps, getApp } = require('firebase-admin/app');
+    const { getAuth } = require('firebase-admin/auth');
+    const { getFirestore } = require('firebase-admin/firestore');
 
-    // Avoid re-initializing if another module already initialized the default app
-    if (admin.apps.length === 0) {
+    const apps = getApps();
+    if (apps.length === 0) {
       const serviceAccount = JSON.parse(rawJson);
-      _adminApp = admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
+      _adminApp = initializeApp({
+        credential: cert(serviceAccount),
         projectId: serviceAccount.project_id
       });
     } else {
-      _adminApp = admin.app();
+      _adminApp = getApp();
     }
 
-    _adminAuth = admin.auth(_adminApp);
-    _adminDb   = admin.firestore(_adminApp);
+    _adminAuth = getAuth(_adminApp);
+    _adminDb   = getFirestore(_adminApp);
 
     console.log('[FIREBASE ADMIN] Admin SDK initialized successfully.');
   } catch (err) {
