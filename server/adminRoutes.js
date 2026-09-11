@@ -85,6 +85,16 @@ async function adminAuth(req, res, next) {
   next();
 }
 
+// GET /admin/status: Public diagnostic check reporting backend & Admin SDK readiness
+router.get('/status', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    firebaseAdmin: firebaseAdmin.getAdminSdkStatus ? firebaseAdmin.getAdminSdkStatus() : null,
+    uptimeSeconds: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString()
+  });
+});
+
 router.use(adminAuth);
 
 // Destructive queue & task clearing MUST be a POST request

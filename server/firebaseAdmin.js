@@ -28,12 +28,15 @@ let _adminAuth = null;
 let _adminDb = null;
 let _initAttempted = false;
 
+let _initError = null;
+
 function initAdminSDK() {
   if (_initAttempted) return;
   _initAttempted = true;
 
   const rawJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON || process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
   if (!rawJson) {
+    _initError = 'Neither FIREBASE_SERVICE_ACCOUNT_JSON nor FIREBASE_SERVICE_ACCOUNT_KEY is set in process.env';
     console.warn(
       '[FIREBASE ADMIN] Neither FIREBASE_SERVICE_ACCOUNT_JSON nor FIREBASE_SERVICE_ACCOUNT_KEY is set. ' +
       'Admin token verification will be unavailable. ' +
@@ -49,7 +52,13 @@ function initAdminSDK() {
 
     const apps = getApps();
     if (apps.length === 0) {
-      const serviceAccount = JSON.parse(rawJson);
+      let serviceAccount;
+      try {
+        serviceAccount = typeof rawJson === 'object' ? rawJson : JSON.parse(rawJson);
+      } catch (parseErr) {
+        throw new Error('Failed to parse service account JSON string: ' + parseErr.message);
+      }
+
       _adminApp = initializeApp({
         credential: cert(serviceAccount),
         projectId: serviceAccount.project_id
@@ -60,9 +69,11 @@ function initAdminSDK() {
 
     _adminAuth = getAuth(_adminApp);
     _adminDb   = getFirestore(_adminApp);
+    _initError = null;
 
     console.log('[FIREBASE ADMIN] Admin SDK initialized successfully.');
   } catch (err) {
+    _initError = err.message;
     console.error('[FIREBASE ADMIN] Failed to initialize Admin SDK:', err.message);
     _adminApp  = null;
     _adminAuth = null;
@@ -130,9 +141,26 @@ function isAdminSdkAvailable() {
   return _adminAuth !== null && _adminDb !== null;
 }
 
+/**
+ * Returns diagnostic metadata about SDK status for administration checks.
+ */
+function getAdminSdkStatus() {
+  initAdminSDK();
+  const hasJson = Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+  const hasKey = Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+  return {
+    available: _adminAuth !== null && _adminDb !== null,
+    hasServiceAccountJsonEnv: hasJson,
+    hasServiceAccountKeyEnv: hasKey,
+    initError: _initError,
+    projectId: _adminApp?.options?.projectId || null
+  };
+}
+
 module.exports = {
   verifyIdToken,
   getAdminFirestore,
   isFirestoreAdmin,
-  isAdminSdkAvailable
+  isAdminSdkAvailable,
+  getAdminSdkStatus
 };
