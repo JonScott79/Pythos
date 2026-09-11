@@ -440,6 +440,8 @@ const memoryService = require('./memoryService');
 const memoryExtractor = require('./memoryExtractor');
 const firebaseAdmin = require('./firebaseAdmin');
 
+const contextManager = require('./contextManager');
+
 // Mount Admin Routes
 app.use('/admin', adminRoutes);
 // Mount Report Routes (Priority 1 & 6)
@@ -539,11 +541,15 @@ app.post('/api/chat', async (req, res) => {
     }
   }
 
+  // Phase B: Server-Side Bounded Conversation Context & Active Problem State
+  const boundedContext = contextManager.buildBoundedConversationContext(messages);
+  const activeProblemContext = boundedContext.activeProblemContext || '';
+
   // Ensure system instructions are always present, up-to-date, and enriched with deterministic ground truth
-  let preparedMessages = messages.filter(m => m && m.role !== 'system');
+  let preparedMessages = [...boundedContext.messagesForModel];
   preparedMessages.unshift({
     role: 'system',
-    content: PYTHOS_SYSTEM_PROMPT + preflightContext + learningContext + memoryContext
+    content: PYTHOS_SYSTEM_PROMPT + preflightContext + activeProblemContext + learningContext + memoryContext
   });
 
   // Detect if this request contains image payloads
@@ -570,11 +576,21 @@ app.post('/api/chat', async (req, res) => {
     await concurrencyLimiter.acquire(abortController.signal, REQUEST_TIMEOUT_MS);
     acquiredSemaphore = true;
 
+    // Phase B: Explicitly configure Ollama verified 8,192 token context length (num_ctx: 8192)
+    const effectiveOptions = Object.assign(
+      { temperature: 0.3, num_ctx: contextManager.TOTAL_CONTEXT_LIMIT },
+      options || {}
+    );
+    // Guarantee num_ctx is at least 8192 if not explicitly overridden by caller
+    if (!effectiveOptions.num_ctx) {
+      effectiveOptions.num_ctx = contextManager.TOTAL_CONTEXT_LIMIT;
+    }
+
     const payload = JSON.stringify({
       model: targetModel,
       messages: preparedMessages,
       stream: true,
-      options: options || { temperature: 0.3 }
+      options: effectiveOptions
     });
 
     const isHttps = OLLAMA_HOST.startsWith('https://');

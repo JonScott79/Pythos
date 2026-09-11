@@ -274,6 +274,16 @@ runSuite("Context-Aware Intent Resolution Suite (Phase A)", () => {
   console.log(out.trim());
 });
 
+// 14. Context Window & Conversation Management Suite (Phase B)
+runSuite("Context Window & Conversation Management Suite (Phase B)", () => {
+  const out = execSync('node test-context-manager.js', {
+    cwd: __dirname,
+    encoding: 'utf-8',
+    stdio: 'pipe'
+  });
+  console.log(out.trim());
+});
+
 console.log(`\n${colors.bold}${colors.green}====================================================${colors.reset}`);
 console.log(`${colors.bold}${colors.green}ALL ${passedSuites}/${totalSuites} REGRESSION SUITES PASSED (100%)${colors.reset}`);
 console.log(`${colors.bold}${colors.green}====================================================${colors.reset}\n`);
