@@ -2488,45 +2488,80 @@ calcDegRadBtn.addEventListener("click", () => {
   calcDegRadBtn.textContent = isDegMode ? "DEG" : "RAD";
 });
 
+function clearCalculator() {
+  calcCurrentExpr = "";
+  calcDisplay.value = "0";
+  calcHistory.textContent = "";
+}
+
+function evaluateCalculator() {
+  const raw = calcDisplay.value.trim();
+  if (!raw || raw === "Error") return;
+
+  try {
+    let expr = raw
+      .replace(/÷/g, "/")
+      .replace(/×/g, "*")
+      .replace(/π/g, "pi")
+      .replace(/√\(/g, "sqrt(")
+      .replace(/√/g, "sqrt");
+
+    if (window.math) {
+      const res = window.math.evaluate(expr);
+      calcHistory.textContent = `${raw} =`;
+      calcDisplay.value = String(res);
+      calcCurrentExpr = String(res);
+    }
+  } catch (e) {
+    calcDisplay.value = "Error";
+  }
+}
+
+calcDisplay.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    e.stopPropagation();
+    evaluateCalculator();
+  } else if (e.key === "Escape") {
+    e.preventDefault();
+    e.stopPropagation();
+    clearCalculator();
+  }
+});
+
+calcDisplay.addEventListener("input", () => {
+  calcCurrentExpr = calcDisplay.value;
+});
+
+calcDisplay.addEventListener("focus", () => {
+  if (calcDisplay.value === "0") {
+    calcDisplay.select();
+  }
+});
+
 document.querySelectorAll(".calc-key").forEach(btn => {
   btn.addEventListener("click", () => {
     const val = btn.getAttribute("data-calc");
     if (!val || val === "rad-deg") return;
 
     if (val === "clear") {
-      calcCurrentExpr = "";
-      calcDisplay.value = "0";
-      calcHistory.textContent = "";
+      clearCalculator();
     } else if (val === "=") {
-      try {
-        let expr = calcCurrentExpr
-          .replace(/÷/g, "/")
-          .replace(/×/g, "*")
-          .replace(/π/g, "pi")
-          .replace(/√\(/g, "sqrt(")
-          .replace(/√/g, "sqrt");
-
-        if (window.math) {
-          const res = window.math.evaluate(expr);
-          calcHistory.textContent = `${calcCurrentExpr} =`;
-          calcDisplay.value = String(res);
-          calcCurrentExpr = String(res);
-        }
-      } catch (e) {
-        calcDisplay.value = "Error";
-      }
+      evaluateCalculator();
     } else if (val === "copy") {
       navigator.clipboard.writeText(calcDisplay.value);
       calcHistory.textContent = "Copied to clipboard!";
     } else {
+      let base = (calcDisplay.value === "0" || calcDisplay.value === "Error") ? "" : calcDisplay.value;
       if (val === "sqrt") {
-        calcCurrentExpr += "sqrt(";
+        base += "sqrt(";
       } else if (val === "sin" || val === "cos" || val === "tan" || val === "ln" || val === "log") {
-        calcCurrentExpr += `${val}(`;
+        base += `${val}(`;
       } else {
-        calcCurrentExpr += val;
+        base += val;
       }
-      calcDisplay.value = calcCurrentExpr;
+      calcCurrentExpr = base;
+      calcDisplay.value = base;
     }
   });
 });

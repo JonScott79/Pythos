@@ -1215,6 +1215,12 @@
       gap: 2px;
       min-height: 56px;
       box-sizing: border-box;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .calc-display-wrap:focus-within {
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 1px var(--primary-color);
     }
 
     .calc-history {
@@ -2743,7 +2749,7 @@
       <div class="calc-display-wrap">
         <div id="calcHistory" class="calc-history" aria-label="Calculation history"></div>
         <label for="calcDisplay" class="sr-only">Calculator Result</label>
-        <input type="text" id="calcDisplay" class="calc-display" readonly value="0" aria-label="Current calculator value" />
+        <input type="text" id="calcDisplay" class="calc-display" value="0" aria-label="Current calculator value" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
       </div>
       <div class="calc-keypad" role="group" aria-label="Calculator Keypad">
         <button class="calc-key op-key" data-calc="rad-deg" id="calcDegRad" aria-label="Toggle Degrees or Radians">DEG</button>
