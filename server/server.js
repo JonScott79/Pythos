@@ -470,6 +470,13 @@ app.post('/api/chat', async (req, res) => {
     });
   }
 
+  // Determine if caller requested streaming (NDJSON protocol)
+  const isStreaming = req.body.stream === true ||
+    (req.headers.accept && (
+      req.headers.accept.includes('application/x-ndjson') ||
+      req.headers.accept.includes('text/event-stream')
+    ));
+
   // Extract latest user query
   const lastUserMsg = [...messages].reverse().find(m => m && m.role === 'user');
 
@@ -480,6 +487,22 @@ app.post('/api/chat', async (req, res) => {
     if (deterministicIntent) {
       const directResponse = buildDeterministicResponse(deterministicIntent);
       if (directResponse) {
+        if (isStreaming) {
+          res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+          res.setHeader('Transfer-Encoding', 'chunked');
+          res.setHeader('Cache-Control', 'no-cache, no-transform');
+          res.write(JSON.stringify({ type: 'token', content: directResponse }) + '\n');
+          res.write(JSON.stringify({
+            type: 'verified',
+            claims: [],
+            verification: [],
+            model: 'pythos-deterministic-router',
+            deterministic: true
+          }) + '\n');
+          res.write(JSON.stringify({ type: 'done' }) + '\n');
+          return res.end();
+        }
+
         return res.status(200).json({
           model: 'pythos-deterministic-router',
           message: {
@@ -499,11 +522,15 @@ app.post('/api/chat', async (req, res) => {
   let acquiredSemaphore = false;
 
   const clientCloseHandler = () => {
-    if (!res.writableEnded) {
+    if (!res.writableEnded && !res.destroyed) {
       abortController.abort();
     }
   };
-  req.on('close', clientCloseHandler);
+  if (req.socket) {
+    req.socket.on('close', clientCloseHandler);
+  } else {
+    res.on('close', clientCloseHandler);
+  }
 
   // Extract optional student identity from Authorization Bearer token
   let studentUid = null;
@@ -602,6 +629,8 @@ app.post('/api/chat', async (req, res) => {
     ollamaHeaders['Content-Length'] = Buffer.byteLength(payload);
 
     const ollamaResponse = await new Promise((resolve, reject) => {
+      let isFirstChunk = true;
+
       const ollamaReq = httpLib.request({
         hostname: parsedUrl.hostname,
         port: parsedUrl.port || (isHttps ? 443 : 80),
@@ -609,26 +638,62 @@ app.post('/api/chat', async (req, res) => {
         method: 'POST',
         headers: ollamaHeaders,
         timeout: REQUEST_TIMEOUT_MS
-      }, (res) => {
+      }, (resUpstream) => {
         let fullText = '';
         let lastMsg = null;
+        let streamBuffer = '';
 
-        res.on('data', (chunk) => {
-          const lines = chunk.toString().split('\n').filter(Boolean);
+        resUpstream.on('data', (chunk) => {
+          if (isStreaming && isFirstChunk && !res.headersSent && !res.writableEnded) {
+            isFirstChunk = false;
+            res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+            res.setHeader('Transfer-Encoding', 'chunked');
+            res.setHeader('Cache-Control', 'no-cache, no-transform');
+          }
+
+          streamBuffer += chunk.toString();
+          const lines = streamBuffer.split('\n');
+          // Keep the incomplete remainder for the next chunk
+          streamBuffer = lines.pop();
+
           for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
             try {
-              const data = JSON.parse(line);
+              const data = JSON.parse(trimmed);
               if (data.message && data.message.content) {
                 fullText += data.message.content;
+                if (isStreaming && !res.writableEnded) {
+                  res.write(JSON.stringify({
+                    type: 'token',
+                    content: data.message.content
+                  }) + '\n');
+                }
               }
               lastMsg = data;
             } catch (e) {}
           }
         });
 
-        res.on('end', () => {
-          if (res.statusCode >= 400) {
-            return reject(new Error(`Ollama returned status ${res.statusCode}`));
+        resUpstream.on('end', () => {
+          if (resUpstream.statusCode >= 400) {
+            return reject(new Error(`Ollama returned status ${resUpstream.statusCode}`));
+          }
+          // Process any remaining buffered content on stream completion
+          if (streamBuffer && streamBuffer.trim()) {
+            try {
+              const data = JSON.parse(streamBuffer.trim());
+              if (data.message && data.message.content) {
+                fullText += data.message.content;
+                if (isStreaming && !res.writableEnded) {
+                  res.write(JSON.stringify({
+                    type: 'token',
+                    content: data.message.content
+                  }) + '\n');
+                }
+              }
+              lastMsg = data;
+            } catch (e) {}
           }
           resolve({
             model: targetModel,
@@ -665,25 +730,33 @@ app.post('/api/chat', async (req, res) => {
     // =====================================
     // Deterministic Verification & Revision Loop
     // =====================================
+    if (isStreaming && !res.writableEnded) {
+      res.write(JSON.stringify({ type: 'status', stage: 'verifying' }) + '\n');
+    }
+
     let finalContent = ollamaResponse.message ? ollamaResponse.message.content : '';
     const claims = extractClaims(finalContent, lastUserMsg ? lastUserMsg.content : '');
     const internalContradictions = auditInternalConsistency(claims);
+    const verificationResults = [];
 
     if (claims.length > 0 || internalContradictions.length > 0) {
       const invalidClaims = [];
 
-      for (const claim of claims) {
+      for (let ci = 0; ci < claims.length; ci++) {
+        const claim = claims[ci];
         if (abortController.signal.aborted) break;
         const verification = await runDeterministicVerification(claim);
+        if (verification) {
+          verificationResults.push(verification);
+        }
         if (verification && verification.verified === false && verification.status !== 'UNKNOWN') {
-          invalidClaims.push({ claim, verification });
+          invalidClaims.push({ claim, verification, claimIndex: ci });
         }
       }
 
-      if ((invalidClaims.length > 0 || internalContradictions.length > 0) && !abortController.signal.aborted) {
-        console.warn(`[VERIFIER] Contradictions detected (Invalid claims: ${invalidClaims.length}, Internal: ${internalContradictions.length})`);
+      if (invalidClaims.length > 0 || internalContradictions.length > 0) {
+        console.warn(`[VERIFIER] Detected ${invalidClaims.length} invalid claims and ${internalContradictions.length} internal contradictions. Requesting revision...`);
 
-        // Revision step: Ask Pythos to revise its reasoning with precise verification feedback
         try {
           const feedbackLines = [];
           invalidClaims.forEach(({ claim, verification }, i) => {
@@ -723,16 +796,29 @@ app.post('/api/chat', async (req, res) => {
               timeout: REQUEST_TIMEOUT_MS
             }, (revRes) => {
               let revText = '';
+              let revBuffer = '';
+
               revRes.on('data', (chunk) => {
-                const lines = chunk.toString().split('\n').filter(Boolean);
+                revBuffer += chunk.toString();
+                const lines = revBuffer.split('\n');
+                revBuffer = lines.pop();
+
                 for (const l of lines) {
+                  const trimmed = l.trim();
+                  if (!trimmed) continue;
                   try {
-                    const d = JSON.parse(l);
+                    const d = JSON.parse(trimmed);
                     if (d.message && d.message.content) revText += d.message.content;
                   } catch (e) {}
                 }
               });
               revRes.on('end', () => {
+                if (revBuffer && revBuffer.trim()) {
+                  try {
+                    const d = JSON.parse(revBuffer.trim());
+                    if (d.message && d.message.content) revText += d.message.content;
+                  } catch (e) {}
+                }
                 resolveRev(revText);
               });
             });
@@ -758,27 +844,51 @@ app.post('/api/chat', async (req, res) => {
             console.log('[VERIFIER] Solution revised successfully by Pythos.');
             finalContent = revisedResponse.trim();
             ollamaResponse.message.content = finalContent;
+
+            if (isStreaming && !res.writableEnded) {
+              res.write(JSON.stringify({
+                type: 'revision',
+                revisedContent: finalContent
+              }) + '\n');
+            }
           }
         } catch (revErr) {
           console.error('[VERIFIER] Revision call failed:', revErr.message);
         }
 
         // Deterministic Supremacy: Enforce mathematical truth across all detected invalid calculations
-        for (const { claim, verification } of invalidClaims) {
-          if (claim.raw_match && verification.exact_value) {
+        // Anchor each correction to its specific claim index, raw match span, and expression
+        for (const { claim, verification, claimIndex } of invalidClaims) {
+          if (claim.raw_match && verification.exact_value !== undefined && verification.exact_value !== null) {
             const exactNum = typeof verification.exact_value === 'number'
               ? verification.exact_value
               : Number(verification.exact_value);
             const exactFormatted = Number.isFinite(exactNum) ? exactNum.toFixed(4) : String(verification.exact_value);
 
-            if (finalContent.includes(claim.raw_match)) {
-              console.warn('[VERIFIER] Enforcing deterministic arithmetic override for:', claim.raw_match);
-              const correctedMatch = claim.raw_match.replace(
-                /[0-9.]+\s*%?$/,
-                claim.data.is_percent ? `${(exactNum * 100).toFixed(2)}%` : exactFormatted
-              );
-              finalContent = finalContent.replace(claim.raw_match, correctedMatch);
+            const originalMatch = claim.raw_match;
+            const replacement = originalMatch.replace(
+              /[0-9.]+\s*%?$/,
+              claim.data?.is_percent ? `${(exactNum * 100).toFixed(2)}%` : exactFormatted
+            );
+
+            const spanIndex = finalContent.indexOf(originalMatch);
+            if (spanIndex !== -1) {
+              console.warn('[VERIFIER] Enforcing deterministic arithmetic override for claim index', claimIndex, ':', originalMatch);
+              finalContent = finalContent.slice(0, spanIndex) + replacement + finalContent.slice(spanIndex + originalMatch.length);
               ollamaResponse.message.content = finalContent;
+
+              if (isStreaming && !res.writableEnded) {
+                res.write(JSON.stringify({
+                  type: 'correction',
+                  claimIndex,
+                  originalMatch,
+                  replacement,
+                  startIndex: spanIndex,
+                  endIndex: spanIndex + originalMatch.length,
+                  expression: claim.data?.expression || null,
+                  revisedContent: finalContent
+                }) + '\n');
+              }
             }
           }
         }
@@ -808,12 +918,13 @@ app.post('/api/chat', async (req, res) => {
       }
     }
 
-    if (!res.headersSent && !res.writableEnded) {
+    if (!res.writableEnded) {
       if (finalContent && ollamaResponse && ollamaResponse.message) {
         ollamaResponse.message.content = finalContent;
       }
       // Attach non-intrusive verification metadata so client can package with reports
       ollamaResponse.claims = claims || [];
+      ollamaResponse.verification = verificationResults;
 
       // Asynchronously trigger background personal memory extraction (non-blocking)
       if (studentUid && lastUserMsg?.content && finalContent) {
@@ -823,7 +934,21 @@ app.post('/api/chat', async (req, res) => {
         });
       }
 
-      return res.status(200).json(ollamaResponse);
+      if (isStreaming) {
+        res.write(JSON.stringify({
+          type: 'verified',
+          claims: claims || [],
+          verification: verificationResults,
+          model: targetModel,
+          done: true
+        }) + '\n');
+        res.write(JSON.stringify({ type: 'done' }) + '\n');
+        return res.end();
+      }
+
+      if (!res.headersSent) {
+        return res.status(200).json(ollamaResponse);
+      }
     }
 
   } catch (error) {
@@ -844,6 +969,22 @@ app.post('/api/chat', async (req, res) => {
           facts: preflightFacts
         });
         if (fallbackContent) {
+          if (isStreaming) {
+            res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+            res.setHeader('Transfer-Encoding', 'chunked');
+            res.setHeader('Cache-Control', 'no-cache, no-transform');
+            res.write(JSON.stringify({ type: 'token', content: fallbackContent }) + '\n');
+            res.write(JSON.stringify({
+              type: 'verified',
+              claims: [],
+              verification: [],
+              model: 'pythos-deterministic-fallback',
+              deterministic: true
+            }) + '\n');
+            res.write(JSON.stringify({ type: 'done' }) + '\n');
+            return res.end();
+          }
+
           return res.status(200).json({
             model: 'pythos-deterministic-fallback',
             message: {
@@ -856,6 +997,18 @@ app.post('/api/chat', async (req, res) => {
         }
       }
 
+      if (isStreaming) {
+        res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+        res.setHeader('Transfer-Encoding', 'chunked');
+        res.setHeader('Cache-Control', 'no-cache, no-transform');
+        res.write(JSON.stringify({
+          type: 'error',
+          error: 'gateway_timeout',
+          message: "⏳ That one gave me a workout. I couldn't finish checking it carefully enough, so I don't want to guess."
+        }) + '\n');
+        return res.end();
+      }
+
       return res.status(504).json({
         error: 'gateway_timeout',
         message: "⏳ That one gave me a workout. I couldn't finish checking it carefully enough, so I don't want to guess."
@@ -863,6 +1016,18 @@ app.post('/api/chat', async (req, res) => {
     }
 
     console.error('[PYTHOS API] Connection failure to Ollama:', error.message);
+    if (isStreaming) {
+      res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+      res.setHeader('Transfer-Encoding', 'chunked');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.write(JSON.stringify({
+        type: 'error',
+        error: 'upstream_unavailable',
+        message: "🤔 I don't have enough information to connect to the knowledge base right now. Please check your connection and try again."
+      }) + '\n');
+      return res.end();
+    }
+
     return res.status(502).json({
       error: 'upstream_unavailable',
       message: "🤔 I don't have enough information to connect to the knowledge base right now. Please check your connection and try again."
@@ -872,7 +1037,11 @@ app.post('/api/chat', async (req, res) => {
     if (acquiredSemaphore) {
       concurrencyLimiter.release();
     }
-    req.removeListener('close', clientCloseHandler);
+    if (req.socket) {
+      req.socket.removeListener('close', clientCloseHandler);
+    } else {
+      res.removeListener('close', clientCloseHandler);
+    }
   }
 });
 

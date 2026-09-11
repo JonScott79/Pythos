@@ -284,6 +284,26 @@ runSuite("Context Window & Conversation Management Suite (Phase B)", () => {
   console.log(out.trim());
 });
 
+// 15. Ollama Stream Parser Line Buffering Suite
+runSuite("Ollama Stream Parser Line Buffering Suite", () => {
+  const out = execSync('node test-stream-parser.js', {
+    cwd: __dirname,
+    encoding: 'utf-8',
+    stdio: 'pipe'
+  });
+  console.log(out.trim());
+});
+
+// 16. End-to-End Streaming Verification & Token Delivery Suite
+runSuite("End-to-End Streaming Verification & Token Delivery Suite", () => {
+  const out = execSync('node test-streaming-verification.js', {
+    cwd: __dirname,
+    encoding: 'utf-8',
+    stdio: 'pipe'
+  });
+  console.log(out.trim());
+});
+
 console.log(`\n${colors.bold}${colors.green}====================================================${colors.reset}`);
 console.log(`${colors.bold}${colors.green}ALL ${passedSuites}/${totalSuites} REGRESSION SUITES PASSED (100%)${colors.reset}`);
 console.log(`${colors.bold}${colors.green}====================================================${colors.reset}\n`);

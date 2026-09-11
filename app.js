@@ -1763,7 +1763,10 @@ async function askPythos(userText) {
   }
 
   try {
-    const headers = { "Content-Type": "application/json" };
+    const headers = {
+      "Content-Type": "application/json",
+      "Accept": "application/x-ndjson, application/json"
+    };
     if (currentUser && typeof currentUser.getIdToken === "function") {
       try {
         const token = await currentUser.getIdToken();
@@ -1776,15 +1779,138 @@ async function askPythos(userText) {
       headers,
       body: JSON.stringify({
         messages: messages,
+        stream: true,
         options: { temperature: 0.3 },
         chatId: currentChatId || null
       })
     });
 
-    const data = await res.json();
-    removeThinking(thinking);
+    const contentType = res.headers.get("content-type") || "";
 
-    if (data.message && data.message.content) {
+    // Handle Streaming Responses (application/x-ndjson)
+    if (res.ok && contentType.includes("application/x-ndjson") && res.body && typeof res.body.getReader === "function") {
+      removeThinking(thinking);
+
+      // Create drafting assistant message bubble immediately
+      const draftBubble = document.createElement("div");
+      draftBubble.className = "message assistant drafting";
+      draftBubble.dataset.role = "assistant";
+
+      const statusBadge = document.createElement("div");
+      statusBadge.className = "msg-stream-badge drafting-badge";
+      statusBadge.style.cssText = "display:inline-flex; align-items:center; gap:6px; font-size:0.75rem; color:#64748b; margin-bottom:6px; font-style:italic;";
+      statusBadge.innerHTML = `<span class="stream-dot" style="width:6px; height:6px; border-radius:50%; background:#3b82f6; animation:pulse 1.5s infinite;"></span><span>Formulating step...</span>`;
+      draftBubble.appendChild(statusBadge);
+
+      const contentDiv = document.createElement("div");
+      contentDiv.className = "message-content";
+      draftBubble.appendChild(contentDiv);
+
+      output.appendChild(draftBubble);
+      output.scrollTop = output.scrollHeight;
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let streamedText = "";
+      let lineBuffer = "";
+      let metaClaims = [];
+      let metaVerification = [];
+      let metaModel = "pythos:latest";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        lineBuffer += decoder.decode(value, { stream: true });
+        const lines = lineBuffer.split("\n");
+        lineBuffer = lines.pop();
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          let ev;
+          try {
+            ev = JSON.parse(trimmed);
+          } catch (e) {
+            continue;
+          }
+
+          if (ev.type === "token") {
+            streamedText += ev.content;
+            contentDiv.textContent = streamedText;
+            output.scrollTop = output.scrollHeight;
+          } else if (ev.type === "status" && ev.stage === "verifying") {
+            statusBadge.style.color = "#d97706";
+            statusBadge.innerHTML = `<span class="stream-dot" style="width:6px; height:6px; border-radius:50%; background:#d97706; animation:pulse 1.5s infinite;"></span><span>Verifying calculations...</span>`;
+          } else if (ev.type === "revision" && ev.revisedContent) {
+            streamedText = ev.revisedContent;
+            contentDiv.textContent = streamedText;
+            statusBadge.style.color = "#059669";
+            statusBadge.innerHTML = `<span style="color:#059669; font-weight:600;">✓ Solution revised & verified</span>`;
+          } else if (ev.type === "correction") {
+            // Span-anchored correction: apply replacement safely if span matches
+            if (typeof ev.startIndex === "number" && typeof ev.endIndex === "number" && ev.startIndex >= 0 && ev.endIndex <= streamedText.length) {
+              const currentSlice = streamedText.slice(ev.startIndex, ev.endIndex);
+              if (currentSlice === ev.originalMatch) {
+                streamedText = streamedText.slice(0, ev.startIndex) + ev.replacement + streamedText.slice(ev.endIndex);
+              } else if (ev.revisedContent) {
+                streamedText = ev.revisedContent;
+              }
+            } else if (ev.revisedContent) {
+              streamedText = ev.revisedContent;
+            }
+            contentDiv.textContent = streamedText;
+            statusBadge.style.color = "#059669";
+            statusBadge.innerHTML = `<span style="color:#059669; font-weight:600;">✓ Calculation verified & corrected</span>`;
+          } else if (ev.type === "verified") {
+            if (ev.claims) metaClaims = ev.claims;
+            if (ev.verification) metaVerification = ev.verification;
+            if (ev.model) metaModel = ev.model;
+            statusBadge.style.color = "#16a34a";
+            statusBadge.innerHTML = `<span style="color:#16a34a; font-weight:500;">✓ Verified</span>`;
+          } else if (ev.type === "error") {
+            streamedText = ev.message || "An error occurred during inference.";
+            contentDiv.textContent = streamedText;
+            statusBadge.style.color = "#dc2626";
+            statusBadge.innerHTML = `<span>⚠️ ${ev.error || "Inference Error"}</span>`;
+          }
+        }
+      }
+
+      // Process any trailing buffered line
+      if (lineBuffer.trim()) {
+        try {
+          const ev = JSON.parse(lineBuffer.trim());
+          if (ev.type === "token") streamedText += ev.content;
+          if (ev.type === "verified") {
+            if (ev.claims) metaClaims = ev.claims;
+            if (ev.verification) metaVerification = ev.verification;
+            if (ev.model) metaModel = ev.model;
+          }
+        } catch (_) {}
+      }
+
+      // Finalize and promote from draft to fully rendered message
+      if (draftBubble.parentNode) {
+        draftBubble.remove();
+      }
+
+      const finalReply = streamedText.trim() || "The Oracle is silent. (Empty response)";
+      messages.push({ role: "assistant", content: finalReply });
+      appendMessage("assistant", finalReply, null, {
+        question: cleanText,
+        claims: metaClaims,
+        verification: metaVerification,
+        model: metaModel
+      });
+
+      await saveChatState(userText, finalReply);
+    } else {
+      // Legacy Synchronous JSON Fallback
+      const data = await res.json();
+      removeThinking(thinking);
+
+      if (data.message && data.message.content) {
         const botReply = data.message.content.trim();
         messages.push({ role: "assistant", content: botReply });
         appendMessage("assistant", botReply, null, {
@@ -1793,12 +1919,13 @@ async function askPythos(userText) {
           verification: data.verification || [],
           model: data.model || "pythos:latest"
         });
-        
+
         // Save to Firebase
         await saveChatState(userText, botReply);
-    } else {
+      } else {
         const errNotice = data.message || "The Oracle is silent. (API Error)";
         appendMessage("assistant", errNotice);
+      }
     }
 
   } catch (err) {

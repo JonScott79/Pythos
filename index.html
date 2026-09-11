@@ -887,6 +887,22 @@
       border-left: 3px solid var(--primary-color);
     }
 
+    .message.assistant.drafting {
+      border-left: 3px dashed var(--primary-color);
+      opacity: 0.92;
+      transition: border-left-color 0.3s ease;
+    }
+
+    .msg-stream-badge .stream-dot {
+      display: inline-block;
+      animation: streamPulse 1.4s ease-in-out infinite;
+    }
+
+    @keyframes streamPulse {
+      0%, 100% { transform: scale(0.85); opacity: 0.5; }
+      50% { transform: scale(1.2); opacity: 1; }
+    }
+
     /* Visual Emphasis: Circled / Boxed Final Answers */
     .message-content .katex .fbox,
     .message-content .katex-display .fbox {
