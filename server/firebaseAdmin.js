@@ -32,10 +32,10 @@ function initAdminSDK() {
   if (_initAttempted) return;
   _initAttempted = true;
 
-  const rawJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  const rawJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON || process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
   if (!rawJson) {
     console.warn(
-      '[FIREBASE ADMIN] FIREBASE_SERVICE_ACCOUNT_JSON not set. ' +
+      '[FIREBASE ADMIN] Neither FIREBASE_SERVICE_ACCOUNT_JSON nor FIREBASE_SERVICE_ACCOUNT_KEY is set. ' +
       'Admin token verification will be unavailable. ' +
       'Admin endpoints will fall back to ADMIN_API_KEY if set.'
     );
