@@ -363,8 +363,8 @@ app.use(cors({
       callback(null, true); // Permissive in gateway mode with header validation
     }
   },
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-Key']
 }));
 
 app.use(express.json({ limit: '15mb' }));
