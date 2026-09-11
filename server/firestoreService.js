@@ -133,6 +133,8 @@ async function saveBugReport(reportId, reportData, reporterUid = null) {
   try {
     const ts = serverTimestamp();
 
+    const nowIso = new Date().toISOString();
+
     const doc = {
       // Identity
       reportId,
@@ -168,7 +170,7 @@ async function saveBugReport(reportId, reportData, reporterUid = null) {
         history: [
           {
             status: 'unreviewed',
-            changedAt: ts,
+            changedAt: nowIso,
             changedBy: reportData.source === 'system_auto_flag' ? 'system' : 'student_submission'
           }
         ],
@@ -204,6 +206,7 @@ async function updateBugReportReview(reportId, { status, notes = '', reviewer = 
   try {
     const { FieldValue } = require('firebase-admin/firestore');
     const ts = serverTimestamp();
+    const nowIso = new Date().toISOString();
 
     const updatePayload = {
       'review.status': status,
@@ -211,7 +214,7 @@ async function updateBugReportReview(reportId, { status, notes = '', reviewer = 
       'review.history': FieldValue.arrayUnion({
         status,
         notes,
-        changedAt: ts,
+        changedAt: nowIso,
         changedBy: reviewer
       })
     };
