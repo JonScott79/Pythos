@@ -374,7 +374,7 @@ function formatMemoryContext(profile, classification = null) {
   if (lines.length === 0) return '';
 
   return (
-    `\n\n# STUDENT PERSONAL CONTEXT (APPLY NATURALLY; NEVER RECITE DIRECTLY OR SAY "ACCORDING TO MY MEMORY")\n` +
+    `\n\n# STUDENT PERSONAL CONTEXT (APPLY NATURALLY; NEVER RECITE DIRECTLY OR SAY "ACCORDING TO MY MEMORY"; IF A SPECIFIC PAST DETAIL IS NOT RECORDED HERE, NEVER SAY YOU LACK MEMORY—WARMLY ASK THE STUDENT TO REMIND YOU)\n` +
     lines.join('\n') +
     `\n`
   );
