@@ -465,8 +465,9 @@ async function clearAllStudentMemory(uid) {
     batch.delete(root.doc(PROFILE_DOC));
 
     // Also purge any pending/completed extraction queue tasks for this student
-    const queueSnap = await root.doc(PROFILE_DOC).collection(EXTRACTION_QUEUE_SUBCOLLECTION).get();
+    const queueSnap = await root.doc(EXTRACTION_QUEUE_SUBCOLLECTION).collection(ITEMS_SUBCOLLECTION).get();
     queueSnap.forEach(d => batch.delete(d.ref));
+    batch.delete(root.doc(EXTRACTION_QUEUE_SUBCOLLECTION));
 
     await batch.commit();
 
@@ -483,44 +484,52 @@ async function clearAllStudentMemory(uid) {
 
 /**
  * Enqueues an interaction turn into the durable Firestore queue.
- * Persisted under users/{uid}/pythos_memory/profile/extraction_queue/{taskId}.
+ * Persisted under users/{uid}/pythos_memory/extraction_queue/{taskId}.
  *
  * @param {string} uid - Authenticated student UID
  * @param {Object} data
  * @param {string} data.userText - Student input
  * @param {string} data.assistantReply - Tutor reply
  * @param {string} [data.chatId] - Conversation identifier
+ * @param {number} [maxRetries=2] - Retry attempts on transient failure
  * @returns {Promise<string|null>} Task ID if queued, or null
  */
-async function enqueueExtractionTask(uid, { userText, assistantReply, chatId = null }) {
+async function enqueueExtractionTask(uid, { userText, assistantReply, chatId = null }, maxRetries = 2) {
   if (!uid || !userText || !isAdminSdkAvailable()) return null;
   const root = memoryRootRef(uid);
   if (!root) return null;
 
-  try {
-    const queueCol = root.doc(PROFILE_DOC).collection(EXTRACTION_QUEUE_SUBCOLLECTION);
-    const taskId = `task_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const nowIso = new Date().toISOString();
+  const queueCol = root.doc(EXTRACTION_QUEUE_SUBCOLLECTION).collection(ITEMS_SUBCOLLECTION);
+  const taskId = `task_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const nowIso = new Date().toISOString();
 
-    const taskDoc = {
-      taskId,
-      uid,
-      status: 'pending',
-      userText: sanitizeMemoryString(userText.slice(0, 2000)),
-      assistantReply: assistantReply.slice(0, 3000),
-      chatId: chatId || null,
-      attempts: 0,
-      createdAt: nowIso,
-      updatedAt: nowIso
-    };
+  const taskDoc = {
+    taskId,
+    uid,
+    status: 'pending',
+    userText: sanitizeMemoryString(userText.slice(0, 2000)),
+    assistantReply: assistantReply.slice(0, 3000),
+    chatId: chatId || null,
+    attempts: 0,
+    createdAt: nowIso,
+    updatedAt: nowIso
+  };
 
-    await queueCol.doc(taskId).set(taskDoc);
-    console.log(`[MEMORY QUEUE] Durable task enqueued: ${taskId} for user ${uid}`);
-    return taskId;
-  } catch (err) {
-    console.error(`[MEMORY QUEUE] Failed to enqueue task for ${uid}:`, err.message);
-    return null;
+  for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+    try {
+      await queueCol.doc(taskId).set(taskDoc);
+      console.log(`[MEMORY QUEUE] Durable task enqueued: ${taskId} for user ${uid}`);
+      return taskId;
+    } catch (err) {
+      console.error(`[MEMORY QUEUE CRITICAL] Failed to enqueue task for ${uid} (attempt ${attempt}/${maxRetries + 1}):`, err.message);
+      if (attempt <= maxRetries) {
+        // Short backoff before retry
+        await new Promise(r => setTimeout(r, 200 * attempt));
+      }
+    }
   }
+
+  return null;
 }
 
 /**
@@ -536,7 +545,7 @@ async function getPendingExtractionTasks(uid, limit = 10) {
   if (!root) return [];
 
   try {
-    const queueCol = root.doc(PROFILE_DOC).collection(EXTRACTION_QUEUE_SUBCOLLECTION);
+    const queueCol = root.doc(EXTRACTION_QUEUE_SUBCOLLECTION).collection(ITEMS_SUBCOLLECTION);
     const snap = await queueCol
       .where('status', '==', 'pending')
       .limit(limit)
@@ -564,7 +573,7 @@ async function completeExtractionTask(uid, taskId) {
   if (!root) return false;
 
   try {
-    const queueDoc = root.doc(PROFILE_DOC).collection(EXTRACTION_QUEUE_SUBCOLLECTION).doc(taskId);
+    const queueDoc = root.doc(EXTRACTION_QUEUE_SUBCOLLECTION).collection(ITEMS_SUBCOLLECTION).doc(taskId);
     await queueDoc.delete();
     return true;
   } catch (err) {
@@ -588,7 +597,7 @@ async function failExtractionTask(uid, taskId, errorMessage) {
 
   try {
     const { FieldValue } = require('firebase-admin/firestore');
-    const queueDoc = root.doc(PROFILE_DOC).collection(EXTRACTION_QUEUE_SUBCOLLECTION).doc(taskId);
+    const queueDoc = root.doc(EXTRACTION_QUEUE_SUBCOLLECTION).collection(ITEMS_SUBCOLLECTION).doc(taskId);
     await queueDoc.update({
       status: 'failed',
       lastError: errorMessage ? errorMessage.slice(0, 300) : 'Unknown error',

@@ -205,11 +205,23 @@ async function runTests() {
   }
 
   try {
-    // 1. Missing Authorization header -> 401
-    const unauthRes = await makeReq('GET', '/api/memory');
-    assert.strictEqual(unauthRes.statusCode, 401);
-    assert.strictEqual(unauthRes.body?.error, 'unauthorized');
-    console.log('  ✓ Missing token returns 401 Unauthorized.');
+    // 1. Missing Authorization header -> 401 on GET, PATCH, DELETE, CLEAR
+    const unauthGetRes = await makeReq('GET', '/api/memory');
+    assert.strictEqual(unauthGetRes.statusCode, 401);
+    assert.strictEqual(unauthGetRes.body?.error, 'unauthorized');
+    console.log('  ✓ Unauthenticated → memory GET returns 401 Unauthorized.');
+
+    const unauthPatchRes = await makeReq('PATCH', '/api/memory/mem_test_123', {}, { value: 'hack' });
+    assert.strictEqual(unauthPatchRes.statusCode, 401);
+    console.log('  ✓ Unauthenticated → memory PATCH returns 401 Unauthorized.');
+
+    const unauthDeleteRes = await makeReq('DELETE', '/api/memory/mem_test_123');
+    assert.strictEqual(unauthDeleteRes.statusCode, 401);
+    console.log('  ✓ Unauthenticated → memory DELETE returns 401 Unauthorized.');
+
+    const unauthClearRes = await makeReq('POST', '/api/memory/clear', {}, { uid: 'victim_student_123' });
+    assert.strictEqual(unauthClearRes.statusCode, 401);
+    console.log('  ✓ Unauthenticated → memory CLEAR returns 401 Unauthorized.');
 
     // 2. Malformed token -> 401
     const badTokenRes = await makeReq('GET', '/api/memory', { 'Authorization': 'Bearer fake.invalid.token' });
@@ -220,11 +232,6 @@ async function runTests() {
     const idorRes = await makeReq('GET', '/api/memory?uid=victim_student_123');
     assert.strictEqual(idorRes.statusCode, 401);
     console.log('  ✓ Injected ?uid= query ignored and rejected with 401.');
-
-    // 4. Memory clear unauthorized attempt -> 401
-    const clearRes = await makeReq('POST', '/api/memory/clear', {}, { uid: 'victim_student_123' });
-    assert.strictEqual(clearRes.statusCode, 401);
-    console.log('  ✓ Memory clear unauthorized attempt rejected with 401.');
   } finally {
     testServer.close();
   }

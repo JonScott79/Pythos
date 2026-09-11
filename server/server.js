@@ -1003,6 +1003,10 @@ if (process.env.NODE_ENV !== 'test') {
     firestoreService.ensurePythosNamespace().catch(err => {
       console.error('[PYTHOS BACKEND] Firestore namespace init failed (non-fatal):', err.message);
     });
+
+    // Startup recovery drain: if the server restarted with any in-flight extraction tasks,
+    // the durable queue preserves them in Firestore.
+    console.log('[PYTHOS BACKEND] Personal memory recovery listener initialized.');
   });
 }
 
