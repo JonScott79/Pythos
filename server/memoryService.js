@@ -24,6 +24,7 @@ const MEMORY_ROOT_COLLECTION = 'users';
 const MEMORY_DOC_NAMESPACE = 'pythos_memory';
 const ITEMS_SUBCOLLECTION = 'items';
 const PROFILE_DOC = 'profile';
+const EXTRACTION_QUEUE_SUBCOLLECTION = 'extraction_queue';
 
 // Confidence thresholds
 const CONFIDENCE_ACTIVE_THRESHOLD = 0.70;
@@ -32,28 +33,51 @@ const INITIAL_INFERENCE_CONFIDENCE = 0.50;
 const REINFORCEMENT_ALPHA = 0.25; // Asymptotic growth towards 1.0
 
 // Sensitive concepts strictly prohibited from persistent storage
-const SENSITIVE_DENYLIST_REGEX = /\b(password|secret|ssn|social security|credit card|address|street|phone number|illness|depression|suicid|medication|diagnosis|religion|church|mosque|synagogue|politics|democrat|republican|salary|income)\b/i;
+const SENSITIVE_DENYLIST_REGEX = /\b(password|secret|ssn|social security|credit card|address|street|phone number|illness|depression|suicid|medication|diagnosis|religion|church|mosque|synagogue|politics|democrat|republican|salary|income|driver(?:'s)? license|passport)\b/i;
 
 // ── In-Memory Cache (Short TTL to prevent redundant Firestore reads) ───────────
 const _profileCache = new Map(); // uid -> { profile, cachedAt }
 const PROFILE_CACHE_TTL_MS = 60 * 1000; // 1 minute
 
 /**
+ * Validates that a UID is a valid non-empty string adhering to standard UID formats.
+ * Prevents directory traversal, empty strings, and injection attempts.
+ */
+function isValidUid(uid) {
+  if (typeof uid !== 'string') return false;
+  const trimmed = uid.trim();
+  if (!trimmed || trimmed.length > 128) return false;
+  // Standard Firebase UIDs are alphanumeric with dashes/underscores
+  return /^[a-zA-Z0-9_\-.:]+$/.test(trimmed);
+}
+
+/**
  * Returns Firestore reference to users/{uid}/pythos_memory
  */
 function memoryRootRef(uid) {
   const db = getAdminFirestore();
-  if (!db || !uid) return null;
+  if (!db || !isValidUid(uid)) return null;
   return db.collection(MEMORY_ROOT_COLLECTION).doc(uid).collection(MEMORY_DOC_NAMESPACE);
 }
 
 /**
- * Validates and sanitizes text against sensitive data leaks & PII
+ * Validates and sanitizes text against sensitive data leaks & PII.
+ * Enforces deterministic redaction of:
+ * - Emails
+ * - US/International Phone Numbers
+ * - Social Security Numbers (SSN: XXX-XX-XXXX)
+ * - IPv4 Addresses
+ * - Credit card sequences (13-19 digits)
  */
 function sanitizeMemoryString(str) {
   if (typeof str !== 'string') return '';
   return str
     .replace(/[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+/g, '[REDACTED_EMAIL]')
+    .replace(/\b\d{3}-\d{2}-\d{4}\b/g, '[REDACTED_SSN]')
+    .replace(/\b(?:\d[ -]*?){13,16}\b/g, (match) => {
+      const digitsOnly = match.replace(/\D/g, '');
+      return (digitsOnly.length >= 13 && digitsOnly.length <= 19) ? '[REDACTED_CARD]' : match;
+    })
     .replace(/(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g, '[REDACTED_PHONE]')
     .replace(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g, '[REDACTED_IP]')
     .trim();
@@ -404,6 +428,11 @@ async function deleteMemoryItem(uid, memoryId) {
 
   try {
     const docRef = root.doc(PROFILE_DOC).collection(ITEMS_SUBCOLLECTION).doc(memoryId);
+    const snap = await docRef.get();
+    if (!snap.exists) {
+      return false; // Item does not exist under this user's memory namespace
+    }
+
     await docRef.delete();
 
     _profileCache.delete(uid);
@@ -434,10 +463,15 @@ async function clearAllStudentMemory(uid) {
     const batch = db.batch();
     snap.forEach(d => batch.delete(d.ref));
     batch.delete(root.doc(PROFILE_DOC));
+
+    // Also purge any pending/completed extraction queue tasks for this student
+    const queueSnap = await root.doc(PROFILE_DOC).collection(EXTRACTION_QUEUE_SUBCOLLECTION).get();
+    queueSnap.forEach(d => batch.delete(d.ref));
+
     await batch.commit();
 
     _profileCache.delete(uid);
-    console.log(`[MEMORY SERVICE] Cleared all memory for user ${uid}`);
+    console.log(`[MEMORY SERVICE] Cleared all memory and queue for user ${uid}`);
     return true;
   } catch (err) {
     console.error(`[MEMORY SERVICE] Failed to clear memory for user ${uid}:`, err.message);
@@ -445,7 +479,131 @@ async function clearAllStudentMemory(uid) {
   }
 }
 
+// ── Durable Extraction Queue Operations ────────────────────────────────────────
+
+/**
+ * Enqueues an interaction turn into the durable Firestore queue.
+ * Persisted under users/{uid}/pythos_memory/profile/extraction_queue/{taskId}.
+ *
+ * @param {string} uid - Authenticated student UID
+ * @param {Object} data
+ * @param {string} data.userText - Student input
+ * @param {string} data.assistantReply - Tutor reply
+ * @param {string} [data.chatId] - Conversation identifier
+ * @returns {Promise<string|null>} Task ID if queued, or null
+ */
+async function enqueueExtractionTask(uid, { userText, assistantReply, chatId = null }) {
+  if (!uid || !userText || !isAdminSdkAvailable()) return null;
+  const root = memoryRootRef(uid);
+  if (!root) return null;
+
+  try {
+    const queueCol = root.doc(PROFILE_DOC).collection(EXTRACTION_QUEUE_SUBCOLLECTION);
+    const taskId = `task_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const nowIso = new Date().toISOString();
+
+    const taskDoc = {
+      taskId,
+      uid,
+      status: 'pending',
+      userText: sanitizeMemoryString(userText.slice(0, 2000)),
+      assistantReply: assistantReply.slice(0, 3000),
+      chatId: chatId || null,
+      attempts: 0,
+      createdAt: nowIso,
+      updatedAt: nowIso
+    };
+
+    await queueCol.doc(taskId).set(taskDoc);
+    console.log(`[MEMORY QUEUE] Durable task enqueued: ${taskId} for user ${uid}`);
+    return taskId;
+  } catch (err) {
+    console.error(`[MEMORY QUEUE] Failed to enqueue task for ${uid}:`, err.message);
+    return null;
+  }
+}
+
+/**
+ * Retrieves pending extraction tasks for a student.
+ *
+ * @param {string} uid
+ * @param {number} [limit=10]
+ * @returns {Promise<Array<Object>>}
+ */
+async function getPendingExtractionTasks(uid, limit = 10) {
+  if (!uid || !isAdminSdkAvailable()) return [];
+  const root = memoryRootRef(uid);
+  if (!root) return [];
+
+  try {
+    const queueCol = root.doc(PROFILE_DOC).collection(EXTRACTION_QUEUE_SUBCOLLECTION);
+    const snap = await queueCol
+      .where('status', '==', 'pending')
+      .limit(limit)
+      .get();
+
+    const tasks = [];
+    snap.forEach(d => tasks.push({ id: d.id, ...d.data() }));
+    return tasks;
+  } catch (err) {
+    console.error(`[MEMORY QUEUE] Failed to fetch pending tasks for ${uid}:`, err.message);
+    return [];
+  }
+}
+
+/**
+ * Marks an extraction task as completed and removes it or updates its state.
+ *
+ * @param {string} uid
+ * @param {string} taskId
+ * @returns {Promise<boolean>}
+ */
+async function completeExtractionTask(uid, taskId) {
+  if (!uid || !taskId || !isAdminSdkAvailable()) return false;
+  const root = memoryRootRef(uid);
+  if (!root) return false;
+
+  try {
+    const queueDoc = root.doc(PROFILE_DOC).collection(EXTRACTION_QUEUE_SUBCOLLECTION).doc(taskId);
+    await queueDoc.delete();
+    return true;
+  } catch (err) {
+    console.error(`[MEMORY QUEUE] Failed to complete extraction task ${taskId}:`, err.message);
+    return false;
+  }
+}
+
+/**
+ * Marks an extraction task as failed with an error message and increments attempts.
+ *
+ * @param {string} uid
+ * @param {string} taskId
+ * @param {string} errorMessage
+ * @returns {Promise<boolean>}
+ */
+async function failExtractionTask(uid, taskId, errorMessage) {
+  if (!uid || !taskId || !isAdminSdkAvailable()) return false;
+  const root = memoryRootRef(uid);
+  if (!root) return false;
+
+  try {
+    const { FieldValue } = require('firebase-admin/firestore');
+    const queueDoc = root.doc(PROFILE_DOC).collection(EXTRACTION_QUEUE_SUBCOLLECTION).doc(taskId);
+    await queueDoc.update({
+      status: 'failed',
+      lastError: errorMessage ? errorMessage.slice(0, 300) : 'Unknown error',
+      attempts: FieldValue.increment(1),
+      updatedAt: new Date().toISOString()
+    });
+    return true;
+  } catch (err) {
+    console.error(`[MEMORY QUEUE] Failed to record task error for ${taskId}:`, err.message);
+    return false;
+  }
+}
+
 module.exports = {
+  isValidUid,
   getStudentMemoryProfile,
   listStudentMemoryItems,
   recordMemoryCandidate,
@@ -454,5 +612,9 @@ module.exports = {
   deleteMemoryItem,
   clearAllStudentMemory,
   sanitizeMemoryString,
-  isSensitiveOrDisallowed
+  isSensitiveOrDisallowed,
+  enqueueExtractionTask,
+  getPendingExtractionTasks,
+  completeExtractionTask,
+  failExtractionTask
 };

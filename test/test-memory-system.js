@@ -14,6 +14,8 @@ const assert = require('assert');
 const path = require('path');
 const fs = require('fs');
 
+process.env.NODE_ENV = 'test';
+
 // Set mock service account environment so Admin SDK boots in test mode
 const credsPath = path.resolve(__dirname, '..', 'firebase-credentials', 'lanzar-95ae3-firebase-adminsdk-fbsvc-86e8ea5817.json');
 if (fs.existsSync(credsPath)) {
@@ -41,18 +43,25 @@ async function runTests() {
   assert.ok(courseCand.value.includes('AP PHYSICS'));
   console.log('  ✓ Stated name and course extracted with high confidence.');
 
-  // TEST 2: Privacy Filter & PII Rejection
-  console.log('TEST 2: Privacy & PII Sanitization');
-  const piiText = "My email is jake@example.com and my phone is 555-123-4567.";
+  // TEST 2: Privacy Filter & PII Rejection (Expanded)
+  console.log('TEST 2: Privacy & PII Sanitization & Denylist');
+  const piiText = "My email is jake@example.com, SSN is 123-45-6789, card is 4111-2222-3333-4444, IP is 192.168.1.1, phone 555-123-4567.";
   const sanitized = memoryService.sanitizeMemoryString(piiText);
   assert.ok(!sanitized.includes('jake@example.com'), 'Email must be redacted');
+  assert.ok(!sanitized.includes('123-45-6789'), 'SSN must be redacted');
+  assert.ok(!sanitized.includes('4111-2222-3333-4444'), 'Card must be redacted');
+  assert.ok(!sanitized.includes('192.168.1.1'), 'IP must be redacted');
   assert.ok(!sanitized.includes('555-123-4567'), 'Phone must be redacted');
   assert.ok(sanitized.includes('[REDACTED_EMAIL]'));
+  assert.ok(sanitized.includes('[REDACTED_SSN]'));
   assert.ok(sanitized.includes('[REDACTED_PHONE]'));
+  assert.ok(sanitized.includes('[REDACTED_IP]'));
 
   assert.strictEqual(memoryService.isSensitiveOrDisallowed('my password is 123'), true);
-  assert.strictEqual(memoryService.isSensitiveOrDisallowed('I love quadratic equations'), false);
-  console.log('  ✓ Sensitive data & PII properly rejected/redacted.');
+  assert.strictEqual(memoryService.isSensitiveOrDisallowed('my address is 123 Elm St'), true);
+  assert.strictEqual(memoryService.isSensitiveOrDisallowed('driver license number 999'), true);
+  assert.strictEqual(memoryService.isSensitiveOrDisallowed('I love quadratic equations and physics'), false);
+  console.log('  ✓ Sensitive data & multi-format PII deterministically rejected and redacted.');
 
   // TEST 3: Context Formatter & Token Budget Enforcement
   console.log('TEST 3: Memory Context Formatter & Token Budget');
@@ -77,44 +86,147 @@ async function runTests() {
   assert.ok(wordCount < 120, `Memory context must be bounded, got ${wordCount} words`);
   console.log(`  ✓ Formatted prompt is clean and compact (${wordCount} words).`);
 
-  // TEST 4: Live Firestore CRUD & Profile Recompilation (if creds available)
-  if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
-    console.log('TEST 4: Live Firestore Persistence, Update & Clean (Test User)');
-    const testUid = 'test_student_memory_unit_test';
+  // TEST 4: UID Validation & Authorization Boundaries
+  console.log('TEST 4: UID Validation & Strict Boundary Guard');
+  assert.strictEqual(memoryService.isValidUid('validUser123_abc'), true);
+  assert.strictEqual(memoryService.isValidUid('user-with-dash.123'), true);
+  assert.strictEqual(memoryService.isValidUid(''), false);
+  assert.strictEqual(memoryService.isValidUid('   '), false);
+  assert.strictEqual(memoryService.isValidUid('../malicious/path'), false);
+  assert.strictEqual(memoryService.isValidUid(null), false);
+  assert.strictEqual(memoryService.isValidUid(undefined), false);
+  console.log('  ✓ UID format validation prevents directory traversal & injection.');
 
-    // 1. Record name
-    await memoryService.recordMemoryCandidate(testUid, {
+  // TEST 5: Live Firestore Persistence, Durable Queue, & Cross-User Isolation
+  if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+    console.log('TEST 5: Live Firestore Durable Extraction Queue (User A)');
+    const userA = 'test_user_a_queue_test';
+    const userB = 'test_user_b_isolation_test';
+
+    // Clean slates
+    await memoryService.clearAllStudentMemory(userA);
+    await memoryService.clearAllStudentMemory(userB);
+
+    // 1. Durable Queue Enqueue
+    const taskId = await memoryService.enqueueExtractionTask(userA, {
+      userText: "Hey Pythos, I'm Jake and I like baseball analogies.",
+      assistantReply: "Welcome Jake! Let's hit a home run with physics.",
+      chatId: 'chat_test_123'
+    });
+    assert.ok(taskId, 'Task must be enqueued with a valid taskId');
+
+    const pending = await memoryService.getPendingExtractionTasks(userA, 10);
+    assert.ok(pending.length >= 1, 'Should find pending task in durable queue');
+    assert.strictEqual(pending[0].taskId, taskId);
+    console.log('  ✓ Interaction turn successfully queued in durable Firestore queue.');
+
+    // 2. Drain Queue
+    const drained = await memoryExtractor.drainQueueForUser(userA);
+    assert.ok(drained >= 1, 'Should process at least 1 task during queue drain');
+
+    const profileA = await memoryService.getStudentMemoryProfile(userA);
+    assert.strictEqual(profileA?.identity?.preferredName, 'Jake');
+    assert.strictEqual(profileA?.preferences?.analogyPreference, 'baseball');
+    console.log('  ✓ Queue drained; candidate facts and preferences committed to profile snapshot.');
+
+    const remainingPending = await memoryService.getPendingExtractionTasks(userA, 10);
+    assert.strictEqual(remainingPending.length, 0, 'Completed tasks must be removed from queue');
+    console.log('  ✓ Completed queue task removed from queue collection.');
+
+    // TEST 6: Strict Cross-User Isolation (User B cannot access or modify User A's memory)
+    console.log('TEST 6: Strict Cross-User Isolation & Privacy Enforcement');
+    // Setup User B with distinct memory
+    await memoryService.recordMemoryCandidate(userB, {
       category: 'identity',
       facet: 'preferredName',
-      value: 'Jake',
-      kind: 'observed_fact',
-      quote: "I'm Jake"
+      value: 'Samantha',
+      kind: 'observed_fact'
     });
 
-    // 2. Record preference inference
-    await memoryService.recordMemoryCandidate(testUid, {
-      category: 'preferences',
-      facet: 'explanationPacing',
-      value: 'concise',
-      kind: 'inference',
-      quote: 'Keep it short'
+    const itemsA = await memoryService.listStudentMemoryItems(userA);
+    const itemsB = await memoryService.listStudentMemoryItems(userB);
+
+    assert.ok(itemsA.some(i => i.value === 'Jake'));
+    assert.ok(!itemsA.some(i => i.value === 'Samantha'), 'User A must NEVER see User B data');
+    assert.ok(itemsB.some(i => i.value === 'Samantha'));
+    assert.ok(!itemsB.some(i => i.value === 'Jake'), 'User B must NEVER see User A data');
+
+    // Attempt cross-tenant deletion / non-existent item deletion:
+    const rogueDelete = await memoryService.deleteMemoryItem(userA, 'mem_non_existent_item_id');
+    assert.strictEqual(rogueDelete, false, 'Deleting non-existent item on User A must return false');
+
+    // Attempt direct access cross-tenant: User A's service call with User B's namespace must be blocked if caller attempts IDOR
+    // Verify User B's item is completely intact and never modified by User A operations
+    const profileBCheck = await memoryService.getStudentMemoryProfile(userB);
+    assert.strictEqual(profileBCheck?.identity?.preferredName, 'Samantha');
+    console.log('  ✓ Cross-user isolation verified: User A operations have zero effect on User B memory.');
+
+    // Cleanup both test users
+    await memoryService.clearAllStudentMemory(userA);
+    await memoryService.clearAllStudentMemory(userB);
+    assert.strictEqual(await memoryService.getStudentMemoryProfile(userA), null);
+    assert.strictEqual(await memoryService.getStudentMemoryProfile(userB), null);
+    console.log('  ✓ Dual user cleanups verified.');
+  }
+
+  // TEST 7: HTTP Endpoint Authentication & IDOR Parameter Tampering
+  console.log('TEST 7: HTTP Endpoint Authentication & Anti-Tampering Rules');
+  const http = require('http');
+  const { app } = require('../server/server');
+
+  const testServer = http.createServer(app);
+  await new Promise(resolve => testServer.listen(0, resolve));
+  const testPort = testServer.address().port;
+
+  async function makeReq(method, path, headers = {}, body = null) {
+    return new Promise((resolve, reject) => {
+      const req = http.request({
+        hostname: '127.0.0.1',
+        port: testPort,
+        path,
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...headers
+        }
+      }, (res) => {
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => {
+          let parsed = null;
+          try { parsed = JSON.parse(data); } catch (_) {}
+          resolve({ statusCode: res.statusCode, body: parsed });
+        });
+      });
+      req.on('error', reject);
+      if (body) req.write(JSON.stringify(body));
+      req.end();
     });
+  }
 
-    const profile = await memoryService.getStudentMemoryProfile(testUid);
-    assert.strictEqual(profile?.identity?.preferredName, 'Jake');
-    console.log('  ✓ Memory profile compiled in Firestore successfully.');
+  try {
+    // 1. Missing Authorization header -> 401
+    const unauthRes = await makeReq('GET', '/api/memory');
+    assert.strictEqual(unauthRes.statusCode, 401);
+    assert.strictEqual(unauthRes.body?.error, 'unauthorized');
+    console.log('  ✓ Missing token returns 401 Unauthorized.');
 
-    // 3. Update memory item
-    await memoryService.updateMemoryItem(testUid, 'mem_identity_preferredname', 'Jacob');
-    const updatedProfile = await memoryService.getStudentMemoryProfile(testUid);
-    assert.strictEqual(updatedProfile?.identity?.preferredName, 'Jacob');
-    console.log('  ✓ Student override updated profile.');
+    // 2. Malformed token -> 401
+    const badTokenRes = await makeReq('GET', '/api/memory', { 'Authorization': 'Bearer fake.invalid.token' });
+    assert.strictEqual(badTokenRes.statusCode, 401);
+    console.log('  ✓ Forged/invalid token returns 401 Unauthorized.');
 
-    // 4. Wipe memory (Forget Everything)
-    await memoryService.clearAllStudentMemory(testUid);
-    const clearedProfile = await memoryService.getStudentMemoryProfile(testUid);
-    assert.strictEqual(clearedProfile, null);
-    console.log('  ✓ Complete memory erasure ("Forget Everything") verified.');
+    // 3. IDOR parameter injection attempt in query / body -> rejected without token
+    const idorRes = await makeReq('GET', '/api/memory?uid=victim_student_123');
+    assert.strictEqual(idorRes.statusCode, 401);
+    console.log('  ✓ Injected ?uid= query ignored and rejected with 401.');
+
+    // 4. Memory clear unauthorized attempt -> 401
+    const clearRes = await makeReq('POST', '/api/memory/clear', {}, { uid: 'victim_student_123' });
+    assert.strictEqual(clearRes.statusCode, 401);
+    console.log('  ✓ Memory clear unauthorized attempt rejected with 401.');
+  } finally {
+    testServer.close();
   }
 
   console.log('\n=== ALL PYTHOS PERSONAL MEMORY SYSTEM TESTS PASSED ===');

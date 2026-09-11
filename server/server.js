@@ -864,6 +864,14 @@ app.post('/api/chat', async (req, res) => {
 // Student Personal Memory Routes
 // =====================================
 async function studentAuthMiddleware(req, res, next) {
+  // Prevent IDOR: Strip or reject any client-supplied body/query uid overrides
+  if (req.body && req.body.uid !== undefined) {
+    delete req.body.uid;
+  }
+  if (req.query && req.query.uid !== undefined) {
+    delete req.query.uid;
+  }
+
   const authHeader = req.headers['authorization'];
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'unauthorized', message: 'Authentication required for memory management.' });
@@ -876,9 +884,10 @@ async function studentAuthMiddleware(req, res, next) {
 
   try {
     const decoded = await firebaseAdmin.verifyIdToken(rawToken);
-    if (!decoded?.uid) {
-      return res.status(401).json({ error: 'unauthorized', message: 'Invalid authentication token.' });
+    if (!decoded || !decoded.uid || !memoryService.isValidUid(decoded.uid)) {
+      return res.status(401).json({ error: 'unauthorized', message: 'Invalid or forged authentication token.' });
     }
+    // Derive identity EXCLUSIVELY from the cryptographically verified Firebase token
     req.studentUid = decoded.uid;
     next();
   } catch (err) {

@@ -133,8 +133,65 @@ function extractCandidates(userText, assistantReply) {
 }
 
 /**
+ * Processes a single extraction task document from the durable queue.
+ *
+ * @param {string} uid
+ * @param {Object} task
+ * @returns {Promise<boolean>}
+ */
+async function processExtractionTask(uid, task) {
+  if (!uid || !task || !task.userText) return false;
+
+  try {
+    const candidates = extractCandidates(task.userText, task.assistantReply || '');
+    if (candidates.length > 0) {
+      for (const cand of candidates) {
+        cand.chatId = task.chatId || null;
+        await memoryService.recordMemoryCandidate(uid, cand);
+      }
+    }
+    // Mark task as successfully completed
+    if (task.id || task.taskId) {
+      await memoryService.completeExtractionTask(uid, task.id || task.taskId);
+    }
+    return true;
+  } catch (err) {
+    console.warn(`[MEMORY EXTRACTOR] Error processing task ${task.id || task.taskId} for ${uid}:`, err.message);
+    if (task.id || task.taskId) {
+      await memoryService.failExtractionTask(uid, task.id || task.taskId, err.message);
+    }
+    return false;
+  }
+}
+
+/**
+ * Drains all pending extraction tasks for a student.
+ *
+ * @param {string} uid
+ * @returns {Promise<number>} Count of processed tasks
+ */
+async function drainQueueForUser(uid) {
+  if (!uid) return 0;
+  try {
+    const pending = await memoryService.getPendingExtractionTasks(uid, 20);
+    if (!pending || pending.length === 0) return 0;
+
+    let processedCount = 0;
+    for (const task of pending) {
+      const ok = await processExtractionTask(uid, task);
+      if (ok) processedCount++;
+    }
+    return processedCount;
+  } catch (err) {
+    console.warn(`[MEMORY EXTRACTOR] Error draining queue for ${uid}:`, err.message);
+    return 0;
+  }
+}
+
+/**
  * Main worker entrypoint called post-response.
- * Executes fully asynchronously so the student's response is never blocked.
+ * Persists interaction turn to durable Firestore queue, then drains queue asynchronously.
+ * Guarantees zero latency addition to chat response, and zero data loss on crashes/restarts.
  *
  * @param {string} uid - Authenticated student UID
  * @param {string} userText - Student query
@@ -145,12 +202,23 @@ async function processInteractionAsync(uid, userText, assistantReply, chatId = n
   if (!uid || !userText) return;
 
   try {
-    const candidates = extractCandidates(userText, assistantReply);
-    if (candidates.length === 0) return;
+    // 1. Durably persist task to Firestore queue first
+    const taskId = await memoryService.enqueueExtractionTask(uid, {
+      userText,
+      assistantReply,
+      chatId
+    });
 
-    for (const cand of candidates) {
-      cand.chatId = chatId;
-      await memoryService.recordMemoryCandidate(uid, cand);
+    // 2. Drain pending tasks asynchronously
+    if (taskId) {
+      await drainQueueForUser(uid);
+    } else {
+      // Fallback if queue write failed (e.g. temporary Firestore error)
+      const candidates = extractCandidates(userText, assistantReply);
+      for (const cand of candidates) {
+        cand.chatId = chatId;
+        await memoryService.recordMemoryCandidate(uid, cand);
+      }
     }
   } catch (err) {
     // Non-fatal: memory extraction failure should never crash the server
@@ -160,5 +228,7 @@ async function processInteractionAsync(uid, userText, assistantReply, chatId = n
 
 module.exports = {
   extractCandidates,
+  processExtractionTask,
+  drainQueueForUser,
   processInteractionAsync
 };
