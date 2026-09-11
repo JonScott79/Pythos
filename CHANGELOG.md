@@ -6,75 +6,51 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Pythos 1.4.0
-**Release Date:** 2026-09-08
+**Release Date:** 2026-09-10
 
 ### Added
-- **Firestore Data Layer** (`server/firestoreService.js`) — New dedicated module
-  establishing a clean Pythos namespace in the shared company-wide `lanzar-95ae3`
-  Firebase project:
-  ```
-  pythos/
-    └── app                    ← anchor document (Pythos app identity)
-          ├── bug_reports/     ← student-submitted & auto-flagged reports
-          └── config/          ← feature flags & admin settings
-  ```
-  - `ensurePythosNamespace()` — creates/updates the `pythos/app` anchor document
-    at server startup, establishing Pythos's identity in the shared Firebase Console.
-  - `saveBugReport()` — saves sanitized report to `pythos/app/bug_reports/{reportId}`.
-  - `updateBugReportReview()` — mirrors review lifecycle changes to Firestore using
-    `FieldValue.arrayUnion` for append-only history.
-  - `getConfig()` / `setConfig()` — reads and writes feature flags to
-    `pythos/app/config/{key}`.
+- **Firestore Bug-Report Persistence & Query Layer (Phase 3C)**:
+  - `server/firestoreService.js`: Added `getBugReport(reportId)` and `listBugReports({ status, limit, startAfter })` to read and query bug reports directly from `pythos/app/bug_reports`.
+  - `server/reportService.js`: Updated `listReports()`, `findReportById()`, and `updateReportReview()` to use Firestore as the primary persistent data source when Firebase Admin is configured, while retaining seamless local-filesystem fallback for offline or unconfigured environments.
+  - **Railway Filesystem Loss Resilience**: Reports can be found and reviewed even when the local Railway container JSON file no longer exists or was wiped after redeployment.
+  - Added `reporterUid` attachment to reports for authenticated student submissions.
+- **Hidden Authenticated Admin Console (Phase 3D)**:
+  - Standalone admin portal (`admin/index.html`) using authentic Pythos Greek/Socratic visual styling (`Cinzel`, `Inter`, dark/light themes).
+  - Unadvertised through public navigation — accessibility strictly enforced via Firebase Google Authentication and backend token verification.
+  - Communicates directly with authenticated Admin API endpoints using short-lived Firebase ID tokens (`Authorization: Bearer <idToken>`). Zero browser exposure of static `ADMIN_API_KEY`.
+  - Report overview cards (Dynamic Queue Count, Confirmed Faults, Active Inference Requests).
+  - Filterable report list by status and dedicated queue category (`👤 User Reports Only`, `🤖 System Auto-Flags`, `⚡ All Production Reports`, `🧪 Test Fixture Reports`).
+  - Detailed inspection modal displaying user prompts, AI responses, verification flags, CAS claim checks, client metadata, and interactive review status transition controls.
+  - Administrative reporting kill-switch toggle with real-time feedback.
+  - Added `GET /admin/auth/verify` endpoint in `server/adminRoutes.js` to securely validate active administrator permissions (`/admins/{uid}.active == true`).
+- **Telemetry Cleanup & Source Isolation**:
+  - Distinct report classification (`student`, `system_auto_flag`, `test`).
+  - Automated test fixture isolation: tests and harness runs are flagged as `test` and excluded by default from the primary student queue.
+  - Reset and purged legacy historical test fixtures to enable clean telemetry starting from scratch.
+- **Report Lifecycle Management & Deletion**:
+  - `DELETE /admin/reports/:reportId` endpoint with disk and Firestore dual-purge capabilities.
+  - Interactive "🗑️ Delete Report" button with confirmation modal in admin console.
+  - In-place lifecycle review state updates (`unreviewed`, `investigation`, `confirmed`, `rejected`, `ambiguous`, `technical`) with audit logging.
+- **AI Pair-Programming Incident Dossier & Bundle Export**:
+  - `formatReportAsMarkdown()`: Converts reports into standardized incident dossiers containing student interaction, CAS mathematical claims, verifier telemetry, and reviewer audit history.
+  - `GET /admin/reports/:reportId/export`: Export single reports as formatted Markdown (`.md`) or raw `.json`.
+  - `GET /admin/reports-export`: Export entire filtered queues as a unified AI analysis JSON bundle.
+  - One-click admin UI buttons (`📥 Export for AI Analysis`, `📄 Export MD`, `💾 Export JSON`).
+- **Phase 3E Evaluation**:
+  - Formally evaluated user profiles and persistent user data requirements.
+  - Intentionally deferred as not required: student session state is already cleanly keyed under `users/{uid}/pythos_chats/{chatId}` and admin authorization is driven by `/admins/{uid}`, avoiding redundant profile infrastructure.
 
-- **Bug Report Dual-Write** (`server/reportService.js`):
-  - `createReport()` now dual-writes to both the flat-file system and Firestore.
-    Firestore write is async, non-blocking, and failure-safe — a Firestore outage
-    never delays or breaks a student's report submission.
-  - `updateReportReview()` now mirrors review status changes to Firestore.
-  - Added optional `reporterUid` parameter to `createReport()`.
-
-- **Optional Reporter Identity** (`server/reportRoutes.js`):
-  - `POST /api/report` now accepts an `Authorization: Bearer <firebase-id-token>`
-    header. If present and valid, the submitter's UID is attached to the Firestore
-    report document (`reporterUid` field) for optional admin follow-up.
-  - Anonymous submissions (no token, logged-out users) continue to work identically.
-    Anonymity is the safe default.
-
-- **Frontend ID Token Attachment** (`app.js`):
-  - Report submissions from signed-in users now include their Firebase ID token as an
-    `Authorization: Bearer` header, enabling the optional `reporterUid` linkage.
-  - Graceful fallback: if token retrieval fails for any reason, report is submitted
-    anonymously. No user-facing change.
-
-- **Pythos Namespace Init at Server Startup** (`server/server.js`):
-  - `ensurePythosNamespace()` is called (async, non-blocking) when the server begins
-    listening. Server is fully available regardless of Firestore init outcome.
-
-- **Merged Firestore Security Rules** (`firestore.rules`):
-  - New file containing the complete merged rules for the `lanzar-95ae3` project:
-    all existing rules (LANZAR Auth Hub, Threadline) preserved verbatim, plus new
-    `pythos/{anchor}` rules.
-  - **Deploy to Firebase Console before 3D admin console launch.**
-  - `pythos/app/bug_reports`: anonymous/authenticated create with schema validation;
-    admin-only read/update/delete.
-  - `pythos/app/config`: admin read/write only.
-  - `pythos/app` anchor: admin read; write denied to browser clients (server-only).
-
-### Changed
-- `server/reportService.js`: `createReport()` gains optional `reporterUid` param
-  (null by default — fully backward compatible).
-- `server/reportRoutes.js`: Handler changed from sync to `async` to support
-  optional token verification. Report submission behavior otherwise unchanged.
-
-### Solved
-- **Bug reports lost on redeploy.** The existing flat-file system stored reports on
-  the Railway container filesystem, wiped on every deployment. Reports are now
-  dual-written to Firestore — permanent, durable, and accessible after any redeploy.
+### Security
+- **Hardened Firestore Security Rules**:
+  - Updated `pythos/app/bug_reports/{reportId}` in `firestore.rules` to `allow read, write: if isAdmin();`.
+  - Denies direct browser/client creation of bug reports to ensure all reports flow through `POST /api/report` for PII sanitization and validation before being written via Firebase Admin SDK.
+  - Preserves all LANZAR Auth Hub, Threadline, `/admins/{uid}`, and `users/{uid}/pythos_chats/{chatId}` rules intact.
 
 ### Verification & Testing
-- `test-report-system.js`: 6/6 (100%) ✅ — all report lifecycle tests pass with
-  Firestore layer inactive (graceful degradation when Admin SDK not configured).
-- Flat-file system and all existing admin endpoints fully operational.
+- `test-admin-auth-console.js`: 11/11 (100%) ✅ — comprehensive suite testing unauthenticated 403, non-admin 403, active admin 200, invalid token rejection, report list/detail endpoints, queue filtering, review updates, deletion, export endpoints, and emergency toggle.
+- `test-report-system.js`: 11/11 (100%) ✅ — verified report creation, Firestore degradation fallback, telemetry isolation, report deletion, and AI markdown dossier formatting.
+- `test-regression-harness.js`: 12/12 suites passing (100%) ✅.
+- SymPy CAS verifier: 266/266 unit tests passing (100%) ✅.
 
 ---
 

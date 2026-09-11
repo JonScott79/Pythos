@@ -234,6 +234,77 @@ async function updateBugReportReview(reportId, { status, notes = '', reviewer = 
   }
 }
 
+/**
+ * Retrieves a single bug report by ID from Firestore (pythos/app/bug_reports/{reportId}).
+ * Returns null if unavailable, not found, or error occurs.
+ *
+ * @param {string} reportId
+ * @returns {Promise<Object|null>}
+ */
+async function getBugReport(reportId) {
+  const col = bugReportsRef();
+  if (!col || !reportId) return null;
+
+  try {
+    const snap = await col.doc(reportId).get();
+    if (!snap.exists) return null;
+    return snap.data();
+  } catch (err) {
+    console.error(`[FIRESTORE] Failed to get bug report ${reportId}:`, err.message);
+    return null;
+  }
+}
+
+/**
+ * Lists bug reports from Firestore with optional status filtering and pagination.
+ *
+ * @param {Object} options
+ * @param {string} [options.status] - Filter by review.status
+ * @param {number} [options.limit=50] - Maximum number of reports to return
+ * @param {any} [options.startAfter] - Document snapshot or cursor to paginate from
+ * @returns {Promise<Array<Object>>}
+ */
+async function listBugReports({ status, source, includeTest = false, limit = 50, startAfter } = {}) {
+  const col = bugReportsRef();
+  if (!col) return [];
+
+  try {
+    let q = col;
+    if (status) {
+      q = q.where('review.status', '==', status);
+    }
+    if (source) {
+      q = q.where('source', '==', source);
+    }
+
+    // Order by creation time descending (most recent first)
+    q = q.orderBy('createdAt', 'desc');
+
+    if (startAfter) {
+      q = q.startAfter(startAfter);
+    }
+
+    if (typeof limit === 'number' && limit > 0) {
+      q = q.limit(limit);
+    }
+
+    const snap = await q.get();
+    const results = [];
+    snap.forEach(docSnap => {
+      const data = docSnap.data();
+      const reportSource = data.source || 'student';
+      if (!source && !includeTest && reportSource === 'test') {
+        return;
+      }
+      results.push(data);
+    });
+    return results;
+  } catch (err) {
+    console.error('[FIRESTORE] Failed to list bug reports:', err.message);
+    return [];
+  }
+}
+
 // ── Config / Feature Flags ─────────────────────────────────────────────────────
 
 /**
@@ -280,10 +351,34 @@ async function setConfig(key, data, updatedBy = null) {
   }
 }
 
+/**
+ * Deletes a bug report from Firestore (pythos/app/bug_reports/{reportId}).
+ *
+ * @param {string} reportId
+ * @returns {Promise<boolean>}
+ */
+async function deleteBugReport(reportId) {
+  const col = bugReportsRef();
+  if (!col || !reportId) return false;
+
+  try {
+    await col.doc(reportId).delete();
+    console.log(`[FIRESTORE] Bug report deleted → ${reportId}`);
+    return true;
+  } catch (err) {
+    console.error(`[FIRESTORE] Failed to delete bug report ${reportId}:`, err.message);
+    return false;
+  }
+}
+
 module.exports = {
   ensurePythosNamespace,
   saveBugReport,
+  getBugReport,
+  listBugReports,
   updateBugReportReview,
+  deleteBugReport,
   getConfig,
   setConfig
 };
+

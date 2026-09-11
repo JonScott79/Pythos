@@ -137,19 +137,11 @@ service cloud.firestore {
       allow write: if false; // Managed exclusively by the Pythos server via Admin SDK
 
       // ── Bug Reports ────────────────────────────────────────────
-      // Students and anonymous users can submit (create) reports.
-      // All reads, updates, and deletes are admin-only.
+      // All student bug reports are submitted via Pythos API (POST /api/report)
+      // which enforces PII sanitization and writes via the Firebase Admin SDK.
+      // Direct client writes from browsers are strictly denied.
       match /bug_reports/{reportId} {
-        allow create: if (
-          // Report must start in the unreviewed state
-          request.resource.data.review.status == 'unreviewed' &&
-          // reporterUid must be null (anonymous) or match the authenticated user's UID
-          (
-            request.resource.data.reporterUid == null ||
-            (request.auth != null && request.resource.data.reporterUid == request.auth.uid)
-          )
-        );
-        allow read, update, delete: if isAdmin();
+        allow read, write: if isAdmin();
       }
 
       // ── Config / Feature Flags ─────────────────────────────────

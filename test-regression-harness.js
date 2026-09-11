@@ -254,6 +254,17 @@ runSuite("Premise-Data Consistency & Adversarial Phenomenon Reasoning Suite", ()
   console.log(out.trim());
 });
 
+// 12. Firebase Admin Auth, ID Token Verification & Console API Suite
+runSuite("Firebase Admin Auth, ID Token Verification & Console API Suite", () => {
+  const out = execSync('node test-admin-auth-console.js', {
+    cwd: __dirname,
+    encoding: 'utf-8',
+    stdio: 'pipe'
+  });
+  console.log(out.trim());
+});
+
 console.log(`\n${colors.bold}${colors.green}====================================================${colors.reset}`);
 console.log(`${colors.bold}${colors.green}ALL ${passedSuites}/${totalSuites} REGRESSION SUITES PASSED (100%)${colors.reset}`);
 console.log(`${colors.bold}${colors.green}====================================================${colors.reset}\n`);
+

@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="assets/favicon.png">
-  <title>Pythos Release History & Changelog | v1.3.1</title>
+  <title>Pythos Release History & Changelog | v1.4.0</title>
   <meta name="description" content="Pythos release notes & changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://pythos.lanzar.me/changelog.html">
 
   <!-- OPEN GRAPH -->
-  <meta property="og:title" content="Pythos Release History & Changelog | v1.3.1">
+  <meta property="og:title" content="Pythos Release History & Changelog | v1.4.0">
   <meta property="og:description" content="Pythos release notes & changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta property="og:url" content="https://pythos.lanzar.me/changelog.html">
   <meta property="og:type" content="article">
@@ -23,7 +23,7 @@
 
   <!-- TWITTER CARD -->
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Pythos Release History & Changelog | v1.3.0">
+  <meta name="twitter:title" content="Pythos Release History & Changelog | v1.4.0">
   <meta name="twitter:description" content="Pythos release notes & changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="twitter:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
 
@@ -427,12 +427,42 @@
       <p>Authoritative release notes, verification engine milestones, and mathematical system updates.</p>
     </header>
 
+    <!-- RELEASE v1.4.0 -->
+    <article class="release-card" id="pythos-1-4-0">
+      <div class="release-header">
+        <div class="release-title-wrap">
+          <h2 class="release-version">Pythos 1.4.0</h2>
+          <span class="release-badge">Latest Release</span>
+        </div>
+        <time class="release-date" datetime="2026-09-10">September 10, 2026</time>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header added">✦ WHAT'S NEW</div>
+        <ul class="feature-list">
+          <li><strong>Firebase Bug Report Persistence &amp; Query Layer (Phase 3C)</strong>: Complete Firestore integration for durable bug report lifecycle management under the <code>pythos/app/bug_reports</code> namespace. Resolves ephemeral Railway filesystem wipes — reports remain queryable and reviewable across redeployments. Seamless local filesystem fallback is maintained for offline development.</li>
+          <li><strong>Hidden Authenticated Admin Console (Phase 3D)</strong>: Standalone admin portal located at <code>admin/index.html</code> (unlinked from public navigation). Authenticates active administrators via Firebase Google Authentication and backend ID token verification against <code>/admins/{uid}.active == true</code>. Features report filtering, detailed inspect views, raw interaction transcripts, CAS verifier claims, and review status management without exposing client API keys.</li>
+          <li><strong>Telemetry Isolation &amp; Queue Classification</strong>: Explicit classification between real student submissions (<code>student</code>), automated mathematical flags (<code>system_auto_flag</code>), and test harness fixtures (<code>test</code>). Default admin views isolate genuine user reports.</li>
+          <li><strong>Administrative Report Lifecycle &amp; Deletion</strong>: Real-time lifecycle state updates and complete report deletion via <code>DELETE /admin/reports/:reportId</code> across both disk and Firestore.</li>
+          <li><strong>AI Pair-Programming Incident Export</strong>: Built-in tools to export single incident dossiers as formatted Markdown (<code>.md</code>) or raw JSON, plus bulk queue bundling for rapid root-cause analysis and automated regression test generation.</li>
+          <li><strong>Security Rules Hardening</strong>: Client-side creation of bug reports is strictly denied in Firestore security rules (<code>allow read, write: if isAdmin();</code>). Bug submissions are channeled through <code>POST /api/report</code> with server-side PII sanitization and Firebase Admin SDK privilege.</li>
+          <li><strong>Phase 3E Evaluation</strong>: User profile document requirements formally evaluated and documented as deferred — student sessions remain cleanly keyed under existing <code>users/{uid}/pythos_chats/{chatId}</code> without redundant collections.</li>
+        </ul>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header verify">⚖️ VERIFICATION &amp; REGRESSION</div>
+        <ul class="feature-list">
+          <li><strong>12/12 Master Regression Suites Passing (100%)</strong>: Added dedicated Suite 12 covering Firebase Admin Authentication, ID Token verification, active admin permissions, report listing/detail, queue filtering, review state transitions, report deletion, incident export endpoints, and administrative reporting toggles. All 266 SymPy tests, Math.js adversarial cases, and reasoning suites passing.</li>
+        </ul>
+      </div>
+    </article>
+
     <!-- RELEASE v1.3.1 -->
     <article class="release-card" id="pythos-1-3-1">
       <div class="release-header">
         <div class="release-title-wrap">
           <h2 class="release-version">Pythos 1.3.1</h2>
-          <span class="release-badge">Latest Release</span>
         </div>
         <time class="release-date" datetime="2026-09-08">September 8, 2026</time>
       </div>

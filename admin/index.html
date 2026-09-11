@@ -1,0 +1,1275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/png" href="../assets/favicon.png">
+  
+  <title>Pythos Admin Sanctuary | Mathematics & Physics System Console</title>
+  <meta name="description" content="Pythos internal administrative sanctuary for bug report review, verifier telemetry, and system lifecycle monitoring.">
+  <meta name="robots" content="noindex, nofollow">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg-color: #fcfbf9;
+      --surface-color: #ffffff;
+      --surface-card: rgba(255, 255, 255, 0.95);
+      --text-main: #1e293b;
+      --text-muted: #64748b;
+      --primary-color: #2a728f;
+      --primary-hover: #1e5a73;
+      --accent-orange: #f46b45;
+      --border-color: #e2e8f0;
+      --card-bg: #f8fafc;
+      --badge-unreviewed-bg: #fef3c7;
+      --badge-unreviewed-text: #92400e;
+      --badge-investigation-bg: #e0f2fe;
+      --badge-investigation-text: #0369a1;
+      --badge-confirmed-bg: #fee2e2;
+      --badge-confirmed-text: #b91c1c;
+      --badge-rejected-bg: #f1f5f9;
+      --badge-rejected-text: #475569;
+      --badge-technical-bg: #ede9fe;
+      --badge-technical-text: #6d28d9;
+      --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+      --code-bg: #f1f5f9;
+    }
+
+    [data-theme="dark"] {
+      --bg-color: #0b1120;
+      --surface-color: #131d31;
+      --surface-card: rgba(19, 29, 49, 0.95);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary-color: #38bdf8;
+      --primary-hover: #0284c7;
+      --accent-orange: #fb923c;
+      --border-color: #334155;
+      --card-bg: #1e293b;
+      --badge-unreviewed-bg: rgba(245, 158, 11, 0.2);
+      --badge-unreviewed-text: #fbbf24;
+      --badge-investigation-bg: rgba(56, 189, 248, 0.2);
+      --badge-investigation-text: #7dd3fc;
+      --badge-confirmed-bg: rgba(239, 68, 68, 0.2);
+      --badge-confirmed-text: #f87171;
+      --badge-rejected-bg: rgba(148, 163, 184, 0.2);
+      --badge-rejected-text: #cbd5e1;
+      --badge-technical-bg: rgba(168, 85, 247, 0.2);
+      --badge-technical-text: #c084fc;
+      --card-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+      --code-bg: #0f172a;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-color);
+      color: var(--text-main);
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Accessibility Focus */
+    *:focus-visible {
+      outline: 2px solid var(--primary-color) !important;
+      outline-offset: 2px !important;
+    }
+
+    /* Top Navigation */
+    .top-nav {
+      background: var(--surface-color);
+      border-bottom: 1px solid var(--border-color);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(8px);
+    }
+
+    .brand-wrap {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: var(--text-main);
+    }
+
+    .brand-logo {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      border: 1.5px solid var(--primary-color);
+      object-fit: cover;
+    }
+
+    .brand-title {
+      font-family: 'Cinzel', serif;
+      font-weight: 700;
+      font-size: 1.15rem;
+      letter-spacing: 0.5px;
+      color: var(--primary-color);
+    }
+
+    .brand-badge {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      padding: 2px 8px;
+      border-radius: 6px;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border-color);
+      background: var(--surface-color);
+      color: var(--text-main);
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+
+    .btn:hover:not(:disabled) {
+      border-color: var(--primary-color);
+      color: var(--primary-color);
+    }
+
+    .btn-primary {
+      background: var(--primary-color);
+      border-color: var(--primary-color);
+      color: #ffffff;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: var(--primary-hover);
+      border-color: var(--primary-hover);
+      color: #ffffff;
+    }
+
+    .btn-danger {
+      background: #ef4444;
+      border-color: #ef4444;
+      color: #ffffff;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Container */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 32px 20px 80px;
+      width: 100%;
+      flex: 1;
+    }
+
+    /* Hero / Header */
+    .sanctuary-header {
+      margin-bottom: 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      gap: 16px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 20px;
+    }
+
+    .sanctuary-header h1 {
+      font-family: 'Cinzel', serif;
+      font-size: 1.8rem;
+      margin: 0 0 6px 0;
+      color: var(--primary-color);
+    }
+
+    .sanctuary-header p {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: 0.92rem;
+    }
+
+    /* Metric Cards */
+    .metrics-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .metric-card {
+      background: var(--surface-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 16px 20px;
+      box-shadow: var(--card-shadow);
+    }
+
+    .metric-label {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .metric-val {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    /* Auth Gate Card */
+    .auth-card {
+      max-width: 480px;
+      margin: 60px auto;
+      background: var(--surface-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 36px 28px;
+      text-align: center;
+      box-shadow: var(--card-shadow);
+    }
+
+    .auth-card h2 {
+      font-family: 'Cinzel', serif;
+      color: var(--primary-color);
+      margin-top: 0;
+      margin-bottom: 10px;
+    }
+
+    .auth-card p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      line-height: 1.5;
+      margin-bottom: 24px;
+    }
+
+    .auth-state-box {
+      margin-top: 20px;
+      padding: 14px;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      display: none;
+    }
+
+    .auth-state-box.error {
+      display: block;
+      background: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #f87171;
+    }
+
+    /* Layout for Console: List + Detail Split View */
+    .console-split {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+
+    @media (max-width: 900px) {
+      .console-split {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Report List Panel */
+    .panel {
+      background: var(--surface-card);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: var(--card-shadow);
+    }
+
+    .panel-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-color);
+      background: var(--card-bg);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .panel-header h3 {
+      margin: 0;
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: var(--text-main);
+    }
+
+    .filter-bar {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      gap: 8px;
+      background: var(--surface-color);
+    }
+
+    .filter-select {
+      width: 100%;
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+      background: var(--surface-color);
+      color: var(--text-main);
+      font-size: 0.85rem;
+    }
+
+    .report-items {
+      max-height: 650px;
+      overflow-y: auto;
+      divide-y: divide;
+    }
+
+    .report-item {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border-color);
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .report-item:hover {
+      background: var(--card-bg);
+    }
+
+    .report-item.active {
+      background: var(--card-bg);
+      border-left: 4px solid var(--primary-color);
+    }
+
+    .item-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .report-id-text {
+      font-family: 'Courier New', monospace;
+      font-weight: 700;
+      font-size: 0.85rem;
+      color: var(--primary-color);
+    }
+
+    .status-badge {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 2px 8px;
+      border-radius: 12px;
+      letter-spacing: 0.5px;
+    }
+
+    .status-badge.unreviewed { background: var(--badge-unreviewed-bg); color: var(--badge-unreviewed-text); }
+    .status-badge.investigation { background: var(--badge-investigation-bg); color: var(--badge-investigation-text); }
+    .status-badge.confirmed { background: var(--badge-confirmed-bg); color: var(--badge-confirmed-text); }
+    .status-badge.rejected { background: var(--badge-rejected-bg); color: var(--badge-rejected-text); }
+    .status-badge.technical { background: var(--badge-technical-bg); color: var(--badge-technical-text); }
+
+    .item-preview {
+      font-size: 0.84rem;
+      color: var(--text-main);
+      margin: 0 0 6px 0;
+      line-height: 1.35;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .item-date {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    /* Detail View Panel */
+    .detail-body {
+      padding: 24px;
+    }
+
+    .detail-placeholder {
+      padding: 60px 24px;
+      text-align: center;
+      color: var(--text-muted);
+    }
+
+    .detail-section {
+      margin-bottom: 24px;
+    }
+
+    .section-title {
+      font-family: 'Cinzel', serif;
+      font-size: 0.95rem;
+      color: var(--primary-color);
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .content-box {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 14px 16px;
+      font-size: 0.88rem;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .meta-item {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+
+    .meta-item-label {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .meta-item-val {
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--text-main);
+      word-break: break-all;
+    }
+
+    /* Review Control Form */
+    .review-form {
+      background: var(--surface-color);
+      border: 1.5px solid var(--primary-color);
+      border-radius: 10px;
+      padding: 18px 20px;
+      margin-top: 24px;
+    }
+
+    .form-group {
+      margin-bottom: 14px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .form-select, .form-textarea {
+      width: 100%;
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+      background: var(--surface-color);
+      color: var(--text-main);
+      font-size: 0.88rem;
+      font-family: inherit;
+    }
+
+    .form-check-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+      font-size: 0.88rem;
+    }
+
+    .btn-danger {
+      background: #dc2626;
+      color: #ffffff;
+      border-color: #b91c1c;
+    }
+
+    .btn-danger:hover {
+      background: #b91c1c;
+    }
+
+    .history-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      font-size: 0.82rem;
+    }
+
+    .history-item {
+      padding: 8px 0;
+      border-bottom: 1px dashed var(--border-color);
+    }
+
+    .history-item:last-child {
+      border-bottom: none;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation Bar -->
+  <nav class="top-nav" role="navigation" aria-label="Admin Navigation">
+    <a href="../index.html" class="brand-wrap" title="Return to Pythos Student Workspace">
+      <img src="../assets/pythos_avatar.jpg" alt="Pythos Avatar" class="brand-logo" width="34" height="34">
+      <span class="brand-title">Pythos Sanctuary</span>
+      <span class="brand-badge">Console</span>
+      <a href="../changelog.html#pythos-1-4-0" class="brand-badge" style="background:transparent; border:1px solid var(--border-color); color:var(--text-muted); text-decoration:none;" title="Release Notes (v1.4.0)">v1.4.0</a>
+    </a>
+
+    <div class="nav-actions">
+      <button id="themeToggleBtn" class="btn" title="Toggle Theme" aria-label="Toggle Dark and Light Mode">
+        <span id="themeIcon">🌓</span>
+      </button>
+      <div id="userBadge" style="display:none; align-items:center; gap:8px; font-size:0.85rem; font-weight:600;">
+        <span id="adminEmailDisplay" style="color:var(--text-muted);"></span>
+        <button id="logoutBtn" class="btn" style="padding:4px 10px; font-size:0.8rem;">Sign Out</button>
+      </div>
+      <button id="loginBtn" class="btn btn-primary">Admin Sign In</button>
+    </div>
+  </nav>
+
+  <!-- Main Container -->
+  <main class="container" role="main">
+
+    <!-- Auth Wall / Unauthenticated State -->
+    <div id="authGate" class="auth-card" style="display: none;">
+      <h2>Sanctuary Authentication</h2>
+      <p>This console is restricted to active LANZAR administrators. Sign in with your registered administrator Google account to inspect bug reports and system telemetry.</p>
+      <button id="gateLoginBtn" class="btn btn-primary" style="padding:10px 24px; font-size:1rem;">
+        Authenticate with Google
+      </button>
+      <div id="authErrorMsg" class="auth-state-box"></div>
+    </div>
+
+    <!-- Active Admin Console Dashboard -->
+    <div id="adminDashboard" style="display: none;">
+
+      <!-- Header & Quick Toggles -->
+      <div class="sanctuary-header">
+        <div>
+          <h1>Problem Reports &amp; Ground-Truth Telemetry</h1>
+          <p>Durable Firestore Bug Report Inspection &bull; Immutability Verified &bull; Student Privacy Enforced</p>
+        </div>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <button id="exportBundleBtn" class="btn" title="Export Current Queue as AI Incident Analysis Bundle (JSON)">
+            📥 Export for AI Analysis
+          </button>
+          <button id="refreshReportsBtn" class="btn" title="Refresh Report List">
+            ↻ Refresh List
+          </button>
+          <button id="toggleReportingBtn" class="btn" title="Toggle Student Bug Reporting">
+            Reporting: ...
+          </button>
+        </div>
+      </div>
+
+      <!-- Telemetry Quick Metrics -->
+      <div class="metrics-row">
+        <div class="metric-card">
+          <div id="metricTotalLabel" class="metric-label">User Reports</div>
+          <div id="metricTotalReports" class="metric-val">0</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Unreviewed Reports</div>
+          <div id="metricUnreviewed" class="metric-val" style="color:var(--accent-orange);">0</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Confirmed Faults</div>
+          <div id="metricConfirmed" class="metric-val" style="color:#ef4444;">0</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Active Inference Requests</div>
+          <div id="metricActiveReqs" class="metric-val">0</div>
+        </div>
+      </div>
+
+      <!-- Main Split View: Left List, Right Detail -->
+      <div class="console-split">
+
+        <!-- Left List Panel -->
+        <div class="panel">
+          <div class="panel-header">
+            <h3 id="panelQueueTitle">User Reports</h3>
+            <span id="listCountBadge" style="font-size:0.8rem; color:var(--text-muted); font-weight:600;">0 reports</span>
+          </div>
+
+          <div class="filter-bar">
+            <select id="queueFilter" class="filter-select" aria-label="Select report queue category" style="font-weight:600;">
+              <option value="user" selected>👤 User Reports Only</option>
+              <option value="system">🤖 System Auto-Flags</option>
+              <option value="all_production">⚡ All Production (User + Auto-Flags)</option>
+              <option value="test">🧪 Test Fixture Reports</option>
+            </select>
+            <select id="statusFilter" class="filter-select" aria-label="Filter reports by review status">
+              <option value="">All Review Statuses</option>
+              <option value="unreviewed">Unreviewed</option>
+              <option value="investigation">In Investigation</option>
+              <option value="confirmed">Confirmed</option>
+              <option value="rejected">Rejected</option>
+              <option value="technical">Technical Fault</option>
+            </select>
+          </div>
+
+          <div id="reportList" class="report-items">
+            <!-- Populated dynamically -->
+            <div style="padding:24px; text-align:center; color:var(--text-muted); font-size:0.88rem;">
+              Loading reports from Firestore...
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Detail Panel -->
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <h3>Report Detail &amp; Lifecycle Review</h3>
+              <span id="detailReportIdHeader" style="font-family:'Courier New', monospace; font-weight:700; color:var(--primary-color);"></span>
+            </div>
+            <div id="detailActionBtns" style="display:none; gap:6px; align-items:center;">
+              <button id="exportMdBtn" class="btn" style="font-size:0.78rem; padding:4px 10px;" title="Export formatted incident dossier for AI analysis (Markdown)">
+                📄 Export MD
+              </button>
+              <button id="exportJsonBtn" class="btn" style="font-size:0.78rem; padding:4px 10px;" title="Export raw report data (JSON)">
+                💾 Export JSON
+              </button>
+            </div>
+          </div>
+
+          <div id="detailView" class="detail-body">
+            <div class="detail-placeholder">
+              <p>Select a report from the list to view its immutable interaction data, CAS verifier claims, and lifecycle review history.</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Firebase Web SDK & Admin Script -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+    import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCm11MJPwYKk2ckDIrTOGLNHdyFkdCOM2k",
+      authDomain: "lanzar-95ae3.firebaseapp.com",
+      projectId: "lanzar-95ae3",
+      storageBucket: "lanzar-95ae3.firebasestorage.app",
+      messagingSenderId: "61309916889",
+      appId: "1:61309916889:web:a6bce4cb213af2a52250c8"
+    };
+
+    const fbApp = initializeApp(firebaseConfig);
+    const auth = getAuth(fbApp);
+
+    // API Base URL Resolution (same as app.js)
+    function getApiBase() {
+      if (window.location.protocol === "file:") return "http://localhost:3006";
+      if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+        if (window.location.port && window.location.port !== "3006") return `http://${window.location.hostname}:3006`;
+        return "";
+      }
+      if (window.location.hostname.includes("lanzar.me") || window.location.hostname.includes("netlify.app")) {
+        return "https://pythos-api.lanzar.me";
+      }
+      return "";
+    }
+
+    const apiBase = getApiBase();
+
+    // DOM Elements
+    const authGate = document.getElementById("authGate");
+    const authErrorMsg = document.getElementById("authErrorMsg");
+    const adminDashboard = document.getElementById("adminDashboard");
+    const loginBtn = document.getElementById("loginBtn");
+    const gateLoginBtn = document.getElementById("gateLoginBtn");
+    const logoutBtn = document.getElementById("logoutBtn");
+    const userBadge = document.getElementById("userBadge");
+    const adminEmailDisplay = document.getElementById("adminEmailDisplay");
+
+    const reportListEl = document.getElementById("reportList");
+    const detailViewEl = document.getElementById("detailView");
+    const queueFilterEl = document.getElementById("queueFilter");
+    const statusFilterEl = document.getElementById("statusFilter");
+    const panelQueueTitle = document.getElementById("panelQueueTitle");
+    const metricTotalLabel = document.getElementById("metricTotalLabel");
+    const refreshReportsBtn = document.getElementById("refreshReportsBtn");
+    const toggleReportingBtn = document.getElementById("toggleReportingBtn");
+    const exportBundleBtn = document.getElementById("exportBundleBtn");
+    const detailActionBtns = document.getElementById("detailActionBtns");
+    const exportMdBtn = document.getElementById("exportMdBtn");
+    const exportJsonBtn = document.getElementById("exportJsonBtn");
+
+    let currentAdminUser = null;
+    let cachedReports = [];
+    let selectedReportId = null;
+    let isReportingActive = true;
+
+    // Theme handling
+    const themeBtn = document.getElementById("themeToggleBtn");
+    const savedTheme = localStorage.getItem("pythos-theme") || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    document.documentElement.setAttribute("data-theme", savedTheme);
+
+    themeBtn.addEventListener("click", () => {
+      const cur = document.documentElement.getAttribute("data-theme");
+      const next = cur === "dark" ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      localStorage.setItem("pythos-theme", next);
+    });
+
+    // Helper: Authenticated Admin Fetch
+    async function adminFetch(endpoint, options = {}) {
+      if (!currentAdminUser) throw new Error("Not authenticated");
+      const token = await currentAdminUser.getIdToken();
+      const headers = {
+        ...(options.headers || {}),
+        "Authorization": `Bearer ${token}`
+      };
+      const res = await fetch(`${apiBase}${endpoint}`, { ...options, headers });
+      return res;
+    }
+
+    // Auth State Observer
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        currentAdminUser = user;
+        loginBtn.style.display = "none";
+        userBadge.style.display = "flex";
+        adminEmailDisplay.textContent = user.email || user.displayName || "Admin";
+
+        // Verify with server
+        try {
+          const verifyRes = await adminFetch("/admin/auth/verify");
+          if (verifyRes.ok) {
+            authGate.style.display = "none";
+            adminDashboard.style.display = "block";
+            loadMetrics();
+            loadReports();
+          } else {
+            const errData = await verifyRes.json().catch(() => ({}));
+            showAuthError(errData.message || "Your Google account does not have active LANZAR administrator privileges.");
+          }
+        } catch (err) {
+          showAuthError("Failed to verify admin privileges: " + err.message);
+        }
+      } else {
+        currentAdminUser = null;
+        loginBtn.style.display = "inline-flex";
+        userBadge.style.display = "none";
+        adminDashboard.style.display = "none";
+        authGate.style.display = "block";
+        authErrorMsg.style.display = "none";
+        cachedReports = [];
+        selectedReportId = null;
+      }
+    });
+
+    function showAuthError(msg) {
+      authGate.style.display = "block";
+      adminDashboard.style.display = "none";
+      authErrorMsg.textContent = msg;
+      authErrorMsg.style.display = "block";
+    }
+
+    async function handleLogin() {
+      authErrorMsg.style.display = "none";
+      const provider = new GoogleAuthProvider();
+      try {
+        await signInWithPopup(auth, provider);
+      } catch (err) {
+        showAuthError("Sign-in cancelled or failed: " + err.message);
+      }
+    }
+
+    loginBtn.addEventListener("click", handleLogin);
+    gateLoginBtn.addEventListener("click", handleLogin);
+    logoutBtn.addEventListener("click", () => signOut(auth));
+
+    // Load Metrics
+    async function loadMetrics() {
+      try {
+        const res = await adminFetch("/admin/metrics");
+        if (res.ok) {
+          const data = await res.json();
+          document.getElementById("metricActiveReqs").textContent = data.activeRequests || 0;
+        }
+      } catch (_) {}
+    }
+
+    // Load Reports
+    async function loadReports() {
+      const queue = queueFilterEl ? queueFilterEl.value : "user";
+      const status = statusFilterEl.value;
+
+      let sourceParam = "";
+      let includeTestParam = "";
+      let queueHeading = "User Reports";
+      let metricLabelText = "User Reports";
+
+      if (queue === "user") {
+        sourceParam = "&source=student";
+        queueHeading = "👤 User Reports";
+        metricLabelText = "User Reports";
+      } else if (queue === "system") {
+        sourceParam = "&source=system_auto_flag";
+        queueHeading = "🤖 System Auto-Flags";
+        metricLabelText = "System Flags";
+      } else if (queue === "all_production") {
+        includeTestParam = "&includeTest=false";
+        queueHeading = "⚡ All Production Reports";
+        metricLabelText = "Production Reports";
+      } else if (queue === "test") {
+        sourceParam = "&source=test";
+        includeTestParam = "&includeTest=true";
+        queueHeading = "🧪 Test Fixture Reports";
+        metricLabelText = "Test Reports";
+      }
+
+      if (panelQueueTitle) panelQueueTitle.textContent = queueHeading;
+      if (metricTotalLabel) metricTotalLabel.textContent = metricLabelText;
+
+      const url = `/admin/reports?limit=200${status ? `&status=${encodeURIComponent(status)}` : ""}${sourceParam}${includeTestParam}`;
+      reportListEl.innerHTML = '<div style="padding:24px; text-align:center; color:var(--text-muted); font-size:0.88rem;">Loading reports...</div>';
+
+      try {
+        const res = await adminFetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        cachedReports = data.reports || [];
+        isReportingActive = data.reportingEnabled;
+        updateReportingToggleBtn();
+
+        // Update counts
+        document.getElementById("metricTotalReports").textContent = cachedReports.length;
+        document.getElementById("listCountBadge").textContent = `${cachedReports.length} report(s)`;
+        const unreviewedCount = cachedReports.filter(r => r.status === "unreviewed").length;
+        document.getElementById("metricUnreviewed").textContent = unreviewedCount;
+        const confirmedCount = cachedReports.filter(r => r.status === "confirmed").length;
+        document.getElementById("metricConfirmed").textContent = confirmedCount;
+
+        renderReportList();
+
+        // If previously selected, re-open it
+        if (selectedReportId && cachedReports.some(r => r.report_id === selectedReportId)) {
+          loadReportDetail(selectedReportId);
+        } else if (cachedReports.length > 0) {
+          loadReportDetail(cachedReports[0].report_id);
+        } else {
+          detailViewEl.innerHTML = '<div class="detail-placeholder"><p>No reports found matching criteria in this queue.</p></div>';
+          document.getElementById("detailReportIdHeader").textContent = "";
+        }
+      } catch (err) {
+        reportListEl.innerHTML = `<div style="padding:24px; text-align:center; color:#b91c1c; font-size:0.88rem;">Failed to load reports: ${err.message}</div>`;
+      }
+    }
+
+    function renderReportList() {
+      if (cachedReports.length === 0) {
+        reportListEl.innerHTML = '<div style="padding:24px; text-align:center; color:var(--text-muted); font-size:0.88rem;">No reports match the selected filter.</div>';
+        return;
+      }
+
+      reportListEl.innerHTML = "";
+      cachedReports.forEach(rep => {
+        const div = document.createElement("div");
+        div.className = `report-item ${selectedReportId === rep.report_id ? "active" : ""}`;
+        div.dataset.id = rep.report_id;
+
+        const dateStr = rep.timestamp ? new Date(rep.timestamp).toLocaleString() : rep.date_folder;
+        const preview = rep.student_description || rep.question_preview || "(Empty interaction)";
+
+        div.innerHTML = `
+          <div class="item-top">
+            <span class="report-id-text">${rep.report_id}</span>
+            <span class="status-badge ${rep.status}">${rep.status}</span>
+          </div>
+          <p class="item-preview">${escapeHtml(preview)}</p>
+          <div class="item-date">${escapeHtml(dateStr)} &bull; ${rep.source || "student"}</div>
+        `;
+
+        div.addEventListener("click", () => loadReportDetail(rep.report_id));
+        reportListEl.appendChild(div);
+      });
+    }
+
+    // Load Single Report Detail
+    async function loadReportDetail(reportId) {
+      selectedReportId = reportId;
+      document.querySelectorAll(".report-item").forEach(el => {
+        el.classList.toggle("active", el.dataset.id === reportId);
+      });
+
+      document.getElementById("detailReportIdHeader").textContent = reportId;
+      if (detailActionBtns) detailActionBtns.style.display = "none";
+      detailViewEl.innerHTML = '<div class="detail-placeholder"><p>Fetching report details from Firestore...</p></div>';
+
+      try {
+        const res = await adminFetch(`/admin/reports/${reportId}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const r = data.report;
+        if (detailActionBtns) detailActionBtns.style.display = "flex";
+
+        const dateStr = r.timestamp ? new Date(r.timestamp).toLocaleString() : data.dateFolder;
+        const review = r.review || { status: 'unreviewed', notes: '', history: [] };
+
+        detailViewEl.innerHTML = `
+          <!-- Meta Grid -->
+          <div class="meta-grid">
+            <div class="meta-item">
+              <div class="meta-item-label">Status</div>
+              <div class="meta-item-val"><span class="status-badge ${review.status}">${review.status}</span></div>
+            </div>
+            <div class="meta-item">
+              <div class="meta-item-label">Source</div>
+              <div class="meta-item-val">${escapeHtml(r.source || 'student')}</div>
+            </div>
+            <div class="meta-item">
+              <div class="meta-item-label">Model / Version</div>
+              <div class="meta-item-val">${escapeHtml(r.model_version || 'pythos:latest')}</div>
+            </div>
+            <div class="meta-item">
+              <div class="meta-item-label">Submitted At</div>
+              <div class="meta-item-val">${escapeHtml(dateStr)}</div>
+            </div>
+            <div class="meta-item">
+              <div class="meta-item-label">Reporter UID</div>
+              <div class="meta-item-val">${escapeHtml(r.reporter_uid || '(Anonymous)')}</div>
+            </div>
+          </div>
+
+          ${r.student_description ? `
+          <div class="detail-section">
+            <div class="section-title">Student Description / Note</div>
+            <div class="content-box" style="border-left: 3px solid var(--accent-orange);">${escapeHtml(r.student_description)}</div>
+          </div>` : ''}
+
+          <!-- Original Interaction (Immutable) -->
+          <div class="detail-section">
+            <div class="section-title">Original Student Question</div>
+            <div class="content-box">${escapeHtml(r.interaction?.question || '(None provided)')}</div>
+          </div>
+
+          <div class="detail-section">
+            <div class="section-title">Pythos Socratic Response</div>
+            <div class="content-box" style="font-family:'Courier New', monospace; font-size:0.84rem;">${escapeHtml(r.interaction?.response || '(None provided)')}</div>
+          </div>
+
+          <!-- CAS Verification Claims (if present) -->
+          ${(r.claims && r.claims.length > 0) ? `
+          <div class="detail-section">
+            <div class="section-title">CAS Extracted Claims (${r.claims.length})</div>
+            <div class="content-box">${escapeHtml(JSON.stringify(r.claims, null, 2))}</div>
+          </div>` : ''}
+
+          <!-- Verification Results -->
+          ${(r.verification_results && r.verification_results.length > 0) ? `
+          <div class="detail-section">
+            <div class="section-title">Deterministic Verification Telemetry</div>
+            <div class="content-box">${escapeHtml(JSON.stringify(r.verification_results, null, 2))}</div>
+          </div>` : ''}
+
+          <!-- Review Lifecycle Update Form -->
+          <div class="review-form">
+            <div class="section-title" style="margin-top:0;">Update Review Lifecycle</div>
+            <form id="reviewUpdateForm">
+              <div class="form-group">
+                <label for="reviewStatusSelect">Lifecycle Status</label>
+                <select id="reviewStatusSelect" class="form-select">
+                  <option value="unreviewed" ${review.status === 'unreviewed' ? 'selected' : ''}>Unreviewed</option>
+                  <option value="investigation" ${review.status === 'investigation' ? 'selected' : ''}>Investigation</option>
+                  <option value="confirmed" ${review.status === 'confirmed' ? 'selected' : ''}>Confirmed Bug / Fault</option>
+                  <option value="rejected" ${review.status === 'rejected' ? 'selected' : ''}>Rejected (Pedagogy / User Misunderstanding)</option>
+                  <option value="ambiguous" ${review.status === 'ambiguous' ? 'selected' : ''}>Ambiguous</option>
+                  <option value="technical" ${review.status === 'technical' ? 'selected' : ''}>Technical / Network Flaw</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="reviewNotesText">Curriculum / Reviewer Notes</label>
+                <textarea id="reviewNotesText" class="form-textarea" rows="2" placeholder="Document findings or curriculum correction details...">${escapeHtml(review.notes || '')}</textarea>
+              </div>
+
+              <div class="form-check-wrap">
+                <input type="checkbox" id="regressionTestCheck" ${review.regression_test_created ? 'checked' : ''}>
+                <label for="regressionTestCheck">Regression test created in Pythos verification suite</label>
+              </div>
+
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
+                <div style="display:flex; align-items:center;">
+                  <button type="submit" id="saveReviewBtn" class="btn btn-primary">
+                    Save Review State
+                  </button>
+                  <span id="saveSuccessMsg" style="margin-left:12px; color:#15803d; font-weight:600; font-size:0.85rem; display:none;">Saved!</span>
+                </div>
+                <button type="button" id="deleteReportBtn" class="btn btn-danger" style="font-size:0.85rem; padding:6px 14px;">
+                  🗑️ Delete Report
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Review History Timeline -->
+          ${(review.history && review.history.length > 0) ? `
+          <div class="detail-section" style="margin-top:24px;">
+            <div class="section-title">Review Audit History</div>
+            <ul class="history-list">
+              ${review.history.map(h => `
+                <li class="history-item">
+                  <strong>${escapeHtml(h.status)}</strong> by <em>${escapeHtml(h.changed_by || 'admin')}</em> at ${new Date(h.changed_at).toLocaleString()}
+                  ${h.notes ? `<div style="color:var(--text-muted); margin-top:2px;">${escapeHtml(h.notes)}</div>` : ''}
+                </li>
+              `).join('')}
+            </ul>
+          </div>` : ''}
+        `;
+
+        // Handle Review Form Submit (Change Status & Notes)
+        document.getElementById("reviewUpdateForm").addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const saveBtn = document.getElementById("saveReviewBtn");
+          const successSpan = document.getElementById("saveSuccessMsg");
+          saveBtn.disabled = true;
+          successSpan.style.display = "none";
+
+          const newStatus = document.getElementById("reviewStatusSelect").value;
+          const notes = document.getElementById("reviewNotesText").value;
+          const regTest = document.getElementById("regressionTestCheck").checked;
+
+          try {
+            const patchRes = await adminFetch(`/admin/reports/${reportId}/review`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                status: newStatus,
+                notes,
+                reviewer: currentAdminUser.email || currentAdminUser.displayName || 'admin',
+                regressionTestCreated: regTest
+              })
+            });
+
+            if (!patchRes.ok) throw new Error(`Update failed: HTTP ${patchRes.status}`);
+
+            successSpan.style.display = "inline";
+            setTimeout(() => { successSpan.style.display = "none"; }, 3000);
+            loadReports(); // Refresh counts and status badge in list
+          } catch (patchErr) {
+            alert("Failed to update review status: " + patchErr.message);
+          } finally {
+            saveBtn.disabled = false;
+          }
+        });
+
+        // Handle Delete Report
+        document.getElementById("deleteReportBtn").addEventListener("click", async () => {
+          if (!confirm(`Are you sure you want to permanently delete report ${reportId}?\nThis cannot be undone.`)) {
+            return;
+          }
+
+          const delBtn = document.getElementById("deleteReportBtn");
+          delBtn.disabled = true;
+          delBtn.textContent = "Deleting...";
+
+          try {
+            const delRes = await adminFetch(`/admin/reports/${reportId}`, {
+              method: "DELETE"
+            });
+
+            if (!delRes.ok) throw new Error(`Delete failed: HTTP ${delRes.status}`);
+
+            // Clear detail pane and refresh list
+            detailViewEl.innerHTML = `<div class="detail-placeholder"><p style="color:#15803d; font-weight:600;">Report ${reportId} successfully deleted.</p></div>`;
+            detailReportIdHeader.textContent = "";
+            activeReportId = null;
+            await loadReports();
+          } catch (delErr) {
+            alert("Failed to delete report: " + delErr.message);
+            delBtn.disabled = false;
+            delBtn.textContent = "🗑️ Delete Report";
+          }
+        });
+
+      } catch (err) {
+        detailViewEl.innerHTML = `<div class="detail-placeholder" style="color:#b91c1c;"><p>Error fetching report details: ${err.message}</p></div>`;
+      }
+    }
+
+    // Toggle Bug Reporting Feature Flag
+    function updateReportingToggleBtn() {
+      toggleReportingBtn.textContent = `Student Reporting: ${isReportingActive ? 'ON' : 'OFF'}`;
+      toggleReportingBtn.style.color = isReportingActive ? 'var(--primary-color)' : '#ef4444';
+      toggleReportingBtn.style.borderColor = isReportingActive ? 'var(--primary-color)' : '#ef4444';
+    }
+
+    toggleReportingBtn.addEventListener("click", async () => {
+      const nextState = !isReportingActive;
+      if (!confirm(`Are you sure you want to ${nextState ? 'ENABLE' : 'DISABLE'} public student bug reporting?`)) return;
+
+      try {
+        const res = await adminFetch("/admin/reporting/toggle", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ enabled: nextState })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          isReportingActive = data.reportingEnabled;
+          updateReportingToggleBtn();
+        }
+      } catch (err) {
+        alert("Failed to toggle reporting: " + err.message);
+      }
+    });
+
+    // Helper to download content as a file
+    function triggerDownload(content, filename, mimeType) {
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // Export Current Queue as AI Incident Analysis Bundle
+    if (exportBundleBtn) {
+      exportBundleBtn.addEventListener("click", async () => {
+        const queue = queueFilterEl ? queueFilterEl.value : "user";
+        const status = statusFilterEl.value;
+
+        let query = `?limit=100`;
+        if (queue === "user") query += `&source=student`;
+        else if (queue === "system") query += `&source=system_auto_flag`;
+        else if (queue === "all_production") query += `&includeTest=false`;
+        else if (queue === "test") query += `&source=test&includeTest=true`;
+
+        if (status) query += `&status=${encodeURIComponent(status)}`;
+
+        exportBundleBtn.disabled = true;
+        const originalText = exportBundleBtn.textContent;
+        exportBundleBtn.textContent = "⏳ Exporting...";
+
+        try {
+          const res = await adminFetch(`/admin/reports-export${query}`);
+          if (!res.ok) throw new Error(`Export failed: HTTP ${res.status}`);
+          const text = await res.text();
+          const filename = `pythos-ai-analysis-bundle-${queue}-${new Date().toISOString().slice(0, 10)}.json`;
+          triggerDownload(text, filename, "application/json;charset=utf-8");
+        } catch (err) {
+          alert("Failed to export bundle: " + err.message);
+        } finally {
+          exportBundleBtn.disabled = false;
+          exportBundleBtn.textContent = originalText;
+        }
+      });
+    }
+
+    // Export Single Report as Markdown Incident Dossier
+    if (exportMdBtn) {
+      exportMdBtn.addEventListener("click", async () => {
+        if (!selectedReportId) return;
+        exportMdBtn.disabled = true;
+        try {
+          const res = await adminFetch(`/admin/reports/${selectedReportId}/export?format=markdown`);
+          if (!res.ok) throw new Error(`Export failed: HTTP ${res.status}`);
+          const text = await res.text();
+          triggerDownload(text, `pythos-dossier-${selectedReportId}.md`, "text/markdown;charset=utf-8");
+        } catch (err) {
+          alert("Failed to export markdown dossier: " + err.message);
+        } finally {
+          exportMdBtn.disabled = false;
+        }
+      });
+    }
+
+    // Export Single Report as JSON
+    if (exportJsonBtn) {
+      exportJsonBtn.addEventListener("click", async () => {
+        if (!selectedReportId) return;
+        exportJsonBtn.disabled = true;
+        try {
+          const res = await adminFetch(`/admin/reports/${selectedReportId}/export?format=json`);
+          if (!res.ok) throw new Error(`Export failed: HTTP ${res.status}`);
+          const text = await res.text();
+          triggerDownload(text, `pythos-report-${selectedReportId}.json`, "application/json;charset=utf-8");
+        } catch (err) {
+          alert("Failed to export report JSON: " + err.message);
+        } finally {
+          exportJsonBtn.disabled = false;
+        }
+      });
+    }
+
+    if (queueFilterEl) queueFilterEl.addEventListener("change", loadReports);
+    statusFilterEl.addEventListener("change", loadReports);
+    refreshReportsBtn.addEventListener("click", () => {
+      loadMetrics();
+      loadReports();
+    });
+
+    function escapeHtml(str) {
+      if (typeof str !== 'string') return '';
+      return str.replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+    }
+  </script>
+
+</body>
+</html>
