@@ -375,11 +375,13 @@ app.use(express.static(path.join(__dirname, '..')));
 // =====================================
 // Standalone liveness probe: Returns 200 immediately without depending on Ollama availability
 app.get('/health', (req, res) => {
+  const firebaseAdmin = require('./firebaseAdmin');
   res.status(200).json({
     status: 'ok',
     service: 'pythos-api',
     model: OLLAMA_MODEL,
     hasAuth: Boolean(OLLAMA_API_KEY),
+    firebaseAdmin: firebaseAdmin.getAdminSdkStatus ? firebaseAdmin.getAdminSdkStatus() : null,
     uptime: process.uptime(),
     timestamp: new Date().toISOString()
   });
