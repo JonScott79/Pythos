@@ -104,13 +104,62 @@ function extractArithmeticExpressions(text) {
  * Detects:
  * 1. Two-Class Bayes & Multi-Source Scenarios (e.g. Machine A/B bulb defect rates)
  * 2. Natural language ratios, percentages, fractions, and population scenarios.
+ * 3. Contextual function point evaluations (e.g. "What about at x = 4?")
  */
-function extractPreflightDeterministicFacts(userText) {
+function extractPreflightDeterministicFacts(userText, conversationHistory = []) {
   const facts = [];
   if (!userText || typeof userText !== 'string') return facts;
 
   const text = userText.trim();
   const lower = text.toLowerCase();
+
+  // -------------------------------------------------------------
+  // 0. Contextual Function Point Evaluation (e.g. "What about at x = 4?", "What happens at x = 3?", "Do the same thing with 5")
+  // -------------------------------------------------------------
+  const pointEvalMatch = text.match(/^(?:what\s+(?:about|happens|is\s+it)\s+(?:at\s+)?|evaluate\s+(?:at\s+)?|at\s+)([a-zA-Z])\s*=\s*([-\d.]+)\??$/i) ||
+                         text.match(/^(?:what\s+(?:about|happens|is\s+it)\s+at\s+)([-\d.]+)\??$/i) ||
+                         text.match(/^(?:do\s+the\s+same\s+thing\s+with\s+|with\s+)(?:[a-zA-Z]\s*=\s*)?([-\d.]+)\??$/i);
+
+  if (pointEvalMatch && conversationHistory && conversationHistory.length > 0) {
+    let varName = 'x';
+    let valStr = '';
+    if (pointEvalMatch[2] !== undefined) {
+      varName = pointEvalMatch[1].toLowerCase();
+      valStr = pointEvalMatch[2];
+    } else {
+      valStr = pointEvalMatch[1];
+    }
+    const inputNum = parseFloat(valStr);
+
+    if (!isNaN(inputNum)) {
+      const activeFn = resolveReferentialContext(text, conversationHistory);
+      if (activeFn && looksLikeMathExpression(activeFn)) {
+        try {
+          const compiled = math.compile(activeFn);
+          const scope = {};
+          scope[varName] = inputNum;
+          // In case the function expression uses 'x' but the query used 't' or vice versa
+          scope['x'] = inputNum;
+          scope['t'] = inputNum;
+          const result = compiled.evaluate(scope);
+
+          if (typeof result === 'number' && !isNaN(result) && isFinite(result)) {
+            const formattedResult = result % 1 === 0 ? String(result) : parseFloat(result.toFixed(4)).toString();
+            facts.push({
+              type: 'POINT_EVALUATION',
+              function_expression: activeFn,
+              variable: varName,
+              point: inputNum,
+              expression: `f(${inputNum})`,
+              exact_value: result,
+              exact_formatted: formattedResult,
+              summary: `Function f(${varName}) = ${activeFn} evaluated at ${varName} = ${inputNum} yields f(${inputNum}) = ${formattedResult}.`
+            });
+          }
+        } catch (_) {}
+      }
+    }
+  }
 
   // -------------------------------------------------------------
   // 1. Two-Class Bayes Source Scenario (e.g. Machine A/B, Factory, Test/Screening)
@@ -576,6 +625,15 @@ function buildPreflightContext(facts, classification = null) {
       return;
     }
 
+    if (f.type === 'POINT_EVALUATION') {
+      ctx += `- Fact ${idx + 1} (Contextual Function Evaluation at Point):\n`;
+      ctx += `  * Function: f(${f.variable}) = ${f.function_expression}\n`;
+      ctx += `  * Evaluated at: ${f.variable} = ${f.point}\n`;
+      ctx += `  * Exact Value: f(${f.point}) = ${f.exact_formatted}\n`;
+      ctx += `  * INSTRUCTION: Use this exact verified function value (f(${f.point}) = ${f.exact_formatted}) when answering the student's question.\n`;
+      return;
+    }
+
     ctx += `- Fact ${idx + 1}: Expression \`${f.expression}\` evaluates to exactly \`${f.exact_formatted}\` (${Number(f.exact_value).toFixed(6)}).\n`;
     if (typeof f.proposed_value !== 'undefined' && f.proposed_value !== null) {
       if (f.is_valid) {
@@ -625,10 +683,72 @@ function looksLikeMathExpression(expr) {
 }
 
 /**
+ * Scans recent conversation history (last 1-4 turns) to extract the active
+ * mathematical target function/equation when the student uses referential pronouns
+ * or demonstratives ("it", "that", "this", "the function", "the curve").
+ *
+ * Reliability Priority:
+ * 1. Existing structured visualization token: [GRAPH: ...] or [VIZ: ...]
+ * 2. Explicit function declaration: f(x) = ... or y = ...
+ * 3. Clear single mathematical function expression
+ *
+ * Returns null if no unambiguous target is found.
+ */
+function resolveReferentialContext(userText, conversationHistory = []) {
+  if (!conversationHistory || !Array.isArray(conversationHistory) || conversationHistory.length === 0) {
+    return null;
+  }
+
+  // Bounded window: Inspect the most recent 1-4 turns
+  const recentTurns = conversationHistory.slice(-4);
+
+  // Scan in reverse (most recent first)
+  for (let i = recentTurns.length - 1; i >= 0; i--) {
+    const turn = recentTurns[i];
+    if (!turn || typeof turn.content !== 'string') continue;
+    const content = turn.content.trim();
+
+    // Priority 1: Existing [GRAPH: <expr>] tokens
+    const graphTokenMatch = content.match(/\[GRAPH:\s*([^\]]+)\]/i);
+    if (graphTokenMatch && looksLikeMathExpression(graphTokenMatch[1])) {
+      return graphTokenMatch[1].trim();
+    }
+
+    // Priority 2: Explicit function declarations: f(x) = ... or y = ...
+    // e.g. "f(x) = x^2 - 4", "$f(x) = x^2 + 2x$", "y = 2x + 3", "$$y = 3x - 5$$"
+    const funcMatch = content.match(/(?:f\(x\)|g\(x\)|h\(x\)|y)\s*=\s*([a-zA-Z0-9.\s*+^/()_-]+?)(?:[$,;\n\.]|$)/i);
+    if (funcMatch) {
+      const candidate = funcMatch[1].trim();
+      // Verify candidate looks like a mathematical expression and doesn't contain confusing prose
+      if (looksLikeMathExpression(candidate) && !hasConceptualIntent(candidate)) {
+        // Strip trailing punctuation or LaTeX markers
+        const cleanCandidate = candidate.replace(/\\boxed\{|[\$}]/g, '').trim();
+        if (looksLikeMathExpression(cleanCandidate)) {
+          return cleanCandidate;
+        }
+      }
+    }
+
+    // Priority 3: Explicit single quadratic or polynomial equation in math delimiters
+    // e.g. "$x^2 - 4$" or "$$x^3 - x$$"
+    const displayMathMatch = content.match(/\$\$\s*([a-zA-Z0-9.\s*+^/()_-]+?)\s*\$\$/);
+    if (displayMathMatch && looksLikeMathExpression(displayMathMatch[1])) {
+      const cand = displayMathMatch[1].trim();
+      if (!cand.includes('=') && !hasConceptualIntent(cand)) {
+        return cand;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
  * Detects if a query is a direct deterministic mathematical problem
  * that can be solved and explained with 100% verified certainty.
+ * Accepts optional conversationHistory to resolve multi-turn referential requests.
  */
-function analyzeDeterministicIntent(userText) {
+function analyzeDeterministicIntent(userText, conversationHistory = []) {
   if (!userText || typeof userText !== 'string') return null;
   const clean = userText.trim().replace(/^\$+|\$+$/g, '').replace(/[?!.]+$/, '').trim();
   const lower = clean.toLowerCase();
@@ -638,13 +758,28 @@ function analyzeDeterministicIntent(userText) {
     return null;
   }
 
-  // 0. Direct Function Plotting / Graphing Requests (e.g. "plot f(x) = x^2 - 4", "graph y = 2x + 3", "plot sin(x)", "plot the curve x^2 - 4", "draw a graph of x^2 - 4")
-  const plotMatch = clean.match(/^(?:plot|graph|draw)\s+(.+)$/i);
+  // 0. Direct Function Plotting / Graphing Requests
+  // (e.g. "plot f(x) = x^2 - 4", "graph y = 2x + 3", "draw it", "graph that", "plot it")
+  const plotMatch = clean.match(/^(?:(?:can\s+you\s+)?(?:please\s+)?(?:plot|graph|draw)|now\s+(?:plot|graph|draw))\s+(.+)$/i) ||
+                    clean.match(/^(?:plot|graph|draw)\s+(.+)$/i);
   if (plotMatch) {
     let rawExpr = plotMatch[1].trim();
     rawExpr = rawExpr
       .replace(/^(?:(?:a|the)\s+(?:graph|curve|function|plot)\s+of\s+|(?:a|the)\s+(?:graph|curve|function|plot)\s+|(?:f\(x\)|y)\s*=\s*|the\s+function\s+|of\s+)/i, '')
+      .replace(/\s+(?:on\s+a\s+graph|in\s+a\s+graph|on\s+the\s+graph)$/i, '')
       .trim();
+
+    // Check if rawExpr is a referential demonstrative/pronoun ("it", "that", "this", "the curve", "the function")
+    if (/^(it|this|that|these|those|the\s+function|the\s+curve|the\s+graph)$/i.test(rawExpr)) {
+      const resolved = resolveReferentialContext(clean, conversationHistory);
+      if (resolved && looksLikeMathExpression(resolved)) {
+        rawExpr = resolved;
+      } else {
+        // Ambiguous or unresolved reference -> Fall through to Ollama naturally
+        return null;
+      }
+    }
+
     if (looksLikeMathExpression(rawExpr) && !hasConceptualIntent(rawExpr)) {
       return {
         type: 'GRAPH_PLOT',
@@ -654,10 +789,18 @@ function analyzeDeterministicIntent(userText) {
     }
   }
 
-  // 0a. Function Table / Values Request (e.g. "table of values for x^2 - 4", "table of values for f(x) = x^2 - 4", "make a table for x^2 - 4")
+  // 0a. Function Table / Values Request (e.g. "table of values for x^2 - 4", "make a table for it", "table of values for that")
   const tableMatch = clean.match(/(?:table\s+(?:of\s+values\s+)?(?:for\s+)?|make\s+a\s+table\s+(?:of\s+values\s+)?(?:for\s+)?|create\s+a\s+table\s+(?:for\s+)?)(?:f\(x\)\s*=\s*|y\s*=\s*)?([a-zA-Z0-9.\s*+^/()_-]+)/i);
   if (tableMatch) {
-    const rawExpr = tableMatch[1].trim();
+    let rawExpr = tableMatch[1].trim();
+    if (/^(it|that|this|the\s+function|the\s+curve)$/i.test(rawExpr)) {
+      const resolved = resolveReferentialContext(clean, conversationHistory);
+      if (resolved && looksLikeMathExpression(resolved)) {
+        rawExpr = resolved;
+      } else {
+        return null;
+      }
+    }
     if (/[a-zA-Z]/.test(rawExpr)) {
       const cleanExpr = rawExpr
         .replace(/^(?:f\(x\)|y)\s*=\s*/i, '')
@@ -1220,6 +1363,7 @@ Adjust the controls above to explore how launch angle $\\theta$ and velocity $v_
 }
 
 module.exports = {
+  resolveReferentialContext,
   analyzeDeterministicIntent,
   extractPreflightDeterministicFacts,
   buildPreflightContext,

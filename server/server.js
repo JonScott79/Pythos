@@ -474,7 +474,7 @@ app.post('/api/chat', async (req, res) => {
   // Fast-Path: Deterministic First-Line Evaluation for pure calculation/conversions
   // Note: Evaluated BEFORE acquiring concurrency slots so deterministic math is instantaneous
   if (lastUserMsg && (!lastUserMsg.images || lastUserMsg.images.length === 0)) {
-    const deterministicIntent = analyzeDeterministicIntent(lastUserMsg.content);
+    const deterministicIntent = analyzeDeterministicIntent(lastUserMsg.content, messages);
     if (deterministicIntent) {
       const directResponse = buildDeterministicResponse(deterministicIntent);
       if (directResponse) {
@@ -520,7 +520,7 @@ app.post('/api/chat', async (req, res) => {
     console.log(`[ROUTER] Classified Domain: ${classification.problemDomain} | Subtype: ${classification.problemSubtype} (Confidence: ${classification.confidence})`);
   }
 
-  const preflightFacts = lastUserMsg ? extractPreflightDeterministicFacts(lastUserMsg.content) : [];
+  const preflightFacts = lastUserMsg ? extractPreflightDeterministicFacts(lastUserMsg.content, messages) : [];
   const preflightContext = buildPreflightContext(preflightFacts, classification);
 
   const relevantLessons = lastUserMsg ? learningStore.retrieveRelevantCorrections(lastUserMsg.content) : [];

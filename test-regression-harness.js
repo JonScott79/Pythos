@@ -264,7 +264,18 @@ runSuite("Firebase Admin Auth, ID Token Verification & Console API Suite", () =>
   console.log(out.trim());
 });
 
+// 13. Context-Aware Intent Resolution Suite (Phase A)
+runSuite("Context-Aware Intent Resolution Suite (Phase A)", () => {
+  const out = execSync('node test-contextual-intent.js', {
+    cwd: __dirname,
+    encoding: 'utf-8',
+    stdio: 'pipe'
+  });
+  console.log(out.trim());
+});
+
 console.log(`\n${colors.bold}${colors.green}====================================================${colors.reset}`);
 console.log(`${colors.bold}${colors.green}ALL ${passedSuites}/${totalSuites} REGRESSION SUITES PASSED (100%)${colors.reset}`);
 console.log(`${colors.bold}${colors.green}====================================================${colors.reset}\n`);
+
 
