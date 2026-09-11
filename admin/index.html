@@ -1130,8 +1130,10 @@
 
             // Clear detail pane and refresh list
             detailViewEl.innerHTML = `<div class="detail-placeholder"><p style="color:#15803d; font-weight:600;">Report ${reportId} successfully deleted.</p></div>`;
-            detailReportIdHeader.textContent = "";
-            activeReportId = null;
+            const headerEl = document.getElementById("detailReportIdHeader");
+            if (headerEl) headerEl.textContent = "";
+            if (detailActionBtns) detailActionBtns.style.display = "none";
+            selectedReportId = null;
             await loadReports();
           } catch (delErr) {
             alert("Failed to delete report: " + delErr.message);
