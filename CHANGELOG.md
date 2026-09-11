@@ -5,6 +5,23 @@ All notable changes to the Pythos project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Pythos 1.5.0
+**Release Date:** 2026-09-11
+
+### Added
+- **Personal Memory System**:
+  - `server/memoryService.js`: Full lifecycle management of personal memory in Firestore under `users/{uid}/pythos_memory/`.
+  - `server/memoryExtractor.js`: Asynchronous background worker analyzing interactions post-response.
+  - Multi-tier confidence scoring distinguishing explicit observed facts (0.95) from behavioral inferences (0.50).
+  - Strict privacy filtration denying PII, contact info, passwords, and sensitive traits.
+  - Bounded prompt context injection (&le; 150 tokens) filtered dynamically by problem domain.
+- **Student Transparency & Memory Controls**:
+  - Interactive "🧠 What Pythos Remembers" modal dialog in student workspace.
+  - Granular inspection of active traits and original source quotes.
+  - Inline deletion and single-click master memory erasure ("Forget Everything").
+- **Automated Verification**:
+  - Added `test/test-memory-system.js` covering fact extraction, inference confidence, privacy gates, token bounds, and Firestore CRUD.
+
 ## Pythos 1.4.0
 **Release Date:** 2026-09-10
 

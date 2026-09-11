@@ -436,6 +436,9 @@ const adminRoutes = require('./adminRoutes');
 const reportRoutes = require('./reportRoutes');
 const reportService = require('./reportService');
 const { normalizeWorksheetMath } = require('./ocrMathNormalizer');
+const memoryService = require('./memoryService');
+const memoryExtractor = require('./memoryExtractor');
+const firebaseAdmin = require('./firebaseAdmin');
 
 // Mount Admin Routes
 app.use('/admin', adminRoutes);
@@ -500,6 +503,17 @@ app.post('/api/chat', async (req, res) => {
   };
   req.on('close', clientCloseHandler);
 
+  // Extract optional student identity from Authorization Bearer token
+  let studentUid = null;
+  const authHeader = req.headers['authorization'];
+  if (authHeader && authHeader.startsWith('Bearer ') && firebaseAdmin.isAdminSdkAvailable()) {
+    const rawToken = authHeader.slice(7).trim();
+    if ((rawToken.match(/\./g) || []).length >= 2) {
+      const decoded = await firebaseAdmin.verifyIdToken(rawToken).catch(() => null);
+      if (decoded?.uid) studentUid = decoded.uid;
+    }
+  }
+
   // Pre-Flight Track: Classify problem domain and extract embedded mathematical calculations
   const classification = lastUserMsg ? classifyProblem(lastUserMsg.content) : null;
   if (classification) {
@@ -512,11 +526,24 @@ app.post('/api/chat', async (req, res) => {
   const relevantLessons = lastUserMsg ? learningStore.retrieveRelevantCorrections(lastUserMsg.content) : [];
   const learningContext = learningStore.formatLearningContext(relevantLessons);
 
+  // Student Personal Memory Injection (<= 150 tokens)
+  let memoryContext = '';
+  if (studentUid) {
+    try {
+      const studentProfile = await memoryService.getStudentMemoryProfile(studentUid);
+      if (studentProfile) {
+        memoryContext = memoryService.formatMemoryContext(studentProfile, classification);
+      }
+    } catch (memErr) {
+      console.warn('[MEMORY] Error injecting student memory context:', memErr.message);
+    }
+  }
+
   // Ensure system instructions are always present, up-to-date, and enriched with deterministic ground truth
   let preparedMessages = messages.filter(m => m && m.role !== 'system');
   preparedMessages.unshift({
     role: 'system',
-    content: PYTHOS_SYSTEM_PROMPT + preflightContext + learningContext
+    content: PYTHOS_SYSTEM_PROMPT + preflightContext + learningContext + memoryContext
   });
 
   // Detect if this request contains image payloads
@@ -771,6 +798,15 @@ app.post('/api/chat', async (req, res) => {
       }
       // Attach non-intrusive verification metadata so client can package with reports
       ollamaResponse.claims = claims || [];
+
+      // Asynchronously trigger background personal memory extraction (non-blocking)
+      if (studentUid && lastUserMsg?.content && finalContent) {
+        setImmediate(() => {
+          memoryExtractor.processInteractionAsync(studentUid, lastUserMsg.content, finalContent, req.body.chatId || null)
+            .catch(err => console.warn('[MEMORY EXTRACTOR] Error in post-response extraction:', err.message));
+        });
+      }
+
       return res.status(200).json(ollamaResponse);
     }
 
@@ -821,6 +857,88 @@ app.post('/api/chat', async (req, res) => {
       concurrencyLimiter.release();
     }
     req.removeListener('close', clientCloseHandler);
+  }
+});
+
+// =====================================
+// Student Personal Memory Routes
+// =====================================
+async function studentAuthMiddleware(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'unauthorized', message: 'Authentication required for memory management.' });
+  }
+
+  const rawToken = authHeader.slice(7).trim();
+  if (!firebaseAdmin.isAdminSdkAvailable()) {
+    return res.status(503).json({ error: 'auth_unavailable', message: 'Authentication service currently unavailable.' });
+  }
+
+  try {
+    const decoded = await firebaseAdmin.verifyIdToken(rawToken);
+    if (!decoded?.uid) {
+      return res.status(401).json({ error: 'unauthorized', message: 'Invalid authentication token.' });
+    }
+    req.studentUid = decoded.uid;
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'unauthorized', message: err.message });
+  }
+}
+
+// GET /api/memory: List all memory items and compiled profile for student
+app.get('/api/memory', studentAuthMiddleware, async (req, res) => {
+  try {
+    const profile = await memoryService.getStudentMemoryProfile(req.studentUid);
+    const items = await memoryService.listStudentMemoryItems(req.studentUid);
+    return res.status(200).json({
+      status: 'ok',
+      profile: profile || { identity: {}, preferences: {}, learning: {} },
+      items: items || []
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'memory_fetch_error', message: err.message });
+  }
+});
+
+// PATCH /api/memory/:memoryId: Update specific memory value (student override)
+app.patch('/api/memory/:memoryId', studentAuthMiddleware, async (req, res) => {
+  const { value } = req.body;
+  if (value === undefined || value === null) {
+    return res.status(400).json({ error: 'invalid_request', message: 'A "value" field is required.' });
+  }
+
+  try {
+    const success = await memoryService.updateMemoryItem(req.studentUid, req.params.memoryId, value);
+    if (!success) {
+      return res.status(404).json({ error: 'not_found', message: 'Memory item not found.' });
+    }
+    return res.status(200).json({ status: 'ok', message: 'Memory item updated.' });
+  } catch (err) {
+    return res.status(500).json({ error: 'memory_update_error', message: err.message });
+  }
+});
+
+// DELETE /api/memory/:memoryId: Delete specific memory item
+app.delete('/api/memory/:memoryId', studentAuthMiddleware, async (req, res) => {
+  try {
+    const success = await memoryService.deleteMemoryItem(req.studentUid, req.params.memoryId);
+    if (!success) {
+      return res.status(404).json({ error: 'not_found', message: 'Memory item not found.' });
+    }
+    return res.status(200).json({ status: 'ok', message: 'Memory item deleted.' });
+  } catch (err) {
+    return res.status(500).json({ error: 'memory_delete_error', message: err.message });
+  }
+});
+
+// POST /api/memory/clear: Wipe all personal memory ("Forget Everything")
+app.post('/api/memory/clear', studentAuthMiddleware, async (req, res) => {
+  try {
+    const success = await memoryService.clearAllStudentMemory(req.studentUid);
+    return res.status(200).json({ status: 'ok', message: 'All personal memory has been cleared.' });
+  } catch (err) {
+    return res.status(500).json({ error: 'memory_clear_error', message: err.message });
   }
 });
 

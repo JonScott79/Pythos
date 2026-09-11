@@ -1763,12 +1763,21 @@ async function askPythos(userText) {
   }
 
   try {
+    const headers = { "Content-Type": "application/json" };
+    if (currentUser && typeof currentUser.getIdToken === "function") {
+      try {
+        const token = await currentUser.getIdToken();
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+      } catch (_) {}
+    }
+
     const res = await fetch(pythosApiUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({
         messages: messages,
-        options: { temperature: 0.3 }
+        options: { temperature: 0.3 },
+        chatId: currentChatId || null
       })
     });
 
@@ -2941,6 +2950,143 @@ async function checkReportingStatus() {
     // If report endpoint unreachable or disabled, default to false safely
     reportingEnabled = false;
   }
+}
+
+// =====================================
+// PYTHOS PERSONAL MEMORY MODAL
+// =====================================
+const memoryBtn = document.getElementById("memoryBtn");
+const pythosMemoryModal = document.getElementById("pythosMemoryModal");
+const memoryModalCloseBtn = document.getElementById("memoryModalCloseBtn");
+const memoryDoneBtn = document.getElementById("memoryDoneBtn");
+const memoryClearAllBtn = document.getElementById("memoryClearAllBtn");
+const memoryItemsList = document.getElementById("memoryItemsList");
+const memoryStatusNotice = document.getElementById("memoryStatusNotice");
+
+function openMemoryModal() {
+  if (!pythosMemoryModal) return;
+  pythosMemoryModal.style.display = "flex";
+  loadStudentMemoryUI();
+}
+
+function closeMemoryModal() {
+  if (!pythosMemoryModal) return;
+  pythosMemoryModal.style.display = "none";
+}
+
+async function loadStudentMemoryUI() {
+  if (!currentUser) {
+    memoryItemsList.innerHTML = '<div style="text-align:center; color:var(--text-muted); padding:20px;">Please sign in to view and manage personal memory.</div>';
+    return;
+  }
+
+  memoryItemsList.innerHTML = '<div style="text-align:center; color:var(--text-muted); padding:20px;">Retrieving your memory ledger...</div>';
+
+  try {
+    const token = await currentUser.getIdToken();
+    const apiBase = getPythosApiBase();
+    const res = await fetch(`${apiBase}/api/memory`, {
+      headers: { "Authorization": `Bearer ${token}` }
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const items = data.items || [];
+
+    if (items.length === 0) {
+      memoryItemsList.innerHTML = '<div style="text-align:center; color:var(--text-muted); padding:20px; font-style:italic;">No personal memory recorded yet. As you study with Pythos, it will remember your preferred name and style.</div>';
+      return;
+    }
+
+    memoryItemsList.innerHTML = "";
+    items.forEach(item => {
+      const card = document.createElement("div");
+      card.style.cssText = "background:var(--input-bg); border:1px solid var(--border-color); border-radius:6px; padding:10px 12px; display:flex; justify-content:space-between; align-items:center; gap:12px;";
+      
+      const left = document.createElement("div");
+      left.style.cssText = "flex:1; overflow:hidden;";
+
+      const titleRow = document.createElement("div");
+      titleRow.style.cssText = "display:flex; align-items:center; gap:8px; margin-bottom:4px;";
+
+      const tag = document.createElement("span");
+      tag.style.cssText = "font-size:0.72rem; text-transform:uppercase; font-weight:700; color:var(--primary-color); background:var(--sidebar-hover); padding:1px 6px; border-radius:4px;";
+      tag.textContent = `${item.category}: ${item.facet}`;
+
+      const val = document.createElement("span");
+      val.style.cssText = "font-weight:600; font-size:0.9rem; color:var(--text-main);";
+      val.textContent = typeof item.value === "string" ? item.value : JSON.stringify(item.value);
+
+      titleRow.appendChild(tag);
+      titleRow.appendChild(val);
+      left.appendChild(titleRow);
+
+      if (item.evidence && item.evidence.length > 0 && item.evidence[0].quote) {
+        const quoteEl = document.createElement("div");
+        quoteEl.style.cssText = "font-size:0.78rem; color:var(--text-muted); font-style:italic;";
+        quoteEl.textContent = `“${item.evidence[0].quote}”`;
+        left.appendChild(quoteEl);
+      }
+
+      const delBtn = document.createElement("button");
+      delBtn.className = "report-btn cancel";
+      delBtn.style.cssText = "padding:4px 8px; font-size:0.75rem; border-color:var(--border-color); color:var(--text-muted);";
+      delBtn.textContent = "✕ Forget";
+      delBtn.addEventListener("click", async () => {
+        delBtn.disabled = true;
+        try {
+          const delRes = await fetch(`${apiBase}/api/memory/${item.id}`, {
+            method: "DELETE",
+            headers: { "Authorization": `Bearer ${token}` }
+          });
+          if (delRes.ok) {
+            loadStudentMemoryUI();
+          }
+        } catch (_) {
+          delBtn.disabled = false;
+        }
+      });
+
+      card.appendChild(left);
+      card.appendChild(delBtn);
+      memoryItemsList.appendChild(card);
+    });
+
+  } catch (err) {
+    memoryItemsList.innerHTML = `<div style="color:#ef4444; padding:12px; font-size:0.85rem;">Failed to load memory: ${err.message}</div>`;
+  }
+}
+
+if (memoryBtn) {
+  memoryBtn.addEventListener("click", openMemoryModal);
+}
+if (memoryModalCloseBtn) {
+  memoryModalCloseBtn.addEventListener("click", closeMemoryModal);
+}
+if (memoryDoneBtn) {
+  memoryDoneBtn.addEventListener("click", closeMemoryModal);
+}
+if (memoryClearAllBtn) {
+  memoryClearAllBtn.addEventListener("click", async () => {
+    if (!confirm("Are you sure you want Pythos to forget everything about you?\nThis clears all your personal preferences, learning weaknesses, and identity.")) {
+      return;
+    }
+
+    if (!currentUser) return;
+    try {
+      const token = await currentUser.getIdToken();
+      const apiBase = getPythosApiBase();
+      const res = await fetch(`${apiBase}/api/memory/clear`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        loadStudentMemoryUI();
+      }
+    } catch (e) {
+      alert("Failed to clear memory: " + e.message);
+    }
+  });
 }
 
 // ===== INIT =====

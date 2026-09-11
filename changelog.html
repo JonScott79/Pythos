@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="assets/favicon.png">
-  <title>Pythos Release History & Changelog | v1.4.0</title>
+  <title>Pythos Release History & Changelog | v1.5.0</title>
   <meta name="description" content="Pythos release notes & changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://pythos.lanzar.me/changelog.html">
 
   <!-- OPEN GRAPH -->
-  <meta property="og:title" content="Pythos Release History & Changelog | v1.4.0">
+  <meta property="og:title" content="Pythos Release History & Changelog | v1.5.0">
   <meta property="og:description" content="Pythos release notes & changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta property="og:url" content="https://pythos.lanzar.me/changelog.html">
   <meta property="og:type" content="article">
@@ -23,7 +23,7 @@
 
   <!-- TWITTER CARD -->
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Pythos Release History & Changelog | v1.4.0">
+  <meta name="twitter:title" content="Pythos Release History & Changelog | v1.5.0">
   <meta name="twitter:description" content="Pythos release notes & changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="twitter:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
 
@@ -427,12 +427,40 @@
       <p>Authoritative release notes, verification engine milestones, and mathematical system updates.</p>
     </header>
 
+    <!-- RELEASE v1.5.0 -->
+    <article class="release-card" id="pythos-1-5-0">
+      <div class="release-header">
+        <div class="release-title-wrap">
+          <h2 class="release-version">Pythos 1.5.0</h2>
+          <span class="release-badge">Latest Release</span>
+        </div>
+        <time class="release-date" datetime="2026-09-11">September 11, 2026</time>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header added">✦ WHAT'S NEW</div>
+        <ul class="feature-list">
+          <li><strong>Personal Memory System</strong>: Durable, cross-session personal memory architecture built under <code>users/{uid}/pythos_memory/</code> in Firestore. Pythos naturally remembers a student's preferred name, course/grade level, explanation pacing (concise vs. detailed), analogy preferences (sports, gaming), and active learning weaknesses without repeating robotic meta-announcements.</li>
+          <li><strong>Controlled Extraction Pipeline</strong>: Multi-stage, non-blocking asynchronous extraction worker that runs post-response. Distinguishes observed explicit facts (confidence &ge; 0.90) from behavioral inferences (confidence ~0.50), applying asymptotic reinforcement over repeated interactions.</li>
+          <li><strong>Strict Minor Safety &amp; PII Redaction</strong>: Automatic deterministic filtering against addresses, phone numbers, emails, passwords, and sensitive personal topics.</li>
+          <li><strong>Compact Token-Budgeted Injection</strong>: Dynamic compilation into a bounded prompt injection block (&le; 150 tokens) filtered by current problem domain to prevent context window bloat.</li>
+          <li><strong>Student Transparency &amp; Control</strong>: Interactive modal ("🧠 What Pythos Remembers") allowing students to review remembered traits, view original quote evidence, remove individual items, or perform a total memory wipe ("Forget Everything").</li>
+        </ul>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header verify">⚖️ VERIFICATION &amp; REGRESSION</div>
+        <ul class="feature-list">
+          <li><strong>Dedicated Memory Test Suite</strong>: Added <code>test/test-memory-system.js</code> verifying fact/inference extraction, PII denial, context formatting, token bounds, and Firestore persistence. 100% passing.</li>
+        </ul>
+      </div>
+    </article>
+
     <!-- RELEASE v1.4.0 -->
     <article class="release-card" id="pythos-1-4-0">
       <div class="release-header">
         <div class="release-title-wrap">
           <h2 class="release-version">Pythos 1.4.0</h2>
-          <span class="release-badge">Latest Release</span>
         </div>
         <time class="release-date" datetime="2026-09-10">September 10, 2026</time>
       </div>

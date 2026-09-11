@@ -2456,6 +2456,9 @@
           <div style="flex:1; overflow:hidden;">
             <div id="userName" style="font-weight:600; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;"></div>
           </div>
+          <button id="memoryBtn" class="theme-toggle-btn" style="padding:4px 8px; margin-left:4px;" title="What Pythos Remembers (Personal Memory)" aria-label="Open Personal Memory Settings">
+            🧠
+          </button>
         </div>
         <button id="logoutBtn" class="logout-btn" style="display: none;" aria-label="Sign out">Logout</button>
         <nav class="sidebar-nav-links" aria-label="Study Guides and Changelog">
@@ -3041,6 +3044,36 @@
       <div class="report-modal-actions">
         <button id="reportCancelBtn" class="report-btn cancel" aria-label="Cancel and close report dialog">Cancel</button>
         <button id="reportSubmitBtn" class="report-btn submit" aria-label="Submit problem report">Submit Report</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PYTHOS PERSONAL MEMORY MODAL -->
+  <div id="pythosMemoryModal" class="report-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="memoryModalTitle" aria-describedby="memoryModalDesc" tabindex="-1">
+    <div class="report-modal-card" style="max-width: 580px;">
+      <div class="report-modal-header">
+        <div class="report-modal-title-group">
+          <h3 id="memoryModalTitle">🧠 What Pythos Remembers</h3>
+          <p id="memoryModalDesc">Personal context & learning preferences across your sessions</p>
+        </div>
+        <button id="memoryModalCloseBtn" class="math-guide-close" title="Close modal" aria-label="Close Memory Dialog">×</button>
+      </div>
+      <div class="report-modal-body" style="gap: 16px;">
+        <div style="font-size: 0.84rem; color: var(--text-muted); line-height: 1.5;">
+          Pythos remembers key aspects of who you are and how you prefer to learn to give you tailored guidance without asking you to repeat yourself. You have full control to inspect, correct, or erase your memory at any time.
+        </div>
+
+        <div id="memoryItemsList" style="display: flex; flex-direction: column; gap: 10px; max-height: 320px; overflow-y: auto; padding-right: 4px;">
+          <div style="text-align: center; color: var(--text-muted); padding: 20px;">Loading memory...</div>
+        </div>
+
+        <div id="memoryStatusNotice" style="font-size: 0.82rem; display: none;" role="status" aria-live="polite"></div>
+      </div>
+      <div class="report-modal-actions" style="justify-content: space-between;">
+        <button id="memoryClearAllBtn" class="report-btn cancel" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.4);" aria-label="Clear all personal memory">
+          🗑️ Forget Everything
+        </button>
+        <button id="memoryDoneBtn" class="report-btn submit" aria-label="Close dialog">Done</button>
       </div>
     </div>
   </div>
