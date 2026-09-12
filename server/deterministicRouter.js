@@ -22,6 +22,123 @@ function hasConceptualIntent(text) {
 }
 
 /**
+ * Parses an angle representation (radians or degrees) from text.
+ * Returns structured metadata:
+ * - isRadian: boolean
+ * - originalString: e.g. "-5π/3", "7pi/4", "60°"
+ * - numericValue: angle in its native unit (radians or degrees)
+ * - normalizedRad: equivalent radian in [0, 2π)
+ * - normalizedDeg: equivalent degree in [0, 360)
+ * - coterminalRadStr: reduced fraction string in [0, 2π) (e.g. "π/3", "7π/4")
+ * - quadrant: "Quadrant I", "Quadrant II", "Quadrant III", "Quadrant IV", or axis label
+ */
+function parseAngleFromText(text) {
+  if (!text || typeof text !== 'string') return null;
+
+  function gcd(a, b) {
+    let x = Math.abs(a);
+    let y = Math.abs(b);
+    while (y) {
+      const t = y;
+      y = x % y;
+      x = t;
+    }
+    return x;
+  }
+
+  function formatRadianFraction(num, den) {
+    if (num === 0) return '0';
+    if (num === den) return 'π';
+    if (num === 1 && den === 1) return 'π';
+    if (den === 1) return `${num}π`;
+    if (num === 1) return `π/${den}`;
+    return `${num}π/${den}`;
+  }
+
+  function getQuadrant(normRad) {
+    const eps = 1e-6;
+    if (Math.abs(normRad) < eps) return 'Positive x-axis';
+    if (Math.abs(normRad - Math.PI / 2) < eps) return 'Positive y-axis';
+    if (Math.abs(normRad - Math.PI) < eps) return 'Negative x-axis';
+    if (Math.abs(normRad - 3 * Math.PI / 2) < eps) return 'Negative y-axis';
+    if (normRad > 0 && normRad < Math.PI / 2) return 'Quadrant I';
+    if (normRad > Math.PI / 2 && normRad < Math.PI) return 'Quadrant II';
+    if (normRad > Math.PI && normRad < 3 * Math.PI / 2) return 'Quadrant III';
+    return 'Quadrant IV';
+  }
+
+  // 1. Radian expression with pi or π:
+  // e.g. -5π/3, -5pi/3, 7π/4, π/2, -pi, 2pi/3, 3π
+  const radRegex = /([+-]?\s*\d*(?:\.\d+)?)\s*(?:π|pi)(?:\s*\/\s*(\d+(?:\.\d+)?))?/i;
+  const radMatch = text.match(radRegex);
+  if (radMatch) {
+    let numStr = radMatch[1].replace(/\s+/g, '');
+    let sign = 1;
+    if (numStr.startsWith('-')) {
+      sign = -1;
+      numStr = numStr.substring(1);
+    } else if (numStr.startsWith('+')) {
+      numStr = numStr.substring(1);
+    }
+    const rawNum = numStr === '' ? 1 : parseFloat(numStr);
+    const num = sign * rawNum;
+    const den = radMatch[2] ? parseFloat(radMatch[2]) : 1;
+
+    if (!isNaN(num) && !isNaN(den) && den > 0) {
+      const origStr = radMatch[0].trim();
+      const angleRad = (num / den) * Math.PI;
+
+      // Normalize into [0, 2π) using fraction arithmetic
+      // We want k in [0, 2*den) such that k = num mod (2*den)
+      const period = 2 * den;
+      let normNumerator = Math.round(num) % period;
+      if (normNumerator < 0) normNumerator += period;
+      const g = gcd(normNumerator, Math.round(den));
+      const redNum = normNumerator / g;
+      const redDen = Math.round(den) / g;
+      const coterminalRadStr = formatRadianFraction(redNum, redDen);
+
+      let normRad = angleRad % (2 * Math.PI);
+      if (normRad < 0) normRad += 2 * Math.PI;
+      const normDeg = (normRad * 180) / Math.PI;
+
+      return {
+        isRadian: true,
+        originalString: origStr,
+        angleRad,
+        normalizedRad: normRad,
+        normalizedDeg: normDeg,
+        coterminalRadStr,
+        quadrant: getQuadrant(normRad)
+      };
+    }
+  }
+
+  // 2. Degree expression:
+  // e.g. 60°, -120°, 45 deg, 300 degrees
+  const degRegex = /([+-]?\s*\d+(?:\.\d+)?)\s*(?:°|(?:deg|degrees?)\b)/i;
+  const degMatch = text.match(degRegex);
+  if (degMatch) {
+    const rawVal = parseFloat(degMatch[1].replace(/\s+/g, ''));
+    if (!isNaN(rawVal)) {
+      let normDeg = rawVal % 360;
+      if (normDeg < 0) normDeg += 360;
+      const normRad = (normDeg * Math.PI) / 180;
+      return {
+        isRadian: false,
+        originalString: degMatch[0].trim(),
+        angleDeg: rawVal,
+        normalizedDeg: normDeg,
+        normalizedRad: normRad,
+        quadrant: getQuadrant(normRad)
+      };
+    }
+  }
+
+  return null;
+}
+
+/**
  * Extracts candidate arithmetic expressions from a text.
  * Finds expressions like 93/100, 87/90, 15 * 342, 17/20, sqrt(144), 2^10 + 5.
  */
@@ -495,6 +612,28 @@ function extractPreflightDeterministicFacts(userText, conversationHistory = []) 
     }
   }
 
+  // 8. Trigonometry: Angle in Standard Position / Quadrant Analysis
+  // e.g. "Draw the angle in standard position. State the quadrant in which the angle lies. Work the exercise without converting to degrees. -5π/3"
+  // or "What quadrant is 7π/4 in?", "Find the quadrant for -5π/3"
+  const hasAngleKeywords = /\b(angle|quadrant|standard\s+position|terminal\s+side|initial\s+side|coterminal)\b/i.test(text);
+  if (hasAngleKeywords) {
+    const angleData = parseAngleFromText(text);
+    if (angleData) {
+      const doNotConvertDegrees = /without\s+converting\s+to\s+degrees|do\s+not\s+convert\s+to\s+degrees|keep\s+in\s+radians|in\s+radians/i.test(text);
+      facts.push({
+        type: 'ANGLE_STANDARD_POSITION',
+        original_angle: angleData.originalString,
+        is_radian: angleData.isRadian,
+        coterminal_rad: angleData.coterminalRadStr,
+        normalized_rad: angleData.normalizedRad,
+        normalized_deg: angleData.normalizedDeg,
+        quadrant: angleData.quadrant,
+        do_not_convert_degrees: doNotConvertDegrees,
+        summary: `Angle ${angleData.originalString} lies in standard position with terminal side in ${angleData.quadrant} (coterminal with ${angleData.isRadian ? angleData.coterminalRadStr : angleData.normalizedDeg + '°'}).`
+      });
+    }
+  }
+
   // 5. Standalone Division Expressions
   const extractedExprs = extractArithmeticExpressions(text);
   for (const expr of extractedExprs) {
@@ -636,6 +775,28 @@ function buildPreflightContext(facts, classification = null) {
       return;
     }
 
+    if (f.type === 'ANGLE_STANDARD_POSITION') {
+      ctx += `- Fact ${idx + 1} (Trigonometry: Angle in Standard Position & Quadrant Ground Truth):\n`;
+      ctx += `  * Given Angle: ${f.original_angle}\n`;
+      if (f.is_radian) {
+        if (f.do_not_convert_degrees) {
+          ctx += `  * Coterminal Angle in [0, 2π): ${f.coterminal_rad}\n`;
+          ctx += `  * Terminal Side Location: ${f.quadrant}\n`;
+          ctx += `  * CONSTRAINT DIRECTIVE: The student explicitly requested: "Work the exercise without converting to degrees". You MUST reason strictly in radian fractional terms (e.g. standard circle bounds: Q1 is (0, π/2), Q2 is (π/2, π), Q3 is (π, 3π/2), Q4 is (3π/2, 2π)). Do NOT state or convert through degree measures (e.g., do NOT mention 60°, -300°, or 300°). The entire reasoning and answer must be strictly in radians.\n`;
+          ctx += `  * Radian Coterminal Proof: ${f.original_angle} + 2π = ${f.original_angle} + 6π/3 = ${f.coterminal_rad}. Since 0 < ${f.coterminal_rad} < π/2, the terminal side lies in ${f.quadrant}.\n`;
+        } else {
+          ctx += `  * Coterminal Angle in [0, 2π): ${f.coterminal_rad} (or ${f.normalized_deg.toFixed(2)}°)\n`;
+          ctx += `  * Terminal Side Location: ${f.quadrant}\n`;
+          ctx += `  * Standard Coterminal Proof: ${f.original_angle} + 2π = ${f.coterminal_rad}, which places the terminal side in ${f.quadrant}.\n`;
+        }
+      } else {
+        ctx += `  * Coterminal Angle in [0°, 360°): ${f.normalized_deg}°\n`;
+        ctx += `  * Terminal Side Location: ${f.quadrant}\n`;
+      }
+      ctx += `  * INSTRUCTION: Explicitly state the correct terminal side location (${f.quadrant}) and explain standard position with the initial side on the positive x-axis and rotational direction.\n`;
+      return;
+    }
+
     ctx += `- Fact ${idx + 1}: Expression \`${f.expression}\` evaluates to exactly \`${f.exact_formatted}\` (${Number(f.exact_value).toFixed(6)}).\n`;
     if (typeof f.proposed_value !== 'undefined' && f.proposed_value !== null) {
       if (f.is_valid) {
@@ -671,9 +832,28 @@ function looksLikeMathExpression(expr) {
   const s = expr.trim().toLowerCase();
 
   // Reject standalone English demonstratives and pronouns that can never be math.
-  // This is the complete set of standalone contextual reference words in English
-  // that could surface after stripping "a graph of" / "a function of" prefixes.
   if (/^(it|this|that|these|those)$/.test(s)) return false;
+
+  // Reject natural language sentences or instructions:
+  // Mathematical function plotting targets are algebraic formulas (e.g. x^2, sin(x), 2x + 3, x^3 - 4x).
+  // They do NOT contain multiple spaced words forming sentences or sentence punctuation.
+  if (/[.!?]\s+[a-z]/i.test(s) || /[.!?]$/.test(s)) return false;
+
+  // Reject strings containing common non-mathematical English instruction and geometry keywords
+  const englishWords = s.match(/[a-z]{3,}/g) || [];
+  const mathKeywords = new Set([
+    'sin', 'cos', 'tan', 'cot', 'sec', 'csc', 'arcsin', 'arccos', 'arctan',
+    'sinh', 'cosh', 'tanh', 'log', 'ln', 'sqrt', 'exp', 'abs', 'floor', 'ceil',
+    'pi'
+  ]);
+  const nonMathWords = englishWords.filter(w => !mathKeywords.has(w));
+  // If there are 3 or more non-math English words, this is prose/natural language, not a pure math expression
+  if (nonMathWords.length >= 3) return false;
+
+  // Reject explicit angle/quadrant/terminal-side phrases
+  if (/\b(angle|quadrant|standard\s+position|terminal\s+side|initial\s+side|coterminal|exercise|degrees?|radians?)\b/i.test(s)) {
+    return false;
+  }
 
   // At least one indicator of a mathematical expression must be present:
   const hasMathOperator = /[+\-*/^]/.test(s);
@@ -757,6 +937,37 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
 
   // If the user explicitly asks for conceptual explanations, routing must go to LLM
   if (hasConceptualIntent(userText)) {
+    return null;
+  }
+
+  // Intercept angle and quadrant questions/drawing requests:
+  // These are geometric angle/trigonometry inquiries, NOT algebraic function plots f(x).
+  const isAngleOrQuadrantQuery = /\b(angle|quadrant|standard\s+position|terminal\s+side|initial\s+side|coterminal)\b/i.test(clean);
+  if (isAngleOrQuadrantQuery) {
+    // If the prompt contains multiple pedagogical or homework instructions
+    // (e.g. "State the quadrant in which the angle lies. Work the exercise without converting to degrees.")
+    // or conceptual questions ("what quadrant is..."), do NOT short-circuit with a pure visual instrument;
+    // let it route to semantic AI with our pre-computed ANGLE_STANDARD_POSITION preflight facts.
+    const isMultiInstructionHomework = /[.!?]\s+[a-z]/i.test(clean) ||
+                                       /\b(state|work\s+the\s+exercise|without\s+converting|find\s+the\s+quadrant|which\s+quadrant|what\s+quadrant|explain|why)\b/i.test(clean);
+    if (isMultiInstructionHomework) {
+      return null;
+    }
+
+    // Direct angle visualization request: e.g. "Draw a 60° angle", "Draw the angle -5π/3 in standard position", "Draw -5π/3 in standard position"
+    const isDirectDrawAngle = /^(?:(?:can\s+you\s+)?(?:please\s+)?(?:draw|plot|show|sketch)|now\s+(?:draw|plot|show|sketch))\s+(?:an?\s+)?(?:angle\s+(?:of\s+)?)?/i.test(clean);
+    if (isDirectDrawAngle) {
+      const angleData = parseAngleFromText(clean);
+      if (angleData) {
+        return {
+          type: 'CLASSICAL_MODEL_VIZ',
+          model: 'trigonometry',
+          customAngle: Math.round(angleData.normalizedDeg)
+        };
+      }
+    }
+
+    // Any other angle/quadrant query should not be hijacked by GRAPH_PLOT
     return null;
   }
 
@@ -1266,6 +1477,12 @@ Adjust the controls above to explore how launch angle $\\theta$ and velocity $v_
           vars.mass.default = intent.customMass;
         }
       }
+      if (intent.model === 'trigonometry' && typeof intent.customAngle !== 'undefined') {
+        if (vars.angle) {
+          vars.angle.value = intent.customAngle;
+          vars.angle.default = intent.customAngle;
+        }
+      }
 
       const spec = {
         type: modelMod.type || 'PHYSICS',
@@ -1326,8 +1543,34 @@ Adjust the controls above to explore how launch angle $\\theta$ and velocity $v_
 
   if (intent.type === 'PREFLIGHT_FACTS_FALLBACK' && intent.facts && intent.facts.length > 0) {
     // Prioritize high-level analytical evaluations over simple ratio fractions
-    const specializedTypes = ['SIMPSONS_PARADOX_EVALUATION', 'BAYES_TWO_CLASS', 'OPTIMIZATION_FENCING', 'PROJECTILE_MOTION'];
+    const specializedTypes = ['ANGLE_STANDARD_POSITION', 'SIMPSONS_PARADOX_EVALUATION', 'BAYES_TWO_CLASS', 'OPTIMIZATION_FENCING', 'PROJECTILE_MOTION'];
     const f = intent.facts.find(fact => specializedTypes.includes(fact.type)) || intent.facts[0];
+    if (f.type === 'ANGLE_STANDARD_POSITION') {
+      let out = `📐 **Trigonometry: Angle in Standard Position**\n\n`;
+      out += `### 1. Standard Position Setup\nAn angle is in **standard position** when its vertex is at the origin $(0, 0)$ and its initial side lies along the positive $x$-axis.\n\n`;
+      if (f.is_radian) {
+        if (f.do_not_convert_degrees) {
+          out += `### 2. Radian Analysis (Without Converting to Degrees)\n`;
+          out += `Working purely in radians, one full revolution counterclockwise is $2\\pi = \\frac{6\\pi}{3}$.\n\n`;
+          out += `Adding $2\\pi$ to find a positive coterminal angle:\n`;
+          out += `$$\n${f.original_angle} + 2\\pi = -\\frac{5\\pi}{3} + \\frac{6\\pi}{3} = \\mathbf{\\frac{\\pi}{3}}\n$$\n\n`;
+          out += `Since $0 < \\frac{\\pi}{3} < \\frac{\\pi}{2}$, the terminal side lies in **${f.quadrant}**.\n\n`;
+        } else {
+          out += `### 2. Coterminal Angle & Quadrant\n`;
+          out += `Adding $2\\pi$ to find a positive coterminal angle:\n`;
+          out += `$$\n${f.original_angle} + 2\\pi = \\mathbf{${f.coterminal_rad}}\n$$\n\n`;
+          out += `Since $0 < ${f.coterminal_rad} < \\frac{\\pi}{2}$ (${f.normalized_deg}^\\circ), the terminal side lies in **${f.quadrant}**.\n\n`;
+        }
+      } else {
+        out += `### 2. Coterminal Angle & Quadrant\n`;
+        out += `Coterminal angle in $[0^\\circ, 360^\\circ)$: **${f.normalized_deg}°**.\n`;
+        out += `The terminal side lies in **${f.quadrant}**.\n\n`;
+      }
+      out += `### 3. Conclusion\n`;
+      out += `The angle **${f.original_angle}** lies in **${f.quadrant}**.`;
+      return out;
+    }
+
     if (f.type === 'BAYES_TWO_CLASS') {
       return `⚖️ Verified Bayes Posterior Calculation:\n\n$$\nP(${f.sourceB} \\mid \\text{Defect}) = \\frac{P(\\text{Defect} \\mid ${f.sourceB}) P(${f.sourceB})}{P(\\text{Defect})} = \\frac{0.06 \\times 0.30}{0.02 \\times 0.70 + 0.06 \\times 0.30} = \\frac{0.018}{0.032} = 56.25\\%\n$$\n\n- Joint probability from ${f.sourceA}: $0.02 \\times 0.70 = 0.014$\n- Joint probability from ${f.sourceB}: $0.06 \\times 0.30 = 0.018$\n- Total probability of defective bulb: $0.014 + 0.018 = 0.032$\n\nTherefore, the probability that a defective bulb came from ${f.sourceB} is **56.25%** (or $9/16$).`;
     }
@@ -1393,6 +1636,7 @@ module.exports = {
   buildPreflightContext,
   buildDeterministicResponse,
   classifyProblem,
+  parseAngleFromText,
   DOMAINS,
   PROTOCOLS
 };

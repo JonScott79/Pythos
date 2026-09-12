@@ -225,6 +225,8 @@ function extractUnknownQuantities(text) {
   if (lower.includes('integral') || lower.includes('anti-derivative')) unknowns.push('integral');
   if (lower.includes('limit') || lower.match(/lim\s*x\s*->/)) unknowns.push('limit');
   if (lower.includes('percentage') || lower.includes('what percentage')) unknowns.push('percentage');
+  if (lower.includes('quadrant') || lower.includes('terminal side')) unknowns.push('quadrant_location');
+  if (lower.includes('standard position')) unknowns.push('standard_position_angle');
 
   return unknowns;
 }
@@ -236,6 +238,11 @@ function extractAssumptionsAndConstraints(text) {
   const assumptions = [];
   const constraints = [];
   const lower = text.toLowerCase();
+
+  // Angle/Trigonometry constraints
+  if (lower.includes('without converting to degrees') || lower.includes('do not convert to degrees')) {
+    constraints.push('Work purely in radian measure (do not convert to degrees)');
+  }
 
   // Fencing constraints
   if (lower.includes('river') || lower.includes('three sides') || lower.includes('3 sides') || lower.includes('does not need fencing')) {
@@ -528,18 +535,20 @@ function classifyProblem(userText) {
   // -------------------------------------------------------------
   const isTrigProblem = lower.includes('trigonometry') || lower.includes('sin^2') || lower.includes('unit circle') ||
     (lower.includes('triangle') && (lower.includes('hypotenuse') || lower.includes('sine') || lower.includes('cosine'))) ||
-    ((lower.includes('arc') || lower.includes('central angle') || lower.includes('radian')) && (lower.includes('circle') || lower.includes('radius') || lower.includes('intercepts')));
+    ((lower.includes('arc') || lower.includes('central angle') || lower.includes('radian')) && (lower.includes('circle') || lower.includes('radius') || lower.includes('intercepts'))) ||
+    (lower.includes('standard position') || (lower.includes('quadrant') && (lower.includes('angle') || lower.includes('terminal side') || lower.includes('π') || lower.includes('pi') || lower.includes('degrees'))));
 
   if (isTrigProblem) {
+    const isAngleStandardPos = lower.includes('standard position') || lower.includes('quadrant') || lower.includes('terminal side');
     return {
       problemDomain: DOMAINS.TRIGONOMETRY,
-      problemSubtype: 'TRIGONOMETRIC_RELATIONS',
+      problemSubtype: isAngleStandardPos ? 'ANGLE_STANDARD_POSITION' : 'TRIGONOMETRIC_RELATIONS',
       confidence: 'high',
       knownQuantities: knowns,
       unknownQuantities: unknowns,
-      assumptions: ['Euclidean plane geometry & trigonometry ($s = r\\theta$, with $\\theta$ in radians)'],
-      constraints: [],
-      requiredMethod: 'Trigonometric identities and angle relationships ($s = r\\theta$)',
+      assumptions: isAngleStandardPos ? ['Angle in standard position with initial side along positive x-axis'] : ['Euclidean plane geometry & trigonometry ($s = r\\theta$, with $\\theta$ in radians)'],
+      constraints,
+      requiredMethod: isAngleStandardPos ? 'Coterminal angle reduction and quadrant determination' : 'Trigonometric identities and angle relationships ($s = r\\theta$)',
       specializedProtocol: PROTOCOLS.TRIGONOMETRY,
       deterministicWorkAvailable: true,
       canShortCircuit: false
