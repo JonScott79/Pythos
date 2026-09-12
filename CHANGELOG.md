@@ -19,7 +19,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Interactive "🧠 What Pythos Remembers" modal dialog in student workspace.
   - Granular inspection of active traits and original source quotes.
   - Inline deletion and single-click master memory erasure ("Forget Everything").
+- **Calculator Direct Keyboard Input**:
+  - Fully enabled direct typing in the on-screen calculator expression field (`0-9`, `.`, `+`, `-`, `*`, `/`, `^`, parentheses, Enter to evaluate, Escape to clear).
+  - Unified evaluation pipeline sharing the exact same math parsing and CAS decimal verification as on-screen buttons.
+- **Trigonometry & Standard-Position Angle Router Fix**:
+  - Distinguishes angle and geometry queries from generic function plotting (`GRAPH_PLOT`), preventing natural-language homework prompts from being hijacked into broken $f(x)$ graphs.
+  - Enforces strict radian reasoning for prompts requesting "work without converting to degrees", keeping proofs and quadrant checks purely in radian fractional arithmetic.
+  - Injects verified `ANGLE_STANDARD_POSITION` preflight ground truth (coterminal reduction and quadrant determination) into the pedagogical AI system prompt.
+  - Cleanly accepts custom angle parameters in the classical trigonometry unit-circle instrument for direct visualization requests.
 - **Automated Verification**:
+  - Added `test-angle-routing.js` covering standard-position angle parsing, radian coterminal proofs, quadrant determination, and genuine function plot preservation.
+  - Added `test-calculator-keyboard.js` verifying keyboard/button parity, decimal expression preservation, and DOM accessibility.
   - Added `test/test-memory-system.js` covering fact extraction, inference confidence, privacy gates, token bounds, and Firestore CRUD.
 
 ## Pythos 1.4.0

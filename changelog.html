@@ -445,6 +445,8 @@
           <li><strong>Strict Minor Safety &amp; PII Redaction</strong>: Automatic deterministic filtering against addresses, phone numbers, emails, passwords, and sensitive personal topics.</li>
           <li><strong>Compact Token-Budgeted Injection</strong>: Dynamic compilation into a bounded prompt injection block (&le; 150 tokens) filtered by current problem domain to prevent context window bloat.</li>
           <li><strong>Student Transparency &amp; Control</strong>: Interactive modal ("🧠 What Pythos Remembers") allowing students to review remembered traits, view original quote evidence, remove individual items, or perform a total memory wipe ("Forget Everything").</li>
+          <li><strong>Calculator Direct Keyboard Typing</strong>: Students can now directly enter expressions into the on-screen calculator using their hardware keyboard (numbers, operators, exponents, decimals, parentheses, Enter to evaluate, Escape to clear), retaining exact parity with the button pipeline and decimal CAS protection.</li>
+          <li><strong>Trigonometry &amp; Standard-Position Angle Router Guard</strong>: Distinguishes angle and geometry queries from generic function graphing (<code>GRAPH_PLOT</code>), eliminating bug where natural-language angle homework was treated as an algebraic $f(x)$ curve. Injects verified <code>ANGLE_STANDARD_POSITION</code> facts into the pedagogical tutor, respecting constraints like "without converting to degrees" purely in radian fractions.</li>
         </ul>
       </div>
 
@@ -452,6 +454,8 @@
         <div class="section-header verify">⚖️ VERIFICATION &amp; REGRESSION</div>
         <ul class="feature-list">
           <li><strong>Dedicated Memory Test Suite</strong>: Added <code>test/test-memory-system.js</code> verifying fact/inference extraction, PII denial, context formatting, token bounds, and Firestore persistence. 100% passing.</li>
+          <li><strong>Angle &amp; Routing Regression Suite</strong>: Added <code>test-angle-routing.js</code> covering real-world homework prompts, standard-position coterminal reductions, quadrant determinations, and function plot preservation. 100% passing.</li>
+          <li><strong>Calculator Keyboard Parity Suite</strong>: Added <code>test-calculator-keyboard.js</code> testing keyboard vs. button evaluation parity, decimal handling, and accessibility focus states. 100% passing.</li>
         </ul>
       </div>
     </article>
