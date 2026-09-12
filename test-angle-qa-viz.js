@@ -35,7 +35,7 @@ const {
   analyzeDeterministicIntent
 } = require('./server/deterministicRouter');
 const { validateVisualizationSpec } = require('./vizEngine/vizProtocol');
-const { extractBalancedVizBlocks } = require('./vizEngine/vizExtractor');
+const { extractBalancedVizBlocks, repairJsonEscapes } = require('./vizEngine/vizExtractor');
 
 console.log('===========================================================');
 console.log('📐 PYTHOS QA - COTERMINAL ANGLE & VIZ PARSING TEST SUITE');
@@ -179,6 +179,30 @@ test('2.3: Preserves existing architecture: "draw it" without history returns nu
   assert.strictEqual(intent, null, 'Must return null without history');
 });
 
+test('2.4: Conversational referential variants ("draw it out for me please", "draw it again please") resolve to active angle', () => {
+  const history = [
+    { role: 'user', content: 'What quadrant is 25π/6 in?' },
+    { role: 'assistant', content: 'The angle 25π/6 lies in standard position with terminal side in Quadrant I.' }
+  ];
+
+  const variants = [
+    'draw it out for me please',
+    'draw it again please',
+    'draw it for me',
+    'draw it out',
+    'can you draw it out please',
+    'please visualize this for me'
+  ];
+
+  for (const q of variants) {
+    const intent = analyzeDeterministicIntent(q, history);
+    assert(intent, `Expected non-null intent for variant "${q}"`);
+    assert.strictEqual(intent.type, 'CLASSICAL_MODEL_VIZ');
+    assert.strictEqual(intent.model, 'trigonometry');
+    assert.strictEqual(intent.customAngle, 30);
+  }
+});
+
 // ============================================================================
 // SUITE 3: Balanced-Brace JSON Extraction Routine
 // ============================================================================
@@ -236,6 +260,34 @@ test('3.5: Safely handles malformed JSON without crashing', () => {
   // Unbalanced brace should not throw and should preserve message text
   assert.strictEqual(vizBlocks.length, 0);
   assert(sanitized.includes('Malformed:'));
+});
+
+test('3.6: Automatically repairs invalid LaTeX backslash escapes (e.g. \\pi, \\theta, \\alpha) so JSON.parse succeeds', () => {
+  // Simulate LLM emitting unescaped \pi or \alpha inside a JSON title/description
+  // In a raw string: {"title": "Terminal side for \pi/6", "description": "Angle \alpha in standard position"}
+  const rawWithBadEscapes = 'Here is the viz:\n[VIZ: {"type":"PHYSICS","model":"trigonometry","title":"Terminal side for \\pi/6","description":"Angle \\alpha in standard position","variables":{"angle":{"value":30}}}]\nDone.';
+
+  const { vizBlocks } = extractBalancedVizBlocks(rawWithBadEscapes);
+  assert.strictEqual(vizBlocks.length, 1);
+
+  // JSON.parse on the extracted block MUST NOT throw "Bad escaped character in JSON at position X"
+  let parsed;
+  assert.doesNotThrow(() => {
+    parsed = JSON.parse(vizBlocks[0]);
+  }, 'JSON.parse must succeed on repaired JSON');
+
+  assert.strictEqual(parsed.model, 'trigonometry');
+  assert(parsed.title.includes('Terminal side for'));
+  assert(parsed.title.includes('pi/6'));
+  assert(parsed.description.includes('alpha'));
+});
+
+test('3.7: repairJsonEscapes directly handles valid escapes (\\", \\\\, \\n, \\t, \\u03C0) without corrupting them', () => {
+  const validJson = '{"title":"Line 1\\nLine 2\\t\\"Quoted\\" \\\\ backslash \\u03C0"}';
+  const repaired = repairJsonEscapes(validJson);
+  assert.strictEqual(repaired, validJson);
+  const parsed = JSON.parse(repaired);
+  assert.strictEqual(parsed.title, 'Line 1\nLine 2\t"Quoted" \\ backslash π');
 });
 
 // ============================================================================

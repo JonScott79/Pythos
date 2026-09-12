@@ -1020,9 +1020,11 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   }
 
   // Referential angle visualization requests:
-  // e.g. "I need to visualize this.", "visualize this", "draw this", "show this", "can you visualize this?"
+  // e.g. "I need to visualize this.", "visualize this", "draw this", "show this", "can you visualize this?",
+  // "draw it out for me please", "draw it again please", "draw it for me", "can you draw it out", etc.
   // When conversation history contains an active angle in standard position / trigonometry problem.
-  const isReferentialVizQuery = /^(?:(?:i\s+need\s+to|can\s+you\s+please|can\s+you|please|now)\s+)?(?:visualize|draw|plot|show|sketch)\s+(?:this|it|that)$/i.test(clean) ||
+  const isReferentialVizQuery = /^(?:(?:i\s+need\s+to|can\s+you\s+please|can\s+you|could\s+you|please|now)\s+)?(?:visualize|draw|plot|show|sketch)\s+(?:this|it|that)(?:\s+(?:out|again|for\s+me|please))*\s*$/i.test(clean) ||
+                                /^(?:draw|visualize|plot|show|sketch)\s+(?:it|this|that)(?:\s+(?:out|again|for\s+me|please))*\s*$/i.test(clean) ||
                                 /^(?:visualize\s+this|show\s+me\s+this|i\s+want\s+to\s+see\s+this)$/i.test(clean);
   if (isReferentialVizQuery && conversationHistory && Array.isArray(conversationHistory) && conversationHistory.length > 0) {
     const recentTurns = conversationHistory.slice(-4);

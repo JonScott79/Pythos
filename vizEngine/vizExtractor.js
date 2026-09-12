@@ -84,7 +84,8 @@
 
       if (endBraceIdx !== -1) {
         const rawJson = text.slice(openBraceIdx, endBraceIdx + 1);
-        blocks.push(rawJson);
+        const repairedJson = repairJsonEscapes(rawJson);
+        blocks.push(repairedJson);
         remainingText += '%%%INLINE_VIZ_INSTRUMENT_PLACEHOLDER%%%';
 
         // Advance searchIdx past the closing ']' if present
@@ -107,7 +108,62 @@
     };
   }
 
+  /**
+   * Repairs illegal escape characters inside JSON string literals.
+   * In standard JSON, only \\", \\\\, \\/, \\b, \\f, \\n, \\r, \\t, and \\uXXXX are valid escapes.
+   * LLMs frequently emit LaTeX commands inside string values (e.g. "\\pi", "\\theta", "\\frac"),
+   * or Windows paths, which cause JSON.parse to throw:
+   * "Bad escaped character in JSON at position X".
+   *
+   * This scanner inspects inside string literals and replaces any unescaped backslash
+   * that is not followed by a valid JSON escape token with a double backslash "\\\\".
+   */
+  function repairJsonEscapes(jsonStr) {
+    if (!jsonStr || typeof jsonStr !== 'string') return jsonStr;
+
+    let inString = false;
+    let isEscaped = false;
+    let result = '';
+
+    for (let i = 0; i < jsonStr.length; i++) {
+      const char = jsonStr[i];
+
+      if (!inString) {
+        if (char === '"') {
+          inString = true;
+        }
+        result += char;
+      } else {
+        // Inside string literal
+        if (char === '\\') {
+          const nextChar = i + 1 < jsonStr.length ? jsonStr[i + 1] : '';
+          // Valid JSON escape targets: " \ / b f n r t u
+          if (/^["\\/bfnrt]/.test(nextChar)) {
+            result += char + nextChar;
+            i++; // skip nextChar
+          } else if (nextChar === 'u' && /^[0-9a-fA-F]{4}/.test(jsonStr.slice(i + 2, i + 6))) {
+            result += char + jsonStr.slice(i + 1, i + 6);
+            i += 5; // skip uXXXX
+          } else {
+            // Invalid escape (e.g. \p, \t followed by non-escape, \s, etc.)
+            // Escape the backslash so it becomes valid JSON
+            result += '\\\\';
+          }
+        } else if (char === '"') {
+          inString = false;
+          result += char;
+        } else {
+          result += char;
+        }
+      }
+    }
+
+    return result;
+  }
+
   return {
-    extractBalancedVizBlocks
+    extractBalancedVizBlocks,
+    repairJsonEscapes
   };
 }));
+

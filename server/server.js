@@ -274,6 +274,7 @@ For non-trivial mathematical and physical problems (word problems, optimization,
   * Format:
     [VIZ: {"type":"PHYSICS","model":"<model_id>","title":"<Title>","variables":{"<varName>":{"value":<num>,"min":<num>,"max":<num>,"step":<num>,"unit":"<unit>"}}}]
     (For type, use "PHYSICS" or "MATH". Variables match the model's parameters. Include default/initial values relevant to the problem).
+    (CRITICAL JSON SYNTAX RULE: All string fields inside [VIZ: {...}] must be STRICT JSON. NEVER write unescaped LaTeX backslashes like "\pi" or "\theta" in the title or description strings. Write "pi", "theta", or "\\pi").
 
 - 2. GENERIC FUNCTION PLOTTING [GRAPH: expression]:
   * Reserved for plotting ordinary 1-variable scalar algebraic functions $y = f(x)$ (e.g. polynomials, rational functions, arbitrary curves like [GRAPH: x^3 - 4*x] or [GRAPH: sin(2*x)]) where NO specialized physics or calculus interactive instrument is applicable.

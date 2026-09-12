@@ -1359,7 +1359,10 @@ function appendMessage(role, text, images = null, metadata = {}) {
       };
 
       try {
-        const parsedSpec = JSON.parse(rawJson);
+        const repaired = (window.PythosVizExtractor && typeof window.PythosVizExtractor.repairJsonEscapes === 'function')
+          ? window.PythosVizExtractor.repairJsonEscapes(rawJson)
+          : rawJson;
+        const parsedSpec = JSON.parse(repaired);
         const protocol = window.PythosVizProtocol;
         const renderer = window.PythosVizRenderer;
 
