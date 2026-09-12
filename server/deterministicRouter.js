@@ -69,10 +69,10 @@ function parseAngleFromText(text) {
 
   // 1. Radian expression with pi or π:
   // e.g. -5π/3, -5pi/3, 7π/4, π/2, -pi, 2pi/3, 3π
-  const radRegex = /([+-]?\s*\d*(?:\.\d+)?)\s*(?:π|pi)(?:\s*\/\s*(\d+(?:\.\d+)?))?/i;
+  const radRegex = /(?:^|[^\w])([+-]?\s*\d*(?:\.\d+)?)\s*(?:π|\bpi\b)(?:\s*\/\s*(\d+(?:\.\d+)?))?/i;
   const radMatch = text.match(radRegex);
   if (radMatch) {
-    let numStr = radMatch[1].replace(/\s+/g, '');
+    let numStr = (radMatch[1] || '').replace(/\s+/g, '');
     let sign = 1;
     if (numStr.startsWith('-')) {
       sign = -1;
@@ -98,6 +98,30 @@ function parseAngleFromText(text) {
       const redDen = Math.round(den) / g;
       const coterminalRadStr = formatRadianFraction(redNum, redDen);
 
+      // Generic rotation count k: number of full (2π) periods between original angle and coterminal remainder
+      // original = coterminal + k*(2π)
+      // If k > 0: original > 2π, so k full rotations (2k*π) must be SUBTRACTED.
+      // If k < 0: original < 0, so |k| full rotations (2|k|*π) must be ADDED.
+      // If k = 0: angle is already in [0, 2π), 0 full rotations removed.
+      const k = Math.floor(num / (2 * den));
+      const absRotations = Math.abs(k);
+      const piMultiple = absRotations * 2;
+      const rotationDirection = k > 0 ? 'subtracted' : (k < 0 ? 'added' : 'none');
+      const rotationWord = absRotations === 1 ? 'one full rotation' : `${absRotations} full rotations`;
+      const wordCapitalized = absRotations === 1 ? 'ONE' : (absRotations === 2 ? 'TWO' : (absRotations === 3 ? 'THREE' : (absRotations === 4 ? 'FOUR' : String(absRotations))));
+
+      // Explicit fractional coterminal proof
+      let coterminalProof = '';
+      if (k > 0) {
+        const removedFractionStr = `${piMultiple * den}π/${den}`;
+        coterminalProof = `${origStr} - ${piMultiple}π = ${origStr} - ${removedFractionStr} = ${coterminalRadStr}`;
+      } else if (k < 0) {
+        const addedFractionStr = `${piMultiple * den}π/${den}`;
+        coterminalProof = `${origStr} + ${piMultiple}π = ${origStr} + ${addedFractionStr} = ${coterminalRadStr}`;
+      } else {
+        coterminalProof = `${origStr} is already in [0, 2π)`;
+      }
+
       let normRad = angleRad % (2 * Math.PI);
       if (normRad < 0) normRad += 2 * Math.PI;
       const normDeg = (normRad * 180) / Math.PI;
@@ -109,6 +133,13 @@ function parseAngleFromText(text) {
         normalizedRad: normRad,
         normalizedDeg: normDeg,
         coterminalRadStr,
+        rotations: k,
+        absRotations,
+        piMultiple,
+        rotationDirection,
+        rotationWord,
+        wordCapitalized,
+        coterminalProof,
         quadrant: getQuadrant(normRad)
       };
     }
@@ -635,6 +666,13 @@ function extractPreflightDeterministicFacts(userText, conversationHistory = []) 
         coterminal_rad: angleData.coterminalRadStr,
         normalized_rad: angleData.normalizedRad,
         normalized_deg: angleData.normalizedDeg,
+        rotations: angleData.rotations,
+        abs_rotations: angleData.absRotations,
+        pi_multiple: angleData.piMultiple,
+        rotation_direction: angleData.rotationDirection,
+        rotation_word: angleData.rotationWord,
+        word_capitalized: angleData.wordCapitalized,
+        coterminal_proof: angleData.coterminalProof,
         quadrant: angleData.quadrant,
         do_not_convert_degrees: doNotConvertDegrees,
         summary: `Angle ${angleData.originalString} lies in standard position with terminal side in ${angleData.quadrant} (coterminal with ${angleData.isRadian ? angleData.coterminalRadStr : angleData.normalizedDeg + '°'}).`
@@ -787,15 +825,17 @@ function buildPreflightContext(facts, classification = null) {
       ctx += `- Fact ${idx + 1} (Trigonometry: Angle in Standard Position & Quadrant Ground Truth):\n`;
       ctx += `  * Given Angle: ${f.original_angle}\n`;
       if (f.is_radian) {
+        ctx += `  * Coterminal Angle in [0, 2π): ${f.coterminal_rad}${f.do_not_convert_degrees ? '' : ` (or ${f.normalized_deg.toFixed(2)}°)`}\n`;
+        ctx += `  * Terminal Side Location: ${f.quadrant}\n`;
+        if (typeof f.abs_rotations !== 'undefined' && f.abs_rotations > 0) {
+          ctx += `  * Rotation Analysis: ${f.pi_multiple}π represents exactly ${f.word_capitalized} full rotations (${f.rotation_word}), because one full rotation is 2π radians. Total ${f.rotation_direction}: ${f.pi_multiple}π (${f.rotation_word}).\n`;
+          ctx += `  * CRITICAL ROTATION RULE: ${f.pi_multiple}π represents ${f.word_capitalized} full rotations, NOT ${f.pi_multiple} rotations. Never confuse the multiple of π (${f.pi_multiple}π) with the number of full 2π rotations (${f.abs_rotations}).\n`;
+        }
+        if (f.coterminal_proof) {
+          ctx += `  * Radian Coterminal Proof: ${f.coterminal_proof}. Since the terminal side lies within the boundaries for ${f.quadrant}, ${f.original_angle} terminates in ${f.quadrant}.\n`;
+        }
         if (f.do_not_convert_degrees) {
-          ctx += `  * Coterminal Angle in [0, 2π): ${f.coterminal_rad}\n`;
-          ctx += `  * Terminal Side Location: ${f.quadrant}\n`;
           ctx += `  * CONSTRAINT DIRECTIVE: The student explicitly requested: "Work the exercise without converting to degrees". You MUST reason strictly in radian fractional terms (e.g. standard circle bounds: Q1 is (0, π/2), Q2 is (π/2, π), Q3 is (π, 3π/2), Q4 is (3π/2, 2π)). Do NOT state or convert through degree measures (e.g., do NOT mention 60°, -300°, or 300°). The entire reasoning and answer must be strictly in radians.\n`;
-          ctx += `  * Radian Coterminal Proof: ${f.original_angle} + 2π = ${f.original_angle} + 6π/3 = ${f.coterminal_rad}. Since 0 < ${f.coterminal_rad} < π/2, the terminal side lies in ${f.quadrant}.\n`;
-        } else {
-          ctx += `  * Coterminal Angle in [0, 2π): ${f.coterminal_rad} (or ${f.normalized_deg.toFixed(2)}°)\n`;
-          ctx += `  * Terminal Side Location: ${f.quadrant}\n`;
-          ctx += `  * Standard Coterminal Proof: ${f.original_angle} + 2π = ${f.coterminal_rad}, which places the terminal side in ${f.quadrant}.\n`;
         }
       } else {
         ctx += `  * Coterminal Angle in [0°, 360°): ${f.normalized_deg}°\n`;
@@ -977,6 +1017,27 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
 
     // Any other angle/quadrant query should not be hijacked by GRAPH_PLOT
     return null;
+  }
+
+  // Referential angle visualization requests:
+  // e.g. "I need to visualize this.", "visualize this", "draw this", "show this", "can you visualize this?"
+  // When conversation history contains an active angle in standard position / trigonometry problem.
+  const isReferentialVizQuery = /^(?:(?:i\s+need\s+to|can\s+you\s+please|can\s+you|please|now)\s+)?(?:visualize|draw|plot|show|sketch)\s+(?:this|it|that)$/i.test(clean) ||
+                                /^(?:visualize\s+this|show\s+me\s+this|i\s+want\s+to\s+see\s+this)$/i.test(clean);
+  if (isReferentialVizQuery && conversationHistory && Array.isArray(conversationHistory) && conversationHistory.length > 0) {
+    const recentTurns = conversationHistory.slice(-4);
+    for (let i = recentTurns.length - 1; i >= 0; i--) {
+      const turn = recentTurns[i];
+      if (!turn || typeof turn.content !== 'string') continue;
+      const angleData = parseAngleFromText(turn.content);
+      if (angleData) {
+        return {
+          type: 'CLASSICAL_MODEL_VIZ',
+          model: 'trigonometry',
+          customAngle: Math.round(angleData.normalizedDeg)
+        };
+      }
+    }
   }
 
   // 0. Direct Function Plotting / Graphing Requests
@@ -1557,17 +1618,29 @@ Adjust the controls above to explore how launch angle $\\theta$ and velocity $v_
       let out = `📐 **Trigonometry: Angle in Standard Position**\n\n`;
       out += `### 1. Standard Position Setup\nAn angle is in **standard position** when its vertex is at the origin $(0, 0)$ and its initial side lies along the positive $x$-axis.\n\n`;
       if (f.is_radian) {
+        const latexCoterminal = f.coterminal_rad.includes('/') ? `\\frac{${f.coterminal_rad.split('/')[0]}}{${f.coterminal_rad.split('/')[1]}}`.replace(/π/g, '\\pi') : f.coterminal_rad.replace(/π/g, '\\pi');
         if (f.do_not_convert_degrees) {
           out += `### 2. Radian Analysis (Without Converting to Degrees)\n`;
-          out += `Working purely in radians, one full revolution counterclockwise is $2\\pi = \\frac{6\\pi}{3}$.\n\n`;
-          out += `Adding $2\\pi$ to find a positive coterminal angle:\n`;
-          out += `$$\n${f.original_angle} + 2\\pi = -\\frac{5\\pi}{3} + \\frac{6\\pi}{3} = \\mathbf{\\frac{\\pi}{3}}\n$$\n\n`;
-          out += `Since $0 < \\frac{\\pi}{3} < \\frac{\\pi}{2}$, the terminal side lies in **${f.quadrant}**.\n\n`;
+          if (f.abs_rotations > 0) {
+            out += `Working purely in radians, one full revolution is $2\\pi$. Here, $${f.pi_multiple}\\pi$ represents **${f.word_capitalized} full rotations** ($${f.rotation_word}$).`;
+            if (f.rotation_direction === 'subtracted') {
+              out += `\n\nSubtracting $${f.pi_multiple}\\pi$ to find the coterminal angle in $[0, 2\\pi)$:\n`;
+            } else {
+              out += `\n\nAdding $${f.pi_multiple}\\pi$ to find the coterminal angle in $[0, 2\\pi)$:\n`;
+            }
+          } else {
+            out += `Working purely in radians, this angle already lies within $[0, 2\\pi)$:\n`;
+          }
+          out += `$$\n${f.coterminal_proof || f.original_angle}\n$$\n\n`;
+          out += `The coterminal angle is $\\mathbf{${latexCoterminal}}$ and the terminal side lies in **${f.quadrant}**.\n\n`;
         } else {
           out += `### 2. Coterminal Angle & Quadrant\n`;
-          out += `Adding $2\\pi$ to find a positive coterminal angle:\n`;
-          out += `$$\n${f.original_angle} + 2\\pi = \\mathbf{${f.coterminal_rad}}\n$$\n\n`;
-          out += `Since $0 < ${f.coterminal_rad} < \\frac{\\pi}{2}$ (${f.normalized_deg}^\\circ), the terminal side lies in **${f.quadrant}**.\n\n`;
+          if (f.abs_rotations > 0) {
+            out += `Here, $${f.pi_multiple}\\pi$ represents **${f.word_capitalized} full rotations** ($${f.rotation_word}$).\n\n`;
+          }
+          out += `$$\n${f.coterminal_proof || f.original_angle}\n$$\n\n`;
+          out += `Coterminal angle in $[0, 2\\pi)$: **${f.coterminal_rad}** (${latexCoterminal}, or ${f.normalized_deg.toFixed(2)}°).\n`;
+          out += `The terminal side lies in **${f.quadrant}**.\n\n`;
         }
       } else {
         out += `### 2. Coterminal Angle & Quadrant\n`;

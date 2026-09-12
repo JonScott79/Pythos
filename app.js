@@ -197,6 +197,72 @@ function inferClientDomain(text) {
   return 'DEFAULT';
 }
 
+// ==========================================
+// CHAT VIEWPORT & SCROLL POLICY MANAGER
+// ==========================================
+// Desired behavior:
+// 1. When a new assistant response begins (stream draft or finalized message):
+//    Position viewport at the TOP of that assistant response.
+// 2. User is following the response:
+//    Allow smooth automatic scrolling during streaming if user is near bottom.
+// 3. User scrolls away from response (upward):
+//    Immediately stop auto-scrolling and NEVER yank user back down.
+// 4. Rendering changes the DOM (KaTeX, tables, visualizations):
+//    Preserve the assistant message's top position or user's current reading position.
+// 5. Response completes:
+//    Do not jump to bottom. Keep viewport at top of assistant response or user's reading position.
+
+let isUserScrolledUp = false;
+let isProgrammaticScroll = false;
+let scrollResetTimeout = null;
+
+function isNearBottom(container, threshold = 60) {
+  if (!container) return true;
+  return (container.scrollHeight - container.clientHeight - container.scrollTop) <= threshold;
+}
+
+if (output) {
+  output.addEventListener('scroll', () => {
+    if (isProgrammaticScroll) return;
+    // If user has scrolled upward away from bottom by more than 60px, consider them reading older content
+    isUserScrolledUp = !isNearBottom(output, 60);
+  }, { passive: true });
+}
+
+function scrollToMessageTop(element, smooth = true) {
+  if (!output || !element) return;
+  isProgrammaticScroll = true;
+  clearTimeout(scrollResetTimeout);
+  
+  // Align to top with modest breathing room
+  const targetScrollTop = Math.max(0, element.offsetTop - 12);
+  if (smooth && typeof output.scrollTo === 'function') {
+    output.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
+  } else {
+    output.scrollTop = targetScrollTop;
+  }
+
+  scrollResetTimeout = setTimeout(() => {
+    isProgrammaticScroll = false;
+  }, 400);
+}
+
+function scrollToChatBottom(smooth = false) {
+  if (!output) return;
+  isProgrammaticScroll = true;
+  clearTimeout(scrollResetTimeout);
+
+  if (smooth && typeof output.scrollTo === 'function') {
+    output.scrollTo({ top: output.scrollHeight, behavior: 'smooth' });
+  } else {
+    output.scrollTop = output.scrollHeight;
+  }
+
+  scrollResetTimeout = setTimeout(() => {
+    isProgrammaticScroll = false;
+  }, 400);
+}
+
 function showThinking(userQuery = '') {
   const div = document.createElement("div");
   div.className = "message thinking";
@@ -240,6 +306,103 @@ function removeThinking(el) {
     }
     if (el.parentNode) el.parentNode.removeChild(el);
   }
+}
+
+// Helper: Extract complete JSON object from [VIZ: ...] token using a robust balanced-brace routine.
+// Handles nested objects, braces inside JSON strings, escaped quotes, and multiple [VIZ:] blocks cleanly.
+function extractBalancedVizBlocks(text) {
+  if (typeof window !== 'undefined' && window.PythosVizExtractor && typeof window.PythosVizExtractor.extractBalancedVizBlocks === 'function') {
+    return window.PythosVizExtractor.extractBalancedVizBlocks(text);
+  }
+  const marker = '[VIZ:';
+  const blocks = [];
+  let remainingText = '';
+  let searchIdx = 0;
+
+  while (searchIdx < text.length) {
+    const vizStart = text.indexOf(marker, searchIdx);
+    if (vizStart === -1) {
+      remainingText += text.slice(searchIdx);
+      break;
+    }
+
+    // Append preceding text
+    remainingText += text.slice(searchIdx, vizStart);
+
+    // Find the opening brace '{'
+    const openBraceIdx = text.indexOf('{', vizStart + marker.length);
+    if (openBraceIdx === -1) {
+      // No opening brace found for this [VIZ: token, skip past marker
+      remainingText += text.slice(vizStart, vizStart + marker.length);
+      searchIdx = vizStart + marker.length;
+      continue;
+    }
+
+    let depth = 0;
+    let inString = false;
+    let isEscaped = false;
+    let endBraceIdx = -1;
+
+    for (let i = openBraceIdx; i < text.length; i++) {
+      const char = text[i];
+
+      if (inString) {
+        if (isEscaped) {
+          isEscaped = false;
+        } else if (char === '\\') {
+          isEscaped = true;
+        } else if (char === '"') {
+          inString = false;
+        }
+      } else {
+        if (char === '"') {
+          inString = true;
+        } else if (char === '{') {
+          depth++;
+        } else if (char === '}') {
+          depth--;
+          if (depth === 0) {
+            endBraceIdx = i;
+            break;
+          }
+        }
+      }
+    }
+
+    if (endBraceIdx !== -1) {
+      const rawJson = text.slice(openBraceIdx, endBraceIdx + 1);
+      blocks.push(rawJson);
+      remainingText += '%%%INLINE_VIZ_INSTRUMENT_PLACEHOLDER%%%';
+
+      // Advance searchIdx past the closing ']' if present
+      const closingBracket = text.indexOf(']', endBraceIdx + 1);
+      if (closingBracket !== -1 && closingBracket - endBraceIdx <= 5) {
+        searchIdx = closingBracket + 1;
+      } else {
+        searchIdx = endBraceIdx + 1;
+      }
+    } else {
+      // Unbalanced braces; preserve text as-is and advance
+      remainingText += text.slice(vizStart, openBraceIdx + 1);
+      searchIdx = openBraceIdx + 1;
+    }
+  }
+
+  return {
+    sanitized: remainingText,
+    vizBlocks: blocks
+  };
+}
+
+// Export for testing in Node / CommonJS and Browser environments
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    extractBalancedVizBlocks,
+    sanitizeGraphExpr
+  };
+}
+if (typeof window !== 'undefined') {
+  window.extractBalancedVizBlocks = extractBalancedVizBlocks;
 }
 
 // Helper: robust expression compiler supporting LaTeX and implicit multiplication
@@ -802,12 +965,9 @@ function appendMessage(role, text, images = null, metadata = {}) {
     sanitized = sanitized.replace(chartTokenRegex, "%%%INLINE_CHART_PLACEHOLDER%%%");
   }
 
-  // Detect [VIZ: ...] Classical Visualization Engine structured tokens
-  const vizTokenRegex = /\[VIZ:\s*(\{[\s\S]*?\})\]/i;
-  const vizMatch = sanitized.match(vizTokenRegex);
-  if (vizMatch) {
-    sanitized = sanitized.replace(vizTokenRegex, "%%%INLINE_VIZ_INSTRUMENT_PLACEHOLDER%%%");
-  }
+  // Detect [VIZ: ...] Classical Visualization Engine structured tokens using balanced-brace extraction
+  const { sanitized: vizSanitized, vizBlocks } = extractBalancedVizBlocks(sanitized);
+  sanitized = vizSanitized;
 
   // Helper to safely format markdown and pre-compile LaTeX blocks to eliminate any flash of raw math text
   function formatResponseText(raw) {
@@ -955,7 +1115,7 @@ function appendMessage(role, text, images = null, metadata = {}) {
       .replace("%%%INLINE_NUMBERLINE_PLACEHOLDER%%%", '<div class="msg-inline-viz-card" data-viz-type="numberline"></div>')
       .replace("%%%INLINE_GEOMETRY_PLACEHOLDER%%%", '<div class="msg-inline-viz-card" data-viz-type="geometry"></div>')
       .replace("%%%INLINE_CHART_PLACEHOLDER%%%", '<div class="msg-inline-viz-card" data-viz-type="chart"></div>')
-      .replace("%%%INLINE_VIZ_INSTRUMENT_PLACEHOLDER%%%", '<div class="pythos-viz-instrument-container"></div>');
+      .replaceAll("%%%INLINE_VIZ_INSTRUMENT_PLACEHOLDER%%%", '<div class="pythos-viz-instrument-container"></div>');
 
     // 7. Restore code blocks
     protectedText = protectedText.replace(/%%%CODE_BLOCK_(\d+)%%%/g, (_, idx) => {
@@ -1182,12 +1342,23 @@ function appendMessage(role, text, images = null, metadata = {}) {
     }
   }
 
-  // If a Pythos Classical Visualization Engine Instrument was detected, validate and instantiate it
-  if (vizMatch) {
-    const vizContainer = contentDiv.querySelector(".pythos-viz-instrument-container");
-    if (vizContainer) {
+  // If Pythos Classical Visualization Engine Instruments were detected, validate and instantiate each one
+  if (vizBlocks && vizBlocks.length > 0) {
+    const vizContainers = contentDiv.querySelectorAll(".pythos-viz-instrument-container");
+    vizBlocks.forEach((rawJson, idx) => {
+      const vizContainer = vizContainers[idx];
+      if (!vizContainer) return;
+
+      const renderTruthfulFailure = (reason) => {
+        vizContainer.innerHTML = `
+          <div class="viz-render-fail" role="alert">
+            <div style="font-weight: 600; margin-bottom: 4px;">⚠️ Interactive Visualization Unavailable</div>
+            <div style="font-size: 0.85em; opacity: 0.95;">The requested visual instrument could not be rendered (${reason}). The verified mathematical solution below remains valid and accurate.</div>
+          </div>
+        `;
+      };
+
       try {
-        const rawJson = vizMatch[1];
         const parsedSpec = JSON.parse(rawJson);
         const protocol = window.PythosVizProtocol;
         const renderer = window.PythosVizRenderer;
@@ -1201,9 +1372,12 @@ function appendMessage(role, text, images = null, metadata = {}) {
               div.classList.add("has-wide-viz");
               vizContainer.classList.add("pythos-viz-wide");
             }
-            renderer.renderInstrument(vizContainer, spec);
+            const renderedSuccessfully = renderer.renderInstrument(vizContainer, spec);
+            if (!renderedSuccessfully) {
+              renderTruthfulFailure(`Render initialization failed for model "${spec.model}"`);
+            }
           } else {
-            vizContainer.innerHTML = `<div class="viz-render-fail">⚠️ Visualization Specification Error: ${validation.error}</div>`;
+            renderTruthfulFailure(`Schema Validation Error: ${validation.error}`);
           }
         } else {
           // Fallback if engine scripts are still loading
@@ -1219,16 +1393,23 @@ function appendMessage(role, text, images = null, metadata = {}) {
                   div.classList.add("has-wide-viz");
                   vizContainer.classList.add("pythos-viz-wide");
                 }
-                rend.renderInstrument(vizContainer, spec);
+                const success = rend.renderInstrument(vizContainer, spec);
+                if (!success) {
+                  renderTruthfulFailure(`Render initialization failed for model "${spec.model}"`);
+                }
+              } else {
+                renderTruthfulFailure(`Schema Validation Error: ${val.error}`);
               }
+            } else {
+              renderTruthfulFailure("Visualization runtime components are unavailable");
             }
           }, 200);
         }
       } catch (err) {
         console.warn("[VIZ INSTRUMENT PARSE ERROR]:", err.message);
-        vizContainer.innerHTML = `<div class="viz-render-fail">⚠️ Invalid visualization specification JSON.</div>`;
+        renderTruthfulFailure(`Malformed JSON specification: ${err.message}`);
       }
-    }
+    });
   }
 
   div.appendChild(contentDiv);
@@ -1275,7 +1456,21 @@ function appendMessage(role, text, images = null, metadata = {}) {
   // Pre-render math and attach accessibility attributes in memory before mounting to visible DOM
   renderMath(contentDiv);
   output.appendChild(div);
-  output.scrollTop = output.scrollHeight;
+
+  // Viewport Scroll Policy:
+  // - For user messages: scroll to bottom so the student sees their submitted question.
+  // - For assistant messages: align viewport to the TOP of the assistant response,
+  //   allowing the student to read from the beginning rather than jumping to the bottom.
+  if (role === "user") {
+    isUserScrolledUp = false;
+    scrollToChatBottom(false);
+  } else if (role === "assistant") {
+    // If user has manually scrolled up to read older context, preserve their position.
+    // Otherwise, position viewport at the top of this new assistant response.
+    if (!isUserScrolledUp) {
+      scrollToMessageTop(div, false);
+    }
+  }
 }
 
 function clearChatUI() {
@@ -1643,7 +1838,7 @@ function showDeepThoughtResponse() {
     <div class="dt-answer">42</div>
   `;
   output.appendChild(div);
-  output.scrollTop = output.scrollHeight;
+  scrollToMessageTop(div, false);
 }
 
 // =========================
@@ -1826,7 +2021,10 @@ async function askPythos(userText) {
       draftBubble.appendChild(contentDiv);
 
       output.appendChild(draftBubble);
-      output.scrollTop = output.scrollHeight;
+      
+      // Viewport starts at the TOP of the drafting assistant bubble
+      isUserScrolledUp = false;
+      scrollToMessageTop(draftBubble, false);
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -1857,7 +2055,12 @@ async function askPythos(userText) {
           if (ev.type === "token") {
             streamedText += ev.content;
             contentDiv.textContent = streamedText;
-            output.scrollTop = output.scrollHeight;
+
+            // During streaming: ONLY follow tokens if the user has NOT scrolled away.
+            // If the user has scrolled upward to read, respect their position and NEVER yank them back down.
+            if (!isUserScrolledUp && isNearBottom(output, 80)) {
+              scrollToChatBottom(false);
+            }
           } else if (ev.type === "status" && ev.stage === "verifying") {
             statusBadge.style.color = "#d97706";
             statusBadge.innerHTML = `<span class="stream-dot" style="width:6px; height:6px; border-radius:50%; background:#d97706; animation:pulse 1.5s infinite;"></span><span>Verifying calculations...</span>`;
@@ -1910,6 +2113,10 @@ async function askPythos(userText) {
       }
 
       // Finalize and promote from draft to fully rendered message
+      // Remember current scroll position or relative offset so promotion does not jump or yank the student
+      const prePromotionScrollTop = output ? output.scrollTop : 0;
+      const wasScrolledUpBeforePromotion = isUserScrolledUp;
+
       if (draftBubble.parentNode) {
         draftBubble.remove();
       }
@@ -1922,6 +2129,11 @@ async function askPythos(userText) {
         verification: metaVerification,
         model: metaModel
       });
+
+      // If user was reading scrolled up during streaming, preserve their exact reading position
+      if (wasScrolledUpBeforePromotion && output) {
+        output.scrollTop = prePromotionScrollTop;
+      }
 
       await saveChatState(userText, finalReply);
     } else {

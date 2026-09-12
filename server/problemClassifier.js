@@ -97,7 +97,10 @@ const PROTOCOLS = {
     'Compute exact value with correct dimensional units'
   ],
   TRIGONOMETRY: [
-    'Identify angle reference (degrees vs radians, vertical vs horizontal angle)',
+    'Identify angle reference (degrees vs radians, standard position vs acute triangle angle)',
+    'For angles in standard position, determine full 2π revolutions: note that 2k*π represents exactly k full rotations (e.g. 4π is TWO full rotations, NOT four)',
+    'Compute verified coterminal angle in [0, 2π) or [0°, 360°) by adding or subtracting the appropriate multiple of 2π',
+    'Locate terminal side quadrant based on quadrant boundaries in radians or degrees',
     'Identify triangle type (right triangle, oblique triangle via Law of Sines/Cosines)',
     'Apply trigonometric identities or inverse trigonometric mappings',
     'Resolve vector components without swapping sine and cosine'
