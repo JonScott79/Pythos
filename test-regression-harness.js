@@ -304,6 +304,16 @@ runSuite("End-to-End Streaming Verification & Token Delivery Suite", () => {
   console.log(out.trim());
 });
 
+// 17. Pi, Parentheses & Division Arithmetic Suite
+runSuite("Pi, Parentheses & Division Arithmetic Precision Suite", () => {
+  const out = execSync('node test-pi-parentheses-arithmetic.js', {
+    cwd: __dirname,
+    encoding: 'utf-8',
+    stdio: 'pipe'
+  });
+  console.log(out.trim());
+});
+
 console.log(`\n${colors.bold}${colors.green}====================================================${colors.reset}`);
 console.log(`${colors.bold}${colors.green}ALL ${passedSuites}/${totalSuites} REGRESSION SUITES PASSED (100%)${colors.reset}`);
 console.log(`${colors.bold}${colors.green}====================================================${colors.reset}\n`);

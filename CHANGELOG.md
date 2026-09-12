@@ -27,7 +27,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Enforces strict radian reasoning for prompts requesting "work without converting to degrees", keeping proofs and quadrant checks purely in radian fractional arithmetic.
   - Injects verified `ANGLE_STANDARD_POSITION` preflight ground truth (coterminal reduction and quadrant determination) into the pedagogical AI system prompt.
   - Cleanly accepts custom angle parameters in the classical trigonometry unit-circle instrument for direct visualization requests.
+- **Parentheses, Pi & Division Arithmetic Precision Fix**:
+  - `server/deterministicRouter.js`: Enhanced `extractArithmeticExpressions` to recognize $\pi$ / `\pi` / `pi` as numerical constant tokens alongside digits across standalone pure arithmetic, division fractions, and implicit multiplication parentheses (e.g. `345(10/pi)`, `345(180/pi)`, `163(180/pi)`, `345(pi/180)`).
+  - Short-circuits pure calculations deterministically in 0ms with verified Math.js exact floating-point evaluation, guaranteeing invariant $a(b/c) \equiv a \cdot (b/c)$ and preventing `/pi` from falling through to the primary LLM where it was susceptible to hallucinated multiplication.
+  - Excluded irrational $\pi$ division expressions from integer fraction reduction in `evaluateItems` to preserve clean, unpolluted decimal representations without giant pseudo-rational ratios.
+  - `server/verificationBridge.js`: Updated claim extraction to parse $\pi$, division, and parentheses expressions, enabling the Math.js verification engine to detect and flag corrupted calculations for revision.
 - **Automated Verification**:
+  - Added `test-pi-parentheses-arithmetic.js` (22/22 tests passing) validating target expressions, invariant reciprocity, control cases, preflight fact extraction, and verification claim extraction.
   - Added `test-angle-routing.js` covering standard-position angle parsing, radian coterminal proofs, quadrant determination, and genuine function plot preservation.
   - Added `test-calculator-keyboard.js` verifying keyboard/button parity, decimal expression preservation, and DOM accessibility.
   - Added `test/test-memory-system.js` covering fact extraction, inference confidence, privacy gates, token bounds, and Firestore CRUD.

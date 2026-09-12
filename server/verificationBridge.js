@@ -117,10 +117,12 @@ function extractClaims(text, userPrompt = '') {
       .replace(/×/g, '*')
       .replace(/·/g, '*')
       .replace(/÷/g, '/')
-      .replace(/−/g, '-');
+      .replace(/−/g, '-')
+      .replace(/\\pi/g, 'pi')
+      .replace(/π/g, 'pi');
 
     // 6a. LaTeX Fraction: \frac{A}{B} \approx C or = C
-    const fracMatches = line.matchAll(/\\frac\{([\d.]+)\}\{([\d.]+)\}\s*(?:\\approx|\\thickapprox|≈|~|=)\s*([\d.]+)\s*(%)?/g);
+    const fracMatches = line.matchAll(/\\frac\{([\d.]+|\bpi\b)\}\{([\d.]+|\bpi\b)\}\s*(?:\\approx|\\thickapprox|≈|~|=)\s*([\d.]+)\s*(%)?/gi);
     for (const m of fracMatches) {
       const num = m[1];
       const den = m[2];
@@ -145,11 +147,17 @@ function extractClaims(text, userPrompt = '') {
       });
     }
 
-    // 6b. General Infix Operations: A op B = C, (A op B) / C = D, = A / B = C, A * B = C
-    // Supports chained arithmetic operations and leading = lines
-    const calcMatches = line.matchAll(/(?:^|[$\s(,:=])(?:\(?([\d.]+(?:\s*[-+*/^]\s*[\d.]+)+)\)?)\s*(?:\\approx|\\thickapprox|≈|~|=)\s*([\d.]+)\s*(%)?/g);
+    // 6b. General Infix Operations & Parentheses: A op B = C, (A op B) / C = D, = A / B = C, A(B/C) = D
+    // Supports chained arithmetic operations, pi, and leading = lines
+    const calcMatches = line.matchAll(/(?:^|[$\s(,:=])(?:\(?([0-9.a-zA-Z()]+(?:\s*[-+*/^]\s*[0-9.a-zA-Z()]+)+)\)?)\s*(?:\\approx|\\thickapprox|≈|~|=)\s*([\d.]+)\s*(%)?/g);
     for (const m of calcMatches) {
       const expr = m[1].trim();
+      // Ensure the expression consists only of valid arithmetic tokens (numbers, pi, operators, parens)
+      if (!/^[-+*/^0-9.()\s]+$/i.test(expr.replace(/\bpi\b/gi, '1').replace(/\bsqrt\b/gi, '')) ||
+          !(/(?:\d|\bpi\b)/i.test(expr))) {
+        continue;
+      }
+
       const rawVal = m[2];
       const isPct = m[3] === '%';
       let val = parseFloat(rawVal);
@@ -172,9 +180,14 @@ function extractClaims(text, userPrompt = '') {
     }
 
     // 6c. Chained equation lines: = A + B = C (e.g. "= 0.014 + 0.018 = 0.032")
-    const chainedMatches = line.matchAll(/=\s*([\d.]+\s*[-+*/^]\s*[\d.]+)\s*(?:\\approx|\\thickapprox|≈|~|=)\s*([\d.]+)\s*(%)?/g);
+    const chainedMatches = line.matchAll(/=\s*([0-9.a-zA-Z()]+\s*[-+*/^]\s*[0-9.a-zA-Z()]+)\s*(?:\\approx|\\thickapprox|≈|~|=)\s*([\d.]+)\s*(%)?/g);
     for (const m of chainedMatches) {
       const expr = m[1].trim();
+      if (!/^[-+*/^0-9.()\s]+$/i.test(expr.replace(/\bpi\b/gi, '1').replace(/\bsqrt\b/gi, '')) ||
+          !(/(?:\d|\bpi\b)/i.test(expr))) {
+        continue;
+      }
+
       const rawVal = m[2];
       const isPct = m[3] === '%';
       let val = parseFloat(rawVal);

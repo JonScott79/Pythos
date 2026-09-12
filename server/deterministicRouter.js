@@ -172,9 +172,9 @@ function extractArithmeticExpressions(text) {
     const cleanExprLine = cleanLine.replace(/^(?:calculate|compute|evaluate|what is|find|how much is|is)\s+/i, '').replace(/[?!.]+$/, '').trim();
 
     // Check for "A / B equal to C" or "A / B = C%" pattern
-    const isEqMatch = cleanExprLine.match(/^(\d+(?:\.\d+)?\s*\/\s*\d+(?:\.\d+)?)\s+(?:equal to|equal|=|==|is equal to)\s+(\d+(?:\.\d+)?)\s*%?$/i) ||
-                      cleanExprLine.match(/^(\d+(?:\.\d+)?\s*\/\s*\d+(?:\.\d+)?)\s*(?:=|==)\s*(\d+(?:\.\d+)?)\s*%?$/i) ||
-                      cleanExprLine.match(/^(\d+(?:\.\d+)?\s*\/\s*\d+(?:\.\d+)?)\s+(?:is)\s+(\d+(?:\.\d+)?)\s*%/i);
+    const isEqMatch = cleanExprLine.match(/^((?:\d+(?:\.\d+)?|\b(?:pi|π)\b)\s*\/\s*(?:\d+(?:\.\d+)?|\b(?:pi|π)\b))\s+(?:equal to|equal|=|==|is equal to)\s+(\d+(?:\.\d+)?)\s*%?$/i) ||
+                      cleanExprLine.match(/^((?:\d+(?:\.\d+)?|\b(?:pi|π)\b)\s*\/\s*(?:\d+(?:\.\d+)?|\b(?:pi|π)\b))\s*(?:=|==)\s*(\d+(?:\.\d+)?)\s*%?$/i) ||
+                      cleanExprLine.match(/^((?:\d+(?:\.\d+)?|\b(?:pi|π)\b)\s*\/\s*(?:\d+(?:\.\d+)?|\b(?:pi|π)\b))\s+(?:is)\s+(\d+(?:\.\d+)?)\s*%/i);
     if (isEqMatch) {
       expressions.push(isEqMatch[1].trim());
       continue;
@@ -187,15 +187,23 @@ function extractArithmeticExpressions(text) {
       .replace(/[×✕✖]/g, '*')
       .replace(/[÷]/g, '/')
       .replace(/[−–—]/g, '-')
+      .replace(/\\pi/g, 'pi')
+      .replace(/π/g, 'pi')
       .trim();
 
-    if (/^[-+*/^0-9.()\s]+$/.test(strippedLabelLine) && /\d/.test(strippedLabelLine) && /[-+*/^]/.test(strippedLabelLine)) {
+    if (/^[-+*/^0-9.()\s]+$/i.test(strippedLabelLine.replace(/\bpi\b/gi, '1').replace(/\bsqrt\b/gi, '')) &&
+        /(?:\d|\bpi\b)/i.test(strippedLabelLine) &&
+        (/[-+*/^]/.test(strippedLabelLine) || /\(.*\)/.test(strippedLabelLine))) {
       expressions.push(strippedLabelLine);
       continue;
     }
 
-    // Match fraction/division patterns: A / B or \frac{A}{B}
-    const fracMatches = line.matchAll(/(?:\\frac\{([\d.]+)\}\{([\d.]+)\}|(\b\d+(?:\.\d+)?\s*\/\s*\d+(?:\.\d+)?\b))/g);
+    // Match fraction/division patterns: A / B or \frac{A}{B} (including pi / π)
+    const normLine = line
+      .replace(/\\pi/g, 'pi')
+      .replace(/π/g, 'pi');
+
+    const fracMatches = normLine.matchAll(/(?:\\frac\{([\d.]+|\bpi\b)\}\{([\d.]+|\bpi\b)\}|(\b(?:\d+(?:\.\d+)?|\bpi\b)\s*\/\s*(?:\d+(?:\.\d+)?|\bpi\b)\b))/gi);
     for (const m of fracMatches) {
       if (m[1] && m[2]) {
         expressions.push(`(${m[1]}) / (${m[2]})`);
@@ -204,8 +212,8 @@ function extractArithmeticExpressions(text) {
       }
     }
 
-    // Match general infix arithmetic: A * B, A + B, A - B, A ^ B, sqrt(A)
-    const infixMatches = line.matchAll(/(\b\d+(?:\.\d+)?\s*[-+*^]\s*\d+(?:\.\d+)?(?:\s*[-+*^/]\s*\d+(?:\.\d+)?)*\b|sqrt\(\d+(?:\.\d+)?\))/g);
+    // Match general infix arithmetic: A * B, A + B, A - B, A ^ B, sqrt(A) (including pi)
+    const infixMatches = normLine.matchAll(/(\b(?:\d+(?:\.\d+)?|\bpi\b)\s*[-+*^]\s*(?:\d+(?:\.\d+)?|\bpi\b)(?:\s*[-+*^/]\s*(?:\d+(?:\.\d+)?|\bpi\b))*\b|sqrt\((?:\d+(?:\.\d+)?|\bpi\b)\))/gi);
     for (const m of infixMatches) {
       const expr = m[0].trim();
       if (!expressions.includes(expr)) {
@@ -1277,9 +1285,9 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
     try {
       const val = Number(math.evaluate(expr));
       if (Number.isFinite(val)) {
-        // Calculate exact fraction representation if division
+        // Calculate exact fraction representation if division (excluding irrational pi expressions)
         let exactFrac = null;
-        if (expr.includes('/') || (val % 1 !== 0)) {
+        if (!/\b(?:pi|π)\b/i.test(expr) && (expr.includes('/') || (val % 1 !== 0))) {
           try {
             const frac = math.fraction(val);
             if (frac && frac.d !== 1 && frac.d !== 1n && frac.d <= 1000000) {
