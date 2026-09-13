@@ -659,12 +659,12 @@ ${preflightContext}${activeProblemContext}`;
         model: targetModel,
         messages: formattedMessages,
         temperature: options?.temperature || 0.2,
-        max_tokens: 1500,
+        max_tokens: 900,
         stream: false
       });
 
       const groqHttps = require('https');
-      const groqResponse = await new Promise((resolveGroq, rejectGroq) => {
+      const executeGroqCall = () => new Promise((resolveGroq, rejectGroq) => {
         const groqReq = groqHttps.request({
           hostname: 'api.groq.com',
           port: 443,
@@ -681,6 +681,12 @@ ${preflightContext}${activeProblemContext}`;
           let gBody = '';
           gRes.on('data', chunk => gBody += chunk);
           gRes.on('end', () => {
+            if (gRes.statusCode === 429) {
+              const err = new Error(`RATE_LIMIT: ${gBody}`);
+              err.statusCode = 429;
+              err.body = gBody;
+              return rejectGroq(err);
+            }
             if (gRes.statusCode >= 400) {
               return rejectGroq(new Error(`Groq Vision returned ${gRes.statusCode}: ${gBody}`));
             }
@@ -706,6 +712,24 @@ ${preflightContext}${activeProblemContext}`;
         groqReq.write(groqPayload);
         groqReq.end();
       });
+
+      // Automatic retry with exponential backoff on 429 rate limit
+      let groqResponse;
+      let attempts = 0;
+      while (attempts < 3) {
+        attempts++;
+        try {
+          groqResponse = await executeGroqCall();
+          break;
+        } catch (callErr) {
+          if (callErr.statusCode === 429 && attempts < 3) {
+            console.warn(`[VISION GATEWAY] 429 Rate limited. Retrying in ${attempts * 4}s...`);
+            await new Promise(r => setTimeout(r, attempts * 4000));
+            continue;
+          }
+          throw callErr;
+        }
+      }
 
       let finalContent = groqResponse.message.content;
       const claims = extractClaims(finalContent, lastUserMsg ? lastUserMsg.content : '');
