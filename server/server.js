@@ -622,6 +622,123 @@ app.post('/api/chat', async (req, res) => {
 
   const targetModel = hasImages ? (process.env.OLLAMA_VISION_MODEL || OLLAMA_VISION_MODEL) : OLLAMA_MODEL;
 
+  // Multimodal Hosted Vision Gateway Bridge
+  // If request contains images and GROQ_API_KEY is present in environment, route directly to Groq vision completions
+  const groqApiKey = process.env.GROQ_API_KEY ? process.env.GROQ_API_KEY.trim() : null;
+  if (hasImages && groqApiKey) {
+    try {
+      await concurrencyLimiter.acquire(abortController.signal, REQUEST_TIMEOUT_MS);
+      acquiredSemaphore = true;
+
+      const formattedMessages = preparedMessages.map(m => {
+        if (m.images && m.images.length > 0) {
+          const contentParts = [{ type: 'text', text: m.content || 'Please analyze this image' }];
+          m.images.forEach(b64 => {
+            contentParts.push({
+              type: 'image_url',
+              image_url: { url: `data:image/jpeg;base64,${b64}` }
+            });
+          });
+          return { role: m.role, content: contentParts };
+        }
+        return { role: m.role, content: m.content };
+      });
+
+      const groqPayload = JSON.stringify({
+        model: targetModel,
+        messages: formattedMessages,
+        temperature: options?.temperature || 0.2,
+        max_tokens: 1500,
+        stream: false
+      });
+
+      const groqHttps = require('https');
+      const groqResponse = await new Promise((resolveGroq, rejectGroq) => {
+        const groqReq = groqHttps.request({
+          hostname: 'api.groq.com',
+          port: 443,
+          path: '/openai/v1/chat/completions',
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${groqApiKey}`,
+            'Content-Type': 'application/json',
+            'User-Agent': 'Pythos-Vision/1.6.0',
+            'Content-Length': Buffer.byteLength(groqPayload)
+          },
+          timeout: REQUEST_TIMEOUT_MS
+        }, (gRes) => {
+          let gBody = '';
+          gRes.on('data', chunk => gBody += chunk);
+          gRes.on('end', () => {
+            if (gRes.statusCode >= 400) {
+              return rejectGroq(new Error(`Groq Vision returned ${gRes.statusCode}: ${gBody}`));
+            }
+            try {
+              const parsed = JSON.parse(gBody);
+              const text = parsed.choices?.[0]?.message?.content || '';
+              resolveGroq({
+                model: targetModel,
+                message: { role: 'assistant', content: text },
+                done: true
+              });
+            } catch (err) {
+              rejectGroq(err);
+            }
+          });
+        });
+
+        groqReq.on('timeout', () => {
+          groqReq.destroy();
+          rejectGroq(new Error('ETIMEDOUT'));
+        });
+        groqReq.on('error', rejectGroq);
+        groqReq.write(groqPayload);
+        groqReq.end();
+      });
+
+      let finalContent = groqResponse.message.content;
+      const claims = extractClaims(finalContent, lastUserMsg ? lastUserMsg.content : '');
+      const verificationResults = [];
+      for (const claim of claims) {
+        const v = await runDeterministicVerification(claim);
+        if (v) verificationResults.push(v);
+      }
+
+      if (isStreaming) {
+        res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+        res.setHeader('Transfer-Encoding', 'chunked');
+        res.setHeader('Cache-Control', 'no-cache, no-transform');
+        res.write(JSON.stringify({ type: 'token', content: finalContent }) + '\n');
+        res.write(JSON.stringify({
+          type: 'verified',
+          claims,
+          verification: verificationResults,
+          model: targetModel,
+          done: true
+        }) + '\n');
+        res.write(JSON.stringify({ type: 'done' }) + '\n');
+        return res.end();
+      }
+
+      return res.status(200).json({
+        model: targetModel,
+        message: { role: 'assistant', content: finalContent },
+        claims,
+        verification: verificationResults,
+        done: true
+      });
+    } catch (gErr) {
+      console.error('[PYTHOS API] Groq Vision bridge error:', gErr.message);
+      return res.status(502).json({
+        error: 'upstream_unavailable',
+        message: "🤔 I don't have enough information to connect to the knowledge base right now. Please check your connection and try again.",
+        detail: gErr.message
+      });
+    } finally {
+      if (acquiredSemaphore) concurrencyLimiter.release();
+    }
+  }
+
   try {
     // Acquire concurrency slot (cancellable by signal and bounded by timeout)
     await concurrencyLimiter.acquire(abortController.signal, REQUEST_TIMEOUT_MS);
