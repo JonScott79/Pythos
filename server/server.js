@@ -799,9 +799,18 @@ ${preflightContext}${activeProblemContext}`;
       effectiveOptions.num_ctx = contextManager.TOTAL_CONTEXT_LIMIT;
     }
 
+    // Ensure text-only models (like OLLAMA_MODEL gpt-oss:20b) do not receive image payloads from prior turns
+    const ollamaMessages = preparedMessages.map(m => {
+      if (m.images && m.images.length > 0) {
+        const { images, ...rest } = m;
+        return rest;
+      }
+      return m;
+    });
+
     const payload = JSON.stringify({
       model: targetModel,
-      messages: preparedMessages,
+      messages: ollamaMessages,
       stream: true,
       options: effectiveOptions
     });
