@@ -524,7 +524,8 @@ const MathJSVerifier = {
     }
 
     // 4. Equation Root Substitution
-    if (domain === 'algebra' && (claim_type === 'substitution' || data.equation)) {
+    // Pure substitution checks stay in Math.js; full algebraic solving / lost-root checks defer to Python SymPy
+    if (domain === 'algebra' && claim_type === 'substitution') {
       return this.verifyEquationSolution(data);
     }
 
