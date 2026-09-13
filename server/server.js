@@ -660,7 +660,14 @@ app.post('/api/chat', async (req, res) => {
         let lastMsg = null;
         let streamBuffer = '';
 
+        let upstreamErrorBody = '';
+
         resUpstream.on('data', (chunk) => {
+          if (resUpstream.statusCode >= 400) {
+            upstreamErrorBody += chunk.toString();
+            return;
+          }
+
           if (isStreaming && isFirstChunk && !res.headersSent && !res.writableEnded) {
             isFirstChunk = false;
             res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
@@ -694,7 +701,8 @@ app.post('/api/chat', async (req, res) => {
 
         resUpstream.on('end', () => {
           if (resUpstream.statusCode >= 400) {
-            return reject(new Error(`Ollama returned status ${resUpstream.statusCode}`));
+            console.error(`[PYTHOS API] Upstream error: status=${resUpstream.statusCode}, model=${targetModel}, body=${upstreamErrorBody || streamBuffer || fullText}`);
+            return reject(new Error(`Upstream provider returned status ${resUpstream.statusCode}: ${upstreamErrorBody || streamBuffer || fullText || 'No error details'}`));
           }
           // Process any remaining buffered content on stream completion
           if (streamBuffer && streamBuffer.trim()) {
