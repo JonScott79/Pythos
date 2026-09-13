@@ -631,19 +631,29 @@ app.post('/api/chat', async (req, res) => {
       await concurrencyLimiter.acquire(abortController.signal, REQUEST_TIMEOUT_MS);
       acquiredSemaphore = true;
 
-      const formattedMessages = preparedMessages.map(m => {
-        if (m.images && m.images.length > 0) {
-          const contentParts = [{ type: 'text', text: m.content || 'Please analyze this image' }];
-          m.images.forEach(b64 => {
-            contentParts.push({
-              type: 'image_url',
-              image_url: { url: `data:image/jpeg;base64,${b64}` }
+      // For hosted vision API, provide focused Pythos tutor instructions and vision directive
+      // to keep total request tokens safely within provider rate limits (~1500 tokens)
+      const visionSystemPrompt = `You are Pythos, a wise, warm mathematics and physics tutor inspired by Ancient Greek scholarship and Socratic pedagogy.
+${visionExtractor.buildVisionPromptDirective()}
+${preflightContext}${activeProblemContext}`;
+
+      const visionConversation = preparedMessages.filter(m => m.role !== 'system');
+      const formattedMessages = [
+        { role: 'system', content: visionSystemPrompt },
+        ...visionConversation.map(m => {
+          if (m.images && m.images.length > 0) {
+            const contentParts = [{ type: 'text', text: m.content || 'Please analyze this image' }];
+            m.images.forEach(b64 => {
+              contentParts.push({
+                type: 'image_url',
+                image_url: { url: `data:image/jpeg;base64,${b64}` }
+              });
             });
-          });
-          return { role: m.role, content: contentParts };
-        }
-        return { role: m.role, content: m.content };
-      });
+            return { role: m.role, content: contentParts };
+          }
+          return { role: m.role, content: m.content };
+        })
+      ];
 
       const groqPayload = JSON.stringify({
         model: targetModel,
