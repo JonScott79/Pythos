@@ -203,6 +203,17 @@ test('2.4: Conversational referential variants ("draw it out for me please", "dr
   }
 });
 
+test('2.5: Conversational follow-up expressions ("so then it becomes -29/3 pi + 2pi * 5?") fall through to LLM', () => {
+  const history = [
+    { role: 'user', content: 'A positive angle less than 2pi that is coterminal with -29pi/3' },
+    { role: 'assistant', content: 'The positive angle less than 2π that is coterminal with -29π/3 is π/3.' }
+  ];
+
+  const query = 'so then it becomes -29/3 pi + 2pi * 5?';
+  const intent = analyzeDeterministicIntent(query, history);
+  assert.strictEqual(intent, null, 'Must return null intent so the pedagogical question is answered socratically by the tutor');
+});
+
 // ============================================================================
 // SUITE 3: Balanced-Brace JSON Extraction Routine
 // ============================================================================

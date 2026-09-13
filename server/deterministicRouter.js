@@ -234,12 +234,23 @@ function extractArithmeticExpressions(text) {
       .replace(/\\pi/g, 'pi')
       .replace(/π/g, 'pi');
 
-    const fracMatches = normLine.matchAll(/(?:\\frac\{([\d.]+|\bpi\b)\}\{([\d.]+|\bpi\b)\}|(\b(?:\d+(?:\.\d+)?|\bpi\b)\s*\/\s*(?:\d+(?:\.\d+)?|\bpi\b)\b))/gi);
+    // Only match if the fraction is NOT immediately followed by or prefixed by a variable, pi, or algebraic expression
+    const fracMatches = normLine.matchAll(/(?:\\frac\{([\d.]+|\bpi\b)\}\{([\d.]+|\bpi\b)\}|(\b(?:\d+(?:\.\d+)?|\bpi\b)\s*\/\s*(?:\d+(?:\.\d+)?|\bpi\b)\b))(?!\s*(?:[a-zA-Z]|\\pi|π))/gi);
     for (const m of fracMatches) {
       if (m[1] && m[2]) {
         expressions.push(`(${m[1]}) / (${m[2]})`);
       } else if (m[3]) {
-        expressions.push(m[3].trim());
+        // Ensure the match is not part of a larger algebraic expression on the line
+        const matchIdx = m.index;
+        const matchStr = m[0];
+        const afterMatch = normLine.slice(matchIdx + matchStr.length).trim();
+        const beforeMatch = normLine.slice(0, matchIdx).trim();
+
+        // If surrounded by operators (+, -, *, ^) or pi, it is a subexpression of a larger expression, not a standalone division
+        const isSubExpr = /[-+*^/]$/.test(beforeMatch) || /^[-+*^/]/.test(afterMatch) || /^(?:pi|[a-zA-Z])\b/i.test(afterMatch);
+        if (!isSubExpr) {
+          expressions.push(m[3].trim());
+        }
       }
     }
 
