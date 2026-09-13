@@ -1406,6 +1406,81 @@
       border: 1px solid #fca5a5;
     }
 
+    /* Pending Image Upload Preview Strip */
+    .pending-images-strip {
+      display: none;
+      gap: 10px;
+      padding: 8px 12px;
+      background: var(--sidebar-hover);
+      border: 1px dashed var(--primary-color);
+      border-radius: 8px;
+      margin-bottom: 8px;
+      overflow-x: auto;
+      align-items: center;
+    }
+
+    .pending-img-thumb-wrap {
+      position: relative;
+      display: inline-flex;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+      background: #000;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+      flex-shrink: 0;
+    }
+
+    .pending-img-thumb {
+      max-width: 80px;
+      max-height: 80px;
+      height: 60px;
+      width: auto;
+      border-radius: 6px;
+      object-fit: contain;
+      display: block;
+    }
+
+    .pending-img-remove-btn {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      width: 18px;
+      height: 18px;
+      background: #ef4444;
+      color: #ffffff;
+      border: none;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+      transition: transform 0.1s, background 0.15s;
+    }
+
+    .pending-img-remove-btn:hover {
+      background: #dc2626;
+      transform: scale(1.15);
+    }
+
+    .pending-img-name {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-left: 4px;
+      max-width: 180px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Image Attachment Drag-over highlight */
+    .input-wrapper.drag-over {
+      border-color: var(--primary-color) !important;
+      background: rgba(42, 114, 143, 0.08) !important;
+      box-shadow: 0 0 0 2px rgba(42, 114, 143, 0.25) !important;
+    }
+
     /* Inline Graph & Visualization Cards inside Chat Messages */
     .msg-inline-graph-card,
     .msg-inline-viz-card {
@@ -2559,12 +2634,27 @@
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
               <span>Equation Builder</span>
             </button>
+            <button id="toolImageBtn" class="tool-btn" title="Upload or Photograph Math/Physics Problem" aria-label="Upload or take a picture of a problem or handwritten work">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+              <span>Image / Photo</span>
+            </button>
           </div>
 
+          <!-- PENDING IMAGE ATTACHMENTS STRIP -->
+          <div id="pendingImagesStrip" class="pending-images-strip" role="region" aria-label="Attached images for upcoming message">
+            <!-- Dynamically populated thumbnails -->
+          </div>
+
+          <!-- HIDDEN FILE INPUT -->
+          <input type="file" id="imageFileInput" accept="image/*" style="display:none;" aria-hidden="true" multiple />
+
           <form class="input-wrapper" role="search" onsubmit="return false;">
+            <button id="attachImgBtn" type="button" class="help-btn" title="Attach picture of math/physics problem or handwritten work" aria-label="Attach picture of problem or notes">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+            </button>
             <button id="helpBtn" type="button" class="help-btn" title="Math Input Guide" aria-label="Open Math Input Guide" aria-haspopup="dialog" aria-expanded="false" aria-controls="mathGuideOverlay">?</button>
             <label for="userInput" class="sr-only">Ask Pythos a math or physics question, or enter an equation</label>
-            <input id="userInput" type="text" placeholder="Speak to the Oracle, dictate, or ask a math question..." autocomplete="off" maxlength="1500" aria-label="Math or physics problem input" autofocus />
+            <input id="userInput" type="text" placeholder="Speak to the Oracle, dictate, paste/upload a problem image..." autocomplete="off" maxlength="1500" aria-label="Math or physics problem input" autofocus />
             <span id="charCounter" class="char-counter" style="display:none;" aria-live="polite">0/1500</span>
             <button id="voiceBtn" type="button" class="help-btn voice-btn" title="Voice Input (Speech-to-Text)" aria-label="Toggle Voice Speech-to-Text Input">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>

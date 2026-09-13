@@ -458,6 +458,7 @@ const memoryExtractor = require('./memoryExtractor');
 const firebaseAdmin = require('./firebaseAdmin');
 
 const contextManager = require('./contextManager');
+const visionExtractor = require('./visionExtractor');
 
 // Mount Admin Routes
 app.use('/admin', adminRoutes);
@@ -599,19 +600,17 @@ app.post('/api/chat', async (req, res) => {
   // Detect if this request contains image payloads
   let hasImages = false;
   preparedMessages = preparedMessages.map(m => {
-    const cleanMsg = {
-      role: m.role,
-      content: m.content
-    };
-    if (m.images && Array.isArray(m.images) && m.images.length > 0) {
+    const cleanMsg = visionExtractor.cleanVisionMessage(m);
+    if (cleanMsg.images && cleanMsg.images.length > 0) {
       hasImages = true;
-      cleanMsg.images = m.images.map(img => {
-        // Strip data:image/...;base64, prefix if present
-        return typeof img === 'string' && img.includes('base64,') ? img.split('base64,')[1] : img;
-      });
     }
     return cleanMsg;
   });
+
+  if (hasImages) {
+    const visionDirective = visionExtractor.buildVisionPromptDirective();
+    preparedMessages[0].content += visionDirective;
+  }
 
   const targetModel = hasImages ? (process.env.OLLAMA_VISION_MODEL || OLLAMA_VISION_MODEL) : OLLAMA_MODEL;
 

@@ -1781,13 +1781,29 @@ async function saveChatState(userMessage, botReply) {
 
   const chatsRef = collection(db, `users/${currentUser.uid}/pythos_chats`);
   
+  // Sanitize messages so raw base64 image strings never bloat Firestore documents over 1MB limit
+  const sanitizedMessages = messages.map(m => {
+    if (!m) return m;
+    const clean = { ...m };
+    if (clean.images && Array.isArray(clean.images)) {
+      // Retain only metadata / thumbnail flag instead of huge multi-megabyte base64
+      clean.images = clean.images.map(img => {
+        if (typeof img === "string" && img.length > 500) {
+          return "[IMAGE_ATTACHED]";
+        }
+        return img;
+      });
+    }
+    return clean;
+  });
+
   if (!currentChatId) {
     // Generate a title based on the first user message
     const title = userMessage.length > 30 ? userMessage.substring(0, 30) + "..." : userMessage;
     const newDoc = await addDoc(chatsRef, {
       title: title,
       timestamp: serverTimestamp(),
-      messages: messages
+      messages: sanitizedMessages
     });
     currentChatId = newDoc.id;
     loadSidebarChats(); // Refresh sidebar to show new chat
@@ -1795,7 +1811,7 @@ async function saveChatState(userMessage, botReply) {
     // Update existing chat
     const docRef = doc(db, `users/${currentUser.uid}/pythos_chats`, currentChatId);
     await updateDoc(docRef, {
-      messages: messages,
+      messages: sanitizedMessages,
       timestamp: serverTimestamp() // bump to top
     });
   }
@@ -1900,6 +1916,181 @@ window.DeterministicMath = {
 };
 
 // =========================
+// VISION & IMAGE UPLOAD HANDLING
+// =========================
+let pendingImages = []; // Array of { base64: string, name: string }
+
+const pendingImagesStrip = document.getElementById("pendingImagesStrip");
+const imageFileInput = document.getElementById("imageFileInput");
+const attachImgBtn = document.getElementById("attachImgBtn");
+const toolImageBtn = document.getElementById("toolImageBtn");
+const inputWrapper = document.querySelector(".input-wrapper");
+
+/**
+ * Resizes and compresses an image client-side to JPEG format using HTML5 Canvas.
+ * Caps maximum dimension to 1600px and keeps payload lightweight (~200KB - 400KB).
+ */
+function compressAndResizeImage(file, maxDimension = 1600, quality = 0.82) {
+  return new Promise((resolve, reject) => {
+    if (!file || !file.type.startsWith("image/")) {
+      return reject(new Error("File is not a valid image"));
+    }
+
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Failed to read image file"));
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("Failed to load image for processing"));
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        // Scale proportionally if exceeding maxDimension
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+
+        // Fill background with white in case of transparent PNG/WebP
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, width, height);
+
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Export as compressed JPEG base64
+        const dataUrl = canvas.toDataURL("image/jpeg", quality);
+        resolve({
+          name: file.name || "problem-image.jpg",
+          dataUrl: dataUrl,
+          base64: dataUrl.split("base64,")[1]
+        });
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function updatePendingImagesUI() {
+  if (!pendingImagesStrip) return;
+  pendingImagesStrip.innerHTML = "";
+
+  if (pendingImages.length === 0) {
+    pendingImagesStrip.style.display = "none";
+    return;
+  }
+
+  pendingImagesStrip.style.display = "flex";
+
+  pendingImages.forEach((imgObj, idx) => {
+    const wrap = document.createElement("div");
+    wrap.className = "pending-img-thumb-wrap";
+
+    const thumb = document.createElement("img");
+    thumb.className = "pending-img-thumb";
+    thumb.src = imgObj.dataUrl;
+    thumb.alt = imgObj.name || `Attached image ${idx + 1}`;
+
+    const rmBtn = document.createElement("button");
+    rmBtn.className = "pending-img-remove-btn";
+    rmBtn.setAttribute("type", "button");
+    rmBtn.setAttribute("aria-label", `Remove ${imgObj.name || "attached image"}`);
+    rmBtn.innerHTML = "×";
+    rmBtn.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      pendingImages.splice(idx, 1);
+      updatePendingImagesUI();
+    });
+
+    wrap.appendChild(thumb);
+    wrap.appendChild(rmBtn);
+    pendingImagesStrip.appendChild(wrap);
+  });
+
+  const label = document.createElement("span");
+  label.className = "pending-img-name";
+  label.textContent = `${pendingImages.length} image${pendingImages.length > 1 ? "s" : ""} attached (ready for Oracle)`;
+  pendingImagesStrip.appendChild(label);
+}
+
+async function handleImageFiles(files) {
+  if (!files || files.length === 0) return;
+  for (const file of Array.from(files)) {
+    if (!file.type.startsWith("image/")) continue;
+    try {
+      const compressed = await compressAndResizeImage(file);
+      pendingImages.push(compressed);
+    } catch (err) {
+      console.warn("[IMAGE PROCESSING ERROR]:", err.message);
+      alert("Could not process image: " + err.message);
+    }
+  }
+  updatePendingImagesUI();
+  if (input) input.focus();
+}
+
+if (attachImgBtn && imageFileInput) {
+  attachImgBtn.addEventListener("click", () => imageFileInput.click());
+}
+if (toolImageBtn && imageFileInput) {
+  toolImageBtn.addEventListener("click", () => imageFileInput.click());
+}
+if (imageFileInput) {
+  imageFileInput.addEventListener("change", (e) => {
+    handleImageFiles(e.target.files);
+    imageFileInput.value = "";
+  });
+}
+
+// Clipboard Paste (Ctrl+V / Cmd+V) Listener for screenshots
+document.addEventListener("paste", async (e) => {
+  const items = (e.clipboardData || window.clipboardData)?.items;
+  if (!items) return;
+
+  const imageFiles = [];
+  for (let i = 0; i < items.length; i++) {
+    if (items[i].type.indexOf("image") !== -1) {
+      const blob = items[i].getAsFile();
+      if (blob) imageFiles.push(blob);
+    }
+  }
+
+  if (imageFiles.length > 0) {
+    e.preventDefault();
+    await handleImageFiles(imageFiles);
+  }
+});
+
+// Drag and drop listener on input wrapper
+if (inputWrapper) {
+  inputWrapper.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    inputWrapper.classList.add("drag-over");
+  });
+  inputWrapper.addEventListener("dragleave", () => {
+    inputWrapper.classList.remove("drag-over");
+  });
+  inputWrapper.addEventListener("drop", (e) => {
+    e.preventDefault();
+    inputWrapper.classList.remove("drag-over");
+    if (e.dataTransfer && e.dataTransfer.files) {
+      handleImageFiles(e.dataTransfer.files);
+    }
+  });
+}
+
+// =========================
 // OLLAMA INTEGRATION
 // =========================
 let isProcessing = false;
@@ -1932,20 +2123,36 @@ function setInputLocked(locked) {
 }
 
 async function askPythos(userText) {
-  if (!userText || !userText.trim()) return;
+  const hasPendingImages = pendingImages.length > 0;
+  if ((!userText || !userText.trim()) && !hasPendingImages) return;
   if (isProcessing) return; // Block spam
 
   // Cap input length
-  let cleanText = userText.trim();
+  let cleanText = (userText || "").trim();
   if (cleanText.length > MAX_INPUT_LENGTH) {
     cleanText = cleanText.substring(0, MAX_INPUT_LENGTH);
   }
+  if (!cleanText && hasPendingImages) {
+    cleanText = "Please inspect and help me with this problem.";
+  }
+
+  // Snapshot images for current message
+  const imagesToSend = pendingImages.map(img => img.base64);
+  const dataUrlsToDisplay = pendingImages.map(img => img.dataUrl);
+
+  // Clear pending image attachments
+  pendingImages = [];
+  updatePendingImagesUI();
 
   setInputLocked(true);
 
   // Append user message to history
-  messages.push({ role: "user", content: cleanText });
-  appendMessage("user", cleanText);
+  const userMsgObj = { role: "user", content: cleanText };
+  if (imagesToSend.length > 0) {
+    userMsgObj.images = imagesToSend;
+  }
+  messages.push(userMsgObj);
+  appendMessage("user", cleanText, dataUrlsToDisplay.length > 0 ? dataUrlsToDisplay : null);
   input.value = "";
   if (charCounter) charCounter.style.display = "none";
   // Hide the math preview
