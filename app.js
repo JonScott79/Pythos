@@ -2346,6 +2346,24 @@ async function askPythos(userText) {
       }
 
       await saveChatState(userText, finalReply);
+    } else if (!res.ok) {
+      removeThinking(thinking);
+      let errorMsg = `Server error (${res.status})`;
+      try {
+        const errData = await res.json();
+        if (errData.error || errData.message) {
+          errorMsg = errData.error || errData.message;
+        }
+      } catch (_) {}
+      
+      if (res.status === 413) {
+        errorMsg = "The attached image exceeds the maximum supported size. Please upload a smaller image.";
+      } else if (res.status === 429) {
+        errorMsg = "The vision inference service is currently busy. Please wait a few moments and try again.";
+      } else if (res.status === 504) {
+        errorMsg = "Vision analysis timed out. Please try with a clearer crop of the problem.";
+      }
+      appendMessage("assistant", `⚠️ ${errorMsg}`);
     } else {
       // Legacy Synchronous JSON Fallback
       const data = await res.json();

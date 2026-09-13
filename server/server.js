@@ -22,7 +22,7 @@ const cors = require('cors');
 const rawOllamaHost = (process.env.OLLAMA_HOST || 'http://localhost:11434').trim().replace(/\/+$/, '');
 const OLLAMA_HOST = rawOllamaHost.endsWith('/api') ? rawOllamaHost.slice(0, -4) : rawOllamaHost;
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'pythos:latest';
-const OLLAMA_VISION_MODEL = process.env.OLLAMA_VISION_MODEL || 'llava:7b';
+const OLLAMA_VISION_MODEL = process.env.OLLAMA_VISION_MODEL || 'qwen/qwen3.8-27b';
 const OLLAMA_API_KEY = process.env.OLLAMA_API_KEY ? process.env.OLLAMA_API_KEY.trim() : null;
 const PORT = process.env.PORT || 3006;
 const REQUEST_TIMEOUT_MS = parseInt(process.env.REQUEST_TIMEOUT_MS, 10) || 180000; // 180s timeout for vision models
@@ -397,6 +397,7 @@ app.get('/health', (req, res) => {
     status: 'ok',
     service: 'pythos-api',
     model: OLLAMA_MODEL,
+    visionModel: OLLAMA_VISION_MODEL,
     hasAuth: Boolean(OLLAMA_API_KEY),
     firebaseAdmin: firebaseAdmin.getAdminSdkStatus ? firebaseAdmin.getAdminSdkStatus() : null,
     uptime: process.uptime(),

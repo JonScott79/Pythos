@@ -108,6 +108,11 @@ function extractClaims(text, userPrompt = '') {
   // 6. Comprehensive Arithmetic, Fraction, Percentage & Intermediate Step Extraction
   const lines = text.split(/\r?\n/);
   for (const rawLine of lines) {
+    // VISUAL AMBIGUITY GATE: Do not extract mathematical claims from uncertain visual readings
+    if (/\b(?:visual(?:ly)?\s+ambigu(?:ous|ity)|uncertain(?:ty)?|could be read as|unclear whether|appears ambiguous|cannot confidently distinguish|not completely clear)\b/i.test(rawLine)) {
+      continue;
+    }
+
     // Normalize operators across LaTeX and Unicode
     const line = rawLine
       .replace(/\\times/g, '*')

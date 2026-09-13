@@ -89,6 +89,18 @@ assert.strictEqual(sanitizedMessages[0].images[0], '[IMAGE_ATTACHED]', 'Large ba
 assert.strictEqual(sanitizedMessages[1].content, 'I see your problem: 2x + 5 = 15.', 'Text content remains unaffected');
 console.log('  ✅ [PASS] Firestore Payload Sanitization');
 
+// ── Test 6: Visual Ambiguity Gating ─────────────────────────────────────────
+console.log('▶ Test 6: Visual Ambiguity Gating Blocks Fact Extraction');
+const ambiguousText = `
+The student wrote:
+Note: The handwritten term appears ambiguous and could be read as either $3x = 15$ or $8x = 15$.
+However, the active step is $3x = 15$.
+`;
+const ambiguousClaims = extractClaims(ambiguousText);
+// The ambiguous line mentioning could be read as either 3x=15 or 8x=15 must NOT create claims
+assert(!ambiguousClaims.some(c => c.raw_match && c.raw_match.includes('8x')), 'Ambiguous line must not produce ungrounded claims');
+console.log('  ✅ [PASS] Visual Ambiguity Gating');
+
 console.log('\n==================================================');
 console.log('🎉 ALL MULTIMODAL VISION TESTS PASSED SUCCESSFULLY');
 console.log('==================================================\n');
