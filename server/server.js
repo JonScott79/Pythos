@@ -1055,7 +1055,8 @@ app.post('/api/chat', async (req, res) => {
 
     return res.status(502).json({
       error: 'upstream_unavailable',
-      message: "🤔 I don't have enough information to connect to the knowledge base right now. Please check your connection and try again."
+      message: "🤔 I don't have enough information to connect to the knowledge base right now. Please check your connection and try again.",
+      detail: error.message
     });
   } finally {
     activeControllers.delete(abortController);
