@@ -716,15 +716,20 @@ ${preflightContext}${activeProblemContext}`;
       // Automatic retry with exponential backoff on 429 rate limit
       let groqResponse;
       let attempts = 0;
-      while (attempts < 3) {
+      while (attempts < 5) {
         attempts++;
         try {
           groqResponse = await executeGroqCall();
           break;
         } catch (callErr) {
-          if (callErr.statusCode === 429 && attempts < 3) {
-            console.warn(`[VISION GATEWAY] 429 Rate limited. Retrying in ${attempts * 4}s...`);
-            await new Promise(r => setTimeout(r, attempts * 4000));
+          if (callErr.statusCode === 429 && attempts < 5) {
+            let retrySec = attempts * 5;
+            const match = /try again in ([0-9.]+)s/i.exec(callErr.body || '');
+            if (match && match[1]) {
+              retrySec = Math.ceil(parseFloat(match[1])) + 1;
+            }
+            console.warn(`[VISION GATEWAY] 429 Rate limited. Retrying in ${retrySec}s (attempt ${attempts}/5)...`);
+            await new Promise(r => setTimeout(r, retrySec * 1000));
             continue;
           }
           throw callErr;
