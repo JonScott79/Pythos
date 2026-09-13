@@ -419,10 +419,17 @@ app.get('/health/ready', async (req, res) => {
     clearTimeout(timeout);
 
     if (checkRes.ok) {
+      let models = [];
+      try {
+        const data = await checkRes.json();
+        models = (data.models || []).map(m => m.name || m.model || m);
+      } catch (e) {}
       return res.status(200).json({
         status: 'ready',
         ollama: 'connected',
-        model: OLLAMA_MODEL
+        model: OLLAMA_MODEL,
+        visionModel: OLLAMA_VISION_MODEL,
+        availableModels: models
       });
     }
     return res.status(503).json({
