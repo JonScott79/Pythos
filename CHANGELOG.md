@@ -5,6 +5,25 @@ All notable changes to the Pythos project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Pythos 1.6.0
+**Release Date:** 2026-09-13
+
+### Added
+- **Multimodal Vision Input Pipeline**:
+  - `server/visionExtractor.js`: Cleaned payload extraction, stripping raw base64 data URIs and normalizing OCR mathematics.
+  - Socratic multimodal system prompt directive strictly distinguishing problem statements from student handwritten attempts.
+  - Client-side Canvas image preprocessing and dynamic JPEG compression in `app.js` (capping dimensions to 1600px, 200KB–400KB payloads) to prevent network bloat.
+  - Multi-input capture support: drag-and-drop file upload, system file picker, native camera snapshot, and clipboard paste (Ctrl+V / Cmd+V).
+  - Attached image staging strip with interactive thumbnail previews, removal controls, and screen reader announcements.
+  - Thumbnail preview badges attached to user message bubbles in conversational history.
+- **Visual Confidence & Ambiguity Gate**:
+  - `server/verificationBridge.js` (`extractClaims`): Hard visual ambiguity gate preventing uncertain or ungrounded interpretations (e.g., degraded characters, 3x vs. 8x, +/- vs. +, crossed-out markings) from entering the CAS verification engine as factual premises.
+  - Strict instruction for vision models to surface visual uncertainty and request student clarification rather than silently guessing.
+- **Production Hosted Model Deployment**:
+  - Wired approved candidate `qwen/qwen3.8-27b` as the production vision inference model (`OLLAMA_VISION_MODEL`).
+  - Automated backoff and retry architecture handling HTTP 429 rate limits and HTTP 503 capacity pressures.
+  - Sanitized Firestore storage layer ensuring base64 image strings are never persisted to document storage.
+
 ## Pythos 1.5.0
 **Release Date:** 2026-09-11
 
