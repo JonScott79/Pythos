@@ -606,7 +606,11 @@ app.post('/api/chat', async (req, res) => {
     content: PYTHOS_SYSTEM_PROMPT + preflightContext + activeProblemContext + learningContext + memoryContext
   });
 
-  // Detect if this request contains image payloads
+  // Detect if latest user turn contains an image payload
+  const latestUserMsg = [...preparedMessages].reverse().find(m => m.role === 'user');
+  const latestHasImages = !!(latestUserMsg && latestUserMsg.images && latestUserMsg.images.length > 0);
+
+  // Detect if any message in the conversation contains image payloads
   let hasImages = false;
   preparedMessages = preparedMessages.map(m => {
     const cleanMsg = visionExtractor.cleanVisionMessage(m);
@@ -616,17 +620,18 @@ app.post('/api/chat', async (req, res) => {
     return cleanMsg;
   });
 
-  if (hasImages) {
+  if (latestHasImages) {
     const visionDirective = visionExtractor.buildVisionPromptDirective();
     preparedMessages[0].content += visionDirective;
   }
 
-  const targetModel = hasImages ? (process.env.OLLAMA_VISION_MODEL || OLLAMA_VISION_MODEL) : OLLAMA_MODEL;
+  // Route to vision model only when the active prompt needs vision inspection
+  const targetModel = latestHasImages ? (process.env.OLLAMA_VISION_MODEL || OLLAMA_VISION_MODEL) : OLLAMA_MODEL;
 
   // Multimodal Hosted Vision Gateway Bridge
-  // If request contains images, route directly to hosted Groq vision completions
+  // If active user turn contains images, route directly to hosted Groq vision completions
   const groqApiKey = GROQ_API_KEY;
-  if (hasImages && groqApiKey) {
+  if (latestHasImages && groqApiKey) {
     try {
       await concurrencyLimiter.acquire(abortController.signal, REQUEST_TIMEOUT_MS);
       acquiredSemaphore = true;
