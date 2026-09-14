@@ -468,7 +468,7 @@ const firebaseAdmin = require('./firebaseAdmin');
 
 const contextManager = require('./contextManager');
 const visionExtractor = require('./visionExtractor');
-const { classifyUpstreamError, sanitizeErrorDetail } = require('./errorHandler');
+const { classifyUpstreamError, sanitizeErrorDetail, extractRetrySeconds } = require('./errorHandler');
 
 // Mount Admin Routes
 app.use('/admin', adminRoutes);
