@@ -468,6 +468,7 @@ const firebaseAdmin = require('./firebaseAdmin');
 
 const contextManager = require('./contextManager');
 const visionExtractor = require('./visionExtractor');
+const { classifyUpstreamError, sanitizeErrorDetail } = require('./errorHandler');
 
 // Mount Admin Routes
 app.use('/admin', adminRoutes);
@@ -693,7 +694,7 @@ ${preflightContext}${activeProblemContext}`;
           headers: {
             'Authorization': `Bearer ${groqApiKey}`,
             'Content-Type': 'application/json',
-            'User-Agent': 'Pythos-Vision/1.6.1',
+            'User-Agent': 'Pythos-Vision/1.6.2',
             'Content-Length': Buffer.byteLength(groqPayload)
           },
           timeout: REQUEST_TIMEOUT_MS
@@ -704,11 +705,16 @@ ${preflightContext}${activeProblemContext}`;
             if (gRes.statusCode === 429) {
               const err = new Error(`RATE_LIMIT: ${gBody}`);
               err.statusCode = 429;
+              err.status = 429;
               err.body = gBody;
               return rejectGroq(err);
             }
             if (gRes.statusCode >= 400) {
-              return rejectGroq(new Error(`Groq Vision returned ${gRes.statusCode}: ${gBody}`));
+              const err = new Error(`Groq Vision returned ${gRes.statusCode}: ${gBody}`);
+              err.statusCode = gRes.statusCode;
+              err.status = gRes.statusCode;
+              err.body = gBody;
+              return rejectGroq(err);
             }
             try {
               const parsed = JSON.parse(gBody);
@@ -788,11 +794,26 @@ ${preflightContext}${activeProblemContext}`;
         done: true
       });
     } catch (gErr) {
-      console.error('[PYTHOS API] Groq Vision bridge error:', gErr.message);
-      return res.status(502).json({
-        error: 'upstream_unavailable',
-        message: "🤔 I don't have enough information to connect to the knowledge base right now. Please check your connection and try again.",
-        detail: gErr.message
+      console.error('[PYTHOS API] Groq Vision bridge error:', sanitizeErrorDetail(gErr));
+      const classified = classifyUpstreamError(gErr, 'vision');
+
+      if (isStreaming) {
+        res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+        res.setHeader('Transfer-Encoding', 'chunked');
+        res.setHeader('Cache-Control', 'no-cache, no-transform');
+        res.write(JSON.stringify({
+          type: 'error',
+          error: classified.error,
+          message: classified.message,
+          retryAfter: classified.retryAfter
+        }) + '\n');
+        return res.end();
+      }
+
+      return res.status(classified.status).json({
+        error: classified.error,
+        message: classified.message,
+        retryAfter: classified.retryAfter
       });
     } finally {
       if (acquiredSemaphore) concurrencyLimiter.release();
@@ -894,8 +915,12 @@ ${preflightContext}${activeProblemContext}`;
 
         resUpstream.on('end', () => {
           if (resUpstream.statusCode >= 400) {
-            console.error(`[PYTHOS API] Upstream error: status=${resUpstream.statusCode}, model=${targetModel}, body=${upstreamErrorBody || streamBuffer || fullText}`);
-            return reject(new Error(`Upstream provider returned status ${resUpstream.statusCode}: ${upstreamErrorBody || streamBuffer || fullText || 'No error details'}`));
+            console.error(`[PYTHOS API] Upstream error: status=${resUpstream.statusCode}, model=${targetModel}, body=${sanitizeErrorDetail(upstreamErrorBody || streamBuffer || fullText)}`);
+            const upErr = new Error(`Upstream provider returned status ${resUpstream.statusCode}: ${upstreamErrorBody || streamBuffer || fullText || 'No error details'}`);
+            upErr.statusCode = resUpstream.statusCode;
+            upErr.status = resUpstream.statusCode;
+            upErr.body = upstreamErrorBody || streamBuffer || fullText;
+            return reject(upErr);
           }
           // Process any remaining buffered content on stream completion
           if (streamBuffer && streamBuffer.trim()) {
@@ -1233,23 +1258,26 @@ ${preflightContext}${activeProblemContext}`;
       });
     }
 
-    console.error('[PYTHOS API] Connection failure to Ollama:', error.message);
+    console.error('[PYTHOS API] Upstream inference failure:', sanitizeErrorDetail(error));
+    const classified = classifyUpstreamError(error, 'text');
+
     if (isStreaming) {
       res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
       res.setHeader('Transfer-Encoding', 'chunked');
       res.setHeader('Cache-Control', 'no-cache, no-transform');
       res.write(JSON.stringify({
         type: 'error',
-        error: 'upstream_unavailable',
-        message: "🤔 I don't have enough information to connect to the knowledge base right now. Please check your connection and try again."
+        error: classified.error,
+        message: classified.message,
+        retryAfter: classified.retryAfter
       }) + '\n');
       return res.end();
     }
 
-    return res.status(502).json({
-      error: 'upstream_unavailable',
-      message: "🤔 I don't have enough information to connect to the knowledge base right now. Please check your connection and try again.",
-      detail: error.message
+    return res.status(classified.status).json({
+      error: classified.error,
+      message: classified.message,
+      retryAfter: classified.retryAfter
     });
   } finally {
     activeControllers.delete(abortController);

@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="assets/favicon.png">
-  <title>Pythos Release History & Changelog | v1.6.1</title>
+  <title>Pythos Release History & Changelog | v1.6.2</title>
   <meta name="description" content="Pythos release notes & changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://pythos.lanzar.me/changelog.html">
 
   <!-- OPEN GRAPH -->
-  <meta property="og:title" content="Pythos Release History & Changelog | v1.6.1">
+  <meta property="og:title" content="Pythos Release History & Changelog | v1.6.2">
   <meta property="og:description" content="Pythos release notes & changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta property="og:url" content="https://pythos.lanzar.me/changelog.html">
   <meta property="og:type" content="article">
@@ -23,7 +23,7 @@
 
   <!-- TWITTER CARD -->
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Pythos Release History & Changelog | v1.6.1">
+  <meta name="twitter:title" content="Pythos Release History & Changelog | v1.6.2">
   <meta name="twitter:description" content="Pythos release notes & changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="twitter:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
 
@@ -32,7 +32,7 @@
   {
     "@context": "https://schema.org",
     "@type": "TechArticle",
-    "headline": "Pythos 1.6.1 Release Notes and Changelog",
+    "headline": "Pythos 1.6.2 Release Notes and Changelog",
     "description": "Authoritative release history for Pythos: specialized problem routing, two-stage reasoning, and CAS ground-truth verification.",
     "datePublished": "2026-08-26",
     "dateModified": "2026-09-13",
@@ -427,12 +427,40 @@
       <p>Authoritative release notes, verification engine milestones, and mathematical system updates.</p>
     </header>
 
+    <!-- RELEASE v1.6.2 -->
+    <article class="release-card" id="pythos-1-6-2">
+      <div class="release-header">
+        <div class="release-title-wrap">
+          <h2 class="release-version">Pythos 1.6.2</h2>
+          <span class="release-badge">Latest Release</span>
+        </div>
+        <time class="release-date" datetime="2026-09-13">September 13, 2026</time>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header added">✦ WHAT'S NEW</div>
+        <ul class="feature-list">
+          <li><strong>Standardized Upstream Error Taxonomy</strong>: Introduced <code>server/errorHandler.js</code> to classify infrastructure failures deterministically across 8 distinct categories (<code>UPSTREAM_RATE_LIMITED</code>, <code>UPSTREAM_TIMEOUT</code>, <code>UPSTREAM_AUTH_ERROR</code>, <code>UPSTREAM_BAD_REQUEST</code>, <code>UPSTREAM_SERVER_ERROR</code>, <code>UPSTREAM_UNAVAILABLE</code>, <code>INVALID_IMAGE</code>, <code>INTERNAL_ERROR</code>).</li>
+          <li><strong>Student-Friendly Reassuring Language</strong>: Replaced misleading "knowledge base" errors with honest explanations (e.g., <em>"⏳ The vision reasoning service is temporarily busy with high demand."</em>).</li>
+          <li><strong>Parsed Dynamic Retry Estimates</strong>: Extracts exact wait times from provider response bodies and headers to inform students when to retry without guessing or manufacturing arbitrary recovery times. Guaranteed safe against negative or 0-minute outputs.</li>
+          <li><strong>Credential &amp; Privacy Scrubbing</strong>: Complete redaction of Groq API keys, Bearer tokens, organization identifiers (<code>org_...</code>), internal server filesystem paths, and base64 payloads from logs and responses.</li>
+        </ul>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header verify">⚖️ VERIFICATION &amp; INTEGRITY</div>
+        <ul class="feature-list">
+          <li><strong>Dedicated Taxonomy Test Suite</strong>: Full coverage in <code>test_error_taxonomy.js</code> verifying all 8 failure conditions, credential redaction, and API error contracts.</li>
+          <li><strong>Core Regression Continuity</strong>: Universal regression suite passes 93/93 tests (100% core integrity, 0 regressions).</li>
+        </ul>
+      </div>
+    </article>
+
     <!-- RELEASE v1.6.1 -->
     <article class="release-card" id="pythos-1-6-1">
       <div class="release-header">
         <div class="release-title-wrap">
           <h2 class="release-version">Pythos 1.6.1</h2>
-          <span class="release-badge">Latest Release</span>
         </div>
         <time class="release-date" datetime="2026-09-13">September 13, 2026</time>
       </div>

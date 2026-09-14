@@ -5,6 +5,19 @@ All notable changes to the Pythos project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Pythos 1.6.2
+**Release Date:** 2026-09-13
+
+### Added
+- **Standardized Upstream Error Taxonomy & Normalized Response System**:
+  - Implemented centralized classification module (`server/errorHandler.js`) providing deterministic normalization across 8 distinct error categories: `UPSTREAM_RATE_LIMITED` (429), `UPSTREAM_TIMEOUT` (504), `UPSTREAM_AUTH_ERROR` (502), `UPSTREAM_BAD_REQUEST` (400), `UPSTREAM_SERVER_ERROR` (502), `UPSTREAM_UNAVAILABLE` (503), `INVALID_REQUEST` / `INVALID_IMAGE` (400), and `INTERNAL_ERROR` (500).
+  - Synchronized error payload contracts `{ error, message, retryAfter? }` across legacy synchronous JSON and chunked NDJSON streaming endpoints.
+- **Student-Facing Honest Messaging & Safe Retry Delays**:
+  - Replaced misleading generic messages (such as "I don't have enough information to connect to the knowledge base") with transparent, reassuring messages (e.g. "⏳ The vision reasoning service is temporarily busy with high demand. Please try again in about 9 minutes.").
+  - Upstream retry interval parser extracts exact wait seconds from provider bodies and headers without guessing or manufacturing recovery timestamps. Guarded against 0-minute, negative, or NaN values.
+- **Privacy & Credential Scrubbing Pipeline**:
+  - Integrated `sanitizeErrorDetail` to redact provider API keys (`gsk_...`), Bearer tokens, organization identifiers (`org_...`), internal filesystem paths, and base64 binary fragments from all server console logs, diagnostic outputs, and client error responses.
+
 ## Pythos 1.6.1
 **Release Date:** 2026-09-13
 
