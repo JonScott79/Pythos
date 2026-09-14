@@ -497,6 +497,21 @@ app.post('/api/chat', async (req, res) => {
     });
   }
 
+  // Validate attached image payloads (checking magic bytes and rejecting corrupt/invalid binary payloads)
+  for (const m of messages) {
+    if (m && Array.isArray(m.images)) {
+      for (const img of m.images) {
+        const val = visionExtractor.validateBase64Image(img);
+        if (!val.valid) {
+          return res.status(400).json({
+            error: 'invalid_image',
+            message: `The uploaded image appears corrupted or in an unsupported format: ${val.error || 'unrecognized image'}`
+          });
+        }
+      }
+    }
+  }
+
   // Determine if caller requested streaming (NDJSON protocol)
   const isStreaming = req.body.stream === true ||
     (req.headers.accept && (

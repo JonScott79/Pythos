@@ -144,6 +144,8 @@
   <script defer src="vizEngine/models/trigonometry.js"></script>
   <script defer src="vizEngine/models/calculus_derivatives.js"></script>
   <script defer src="vizEngine/vizRenderer.js"></script>
+  <!-- Client-Side HEIC/HEIF Image Conversion Engine (iOS / iPhone Support) -->
+  <script defer src="assets/vendor/heic2any.min.js"></script>
 
   <style>
     :root {
@@ -2645,8 +2647,8 @@
             <!-- Dynamically populated thumbnails -->
           </div>
 
-          <!-- HIDDEN FILE INPUT -->
-          <input type="file" id="imageFileInput" accept="image/*" style="display:none;" aria-hidden="true" multiple />
+          <!-- HIDDEN FILE INPUT (Supports standard web formats and iPhone HEIC/HEIF) -->
+          <input type="file" id="imageFileInput" accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp,.bmp,image/heic,image/heif" style="display:none;" aria-hidden="true" multiple />
 
           <form class="input-wrapper" role="search" onsubmit="return false;">
             <button id="attachImgBtn" type="button" class="help-btn" title="Attach picture of math/physics problem or handwritten work" aria-label="Attach picture of problem or notes">

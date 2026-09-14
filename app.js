@@ -1927,58 +1927,265 @@ const toolImageBtn = document.getElementById("toolImageBtn");
 const inputWrapper = document.querySelector(".input-wrapper");
 
 /**
- * Resizes and compresses an image client-side to JPEG format using HTML5 Canvas.
- * Caps maximum dimension to 1600px and keeps payload lightweight (~200KB - 400KB).
+ * Inspects binary magic bytes from the first 24 bytes of a Blob/File to determine
+ * true image format regardless of extension or reported MIME type.
  */
-function compressAndResizeImage(file, maxDimension = 1600, quality = 0.82) {
-  return new Promise((resolve, reject) => {
-    if (!file || !file.type.startsWith("image/")) {
-      return reject(new Error("File is not a valid image"));
+async function sniffImageFormat(file) {
+  if (!file) return 'unknown';
+  try {
+    const slice = file.slice(0, 32);
+    const buffer = await slice.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+
+    if (bytes.length < 4) return 'unknown';
+
+    // JPEG: FF D8 FF
+    if (bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF) {
+      return 'jpeg';
     }
 
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("Failed to read image file"));
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onerror = () => reject(new Error("Failed to load image for processing"));
-      img.onload = () => {
-        let width = img.width;
-        let height = img.height;
+    // PNG: 89 50 4E 47 0D 0A 1A 0A
+    if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) {
+      return 'png';
+    }
 
-        // Scale proportionally if exceeding maxDimension
-        if (width > maxDimension || height > maxDimension) {
-          if (width > height) {
-            height = Math.round((height * maxDimension) / width);
-            width = maxDimension;
-          } else {
-            width = Math.round((width * maxDimension) / height);
-            height = maxDimension;
-          }
+    // GIF: 47 49 46 38
+    if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x38) {
+      return 'gif';
+    }
+
+    // WebP: RIFF....WEBP (52 49 46 46 ... 57 45 42 50)
+    if (bytes.length >= 12 &&
+        bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
+        bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) {
+      return 'webp';
+    }
+
+    // BMP: 42 4D
+    if (bytes[0] === 0x42 && bytes[1] === 0x4D) {
+      return 'bmp';
+    }
+
+    // HEIC / HEIF / ISO Base Media File Format:
+    // Box structure: 4 bytes length, 4 bytes "ftyp" (66 74 79 70), then major brand
+    if (bytes.length >= 12 &&
+        bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70) {
+      const brand = String.fromCharCode(bytes[8], bytes[9], bytes[10], bytes[11]).toLowerCase();
+      const heifBrands = ['heic', 'heix', 'hevc', 'heim', 'heis', 'hevm', 'hevs', 'mif1', 'msf1', 'mp42'];
+      if (heifBrands.includes(brand)) {
+        return 'heic';
+      }
+      // Check compatible brands if major brand is generic
+      if (bytes.length >= 24) {
+        for (let offset = 16; offset <= bytes.length - 4; offset += 4) {
+          const compBrand = String.fromCharCode(bytes[offset], bytes[offset+1], bytes[offset+2], bytes[offset+3]).toLowerCase();
+          if (heifBrands.includes(compBrand)) return 'heic';
         }
+      }
+      return 'heic';
+    }
 
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
+    // Check extension fallback if reported type or filename implies HEIC
+    const ext = (file.name || '').split('.').pop().toLowerCase();
+    if (ext === 'heic' || ext === 'heif') {
+      return 'heic';
+    }
 
-        // Fill background with white in case of transparent PNG/WebP
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, width, height);
+    // If file.type starts with image/, return generic image
+    if (file.type && file.type.startsWith('image/')) {
+      return file.type.replace('image/', '').toLowerCase();
+    }
 
-        ctx.drawImage(img, 0, 0, width, height);
+    return 'unknown';
+  } catch (err) {
+    console.warn('[MIME SNIFFER ERROR]:', err);
+    return 'unknown';
+  }
+}
 
-        // Export as compressed JPEG base64
-        const dataUrl = canvas.toDataURL("image/jpeg", quality);
-        resolve({
-          name: file.name || "problem-image.jpg",
-          dataUrl: dataUrl,
-          base64: dataUrl.split("base64,")[1]
-        });
-      };
-      img.src = e.target.result;
+/**
+ * Loads heic2any on-demand if not already loaded in the document.
+ */
+async function ensureHeic2AnyLoaded() {
+  if (typeof window.heic2any === 'function') {
+    return window.heic2any;
+  }
+  return new Promise((resolve, reject) => {
+    // Check if script element already exists
+    const existing = document.querySelector('script[src*="heic2any"]');
+    if (existing) {
+      existing.addEventListener('load', () => resolve(window.heic2any));
+      existing.addEventListener('error', () => reject(new Error('Failed to load HEIC converter')));
+      // In case it finished loading right before this check
+      if (typeof window.heic2any === 'function') return resolve(window.heic2any);
+    }
+    const script = document.createElement('script');
+    script.src = 'assets/vendor/heic2any.min.js';
+    script.onload = () => {
+      if (typeof window.heic2any === 'function') {
+        resolve(window.heic2any);
+      } else {
+        reject(new Error('heic2any library loaded but function is unavailable'));
+      }
     };
-    reader.readAsDataURL(file);
+    script.onerror = () => {
+      // Fallback to CDN if local bundle fails
+      const cdnScript = document.createElement('script');
+      cdnScript.src = 'https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js';
+      cdnScript.onload = () => resolve(window.heic2any);
+      cdnScript.onerror = () => reject(new Error('Failed to load HEIC image conversion engine.'));
+      document.head.appendChild(cdnScript);
+    };
+    document.head.appendChild(script);
   });
+}
+
+/**
+ * Converts a HEIC / HEIF file to a standard JPEG Blob.
+ */
+async function convertHeicToJpegBlob(file) {
+  // Test native browser decoding first (Safari iOS/macOS can decode HEIC natively)
+  const canNativeDecode = await new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const testImg = new Image();
+    testImg.onload = () => { URL.revokeObjectURL(url); resolve(true); };
+    testImg.onerror = () => { URL.revokeObjectURL(url); resolve(false); };
+    testImg.src = url;
+  });
+
+  if (canNativeDecode) {
+    return file; // Browser can render natively, no Wasm conversion required
+  }
+
+  // Load heic2any and perform client-side conversion
+  const converter = await ensureHeic2AnyLoaded();
+  const conversionResult = await converter({
+    blob: file,
+    toType: 'image/jpeg',
+    quality: 0.90
+  });
+
+  // heic2any can return single Blob or Array of Blobs (for multi-frame HEIC)
+  const jpegBlob = Array.isArray(conversionResult) ? conversionResult[0] : conversionResult;
+  return jpegBlob;
+}
+
+/**
+ * Resizes and compresses an image client-side to JPEG format using HTML5 Canvas.
+ * Automatically respects and preserves EXIF orientation via createImageBitmap
+ * or Image element, capping maximum dimension to 1600px.
+ */
+async function compressAndResizeImage(sourceFile, maxDimension = 1600, quality = 0.82) {
+  if (!sourceFile) {
+    throw new Error("No image file provided");
+  }
+
+  // 1. Detect binary format via magic bytes
+  const format = await sniffImageFormat(sourceFile);
+  if (format === 'unknown') {
+    throw new Error("Unsupported image format or corrupted file.");
+  }
+
+  let processableBlob = sourceFile;
+  let originalName = sourceFile.name || "phone-photo.jpg";
+
+  // 2. Client-side HEIC/HEIF conversion if applicable
+  if (format === 'heic') {
+    try {
+      processableBlob = await convertHeicToJpegBlob(sourceFile);
+      originalName = originalName.replace(/\.(heic|heif)$/i, '.jpg');
+    } catch (heicErr) {
+      throw new Error(`Could not decode iPhone HEIC photo: ${heicErr.message || "corrupted file"}`);
+    }
+  }
+
+  // 3. Render image with EXIF orientation correction
+  // Modern browsers support createImageBitmap with imageOrientation: 'from-image'
+  let drawSource = null;
+  let sourceWidth = 0;
+  let sourceHeight = 0;
+  let cleanupBitmap = false;
+
+  if (typeof window.createImageBitmap === 'function') {
+    try {
+      const bitmap = await window.createImageBitmap(processableBlob, { imageOrientation: 'from-image' });
+      drawSource = bitmap;
+      sourceWidth = bitmap.width;
+      sourceHeight = bitmap.height;
+      cleanupBitmap = true;
+    } catch (_) {
+      drawSource = null; // Fallback to HTMLImageElement
+    }
+  }
+
+  if (!drawSource) {
+    // Fallback using standard Image element
+    await new Promise((resolve, reject) => {
+      const img = new Image();
+      const objUrl = URL.createObjectURL(processableBlob);
+      img.onload = () => {
+        drawSource = img;
+        sourceWidth = img.naturalWidth || img.width;
+        sourceHeight = img.naturalHeight || img.height;
+        URL.revokeObjectURL(objUrl);
+        resolve();
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(objUrl);
+        reject(new Error("Image is corrupted or could not be decoded."));
+      };
+      img.src = objUrl;
+    });
+  }
+
+  if (!sourceWidth || !sourceHeight) {
+    if (cleanupBitmap && drawSource && typeof drawSource.close === 'function') drawSource.close();
+    throw new Error("Failed to determine valid image dimensions.");
+  }
+
+  // 4. Calculate bounded dimensions (preserving aspect ratio)
+  let targetWidth = sourceWidth;
+  let targetHeight = sourceHeight;
+  if (targetWidth > maxDimension || targetHeight > maxDimension) {
+    if (targetWidth > targetHeight) {
+      targetHeight = Math.round((targetHeight * maxDimension) / targetWidth);
+      targetWidth = maxDimension;
+    } else {
+      targetWidth = Math.round((targetWidth * maxDimension) / targetHeight);
+      targetHeight = maxDimension;
+    }
+  }
+
+  // 5. Draw to canvas with clean white background (flatten transparency)
+  const canvas = document.createElement("canvas");
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+  const ctx = canvas.getContext("2d");
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, targetWidth, targetHeight);
+  ctx.drawImage(drawSource, 0, 0, targetWidth, targetHeight);
+
+  if (cleanupBitmap && drawSource && typeof drawSource.close === 'function') {
+    drawSource.close();
+  }
+
+  // 6. Export as high-quality compressed JPEG base64
+  const dataUrl = canvas.toDataURL("image/jpeg", quality);
+  const base64 = dataUrl.split("base64,")[1];
+
+  if (!base64 || base64.length < 50) {
+    throw new Error("Failed to generate image payload.");
+  }
+
+  return {
+    name: originalName,
+    dataUrl: dataUrl,
+    base64: base64,
+    width: targetWidth,
+    height: targetHeight,
+    format: format
+  };
 }
 
 function updatePendingImagesUI() {
@@ -2026,16 +2233,36 @@ function updatePendingImagesUI() {
 
 async function handleImageFiles(files) {
   if (!files || files.length === 0) return;
-  for (const file of Array.from(files)) {
-    if (!file.type.startsWith("image/")) continue;
+
+  const fileList = Array.from(files);
+  for (const file of fileList) {
+    // Accept standard image MIME types OR common mobile extensions even if OS reports octet-stream
+    const fileName = (file.name || '').toLowerCase();
+    const isMobileExt = /\.(heic|heif|jpg|jpeg|png|webp|bmp|gif)$/i.test(fileName);
+    const isImageMime = file.type && file.type.startsWith("image/");
+
+    if (!isImageMime && !isMobileExt) {
+      alert(`⚠️ "${file.name || 'File'}" is not a recognized image format. Please select a photo (.heic, .jpg, .png, or .webp).`);
+      continue;
+    }
+
     try {
+      // Temporary indicator if converting large HEIC photo
+      if (fileName.endsWith('.heic') || fileName.endsWith('.heif')) {
+        if (pendingImagesStrip) {
+          pendingImagesStrip.style.display = "flex";
+          pendingImagesStrip.innerHTML = `<span style="font-size:0.8rem; color:#3b82f6; display:inline-flex; align-items:center; gap:6px; padding:4px 8px;">🔄 Converting phone photo...</span>`;
+        }
+      }
+
       const compressed = await compressAndResizeImage(file);
       pendingImages.push(compressed);
     } catch (err) {
       console.warn("[IMAGE PROCESSING ERROR]:", err.message);
-      alert("Could not process image: " + err.message);
+      alert(`⚠️ Could not process "${file.name || 'image'}": ${err.message}`);
     }
   }
+
   updatePendingImagesUI();
   if (input) input.focus();
 }
@@ -2053,15 +2280,16 @@ if (imageFileInput) {
   });
 }
 
-// Clipboard Paste (Ctrl+V / Cmd+V) Listener for screenshots
+// Clipboard Paste (Ctrl+V / Cmd+V) Listener for screenshots & phone photos
 document.addEventListener("paste", async (e) => {
   const items = (e.clipboardData || window.clipboardData)?.items;
   if (!items) return;
 
   const imageFiles = [];
   for (let i = 0; i < items.length; i++) {
-    if (items[i].type.indexOf("image") !== -1) {
-      const blob = items[i].getAsFile();
+    const item = items[i];
+    if (item.type.indexOf("image") !== -1 || item.kind === "file") {
+      const blob = item.getAsFile();
       if (blob) imageFiles.push(blob);
     }
   }
@@ -2089,6 +2317,7 @@ if (inputWrapper) {
     }
   });
 }
+
 
 // =========================
 // OLLAMA INTEGRATION
