@@ -739,24 +739,28 @@ ${preflightContext}${activeProblemContext}`;
         groqReq.end();
       });
 
-      // Automatic retry with exponential backoff on 429 rate limit
+      // Automatic retry with exponential backoff on short 429 rate limits (e.g. transient TPM spikes)
       let groqResponse;
       let attempts = 0;
-      while (attempts < 5) {
+      while (attempts < 3) {
         attempts++;
         try {
           groqResponse = await executeGroqCall();
           break;
         } catch (callErr) {
-          if (callErr.statusCode === 429 && attempts < 5) {
-            let retrySec = attempts * 5;
-            const match = /try again in ([0-9.]+)s/i.exec(callErr.body || '');
-            if (match && match[1]) {
-              retrySec = Math.ceil(parseFloat(match[1])) + 1;
+          if (callErr.statusCode === 429) {
+            const parsedWait = extractRetrySeconds(callErr);
+            // If upstream requires more than 10 seconds (e.g. daily quota exhausted), fail immediately to student
+            if (parsedWait && parsedWait > 10) {
+              console.warn(`[VISION GATEWAY] 429 Daily/Extended Rate limit (${parsedWait}s). Returning immediately to client.`);
+              throw callErr;
             }
-            console.warn(`[VISION GATEWAY] 429 Rate limited. Retrying in ${retrySec}s (attempt ${attempts}/5)...`);
-            await new Promise(r => setTimeout(r, retrySec * 1000));
-            continue;
+            if (attempts < 3) {
+              const retrySec = parsedWait || (attempts * 3);
+              console.warn(`[VISION GATEWAY] 429 Rate limited. Retrying in ${retrySec}s (attempt ${attempts}/3)...`);
+              await new Promise(r => setTimeout(r, retrySec * 1000));
+              continue;
+            }
           }
           throw callErr;
         }
