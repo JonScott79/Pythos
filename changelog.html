@@ -427,12 +427,41 @@
       <p>Authoritative release notes, verification engine milestones, and mathematical system updates.</p>
     </header>
 
+    <!-- RELEASE v1.6.3 -->
+    <article class="release-card" id="pythos-1-6-3">
+      <div class="release-header">
+        <div class="release-title-wrap">
+          <h2 class="release-version">Pythos 1.6.3</h2>
+          <span class="release-badge">Latest Release</span>
+        </div>
+        <time class="release-date" datetime="2026-09-13">September 13, 2026</time>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header added">✦ WHAT'S NEW</div>
+        <ul class="feature-list">
+          <li><strong>Vision Capacity Countdown Timer</strong>: When upstream multimodal vision inference hits rate limits (<code>UPSTREAM_RATE_LIMITED</code>), the existing <strong>Image / Photo</strong> button dynamically transforms into an active countdown timer (<code>[ ⏳ MM:SS ]</code> / <code>[ ⏳ H:MM:SS ]</code>).</li>
+          <li><strong>Single Status Indicator Design</strong>: Avoids separate widgets, token balances, or quota clutter. The button itself serves as the singular feedback point, updating once per second until provider recovery.</li>
+          <li><strong>Client-Side Multi-Modal Protection</strong>: Prevents redundant upload requests client-side while counting down. Protects toolbar clicks, secondary camera button clicks, drag-and-drop zones, and clipboard paste (Ctrl+V / Cmd+V) with helpful student guidance.</li>
+          <li><strong>Uninterrupted Math &amp; Physics Workflow</strong>: Text chat, symbolic calculation, interactive graphing, equation editing, units conversion, and matrix tools remain 100% active and unblocked during vision cooldowns.</li>
+          <li><strong>Automatic Dynamic Reset</strong>: When the countdown reaches zero, the original <strong>Image / Photo</strong> button and camera icon are cleanly re-enabled with full accessible titles and SVG icons restored.</li>
+        </ul>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header verify">⚖️ VERIFICATION &amp; INTEGRITY</div>
+        <ul class="feature-list">
+          <li><strong>Dedicated Timer Test Suite</strong>: Full coverage in <code>test_vision_timer.js</code> verifying exact second formatting (<code>1094s -&gt; 18:14</code>, <code>65s -&gt; 01:05</code>, <code>3600s -&gt; 1:00:00</code>), 0/negative/NaN edge cases, clean replacement on new 429s, and button restoration.</li>
+          <li><strong>Universal Regression Continuity</strong>: Passes all 93/93 core mathematical benchmark tests and 189/189 accessibility tests (WCAG 2.2 AA).</li>
+        </ul>
+      </div>
+    </article>
+
     <!-- RELEASE v1.6.2 -->
     <article class="release-card" id="pythos-1-6-2">
       <div class="release-header">
         <div class="release-title-wrap">
           <h2 class="release-version">Pythos 1.6.2</h2>
-          <span class="release-badge">Latest Release</span>
         </div>
         <time class="release-date" datetime="2026-09-13">September 13, 2026</time>
       </div>

@@ -1926,6 +1926,126 @@ const attachImgBtn = document.getElementById("attachImgBtn");
 const toolImageBtn = document.getElementById("toolImageBtn");
 const inputWrapper = document.querySelector(".input-wrapper");
 
+// ============================================================
+// VISION CAPACITY TIMER (IMAGE BUTTON COOLDOWN)
+// ============================================================
+let visionCooldownEndTime = 0;
+let visionCooldownTimer = null;
+let toolImageBtnOriginalHTML = null;
+let toolImageBtnOriginalTitle = null;
+let toolImageBtnOriginalAriaLabel = null;
+
+/**
+ * Formats seconds into MM:SS or H:MM:SS countdown format.
+ * - Under 1 hour: MM:SS (e.g. 1094s -> "18:14", 65s -> "01:05", 5s -> "00:05")
+ * - 1 hour or more: H:MM:SS (e.g. 3600s -> "1:00:00")
+ */
+function formatTimerCountdown(totalSeconds) {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  const hours = Math.floor(s / 3600);
+  const minutes = Math.floor((s % 3600) / 60);
+  const seconds = s % 60;
+
+  const pad = n => String(n).padStart(2, "0");
+
+  if (hours > 0) {
+    return `${hours}:${pad(minutes)}:${pad(seconds)}`;
+  }
+  return `${pad(minutes)}:${pad(seconds)}`;
+}
+
+function isVisionCooldownActive() {
+  return typeof visionCooldownEndTime === "number" && visionCooldownEndTime > Date.now();
+}
+
+function updateVisionTimerUI() {
+  if (!toolImageBtn) return;
+  const remainingMs = visionCooldownEndTime - Date.now();
+  const remainingSecs = Math.ceil(remainingMs / 1000);
+
+  if (remainingSecs <= 0) {
+    clearVisionCooldown();
+    return;
+  }
+
+  const formattedTime = formatTimerCountdown(remainingSecs);
+
+  // Disable buttons while preserving accessibility semantics
+  toolImageBtn.disabled = true;
+  toolImageBtn.setAttribute("aria-disabled", "true");
+  toolImageBtn.setAttribute("title", `Image reasoning temporarily busy. Available in ${formattedTime}`);
+  toolImageBtn.setAttribute("aria-label", `Image reasoning temporarily busy. Available in ${formattedTime}`);
+
+  // Transform existing Image / Photo button into countdown timer: [ ⏳ MM:SS ]
+  toolImageBtn.innerHTML = `<span>⏳ ${formattedTime}</span>`;
+
+  if (attachImgBtn) {
+    attachImgBtn.disabled = true;
+    attachImgBtn.setAttribute("aria-disabled", "true");
+    attachImgBtn.setAttribute("title", `Image reasoning temporarily busy (${formattedTime})`);
+    attachImgBtn.setAttribute("aria-label", `Image reasoning temporarily busy (${formattedTime})`);
+  }
+}
+
+function startVisionCooldown(retryAfterSeconds) {
+  if (
+    typeof retryAfterSeconds !== "number" ||
+    !Number.isFinite(retryAfterSeconds) ||
+    retryAfterSeconds <= 0
+  ) {
+    return;
+  }
+
+  // Cache original button presentation and accessible labels on first activation
+  if (toolImageBtn && toolImageBtnOriginalHTML === null) {
+    toolImageBtnOriginalHTML = toolImageBtn.innerHTML;
+    toolImageBtnOriginalTitle = toolImageBtn.getAttribute("title") || "Upload or Photograph Math/Physics Problem";
+    toolImageBtnOriginalAriaLabel = toolImageBtn.getAttribute("aria-label") || "Upload or take a picture of a problem or handwritten work";
+  }
+
+  // Clear any existing countdown interval if replacing existing timer
+  if (visionCooldownTimer) {
+    clearInterval(visionCooldownTimer);
+    visionCooldownTimer = null;
+  }
+
+  visionCooldownEndTime = Date.now() + Math.ceil(retryAfterSeconds) * 1000;
+  updateVisionTimerUI();
+
+  visionCooldownTimer = setInterval(() => {
+    updateVisionTimerUI();
+  }, 1000);
+}
+
+function clearVisionCooldown() {
+  if (visionCooldownTimer) {
+    clearInterval(visionCooldownTimer);
+    visionCooldownTimer = null;
+  }
+  visionCooldownEndTime = 0;
+
+  if (toolImageBtn) {
+    toolImageBtn.disabled = false;
+    toolImageBtn.removeAttribute("aria-disabled");
+    if (toolImageBtnOriginalHTML !== null) {
+      toolImageBtn.innerHTML = toolImageBtnOriginalHTML;
+    }
+    if (toolImageBtnOriginalTitle !== null) {
+      toolImageBtn.setAttribute("title", toolImageBtnOriginalTitle);
+    }
+    if (toolImageBtnOriginalAriaLabel !== null) {
+      toolImageBtn.setAttribute("aria-label", toolImageBtnOriginalAriaLabel);
+    }
+  }
+
+  if (attachImgBtn) {
+    attachImgBtn.disabled = false;
+    attachImgBtn.removeAttribute("aria-disabled");
+    attachImgBtn.setAttribute("title", "Attach picture of math/physics problem or handwritten work");
+    attachImgBtn.setAttribute("aria-label", "Attach picture of problem or notes");
+  }
+}
+
 /**
  * Inspects binary magic bytes from the first 24 bytes of a Blob/File to determine
  * true image format regardless of extension or reported MIME type.
@@ -2268,13 +2388,33 @@ async function handleImageFiles(files) {
 }
 
 if (attachImgBtn && imageFileInput) {
-  attachImgBtn.addEventListener("click", () => imageFileInput.click());
+  attachImgBtn.addEventListener("click", () => {
+    if (isVisionCooldownActive()) {
+      const remainingSecs = Math.ceil((visionCooldownEndTime - Date.now()) / 1000);
+      alert(`⏳ Image reasoning is temporarily busy with high demand. Available in ${formatTimerCountdown(remainingSecs)}.`);
+      return;
+    }
+    imageFileInput.click();
+  });
 }
 if (toolImageBtn && imageFileInput) {
-  toolImageBtn.addEventListener("click", () => imageFileInput.click());
+  toolImageBtn.addEventListener("click", () => {
+    if (isVisionCooldownActive()) {
+      const remainingSecs = Math.ceil((visionCooldownEndTime - Date.now()) / 1000);
+      alert(`⏳ Image reasoning is temporarily busy with high demand. Available in ${formatTimerCountdown(remainingSecs)}.`);
+      return;
+    }
+    imageFileInput.click();
+  });
 }
 if (imageFileInput) {
   imageFileInput.addEventListener("change", (e) => {
+    if (isVisionCooldownActive()) {
+      imageFileInput.value = "";
+      const remainingSecs = Math.ceil((visionCooldownEndTime - Date.now()) / 1000);
+      alert(`⏳ Image reasoning is temporarily busy with high demand. Available in ${formatTimerCountdown(remainingSecs)}.`);
+      return;
+    }
     handleImageFiles(e.target.files);
     imageFileInput.value = "";
   });
@@ -2296,6 +2436,11 @@ document.addEventListener("paste", async (e) => {
 
   if (imageFiles.length > 0) {
     e.preventDefault();
+    if (isVisionCooldownActive()) {
+      const remainingSecs = Math.ceil((visionCooldownEndTime - Date.now()) / 1000);
+      alert(`⏳ Image reasoning is temporarily busy with high demand. Available in ${formatTimerCountdown(remainingSecs)}.`);
+      return;
+    }
     await handleImageFiles(imageFiles);
   }
 });
@@ -2313,6 +2458,11 @@ if (inputWrapper) {
     e.preventDefault();
     inputWrapper.classList.remove("drag-over");
     if (e.dataTransfer && e.dataTransfer.files) {
+      if (isVisionCooldownActive()) {
+        const remainingSecs = Math.ceil((visionCooldownEndTime - Date.now()) / 1000);
+        alert(`⏳ Image reasoning is temporarily busy with high demand. Available in ${formatTimerCountdown(remainingSecs)}.`);
+        return;
+      }
       handleImageFiles(e.dataTransfer.files);
     }
   });
@@ -2355,6 +2505,17 @@ async function askPythos(userText) {
   const hasPendingImages = pendingImages.length > 0;
   if ((!userText || !userText.trim()) && !hasPendingImages) return;
   if (isProcessing) return; // Block spam
+
+  // Client-side prevention: If student attempts an image request while vision cooldown timer is active
+  if (hasPendingImages && isVisionCooldownActive()) {
+    const remainingSecs = Math.ceil((visionCooldownEndTime - Date.now()) / 1000);
+    const formatted = formatTimerCountdown(remainingSecs);
+    appendMessage(
+      "assistant",
+      `⏳ Pythos image reasoning is temporarily busy with high demand. Please wait ${formatted} before submitting another image, or ask your question in text.`
+    );
+    return;
+  }
 
   // Cap input length
   let cleanText = (userText || "").trim();
@@ -2534,6 +2695,11 @@ async function askPythos(userText) {
             contentDiv.textContent = streamedText;
             statusBadge.style.color = "#dc2626";
             statusBadge.innerHTML = `<span>⚠️ ${ev.error || "Inference Error"}</span>`;
+
+            // If upstream rate limited with valid retryAfter, start or update Image button countdown timer
+            if (ev.error === "UPSTREAM_RATE_LIMITED" && typeof ev.retryAfter === "number" && Number.isFinite(ev.retryAfter) && ev.retryAfter > 0) {
+              startVisionCooldown(ev.retryAfter);
+            }
           }
         }
       }
@@ -2586,6 +2752,11 @@ async function askPythos(userText) {
         } else if (errData.error) {
           errorMsg = errData.error;
         }
+
+        // If upstream rate limited with valid retryAfter, start or update Image button countdown timer
+        if (errData && errData.error === "UPSTREAM_RATE_LIMITED" && typeof errData.retryAfter === "number" && Number.isFinite(errData.retryAfter) && errData.retryAfter > 0) {
+          startVisionCooldown(errData.retryAfter);
+        }
       } catch (_) {
         if (res.status === 413) {
           errorMsg = "The attached image exceeds the maximum supported size. Please upload a smaller image.";
@@ -2614,6 +2785,10 @@ async function askPythos(userText) {
         // Save to Firebase
         await saveChatState(userText, botReply);
       } else {
+        // If legacy response returns error structure with UPSTREAM_RATE_LIMITED and retryAfter
+        if (data && data.error === "UPSTREAM_RATE_LIMITED" && typeof data.retryAfter === "number" && Number.isFinite(data.retryAfter) && data.retryAfter > 0) {
+          startVisionCooldown(data.retryAfter);
+        }
         const errNotice = data.message || "The Oracle is silent. (API Error)";
         appendMessage("assistant", errNotice);
       }

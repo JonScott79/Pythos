@@ -5,6 +5,16 @@ All notable changes to the Pythos project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Pythos 1.6.3
+**Release Date:** 2026-09-13
+
+### Added
+- **Vision Capacity Countdown Timer on Image Button**:
+  - Automatically transforms the existing Image / Photo button into an active countdown timer (`[ ⏳ MM:SS ]` / `[ ⏳ H:MM:SS ]`) when upstream multimodal vision returns `UPSTREAM_RATE_LIMITED` with a valid `retryAfter` duration.
+  - Button itself serves as the sole status indicator, removing the need for separate token/quota widgets while updating once per second until provider recovery.
+  - Client-side upload gating blocks redundant requests during the countdown (protecting toolbar buttons, camera icon, drag-and-drop, and clipboard paste) while leaving text chat and all interactive math/physics tools completely usable.
+  - Re-enables the button automatically upon countdown completion and cleanly handles new rate limits if upstream durations change.
+
 ## Pythos 1.6.2
 **Release Date:** 2026-09-13
 
