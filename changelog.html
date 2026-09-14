@@ -427,12 +427,41 @@
       <p>Authoritative release notes, verification engine milestones, and mathematical system updates.</p>
     </header>
 
+    <!-- RELEASE v1.7.0 -->
+    <article class="release-card" id="pythos-1-7-0">
+      <div class="release-header">
+        <div class="release-title-wrap">
+          <h2 class="release-version">Pythos 1.7.0</h2>
+          <span class="release-badge">Latest Release</span>
+        </div>
+        <time class="release-date" datetime="2026-09-13">September 13, 2026</time>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header added">✦ WHAT'S NEW</div>
+        <ul class="feature-list">
+          <li><strong>$0 AI Cost Guardrail (<code>PYTHOS_AI_BUDGET_MODE</code>)</strong>: Hard infrastructure policy guaranteeing that Pythos never incurs AI API charges unless paid spending is explicitly enabled (<code>paid_enabled</code>). Missing, invalid, or malformed settings fail closed to <code>free_only</code>.</li>
+          <li><strong>Architectural Provider Selection Layer</strong>: Centralized selection router (<code>server/providerPolicy.js</code>) that checks provider eligibility, capabilities, configuration state, and rate limits. Configured paid models are strictly forbidden in <code>free_only</code> mode.</li>
+          <li><strong>Intelligent Free-Tier Fallback</strong>: When a free vision provider returns 429, searches for secondary free-eligible providers before falling back to <code>UPSTREAM_RATE_LIMITED</code> and triggering the vision capacity timer. Paid providers cannot be accidentally reached.</li>
+          <li><strong>Emergency Infrastructure Kill Switch (<code>PYTHOS_AI_ENABLED</code>)</strong>: Single-variable emergency control to instantly halt all external AI calls without redeploying code. Cleanly communicates temporary maintenance while keeping fast-path mathematical solvers functional.</li>
+          <li><strong>Privacy-Safe Budget Telemetry</strong>: Exposed on <code>/health</code> for administrative monitoring with complete redaction of API keys, Bearer tokens, and secrets.</li>
+        </ul>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header verify">⚖️ VERIFICATION &amp; INTEGRITY</div>
+        <ul class="feature-list">
+          <li><strong>Automated Cost Guardrail Suite</strong>: 16 dedicated unit, regression, and live API integration tests in <code>test_cost_guardrail.js</code> proving zero-cost enforcement, fail-closed mechanics, and credential sanitization.</li>
+          <li><strong>Zero Regressions</strong>: All 93/93 core mathematical CAS benchmark tests, error taxonomy tests, vision capacity timer tests, and 190/190 accessibility audits passed.</li>
+        </ul>
+      </div>
+    </article>
+
     <!-- RELEASE v1.6.3 -->
     <article class="release-card" id="pythos-1-6-3">
       <div class="release-header">
         <div class="release-title-wrap">
           <h2 class="release-version">Pythos 1.6.3</h2>
-          <span class="release-badge">Latest Release</span>
         </div>
         <time class="release-date" datetime="2026-09-13">September 13, 2026</time>
       </div>

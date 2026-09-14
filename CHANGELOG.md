@@ -5,6 +5,24 @@ All notable changes to the Pythos project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Pythos 1.7.0
+**Release Date:** 2026-09-13
+
+### Added
+- **$0 AI Cost Guardrail (`PYTHOS_AI_BUDGET_MODE`)**:
+  - Implemented an immutable infrastructure safety guardrail guaranteeing that Pythos cannot incur AI API charges without explicit administrative enablement (`paid_enabled`).
+  - Strict fail-closed policy: Any missing, malformed, or unrecognized budget mode setting defaults to `free_only`.
+  - In `free_only` mode, models and providers lacking explicit `freeEligible: true` are rejected at the architectural selection boundary.
+- **Centralized Provider Selection Layer (`server/providerPolicy.js`)**:
+  - Encapsulated provider eligibility, model resolution, capability mapping (`vision`/`text`), configuration verification, and rate-limit tracking.
+  - Multi-provider fallback resolution: If a free vision provider returns 429, searches for secondary free-eligible providers before gracefully returning `UPSTREAM_RATE_LIMITED`.
+  - Configured paid providers can never be selected or called under `free_only`, even during 429 rate limit events.
+- **Emergency AI Kill Switch (`PYTHOS_AI_ENABLED`)**:
+  - Added global emergency kill switch (defaults to `true`). If set to `false`, halts all external AI provider calls immediately, returning a clean maintenance state without attempting upstream connections.
+  - Instant deterministic calculations (pure arithmetic, conversions) remain operational and responsive.
+- **Privacy-Safe Budget Policy Telemetry**:
+  - Extended `/health` endpoint with a sanitized `budgetPolicy` payload reporting `aiEnabled`, `budgetMode`, and provider eligibility states without exposing credentials, API keys, or authorization tokens.
+
 ## Pythos 1.6.3
 **Release Date:** 2026-09-13
 

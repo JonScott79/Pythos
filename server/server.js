@@ -388,9 +388,6 @@ app.use(cors({
 app.use(express.json({ limit: '15mb' }));
 app.use(express.static(path.join(__dirname, '..')));
 
-// =====================================
-// Health Check Endpoint
-// =====================================
 // Standalone liveness probe: Returns 200 immediately without depending on Ollama availability
 app.get('/health', (req, res) => {
   const firebaseAdmin = require('./firebaseAdmin');
@@ -400,6 +397,7 @@ app.get('/health', (req, res) => {
     model: OLLAMA_MODEL,
     visionModel: OLLAMA_VISION_MODEL,
     hasAuth: Boolean(OLLAMA_API_KEY),
+    budgetPolicy: providerPolicy.getPolicyTelemetry(),
     firebaseAdmin: firebaseAdmin.getAdminSdkStatus ? firebaseAdmin.getAdminSdkStatus() : null,
     uptime: process.uptime(),
     timestamp: new Date().toISOString()
@@ -469,6 +467,7 @@ const firebaseAdmin = require('./firebaseAdmin');
 const contextManager = require('./contextManager');
 const visionExtractor = require('./visionExtractor');
 const { classifyUpstreamError, sanitizeErrorDetail, extractRetrySeconds } = require('./errorHandler');
+const providerPolicy = require('./providerPolicy');
 
 // Mount Admin Routes
 app.use('/admin', adminRoutes);
@@ -519,6 +518,28 @@ app.post('/api/chat', async (req, res) => {
       req.headers.accept.includes('application/x-ndjson') ||
       req.headers.accept.includes('text/event-stream')
     ));
+
+  // Emergency AI Kill Switch Check (PYTHOS_AI_ENABLED=false)
+  if (!providerPolicy.getAiEnabled()) {
+    const disabledMsg = '⚙️ AI reasoning is temporarily paused for maintenance. Please check back shortly.';
+    if (isStreaming) {
+      res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+      res.setHeader('Transfer-Encoding', 'chunked');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.write(JSON.stringify({
+        type: 'error',
+        error: 'UPSTREAM_UNAVAILABLE',
+        message: disabledMsg,
+        retryAfter: 0
+      }) + '\n');
+      return res.end();
+    }
+    return res.status(503).json({
+      error: 'UPSTREAM_UNAVAILABLE',
+      message: disabledMsg,
+      retryAfter: 0
+    });
+  }
 
   // Extract latest user query
   const lastUserMsg = [...messages].reverse().find(m => m && m.role === 'user');
@@ -645,12 +666,47 @@ app.post('/api/chat', async (req, res) => {
   const targetModel = latestHasImages ? (process.env.OLLAMA_VISION_MODEL || OLLAMA_VISION_MODEL) : OLLAMA_MODEL;
 
   // Multimodal Hosted Vision Gateway Bridge
-  // If active user turn contains images, route directly to hosted Groq vision completions
-  const groqApiKey = GROQ_API_KEY;
-  if (latestHasImages && groqApiKey) {
-    try {
-      await concurrencyLimiter.acquire(abortController.signal, REQUEST_TIMEOUT_MS);
-      acquiredSemaphore = true;
+  // If active user turn contains images, route via provider selection layer
+  if (latestHasImages) {
+    const visionSelection = providerPolicy.selectProvider({ capability: 'vision' });
+    if (!visionSelection.provider) {
+      // If blocked by cost guardrail or all rate limited, return appropriate error
+      const isCostBlocked = visionSelection.reason === 'COST_GUARDRAIL_BLOCKED';
+      const isRateLimited = visionSelection.reason === 'ALL_RATE_LIMITED';
+      const errStatus = isCostBlocked ? 403 : 503;
+      const errCode = isRateLimited ? 'UPSTREAM_RATE_LIMITED' : 'UPSTREAM_UNAVAILABLE';
+      const errMsg = isRateLimited
+        ? 'Vision model capacity is currently exhausted across all free providers. Please wait for the timer to complete.'
+        : (isCostBlocked
+          ? 'Vision analysis requires a paid provider, but Pythos is currently locked to $0 cost guardrail (free_only mode).'
+          : 'Vision reasoning is temporarily unavailable.');
+
+      if (isStreaming) {
+        res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+        res.setHeader('Transfer-Encoding', 'chunked');
+        res.setHeader('Cache-Control', 'no-cache, no-transform');
+        res.write(JSON.stringify({
+          type: 'error',
+          error: errCode,
+          message: errMsg,
+          retryAfter: visionSelection.retryAfter || 0
+        }) + '\n');
+        return res.end();
+      }
+
+      return res.status(errStatus).json({
+        error: errCode,
+        message: errMsg,
+        retryAfter: visionSelection.retryAfter || 0
+      });
+    }
+
+    const selectedVisionProvider = visionSelection.provider;
+    const groqApiKey = GROQ_API_KEY;
+    if (selectedVisionProvider.name === 'groq-qwen-vision' && groqApiKey) {
+      try {
+        await concurrencyLimiter.acquire(abortController.signal, REQUEST_TIMEOUT_MS);
+        acquiredSemaphore = true;
 
       // For hosted vision API, provide focused Pythos tutor instructions and vision directive
       // to keep total request tokens safely within provider rate limits (~1500 tokens)
@@ -694,7 +750,7 @@ ${preflightContext}${activeProblemContext}`;
           headers: {
             'Authorization': `Bearer ${groqApiKey}`,
             'Content-Type': 'application/json',
-            'User-Agent': 'Pythos-Vision/1.6.3',
+            'User-Agent': 'Pythos-Vision/1.7.0',
             'Content-Length': Buffer.byteLength(groqPayload)
           },
           timeout: REQUEST_TIMEOUT_MS
@@ -801,6 +857,11 @@ ${preflightContext}${activeProblemContext}`;
       console.error('[PYTHOS API] Groq Vision bridge error:', sanitizeErrorDetail(gErr));
       const classified = classifyUpstreamError(gErr, 'vision');
 
+      if (classified.error === 'UPSTREAM_RATE_LIMITED') {
+        const retrySec = classified.retryAfter || extractRetrySeconds(gErr) || 60;
+        providerPolicy.recordRateLimit('groq-qwen-vision', retrySec);
+      }
+
       if (isStreaming) {
         res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
         res.setHeader('Transfer-Encoding', 'chunked');
@@ -819,9 +880,40 @@ ${preflightContext}${activeProblemContext}`;
         message: classified.message,
         retryAfter: classified.retryAfter
       });
-    } finally {
-      if (acquiredSemaphore) concurrencyLimiter.release();
+      } finally {
+        if (acquiredSemaphore) concurrencyLimiter.release();
+      }
     }
+  }
+
+  // Provider selection check for text capability
+  const textSelection = providerPolicy.selectProvider({ capability: 'text' });
+  if (!textSelection.provider) {
+    const isCostBlocked = textSelection.reason === 'COST_GUARDRAIL_BLOCKED';
+    const isRateLimited = textSelection.reason === 'ALL_RATE_LIMITED';
+    const errStatus = isCostBlocked ? 403 : 503;
+    const errCode = isRateLimited ? 'UPSTREAM_RATE_LIMITED' : 'UPSTREAM_UNAVAILABLE';
+    const errMsg = isCostBlocked
+      ? 'Text reasoning requires a paid provider, but Pythos is currently locked to $0 cost guardrail (free_only mode).'
+      : (textSelection.message || 'Text inference is temporarily unavailable.');
+
+    if (isStreaming) {
+      res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+      res.setHeader('Transfer-Encoding', 'chunked');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.write(JSON.stringify({
+        type: 'error',
+        error: errCode,
+        message: errMsg,
+        retryAfter: textSelection.retryAfter || 0
+      }) + '\n');
+      return res.end();
+    }
+    return res.status(errStatus).json({
+      error: errCode,
+      message: errMsg,
+      retryAfter: textSelection.retryAfter || 0
+    });
   }
 
   try {
