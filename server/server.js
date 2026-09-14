@@ -693,7 +693,7 @@ ${preflightContext}${activeProblemContext}`;
           headers: {
             'Authorization': `Bearer ${groqApiKey}`,
             'Content-Type': 'application/json',
-            'User-Agent': 'Pythos-Vision/1.6.0',
+            'User-Agent': 'Pythos-Vision/1.6.1',
             'Content-Length': Buffer.byteLength(groqPayload)
           },
           timeout: REQUEST_TIMEOUT_MS
