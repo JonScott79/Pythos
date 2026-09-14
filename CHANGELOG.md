@@ -5,6 +5,21 @@ All notable changes to the Pythos project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Pythos 1.6.1
+**Release Date:** 2026-09-13
+
+### Added
+- **Mobile Phone Image Format Compatibility (.heic, .heif)**:
+  - Added native and client-side conversion for Apple HEIC/HEIF images across mobile Safari, iOS devices, and desktop browsers.
+  - Vendored WebAssembly-backed transcoding engine (`assets/vendor/heic2any.min.js`) with dynamic CDN fallback to automatically convert `.heic` and `.heif` photos into standard JPEG Blobs client-side on browsers lacking native decoders.
+  - Universal input support: expanded file picker `<input accept="...">`, drag-and-drop zones, and clipboard paste (Ctrl+V / Cmd+V) to accept `.heic`, `.heif`, `.jpg`, `.jpeg`, `.png`, `.webp`, and `.bmp`.
+  - Added client-side binary magic byte sniffing (`sniffImageFormat`) in `app.js` to inspect ISO BMFF headers (`ftyp` brands `heic`, `heix`, `hevc`, `mif1`, etc.), ensuring accurate classification even when mobile operating systems report generic `application/octet-stream` MIME types.
+- **EXIF Auto-Orientation Normalization**:
+  - Integrated `createImageBitmap(blob, { imageOrientation: 'from-image' })` in `app.js` to automatically detect and correct EXIF orientation tags (e.g., orientation 6 for portrait photos), ensuring sideways and upside-down phone photos are rendered upright before vision model inspection.
+- **Backend Binary Payload Validation & Security Gate**:
+  - Added `validateBase64Image` in `server/visionExtractor.js` and `server/server.js` to enforce magic byte integrity and minimum payload thresholds on all inbound image payloads.
+  - Immediately rejects truncated, corrupt, or spoofed image files with HTTP `400 Bad Request` and descriptive user-facing errors (`invalid_image`), shielding upstream vision models and quota limits.
+
 ## Pythos 1.6.0
 **Release Date:** 2026-09-13
 
