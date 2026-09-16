@@ -24,7 +24,9 @@ function sanitizeErrorDetail(raw) {
   
   // Strip Bearer tokens & API keys
   str = str.replace(/Bearer\s+[a-zA-Z0-9_\-\.]+/gi, 'Bearer [REDACTED]');
+  str = str.replace(/x-goog-api-key:\s*[^,\s\n\r"']+/gi, 'x-goog-api-key: [REDACTED]');
   str = str.replace(/gsk_[a-zA-Z0-9]{20,}/gi, '[REDACTED_API_KEY]');
+  str = str.replace(/AIzaSy[a-zA-Z0-9_\-]{30,}/gi, '[REDACTED_API_KEY]');
   str = str.replace(/key=[a-zA-Z0-9_\-]+/gi, 'key=[REDACTED]');
 
   // Strip Groq/OpenAI Organization IDs
@@ -45,6 +47,9 @@ function sanitizeErrorDetail(raw) {
  * Extracts approximate retry duration in seconds if present in error message or body.
  */
 function extractRetrySeconds(err) {
+  if (err && typeof err.retryAfter === 'number' && Number.isFinite(err.retryAfter) && err.retryAfter > 0) {
+    return Math.ceil(err.retryAfter);
+  }
   const text = (err.body || '') + ' ' + (err.message || '');
   // Groq format: "Please try again in 1m25.968s" or "try again in 50.544s"
   const mMatch = /try again in (?:(\d+)m)?([\d.]+)s/i.exec(text);
@@ -53,10 +58,10 @@ function extractRetrySeconds(err) {
     const secs = mMatch[2] ? parseFloat(mMatch[2]) : 0;
     return Math.ceil(mins * 60 + secs);
   }
-  // Standard format: "try again in X seconds"
-  const secMatch = /try again in (\d+)\s*(?:seconds|sec|s)/i.exec(text);
+  // Standard format: "try again in X seconds" or "retry after X seconds/s"
+  const secMatch = /(?:try again in|retry after)\s*(\d+(?:\.\d+)?)\s*(?:seconds|sec|s)?/i.exec(text);
   if (secMatch && secMatch[1]) {
-    return parseInt(secMatch[1], 10);
+    return Math.ceil(parseFloat(secMatch[1]));
   }
   return null;
 }
@@ -99,7 +104,7 @@ function classifyUpstreamError(err, context = 'text') {
   const isTimeout = err.code === 'ETIMEDOUT' || msg.includes('etimedout') || msg.includes('timed out') || msg.includes('timeout');
   const isAbort = err.name === 'AbortError' || msg.includes('aborted') || msg.includes('aborterror');
   const isNetworkRefused = err.code === 'ECONNREFUSED' || msg.includes('econnrefused') || err.code === 'ENOTFOUND' || msg.includes('enotfound');
-  const isRateLimit = statusCode === 429 || msg.includes('rate_limit') || msg.includes('rate limit') || msg.includes('tokens per day');
+  const isRateLimit = statusCode === 429 || msg.includes('rate_limit') || msg.includes('rate limit') || msg.includes('tokens per day') || msg.includes('resource_exhausted') || msg.includes('quota');
   const isAuthError = statusCode === 401 || statusCode === 403 || msg.includes('unauthorized') || msg.includes('forbidden') || msg.includes('invalid_api_key');
   const isBadRequest = statusCode === 400 || msg.includes('bad request') || msg.includes('invalid request');
   const isServerError = (statusCode >= 500 && statusCode < 600);
@@ -109,7 +114,7 @@ function classifyUpstreamError(err, context = 'text') {
 
   // 1. Rate Limit (HTTP 429)
   if (isRateLimit) {
-    const isVision = context === 'vision' || msg.includes('vision') || msg.includes('qwen');
+    const isVision = context === 'vision' || msg.includes('vision') || msg.includes('qwen') || msg.includes('gemini');
     return {
       status: 429,
       error: 'UPSTREAM_RATE_LIMITED',

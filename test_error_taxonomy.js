@@ -128,58 +128,68 @@ function testSanitization() {
 }
 
 async function testApiIntegration() {
-  console.log('\n--- PART 3: API Integration Tests (port 3006) ---');
-
-  // Test malformed payload rejection (400)
-  const badReqPromise = new Promise((resolve) => {
-    const req = http.request({
-      hostname: 'localhost',
-      port: 3006,
-      path: '/api/chat',
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    }, (res) => {
-      let b = '';
-      res.on('data', c => b += c);
-      res.on('end', () => resolve({ status: res.statusCode, body: JSON.parse(b) }));
-    });
-    req.write(JSON.stringify({ messages: [{ role: 'user', content: 99999 }] }));
-    req.end();
+  console.log('\n--- PART 3: API Integration Tests ---');
+  process.env.NODE_ENV = 'test';
+  const { app } = require('./server/server');
+  const server = await new Promise(resolve => {
+    const s = app.listen(0, () => resolve(s));
   });
+  const port = server.address().port;
 
-  const badRes = await badReqPromise;
-  assert.strictEqual(badRes.status, 400);
-  assert.strictEqual(badRes.body.error, 'invalid_request');
-  console.log('  [PASS] Invalid request payload returns HTTP 400 invalid_request');
-
-  // Test corrupted base64 image rejection (400)
-  const corruptImgPromise = new Promise((resolve) => {
-    const req = http.request({
-      hostname: 'localhost',
-      port: 3006,
-      path: '/api/chat',
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    }, (res) => {
-      let b = '';
-      res.on('data', c => b += c);
-      res.on('end', () => resolve({ status: res.statusCode, body: JSON.parse(b) }));
+  try {
+    // Test malformed payload rejection (400)
+    const badReqPromise = new Promise((resolve) => {
+      const req = http.request({
+        hostname: 'localhost',
+        port: port,
+        path: '/api/chat',
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      }, (res) => {
+        let b = '';
+        res.on('data', c => b += c);
+        res.on('end', () => resolve({ status: res.statusCode, body: JSON.parse(b) }));
+      });
+      req.write(JSON.stringify({ messages: [{ role: 'user', content: 99999 }] }));
+      req.end();
     });
-    req.write(JSON.stringify({
-      messages: [{
-        role: 'user',
-        content: 'Check this image',
-        images: ['not-an-image-just-corrupt-string-data']
-      }]
-    }));
-    req.end();
-  });
 
-  const corruptRes = await corruptImgPromise;
-  assert.strictEqual(corruptRes.status, 400);
-  assert.strictEqual(corruptRes.body.error, 'invalid_image');
-  assert(corruptRes.body.message.includes('unsupported format') || corruptRes.body.message.includes('corrupted'));
-  console.log('  [PASS] Corrupted image payload returns HTTP 400 invalid_image');
+    const badRes = await badReqPromise;
+    assert.strictEqual(badRes.status, 400);
+    assert.strictEqual(badRes.body.error, 'invalid_request');
+    console.log('  [PASS] Invalid request payload returns HTTP 400 invalid_request');
+
+    // Test corrupted base64 image rejection (400)
+    const corruptImgPromise = new Promise((resolve) => {
+      const req = http.request({
+        hostname: 'localhost',
+        port: port,
+        path: '/api/chat',
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      }, (res) => {
+        let b = '';
+        res.on('data', c => b += c);
+        res.on('end', () => resolve({ status: res.statusCode, body: JSON.parse(b) }));
+      });
+      req.write(JSON.stringify({
+        messages: [{
+          role: 'user',
+          content: 'Check this image',
+          images: ['not-an-image-just-corrupt-string-data']
+        }]
+      }));
+      req.end();
+    });
+
+    const corruptRes = await corruptImgPromise;
+    assert.strictEqual(corruptRes.status, 400);
+    assert.strictEqual(corruptRes.body.error, 'invalid_image');
+    assert(corruptRes.body.message.includes('unsupported format') || corruptRes.body.message.includes('corrupted'));
+    console.log('  [PASS] Corrupted image payload returns HTTP 400 invalid_image');
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+  }
 }
 
 async function run() {

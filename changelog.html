@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="assets/favicon.png">
-  <title>Pythos Release History & Changelog | v1.6.2</title>
+  <title>Pythos Release History & Changelog | v1.7.2</title>
   <meta name="description" content="Pythos release notes & changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://pythos.lanzar.me/changelog.html">
 
   <!-- OPEN GRAPH -->
-  <meta property="og:title" content="Pythos Release History & Changelog | v1.6.2">
+  <meta property="og:title" content="Pythos Release History & Changelog | v1.7.2">
   <meta property="og:description" content="Pythos release notes & changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta property="og:url" content="https://pythos.lanzar.me/changelog.html">
   <meta property="og:type" content="article">
@@ -23,7 +23,7 @@
 
   <!-- TWITTER CARD -->
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Pythos Release History & Changelog | v1.6.2">
+  <meta name="twitter:title" content="Pythos Release History & Changelog | v1.7.2">
   <meta name="twitter:description" content="Pythos release notes & changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="twitter:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
 
@@ -32,10 +32,10 @@
   {
     "@context": "https://schema.org",
     "@type": "TechArticle",
-    "headline": "Pythos 1.6.2 Release Notes and Changelog",
+    "headline": "Pythos 1.7.2 Release Notes and Changelog",
     "description": "Authoritative release history for Pythos: specialized problem routing, two-stage reasoning, and CAS ground-truth verification.",
     "datePublished": "2026-08-26",
-    "dateModified": "2026-09-13",
+    "dateModified": "2026-09-16",
     "author": {
       "@type": "Person",
       "name": "Jon Scott",
@@ -427,12 +427,41 @@
       <p>Authoritative release notes, verification engine milestones, and mathematical system updates.</p>
     </header>
 
+    <!-- RELEASE v1.7.2 -->
+    <article class="release-card" id="pythos-1-7-2">
+      <div class="release-header">
+        <div class="release-title-wrap">
+          <h2 class="release-version">Pythos 1.7.2</h2>
+          <span class="release-badge">Latest Release</span>
+        </div>
+        <time class="release-date" datetime="2026-09-16">September 16, 2026</time>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header added">✦ WHAT'S NEW</div>
+        <ul class="feature-list">
+          <li><strong>Gemini Secondary Vision Backup</strong>: Integrated Google Gemini (<code>gemini-2.5-flash</code>) as an automated secondary backup provider when the primary Groq Qwen vision provider is rate-limited or unavailable.</li>
+          <li><strong>Multi-Provider Fallback Gateway</strong>: Seamless automated fallback loop in <code>/api/chat</code> supporting both streaming (NDJSON) and legacy (JSON) interfaces without student session interruption.</li>
+          <li><strong>Centralized Credential Resolution</strong>: Consolidated API credential getters in <code>providerPolicy.js</code> with centralized resolution for Groq and Gemini.</li>
+        </ul>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header verify">⚖️ VERIFICATION &amp; $0 COST GUARDRAIL</div>
+        <ul class="feature-list">
+          <li><strong>Operator Free-Tier Certification Requirement</strong>: Google AI Studio does not expose an API endpoint to query billing status. Under <code>PYTHOS_AI_BUDGET_MODE=free_only</code>, Gemini fails closed (<code>freeEligible: false</code>) unless an operator explicitly certifies zero-cost status via <code>GEMINI_FREE_TIER=true</code>. Paid providers can never be invoked.</li>
+          <li><strong>Execution Layer Defense-in-Depth</strong>: <code>executeVisionCall</code> independently validates budget mode, kill switch, and provider status to ensure policy cannot be bypassed.</li>
+          <li><strong>Security &amp; Error Taxonomy Sanitization</strong>: Redacted <code>AIzaSy...</code> keys and <code>x-goog-api-key</code> headers in error traces; classified Gemini <code>RESOURCE_EXHAUSTED</code> and quota errors as <code>UPSTREAM_RATE_LIMITED</code> (429).</li>
+          <li><strong>Full Suite Verification</strong>: 24 new unit, adversarial, and end-to-end fallback verification tests; 348/348 tests passing across all 12 regression test suites.</li>
+        </ul>
+      </div>
+    </article>
+
     <!-- RELEASE v1.7.1 -->
     <article class="release-card" id="pythos-1-7-1">
       <div class="release-header">
         <div class="release-title-wrap">
           <h2 class="release-version">Pythos 1.7.1</h2>
-          <span class="release-badge">Latest Release</span>
         </div>
         <time class="release-date" datetime="2026-09-15">September 15, 2026</time>
       </div>

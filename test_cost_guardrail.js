@@ -362,7 +362,7 @@ runTest('Default production provider catalog is properly structured and safe', (
   const registry = providerPolicy.getProviderRegistry();
   const groq = registry.find(p => p.name === 'groq-qwen-vision');
   const ollama = registry.find(p => p.name === 'ollama-text');
-  const gemini = registry.find(p => p.name === 'gemini-vision-probe');
+  const gemini = registry.find(p => p.name === 'gemini-vision' || p.name === 'gemini-vision-probe');
 
   assert.notStrictEqual(groq, undefined);
   assert.strictEqual(groq.capability, 'vision');
@@ -471,36 +471,47 @@ runTest('REGRESSION: Text-only request without images does not require vision pr
 
 // 15. Integration: Verify /health includes sanitized budgetPolicy
 async function runIntegrationTests() {
-  await runAsyncTest('Integration: GET /health returns clean budgetPolicy telemetry', async () => {
-    const res = await fetch('http://localhost:3006/health');
-    assert.strictEqual(res.status, 200);
-    const data = await res.json();
-    assert.strictEqual(data.status, 'ok');
-    assert.notStrictEqual(data.budgetPolicy, undefined);
-    assert.strictEqual(data.budgetPolicy.budgetMode, 'free_only');
-    assert.strictEqual(data.budgetPolicy.aiEnabled, true);
-    assert.strictEqual(Array.isArray(data.budgetPolicy.providers), true);
-
-    const serialized = JSON.stringify(data.budgetPolicy);
-    assert.strictEqual(serialized.includes('gsk_'), false);
-    assert.strictEqual(serialized.includes('Bearer'), false);
+  process.env.NODE_ENV = 'test';
+  const { app } = require('./server/server');
+  const server = await new Promise(resolve => {
+    const s = app.listen(0, () => resolve(s));
   });
+  const port = server.address().port;
 
-  // 16. Fast-path deterministic calculation works through running server
-  await runAsyncTest('Integration: Fast-path deterministic calculation works via server', async () => {
-    const res = await fetch('http://localhost:3006/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        messages: [{ role: 'user', content: 'Calculate 72/120' }]
-      })
+  try {
+    await runAsyncTest('Integration: GET /health returns clean budgetPolicy telemetry', async () => {
+      const res = await fetch(`http://localhost:${port}/health`);
+      assert.strictEqual(res.status, 200);
+      const data = await res.json();
+      assert.strictEqual(data.status, 'ok');
+      assert.notStrictEqual(data.budgetPolicy, undefined);
+      assert.strictEqual(data.budgetPolicy.budgetMode, 'free_only');
+      assert.strictEqual(data.budgetPolicy.aiEnabled, true);
+      assert.strictEqual(Array.isArray(data.budgetPolicy.providers), true);
+
+      const serialized = JSON.stringify(data.budgetPolicy);
+      assert.strictEqual(serialized.includes('gsk_'), false);
+      assert.strictEqual(serialized.includes('Bearer'), false);
     });
-    assert.strictEqual(res.status, 200);
-    const data = await res.json();
-    assert.strictEqual(data.deterministic, true);
-  });
 
-  console.log(`\nAll ${passedTests}/${totalTests} guardrail unit & integration tests passed successfully!\n`);
+    // 16. Fast-path deterministic calculation works through running server
+    await runAsyncTest('Integration: Fast-path deterministic calculation works via server', async () => {
+      const res = await fetch(`http://localhost:${port}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: 'Calculate 72/120' }]
+        })
+      });
+      assert.strictEqual(res.status, 200);
+      const data = await res.json();
+      assert.strictEqual(data.deterministic, true);
+    });
+
+    console.log(`\nAll ${passedTests}/${totalTests} guardrail unit & integration tests passed successfully!\n`);
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+  }
 }
 
 runIntegrationTests().catch(err => {

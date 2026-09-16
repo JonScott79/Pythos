@@ -16,10 +16,33 @@ const VALID_BUDGET_MODES = new Set(['free_only', 'paid_enabled']);
 // Map<providerName, { rateLimitedUntil: number, retryAfter: number }>
 const rateLimitState = new Map();
 
-// Embedded Groq free-tier key — mirrors the fallback in server.js line 27.
+// Embedded Groq free-tier key — centralized fallback.
 // This allows isConfigured() to correctly detect that a Groq key is available
 // even when process.env.GROQ_API_KEY is not explicitly set.
 const GROQ_EMBEDDED_KEY = ['gsk_', 'HqgML4jckL', 'ulSbs6EH0a', 'WGdyb3FYf1', 'bctOrzZMD6', 'BslSSu8AU1xc'].join('');
+
+/**
+ * Resolves Groq API key with centralized embedded fallback.
+ */
+function getGroqApiKey() {
+  const key = process.env.GROQ_API_KEY;
+  if (key && typeof key === 'string' && key.trim().length > 0) {
+    return key.trim();
+  }
+  return GROQ_EMBEDDED_KEY;
+}
+
+/**
+ * Resolves Gemini API key from environment.
+ * Does not use embedded secrets; must be explicitly supplied via GEMINI_API_KEY.
+ */
+function getGeminiApiKey() {
+  const key = process.env.GEMINI_API_KEY;
+  if (key && typeof key === 'string' && key.trim().length > 0) {
+    return key.trim();
+  }
+  return null;
+}
 
 /**
  * Reads and validates PYTHOS_AI_BUDGET_MODE.
@@ -66,10 +89,27 @@ function getProviderRegistry() {
       freeEligible: true, // Groq free-tier hosted vision
       enabled: true,
       isConfigured: () => {
-        const key = process.env.GROQ_API_KEY;
-        const hasEnvKey = Boolean(key && key.trim().length > 0);
-        const hasEmbeddedFallback = typeof GROQ_EMBEDDED_KEY === 'string' && GROQ_EMBEDDED_KEY.length > 0;
-        return hasEnvKey || hasEmbeddedFallback;
+        const key = getGroqApiKey();
+        return Boolean(key && key.length > 0);
+      }
+    },
+    {
+      name: 'gemini-vision',
+      capability: 'vision',
+      model: process.env.GEMINI_VISION_MODEL || 'gemini-2.5-flash',
+      // Strict $0 guardrail (fail closed):
+      // OPERATOR CERTIFICATION / ASSERTION ONLY:
+      // Google AI Studio / Gemini API provides no programmatic endpoint to inspect whether
+      // an API key is linked to a paid billing account or is strictly on the $0 rate-limited free tier.
+      // Therefore, this is NOT an automatic determination of Google's billing status.
+      // In free_only mode, Gemini is ONLY eligible if an operator explicitly asserts
+      // that the key is a zero-cost free-tier key by setting GEMINI_FREE_TIER=true.
+      // Without this assertion, Pythos fails closed (freeEligible: false) so paid keys never incur charges.
+      freeEligible: process.env.GEMINI_FREE_TIER === 'true',
+      enabled: () => process.env.GEMINI_ENABLED !== 'false',
+      isConfigured: () => {
+        const key = getGeminiApiKey();
+        return Boolean(key && key.length > 0);
       }
     },
     {
@@ -81,17 +121,6 @@ function getProviderRegistry() {
       isConfigured: () => {
         return Boolean(process.env.OLLAMA_HOST || 'http://localhost:11434');
       }
-    },
-    // Gemini vision placeholder definition:
-    // Defined for testing guardrails, but NOT production active without paid_enabled or explicitly vetted free tier.
-    // Note: freeEligible is false by default for unknown/cloud paid models to adhere to fail-closed rule.
-    {
-      name: 'gemini-vision-probe',
-      capability: 'vision',
-      model: 'gemini-2.5-flash',
-      freeEligible: false, // Guardrail: cannot be called in free_only mode
-      enabled: false,      // Disabled by default; not in production routing
-      isConfigured: () => Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim().length > 0)
     }
   ];
 }
@@ -290,6 +319,9 @@ function getPolicyTelemetry(registryOverride = null) {
 }
 
 module.exports = {
+  GROQ_EMBEDDED_KEY,
+  getGroqApiKey,
+  getGeminiApiKey,
   getBudgetMode,
   getAiEnabled,
   getProviderRegistry,

@@ -1,7 +1,7 @@
 {
-  "name": "pythos-api",
-  "version": "1.7.1",
-  "description": "Pythos AI Backend Gateway",
+  "name": "pythos-backend",
+  "version": "1.7.2",
+  "description": "Pythos AI Backend Service",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

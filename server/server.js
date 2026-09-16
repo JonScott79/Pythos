@@ -24,7 +24,8 @@ const OLLAMA_HOST = rawOllamaHost.endsWith('/api') ? rawOllamaHost.slice(0, -4) 
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'pythos:latest';
 const OLLAMA_VISION_MODEL = process.env.OLLAMA_VISION_MODEL || 'qwen/qwen3.8-27b';
 const OLLAMA_API_KEY = process.env.OLLAMA_API_KEY ? process.env.OLLAMA_API_KEY.trim() : null;
-const GROQ_API_KEY = (process.env.GROQ_API_KEY || ['gs' + 'k_', 'HqgML4jckL', 'ulSbs6EH0a', 'WGdyb3FYf1', 'bctOrzZMD6', 'BslSSu8AU1xc'].join('')).trim();
+const providerPolicy = require('./providerPolicy');
+const GROQ_API_KEY = providerPolicy.getGroqApiKey();
 const PORT = process.env.PORT || 3006;
 const REQUEST_TIMEOUT_MS = parseInt(process.env.REQUEST_TIMEOUT_MS, 10) || 180000; // 180s timeout for vision models
 
@@ -467,12 +468,382 @@ const firebaseAdmin = require('./firebaseAdmin');
 const contextManager = require('./contextManager');
 const visionExtractor = require('./visionExtractor');
 const { classifyUpstreamError, sanitizeErrorDetail, extractRetrySeconds } = require('./errorHandler');
-const providerPolicy = require('./providerPolicy');
 
 // Mount Admin Routes
 app.use('/admin', adminRoutes);
 // Mount Report Routes (Priority 1 & 6)
 app.use('/api/report', reportRoutes);
+
+// =====================================
+// Vision Provider Drivers (Primary: Groq, Backup: Gemini)
+// =====================================
+
+/**
+ * Executes a vision inference call against the Groq vision model.
+ */
+async function executeGroqVisionCall(provider, { messages, visionSystemPrompt, options, timeoutMs, signal }) {
+  const groqApiKey = providerPolicy.getGroqApiKey();
+  if (!groqApiKey) {
+    const err = new Error('Groq API key is not configured');
+    err.statusCode = 401;
+    throw err;
+  }
+
+  const targetModel = provider.model || process.env.OLLAMA_VISION_MODEL || OLLAMA_VISION_MODEL;
+  const visionConversation = messages.filter(m => m.role !== 'system');
+  const formattedMessages = [
+    { role: 'system', content: visionSystemPrompt },
+    ...visionConversation.map(m => {
+      if (m.images && m.images.length > 0) {
+        const contentParts = [{ type: 'text', text: m.content || 'Please analyze this image' }];
+        m.images.forEach(b64 => {
+          let cleanB64 = b64;
+          if (typeof cleanB64 === 'string') {
+            if (cleanB64.includes('base64,')) {
+              cleanB64 = cleanB64.split('base64,')[1];
+            }
+            cleanB64 = cleanB64.trim();
+          }
+          contentParts.push({
+            type: 'image_url',
+            image_url: { url: `data:image/jpeg;base64,${cleanB64}` }
+          });
+        });
+        return { role: m.role, content: contentParts };
+      }
+      return { role: m.role, content: m.content };
+    })
+  ];
+
+  const groqPayload = JSON.stringify({
+    model: targetModel,
+    messages: formattedMessages,
+    temperature: options?.temperature || 0.2,
+    max_tokens: 900,
+    stream: false
+  });
+
+  const groqHttps = require('https');
+  const executeCall = () => new Promise((resolveGroq, rejectGroq) => {
+    const groqReq = groqHttps.request({
+      hostname: 'api.groq.com',
+      port: 443,
+      path: '/openai/v1/chat/completions',
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${groqApiKey}`,
+        'Content-Type': 'application/json',
+        'User-Agent': 'Pythos-Vision/1.7.1',
+        'Content-Length': Buffer.byteLength(groqPayload)
+      },
+      timeout: timeoutMs
+    }, (gRes) => {
+      let gBody = '';
+      gRes.on('data', chunk => gBody += chunk);
+      gRes.on('end', () => {
+        if (gRes.statusCode === 429) {
+          const err = new Error(`RATE_LIMIT: ${gBody}`);
+          err.statusCode = 429;
+          err.status = 429;
+          err.body = gBody;
+          if (gRes.headers['retry-after']) {
+            err.retryAfter = parseInt(gRes.headers['retry-after'], 10);
+          }
+          return rejectGroq(err);
+        }
+        if (gRes.statusCode >= 400) {
+          const err = new Error(`Groq Vision returned ${gRes.statusCode}: ${gBody}`);
+          err.statusCode = gRes.statusCode;
+          err.status = gRes.statusCode;
+          err.body = gBody;
+          return rejectGroq(err);
+        }
+        try {
+          const parsed = JSON.parse(gBody);
+          const text = parsed.choices?.[0]?.message?.content || '';
+          resolveGroq({
+            model: targetModel,
+            content: text,
+            provider: provider.name
+          });
+        } catch (err) {
+          rejectGroq(err);
+        }
+      });
+    });
+
+    if (signal) {
+      if (signal.aborted) {
+        groqReq.destroy();
+        return rejectGroq(new Error('AbortError'));
+      }
+      signal.addEventListener('abort', () => {
+        groqReq.destroy();
+        rejectGroq(new Error('AbortError'));
+      }, { once: true });
+    }
+
+    groqReq.on('timeout', () => {
+      groqReq.destroy();
+      rejectGroq(new Error('ETIMEDOUT'));
+    });
+    groqReq.on('error', rejectGroq);
+    groqReq.write(groqPayload);
+    groqReq.end();
+  });
+
+  let attempts = 0;
+  while (attempts < 3) {
+    attempts++;
+    try {
+      return await executeCall();
+    } catch (callErr) {
+      if (callErr.statusCode === 429) {
+        const parsedWait = extractRetrySeconds(callErr);
+        if (parsedWait && parsedWait > 10) {
+          throw callErr;
+        }
+        if (attempts < 3) {
+          const retrySec = parsedWait || (attempts * 3);
+          console.warn(`[VISION GATEWAY] Groq 429 Rate limited. Retrying in ${retrySec}s (attempt ${attempts}/3)...`);
+          await new Promise(r => setTimeout(r, retrySec * 1000));
+          continue;
+        }
+      }
+      throw callErr;
+    }
+  }
+}
+
+/**
+ * Executes a vision inference call against Google Gemini models (Backup Provider).
+ */
+async function executeGeminiVisionCall(provider, { messages, visionSystemPrompt, options, timeoutMs, signal }) {
+  const geminiApiKey = providerPolicy.getGeminiApiKey();
+  if (!geminiApiKey) {
+    const err = new Error('Gemini API key is not configured');
+    err.statusCode = 401;
+    throw err;
+  }
+
+  const targetModel = provider.model || process.env.GEMINI_VISION_MODEL || 'gemini-2.5-flash';
+  const visionConversation = messages.filter(m => m.role !== 'system');
+
+  const contents = [];
+  for (const m of visionConversation) {
+    const role = m.role === 'assistant' ? 'model' : 'user';
+    const parts = [];
+
+    if (m.content && typeof m.content === 'string' && m.content.trim().length > 0) {
+      parts.push({ text: m.content.trim() });
+    }
+
+    if (Array.isArray(m.images) && m.images.length > 0) {
+      for (const img of m.images) {
+        let b64 = img;
+        let mimeType = 'image/jpeg';
+        if (typeof b64 === 'string') {
+          if (b64.startsWith('data:')) {
+            const match = /^data:([^;]+);base64,(.+)$/.exec(b64);
+            if (match) {
+              mimeType = match[1];
+              b64 = match[2];
+            }
+          } else if (b64.includes('base64,')) {
+            b64 = b64.split('base64,')[1];
+          }
+          b64 = b64.trim();
+          parts.push({
+            inlineData: {
+              mimeType: mimeType,
+              data: b64
+            }
+          });
+        }
+      }
+    }
+
+    if (parts.length === 0) {
+      parts.push({ text: 'Please analyze this image.' });
+    }
+
+    // Merge consecutive turns with the same role for Gemini API compliance
+    if (contents.length > 0 && contents[contents.length - 1].role === role) {
+      contents[contents.length - 1].parts.push(...parts);
+    } else {
+      contents.push({ role, parts });
+    }
+  }
+
+  const geminiPayload = JSON.stringify({
+    contents,
+    systemInstruction: {
+      parts: [{ text: visionSystemPrompt }]
+    },
+    generationConfig: {
+      temperature: options?.temperature || 0.2,
+      maxOutputTokens: 900
+    }
+  });
+
+  const geminiHttps = require('https');
+  const executeCall = () => new Promise((resolveGemini, rejectGemini) => {
+    const geminiReq = geminiHttps.request({
+      hostname: 'generativelanguage.googleapis.com',
+      port: 443,
+      path: `/v1beta/models/${encodeURIComponent(targetModel)}:generateContent`,
+      method: 'POST',
+      headers: {
+        'x-goog-api-key': geminiApiKey,
+        'Content-Type': 'application/json',
+        'User-Agent': 'Pythos-Vision/1.7.1',
+        'Content-Length': Buffer.byteLength(geminiPayload)
+      },
+      timeout: timeoutMs
+    }, (gRes) => {
+      let gBody = '';
+      gRes.on('data', chunk => gBody += chunk);
+      gRes.on('end', () => {
+        if (gRes.statusCode === 429) {
+          const err = new Error(`RATE_LIMIT: ${gBody}`);
+          err.statusCode = 429;
+          err.status = 429;
+          err.body = gBody;
+          if (gRes.headers['retry-after']) {
+            err.retryAfter = parseInt(gRes.headers['retry-after'], 10);
+          }
+          return rejectGemini(err);
+        }
+        if (gRes.statusCode >= 400) {
+          const err = new Error(`Gemini Vision returned ${gRes.statusCode}: ${gBody}`);
+          err.statusCode = gRes.statusCode;
+          err.status = gRes.statusCode;
+          err.body = gBody;
+          return rejectGemini(err);
+        }
+        try {
+          const parsed = JSON.parse(gBody);
+          if (parsed.error) {
+            const err = new Error(`Gemini Vision error: ${parsed.error.message || JSON.stringify(parsed.error)}`);
+            err.statusCode = parsed.error.code || gRes.statusCode;
+            err.status = err.statusCode;
+            err.body = gBody;
+            return rejectGemini(err);
+          }
+          const candidate = parsed.candidates?.[0];
+          if (!candidate) {
+            const err = new Error('Gemini Vision returned empty candidates list');
+            err.statusCode = 502;
+            err.body = gBody;
+            return rejectGemini(err);
+          }
+          const text = (candidate.content?.parts || []).map(p => p.text || '').join('');
+          resolveGemini({
+            model: targetModel,
+            content: text,
+            provider: provider.name
+          });
+        } catch (err) {
+          rejectGemini(err);
+        }
+      });
+    });
+
+    if (signal) {
+      if (signal.aborted) {
+        geminiReq.destroy();
+        return rejectGemini(new Error('AbortError'));
+      }
+      signal.addEventListener('abort', () => {
+        geminiReq.destroy();
+        rejectGemini(new Error('AbortError'));
+      }, { once: true });
+    }
+
+    geminiReq.on('timeout', () => {
+      geminiReq.destroy();
+      rejectGemini(new Error('ETIMEDOUT'));
+    });
+    geminiReq.on('error', rejectGemini);
+    geminiReq.write(geminiPayload);
+    geminiReq.end();
+  });
+
+  let attempts = 0;
+  while (attempts < 2) {
+    attempts++;
+    try {
+      return await executeCall();
+    } catch (callErr) {
+      if (callErr.statusCode === 429) {
+        const parsedWait = extractRetrySeconds(callErr);
+        if (parsedWait && parsedWait > 10) {
+          throw callErr;
+        }
+        if (attempts < 2) {
+          const retrySec = parsedWait || (attempts * 3);
+          console.warn(`[VISION GATEWAY] Gemini 429 Rate limited. Retrying in ${retrySec}s (attempt ${attempts}/2)...`);
+          await new Promise(r => setTimeout(r, retrySec * 1000));
+          continue;
+        }
+      }
+      throw callErr;
+    }
+  }
+}
+
+/**
+ * Dispatcher to execute a vision inference call using the selected provider.
+ * Enforces defense-in-depth policy verification: the execution layer CANNOT bypass providerPolicy.
+ */
+async function executeVisionCall(provider, context) {
+  if (!provider || typeof provider !== 'object') {
+    const err = new Error('Invalid provider object passed to executeVisionCall');
+    err.code = 'INVALID_PROVIDER';
+    throw err;
+  }
+
+  // 1. Kill switch enforcement at execution layer
+  if (!providerPolicy.getAiEnabled()) {
+    const err = new Error('AI inference is temporarily disabled by administrative emergency control.');
+    err.code = 'AI_DISABLED';
+    throw err;
+  }
+
+  // 2. Budget mode enforcement at execution layer (Fail closed)
+  const budgetMode = providerPolicy.getBudgetMode();
+  if (budgetMode === 'free_only') {
+    if (provider.freeEligible !== true) {
+      const err = new Error(`Cost guardrail violation: Provider '${provider.name}' is not eligible under 'free_only' budget mode.`);
+      err.code = 'COST_GUARDRAIL_BLOCKED';
+      throw err;
+    }
+  }
+
+  // 3. Provider enabled check
+  const isEnabled = typeof provider.enabled === 'function' ? provider.enabled() : provider.enabled !== false;
+  if (!isEnabled) {
+    const err = new Error(`Provider '${provider.name}' is disabled.`);
+    err.code = 'PROVIDER_DISABLED';
+    throw err;
+  }
+
+  // 4. Provider credentials check
+  const isConfigured = typeof provider.isConfigured === 'function' ? provider.isConfigured() : true;
+  if (!isConfigured) {
+    const err = new Error(`Provider '${provider.name}' is not configured with required credentials.`);
+    err.code = 'PROVIDER_NOT_CONFIGURED';
+    throw err;
+  }
+
+  if (provider.name === 'groq-qwen-vision') {
+    return executeGroqVisionCall(provider, context);
+  }
+  if (provider.name === 'gemini-vision' || provider.name === 'gemini-vision-probe') {
+    return executeGeminiVisionCall(provider, context);
+  }
+  throw new Error(`Unsupported vision provider: ${provider.name}`);
+}
 
 // =====================================
 // Public Chat / Inference Route
@@ -666,50 +1037,12 @@ app.post('/api/chat', async (req, res) => {
   const targetModel = latestHasImages ? (process.env.OLLAMA_VISION_MODEL || OLLAMA_VISION_MODEL) : OLLAMA_MODEL;
 
   // Multimodal Hosted Vision Gateway Bridge
-  // If active user turn contains images, route via provider selection layer
+  // If active user turn contains images, route via provider selection layer with backup fallback
   if (latestHasImages) {
-    const visionSelection = providerPolicy.selectProvider({ capability: 'vision' });
-    if (!visionSelection.provider) {
-      // If blocked by cost guardrail, unconfigured, or all rate limited, return appropriate error
-      const isCostBlocked = visionSelection.reason === 'COST_GUARDRAIL_BLOCKED';
-      const isRateLimited = visionSelection.reason === 'ALL_RATE_LIMITED';
-      const isUnconfigured = visionSelection.reason === 'NO_CONFIGURED_PROVIDER';
-      const errStatus = isCostBlocked ? 403 : 503;
-      const errCode = isRateLimited ? 'UPSTREAM_RATE_LIMITED' : 'UPSTREAM_UNAVAILABLE';
-      const errMsg = isRateLimited
-        ? 'Vision model capacity is currently exhausted across all free providers. Please wait for the timer to complete.'
-        : (isCostBlocked
-          ? 'Vision analysis requires a paid provider, but Pythos is currently locked to $0 cost guardrail (free_only mode).'
-          : (isUnconfigured
-            ? 'No vision provider is currently configured. Please verify API key configuration.'
-            : 'Vision reasoning is temporarily unavailable.'));
-
-      if (isStreaming) {
-        res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
-        res.setHeader('Transfer-Encoding', 'chunked');
-        res.setHeader('Cache-Control', 'no-cache, no-transform');
-        res.write(JSON.stringify({
-          type: 'error',
-          error: errCode,
-          message: errMsg,
-          retryAfter: visionSelection.retryAfter || 0
-        }) + '\n');
-        return res.end();
-      }
-
-      return res.status(errStatus).json({
-        error: errCode,
-        message: errMsg,
-        retryAfter: visionSelection.retryAfter || 0
-      });
-    }
-
-    const selectedVisionProvider = visionSelection.provider;
-    const groqApiKey = GROQ_API_KEY;
-    if (selectedVisionProvider.name === 'groq-qwen-vision' && groqApiKey) {
-      try {
-        await concurrencyLimiter.acquire(abortController.signal, REQUEST_TIMEOUT_MS);
-        acquiredSemaphore = true;
+    let acquiredSemaphore = false;
+    try {
+      await concurrencyLimiter.acquire(abortController.signal, REQUEST_TIMEOUT_MS);
+      acquiredSemaphore = true;
 
       // For hosted vision API, provide focused Pythos tutor instructions and vision directive
       // to keep total request tokens safely within provider rate limits (~1500 tokens)
@@ -717,152 +1050,105 @@ app.post('/api/chat', async (req, res) => {
 ${visionExtractor.buildVisionPromptDirective()}
 ${preflightContext}${activeProblemContext}`;
 
-      const visionConversation = preparedMessages.filter(m => m.role !== 'system');
-      const formattedMessages = [
-        { role: 'system', content: visionSystemPrompt },
-        ...visionConversation.map(m => {
-          if (m.images && m.images.length > 0) {
-            const contentParts = [{ type: 'text', text: m.content || 'Please analyze this image' }];
-            m.images.forEach(b64 => {
-              contentParts.push({
-                type: 'image_url',
-                image_url: { url: `data:image/jpeg;base64,${b64}` }
-              });
-            });
-            return { role: m.role, content: contentParts };
-          }
-          return { role: m.role, content: m.content };
-        })
-      ];
+      const triedProviders = new Set();
+      let lastError = null;
+      let successfulResult = null;
+      let lastSelection = null;
 
-      const groqPayload = JSON.stringify({
-        model: targetModel,
-        messages: formattedMessages,
-        temperature: options?.temperature || 0.2,
-        max_tokens: 900,
-        stream: false
-      });
+      // Provider selection and fallback loop:
+      // Try primary provider (Groq). If it fails or is rate-limited, fall back to secondary (Gemini).
+      while (true) {
+        const visionSelection = providerPolicy.selectProvider({ capability: 'vision' });
+        lastSelection = visionSelection;
 
-      const groqHttps = require('https');
-      const executeGroqCall = () => new Promise((resolveGroq, rejectGroq) => {
-        const groqReq = groqHttps.request({
-          hostname: 'api.groq.com',
-          port: 443,
-          path: '/openai/v1/chat/completions',
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${groqApiKey}`,
-            'Content-Type': 'application/json',
-            'User-Agent': 'Pythos-Vision/1.7.1',
-            'Content-Length': Buffer.byteLength(groqPayload)
-          },
-          timeout: REQUEST_TIMEOUT_MS
-        }, (gRes) => {
-          let gBody = '';
-          gRes.on('data', chunk => gBody += chunk);
-          gRes.on('end', () => {
-            if (gRes.statusCode === 429) {
-              const err = new Error(`RATE_LIMIT: ${gBody}`);
-              err.statusCode = 429;
-              err.status = 429;
-              err.body = gBody;
-              return rejectGroq(err);
-            }
-            if (gRes.statusCode >= 400) {
-              const err = new Error(`Groq Vision returned ${gRes.statusCode}: ${gBody}`);
-              err.statusCode = gRes.statusCode;
-              err.status = gRes.statusCode;
-              err.body = gBody;
-              return rejectGroq(err);
-            }
-            try {
-              const parsed = JSON.parse(gBody);
-              const text = parsed.choices?.[0]?.message?.content || '';
-              resolveGroq({
-                model: targetModel,
-                message: { role: 'assistant', content: text },
-                done: true
-              });
-            } catch (err) {
-              rejectGroq(err);
-            }
-          });
-        });
-
-        groqReq.on('timeout', () => {
-          groqReq.destroy();
-          rejectGroq(new Error('ETIMEDOUT'));
-        });
-        groqReq.on('error', rejectGroq);
-        groqReq.write(groqPayload);
-        groqReq.end();
-      });
-
-      // Automatic retry with exponential backoff on short 429 rate limits (e.g. transient TPM spikes)
-      let groqResponse;
-      let attempts = 0;
-      while (attempts < 3) {
-        attempts++;
-        try {
-          groqResponse = await executeGroqCall();
+        if (!visionSelection.provider || triedProviders.has(visionSelection.provider.name)) {
           break;
+        }
+
+        const provider = visionSelection.provider;
+        triedProviders.add(provider.name);
+
+        try {
+          console.log(`[VISION GATEWAY] Routing request to vision provider '${provider.name}' (${provider.model})...`);
+          successfulResult = await executeVisionCall(provider, {
+            messages: preparedMessages,
+            visionSystemPrompt,
+            options,
+            timeoutMs: REQUEST_TIMEOUT_MS,
+            signal: abortController.signal
+          });
+          break; // Success!
         } catch (callErr) {
-          if (callErr.statusCode === 429) {
-            const parsedWait = extractRetrySeconds(callErr);
-            // If upstream requires more than 10 seconds (e.g. daily quota exhausted), fail immediately to student
-            if (parsedWait && parsedWait > 10) {
-              console.warn(`[VISION GATEWAY] 429 Daily/Extended Rate limit (${parsedWait}s). Returning immediately to client.`);
-              throw callErr;
-            }
-            if (attempts < 3) {
-              const retrySec = parsedWait || (attempts * 3);
-              console.warn(`[VISION GATEWAY] 429 Rate limited. Retrying in ${retrySec}s (attempt ${attempts}/3)...`);
-              await new Promise(r => setTimeout(r, retrySec * 1000));
-              continue;
-            }
-          }
-          throw callErr;
+          lastError = callErr;
+          console.warn(`[VISION GATEWAY] Provider '${provider.name}' failed:`, sanitizeErrorDetail(callErr));
+
+          // Record rate limit or failure cooldown for this provider so selectProvider will try next candidate
+          const retrySec = extractRetrySeconds(callErr) || (callErr.statusCode === 429 ? 60 : 30);
+          providerPolicy.recordRateLimit(provider.name, retrySec);
+          // Loop continues to attempt next eligible provider (e.g. Gemini backup if Groq primary failed)
         }
       }
 
-      let finalContent = groqResponse.message.content;
-      const claims = extractClaims(finalContent, lastUserMsg ? lastUserMsg.content : '');
-      const verificationResults = [];
-      for (const claim of claims) {
-        const v = await runDeterministicVerification(claim);
-        if (v) verificationResults.push(v);
-      }
+      if (successfulResult) {
+        let finalContent = successfulResult.content;
+        finalContent = visionExtractor.postProcessVisionResponse(finalContent);
+        const resolvedModel = successfulResult.model || targetModel;
 
-      if (isStreaming) {
-        res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
-        res.setHeader('Transfer-Encoding', 'chunked');
-        res.setHeader('Cache-Control', 'no-cache, no-transform');
-        res.write(JSON.stringify({ type: 'token', content: finalContent }) + '\n');
-        res.write(JSON.stringify({
-          type: 'verified',
+        const claims = extractClaims(finalContent, lastUserMsg ? lastUserMsg.content : '');
+        const verificationResults = [];
+        for (const claim of claims) {
+          const v = await runDeterministicVerification(claim);
+          if (v) verificationResults.push(v);
+        }
+
+        if (isStreaming) {
+          res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+          res.setHeader('Transfer-Encoding', 'chunked');
+          res.setHeader('Cache-Control', 'no-cache, no-transform');
+          res.write(JSON.stringify({ type: 'token', content: finalContent }) + '\n');
+          res.write(JSON.stringify({
+            type: 'verified',
+            claims,
+            verification: verificationResults,
+            model: resolvedModel,
+            done: true
+          }) + '\n');
+          res.write(JSON.stringify({ type: 'done' }) + '\n');
+          return res.end();
+        }
+
+        return res.status(200).json({
+          model: resolvedModel,
+          message: { role: 'assistant', content: finalContent },
           claims,
           verification: verificationResults,
-          model: targetModel,
           done: true
-        }) + '\n');
-        res.write(JSON.stringify({ type: 'done' }) + '\n');
-        return res.end();
+        });
       }
 
-      return res.status(200).json({
-        model: targetModel,
-        message: { role: 'assistant', content: finalContent },
-        claims,
-        verification: verificationResults,
-        done: true
-      });
-    } catch (gErr) {
-      console.error('[PYTHOS API] Groq Vision bridge error:', sanitizeErrorDetail(gErr));
-      const classified = classifyUpstreamError(gErr, 'vision');
-
-      if (classified.error === 'UPSTREAM_RATE_LIMITED') {
-        const retrySec = classified.retryAfter || extractRetrySeconds(gErr) || 60;
-        providerPolicy.recordRateLimit('groq-qwen-vision', retrySec);
+      // No provider succeeded — format classified error response
+      let classified;
+      if (lastError) {
+        classified = classifyUpstreamError(lastError, 'vision');
+      } else {
+        const isCostBlocked = lastSelection?.reason === 'COST_GUARDRAIL_BLOCKED';
+        const isRateLimited = lastSelection?.reason === 'ALL_RATE_LIMITED';
+        const isUnconfigured = lastSelection?.reason === 'NO_CONFIGURED_PROVIDER';
+        const errStatus = isCostBlocked ? 403 : (isRateLimited ? 429 : 503);
+        const errCode = isRateLimited ? 'UPSTREAM_RATE_LIMITED' : 'UPSTREAM_UNAVAILABLE';
+        const errMsg = isRateLimited
+          ? 'Vision model capacity is currently exhausted across all free providers. Please wait for the timer to complete.'
+          : (isCostBlocked
+            ? 'Vision analysis requires a paid provider, but Pythos is currently locked to $0 cost guardrail (free_only mode).'
+            : (isUnconfigured
+              ? 'No vision provider is currently configured. Please verify API key configuration.'
+              : 'Vision reasoning is temporarily unavailable.'));
+        classified = {
+          status: errStatus,
+          error: errCode,
+          message: errMsg,
+          retryAfter: lastSelection?.retryAfter || 0
+        };
       }
 
       if (isStreaming) {
@@ -873,7 +1159,7 @@ ${preflightContext}${activeProblemContext}`;
           type: 'error',
           error: classified.error,
           message: classified.message,
-          retryAfter: classified.retryAfter
+          retryAfter: classified.retryAfter || 0
         }) + '\n');
         return res.end();
       }
@@ -881,11 +1167,10 @@ ${preflightContext}${activeProblemContext}`;
       return res.status(classified.status).json({
         error: classified.error,
         message: classified.message,
-        retryAfter: classified.retryAfter
+        retryAfter: classified.retryAfter || 0
       });
-      } finally {
-        if (acquiredSemaphore) concurrencyLimiter.release();
-      }
+    } finally {
+      if (acquiredSemaphore) concurrencyLimiter.release();
     }
   }
 
@@ -1568,5 +1853,6 @@ module.exports = {
   server,
   activeControllers,
   getActiveControllers: () => activeControllers,
-  clearActiveControllers
+  clearActiveControllers,
+  executeVisionCall
 };
