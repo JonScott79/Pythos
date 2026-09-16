@@ -464,6 +464,7 @@ const { normalizeWorksheetMath } = require('./ocrMathNormalizer');
 const memoryService = require('./memoryService');
 const memoryExtractor = require('./memoryExtractor');
 const firebaseAdmin = require('./firebaseAdmin');
+const { buildTrustedIdentityContext, sanitizeDisplayName } = require('./identityContext');
 
 const contextManager = require('./contextManager');
 const visionExtractor = require('./visionExtractor');
@@ -533,7 +534,7 @@ async function executeGroqVisionCall(provider, { messages, visionSystemPrompt, o
       headers: {
         'Authorization': `Bearer ${groqApiKey}`,
         'Content-Type': 'application/json',
-        'User-Agent': 'Pythos-Vision/1.7.1',
+        'User-Agent': 'Pythos-Vision/1.7.3',
         'Content-Length': Buffer.byteLength(groqPayload)
       },
       timeout: timeoutMs
@@ -696,7 +697,7 @@ async function executeGeminiVisionCall(provider, { messages, visionSystemPrompt,
       headers: {
         'x-goog-api-key': geminiApiKey,
         'Content-Type': 'application/json',
-        'User-Agent': 'Pythos-Vision/1.7.1',
+        'User-Agent': 'Pythos-Vision/1.7.3',
         'Content-Length': Buffer.byteLength(geminiPayload)
       },
       timeout: timeoutMs
@@ -969,13 +970,24 @@ app.post('/api/chat', async (req, res) => {
 
   // Extract optional student identity from Authorization Bearer token
   let studentUid = null;
+  let studentDisplayName = null;
   const authHeader = req.headers['authorization'];
   if (authHeader && authHeader.startsWith('Bearer ') && firebaseAdmin.isAdminSdkAvailable()) {
     const rawToken = authHeader.slice(7).trim();
     if ((rawToken.match(/\./g) || []).length >= 2) {
       const decoded = await firebaseAdmin.verifyIdToken(rawToken).catch(() => null);
-      if (decoded?.uid) studentUid = decoded.uid;
+      if (decoded?.uid) {
+        studentUid = decoded.uid;
+        if (typeof decoded.name === 'string' && decoded.name.trim()) {
+          studentDisplayName = sanitizeDisplayName(decoded.name);
+        }
+      }
     }
+  }
+
+  // Fallback: If authenticated by token but token had no name claim, allow sanitized client displayName if provided
+  if (studentUid && !studentDisplayName && typeof req.body?.displayName === 'string' && req.body.displayName.trim()) {
+    studentDisplayName = sanitizeDisplayName(req.body.displayName);
   }
 
   // Pre-Flight Track: Classify problem domain and extract embedded mathematical calculations
@@ -1007,11 +1019,18 @@ app.post('/api/chat', async (req, res) => {
   const boundedContext = contextManager.buildBoundedConversationContext(messages);
   const activeProblemContext = boundedContext.activeProblemContext || '';
 
+  // Trusted Identity Context Injection (< 60 words, separate from learned memory)
+  const identityContext = buildTrustedIdentityContext({
+    isAuthenticated: Boolean(studentUid),
+    displayName: studentDisplayName,
+    uid: studentUid
+  });
+
   // Ensure system instructions are always present, up-to-date, and enriched with deterministic ground truth
   let preparedMessages = [...boundedContext.messagesForModel];
   preparedMessages.unshift({
     role: 'system',
-    content: PYTHOS_SYSTEM_PROMPT + preflightContext + activeProblemContext + learningContext + memoryContext
+    content: PYTHOS_SYSTEM_PROMPT + identityContext + preflightContext + activeProblemContext + learningContext + memoryContext
   });
 
   // Detect if latest user turn contains an image payload
@@ -1047,6 +1066,7 @@ app.post('/api/chat', async (req, res) => {
       // For hosted vision API, provide focused Pythos tutor instructions and vision directive
       // to keep total request tokens safely within provider rate limits (~1500 tokens)
       const visionSystemPrompt = `You are Pythos, a wise, warm mathematics and physics tutor inspired by Ancient Greek scholarship and Socratic pedagogy.
+${identityContext}
 ${visionExtractor.buildVisionPromptDirective()}
 ${preflightContext}${activeProblemContext}`;
 

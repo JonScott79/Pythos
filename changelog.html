@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="assets/favicon.png">
-  <title>Pythos Release History & Changelog | v1.7.2</title>
+  <title>Pythos Release History & Changelog | v1.7.3</title>
   <meta name="description" content="Pythos release notes & changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://pythos.lanzar.me/changelog.html">
 
   <!-- OPEN GRAPH -->
-  <meta property="og:title" content="Pythos Release History & Changelog | v1.7.2">
+  <meta property="og:title" content="Pythos Release History & Changelog | v1.7.3">
   <meta property="og:description" content="Pythos release notes & changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta property="og:url" content="https://pythos.lanzar.me/changelog.html">
   <meta property="og:type" content="article">
@@ -23,7 +23,7 @@
 
   <!-- TWITTER CARD -->
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Pythos Release History & Changelog | v1.7.2">
+  <meta name="twitter:title" content="Pythos Release History & Changelog | v1.7.3">
   <meta name="twitter:description" content="Pythos release notes & changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="twitter:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
 
@@ -32,7 +32,7 @@
   {
     "@context": "https://schema.org",
     "@type": "TechArticle",
-    "headline": "Pythos 1.7.2 Release Notes and Changelog",
+    "headline": "Pythos 1.7.3 Release Notes and Changelog",
     "description": "Authoritative release history for Pythos: specialized problem routing, two-stage reasoning, and CAS ground-truth verification.",
     "datePublished": "2026-08-26",
     "dateModified": "2026-09-16",
@@ -427,12 +427,41 @@
       <p>Authoritative release notes, verification engine milestones, and mathematical system updates.</p>
     </header>
 
+    <!-- RELEASE v1.7.3 -->
+    <article class="release-card" id="pythos-1-7-3">
+      <div class="release-header">
+        <div class="release-title-wrap">
+          <h2 class="release-version">Pythos 1.7.3</h2>
+          <span class="release-badge">Latest Release</span>
+        </div>
+        <time class="release-date" datetime="2026-09-16">September 16, 2026</time>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header added">✦ WHAT'S NEW</div>
+        <ul class="feature-list">
+          <li><strong>Trusted Identity Metadata Architecture</strong>: Canonical student identity from Firebase Authentication is now cryptographically extracted server-side and injected directly into the model reasoning context, decoupling account identity from learned personal memory.</li>
+          <li><strong>Zero-Latency Name Resolution</strong>: Pythos accurately and reliably knows the student's name when asked (e.g. "what's my name?"), even in fresh sessions or after extensive multi-turn problem solving, without requiring explicit chat re-introductions.</li>
+          <li><strong>Display Name Input Sanitization</strong>: Input sanitization protects against prompt injection, stripping control characters, newlines, and brackets while bounding display names to 60 characters.</li>
+        </ul>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header verify">⚖️ ISOLATION &amp; TONE GUARDRAILS</div>
+        <ul class="feature-list">
+          <li><strong>Strict Cross-User Isolation</strong>: Identity metadata is extracted strictly per-request from verified Firebase JWT tokens; concurrent interleaved student sessions can never cross-contaminate.</li>
+          <li><strong>Anti-Spoofing Security Boundary</strong>: Client-provided display names are strictly ignored unless authenticated by a valid cryptographic token.</li>
+          <li><strong>Anti-Hallucination &amp; Natural Conversation Rules</strong>: Explicit prompt guardrails prevent Pythos from inventing or guessing names for unauthenticated guests, while instructing Pythos not to mechanically spam the student's name in ordinary tutoring turns.</li>
+          <li><strong>Full Regression Verification</strong>: 7/7 dedicated identity regression suites passing (100% green); 355/355 tests passing across all 13 regression suites.</li>
+        </ul>
+      </div>
+    </article>
+
     <!-- RELEASE v1.7.2 -->
     <article class="release-card" id="pythos-1-7-2">
       <div class="release-header">
         <div class="release-title-wrap">
           <h2 class="release-version">Pythos 1.7.2</h2>
-          <span class="release-badge">Latest Release</span>
         </div>
         <time class="release-date" datetime="2026-09-16">September 16, 2026</time>
       </div>

@@ -2595,7 +2595,8 @@ async function askPythos(userText) {
         messages: messages,
         stream: true,
         options: { temperature: 0.3 },
-        chatId: currentChatId || null
+        chatId: currentChatId || null,
+        displayName: (currentUser && currentUser.displayName) ? currentUser.displayName : null
       })
     });
 

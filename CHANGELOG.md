@@ -5,6 +5,27 @@ All notable changes to the Pythos project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Pythos 1.7.3
+**Release Date:** 2026-09-16
+
+### Added
+- **Trusted Identity Metadata Architecture** (`server/identityContext.js`): Canonical student identity from Firebase Authentication is now cryptographically extracted server-side from `decoded.name` and injected directly into the system reasoning prompt (`buildTrustedIdentityContext`), cleanly decoupling authoritative account identity from inferential learned memory.
+- **Zero-Latency Name Resolution**: Pythos accurately answers name and identity questions ("what's my name?", "who am I?") across new chats and following multi-turn problem solving without requiring explicit chat re-introductions.
+- **Display Name Input Sanitization**: Strips newlines, control characters, and delimiters while bounding length to 60 characters to prevent prompt injection and context bloat.
+- **Strict Anti-Spoofing & Cross-User Isolation**: Client-supplied display names are ignored unless authenticated by a verified token; interleaved concurrent sessions remain strictly isolated.
+- **Anti-Hallucination & Natural Tone Guardrails**: Negative prompt instructions forbid guessing names for unauthenticated guests, while instructing Pythos not to spam the student's name in ordinary tutoring turns.
+- **7 Identity Pipeline Regression Suites** (`test/test-identity-pipeline.js`): Comprehensive automated test coverage for sanitization, context generation, anti-spoofing, cross-user isolation, multi-turn math retention, and negative guardrails.
+
+## Pythos 1.7.2
+**Release Date:** 2026-09-16
+
+### Added
+- **Gemini Secondary Vision Backup**: Integrated Google Gemini (`gemini-2.5-flash`) as an automated secondary backup provider when the primary Groq Qwen vision provider is rate-limited or unavailable.
+- **Multi-Provider Fallback Gateway**: Automated fallback loop in `/api/chat` supporting both streaming (NDJSON) and legacy (JSON) interfaces without student session interruption.
+- **Centralized Credential Resolution**: Consolidated API credential getters in `providerPolicy.js` with centralized resolution for Groq and Gemini.
+- **Operator Free-Tier Certification**: Under `PYTHOS_AI_BUDGET_MODE=free_only`, Gemini fails closed (`freeEligible: false`) unless an operator explicitly certifies zero-cost status via `GEMINI_FREE_TIER=true`.
+- **24 Backup Integration Tests** (`test-gemini-backup.js`): Unit, adversarial, and end-to-end fallback verification tests.
+
 ## Pythos 1.7.1
 **Release Date:** 2026-09-15
 
