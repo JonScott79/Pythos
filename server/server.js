@@ -670,16 +670,19 @@ app.post('/api/chat', async (req, res) => {
   if (latestHasImages) {
     const visionSelection = providerPolicy.selectProvider({ capability: 'vision' });
     if (!visionSelection.provider) {
-      // If blocked by cost guardrail or all rate limited, return appropriate error
+      // If blocked by cost guardrail, unconfigured, or all rate limited, return appropriate error
       const isCostBlocked = visionSelection.reason === 'COST_GUARDRAIL_BLOCKED';
       const isRateLimited = visionSelection.reason === 'ALL_RATE_LIMITED';
+      const isUnconfigured = visionSelection.reason === 'NO_CONFIGURED_PROVIDER';
       const errStatus = isCostBlocked ? 403 : 503;
       const errCode = isRateLimited ? 'UPSTREAM_RATE_LIMITED' : 'UPSTREAM_UNAVAILABLE';
       const errMsg = isRateLimited
         ? 'Vision model capacity is currently exhausted across all free providers. Please wait for the timer to complete.'
         : (isCostBlocked
           ? 'Vision analysis requires a paid provider, but Pythos is currently locked to $0 cost guardrail (free_only mode).'
-          : 'Vision reasoning is temporarily unavailable.');
+          : (isUnconfigured
+            ? 'No vision provider is currently configured. Please verify API key configuration.'
+            : 'Vision reasoning is temporarily unavailable.'));
 
       if (isStreaming) {
         res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
@@ -750,7 +753,7 @@ ${preflightContext}${activeProblemContext}`;
           headers: {
             'Authorization': `Bearer ${groqApiKey}`,
             'Content-Type': 'application/json',
-            'User-Agent': 'Pythos-Vision/1.7.0',
+            'User-Agent': 'Pythos-Vision/1.7.1',
             'Content-Length': Buffer.byteLength(groqPayload)
           },
           timeout: REQUEST_TIMEOUT_MS

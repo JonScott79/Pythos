@@ -377,6 +377,98 @@ runTest('Default production provider catalog is properly structured and safe', (
   assert.strictEqual(gemini.freeEligible, false); // Must be false by default
 });
 
+// ── REGRESSION TESTS: $0 Provider Wall Fix (v1.7.0) ──────────────────────────
+
+// 15. REGRESSION: isConfigured() with embedded fallback key must return true
+runTest('REGRESSION: groq-qwen-vision isConfigured() returns true with embedded fallback key (no env var)', () => {
+  const origKey = process.env.GROQ_API_KEY;
+  delete process.env.GROQ_API_KEY;
+
+  const registry = providerPolicy.getProviderRegistry();
+  const groq = registry.find(p => p.name === 'groq-qwen-vision');
+  assert.strictEqual(groq.isConfigured(), true, 'Groq must be configured via embedded fallback key when env var is unset');
+
+  if (origKey !== undefined) process.env.GROQ_API_KEY = origKey;
+});
+
+// 16. REGRESSION: A provider having paid plans does NOT make it ineligible if freeEligible=true
+runTest('REGRESSION: Provider with paid plans available is NOT blocked when freeEligible=true', () => {
+  const mockRegistry = [
+    {
+      name: 'provider-with-paid-and-free-tiers',
+      capability: 'vision',
+      model: 'some-model',
+      freeEligible: true,  // This specific account/config is free-tier
+      enabled: true,
+      isConfigured: () => true
+    }
+  ];
+
+  const selection = providerPolicy.selectProvider(
+    { capability: 'vision', budgetMode: 'free_only', aiEnabled: true },
+    mockRegistry
+  );
+
+  assert.notStrictEqual(selection.provider, null, 'Provider with freeEligible=true must be selected');
+  assert.strictEqual(selection.reason, 'SELECTED');
+});
+
+// 17. REGRESSION: Truly unconfigured provider (no key anywhere) is correctly rejected
+runTest('REGRESSION: Truly unconfigured provider (isConfigured=false) is rejected as NO_CONFIGURED_PROVIDER', () => {
+  const mockRegistry = [
+    {
+      name: 'unconfigured-provider',
+      capability: 'vision',
+      model: 'some-model',
+      freeEligible: true,
+      enabled: true,
+      isConfigured: () => false  // No credentials at all
+    }
+  ];
+
+  const selection = providerPolicy.selectProvider(
+    { capability: 'vision', budgetMode: 'free_only', aiEnabled: true },
+    mockRegistry
+  );
+
+  assert.strictEqual(selection.provider, null);
+  assert.strictEqual(selection.reason, 'NO_CONFIGURED_PROVIDER');
+});
+
+// 18. REGRESSION: Full production registry selects groq-qwen-vision for vision in free_only
+runTest('REGRESSION: Production registry selects groq-qwen-vision for vision capability in free_only', () => {
+  providerPolicy.clearRateLimits();
+
+  const selection = providerPolicy.selectProvider(
+    { capability: 'vision', budgetMode: 'free_only', aiEnabled: true }
+  );
+
+  assert.notStrictEqual(selection.provider, null, 'Vision provider must be selected from production registry');
+  assert.strictEqual(selection.provider.name, 'groq-qwen-vision');
+  assert.strictEqual(selection.reason, 'SELECTED');
+});
+
+// 19. REGRESSION: Production registry selects ollama-text for text capability in free_only
+runTest('REGRESSION: Production registry selects ollama-text for text capability in free_only', () => {
+  const selection = providerPolicy.selectProvider(
+    { capability: 'text', budgetMode: 'free_only', aiEnabled: true }
+  );
+
+  assert.notStrictEqual(selection.provider, null, 'Text provider must be selected from production registry');
+  assert.strictEqual(selection.provider.name, 'ollama-text');
+  assert.strictEqual(selection.reason, 'SELECTED');
+});
+
+// 20. REGRESSION: Deterministic text requests are unaffected by provider policy
+runTest('REGRESSION: Text-only request without images does not require vision provider', () => {
+  // Text requests should select text provider, not be blocked by vision policy
+  const textSelection = providerPolicy.selectProvider(
+    { capability: 'text', budgetMode: 'free_only', aiEnabled: true }
+  );
+  assert.notStrictEqual(textSelection.provider, null);
+  assert.strictEqual(textSelection.provider.capability, 'text');
+});
+
 // 15. Integration: Verify /health includes sanitized budgetPolicy
 async function runIntegrationTests() {
   await runAsyncTest('Integration: GET /health returns clean budgetPolicy telemetry', async () => {

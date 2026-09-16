@@ -5,6 +5,21 @@ All notable changes to the Pythos project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Pythos 1.7.1
+**Release Date:** 2026-09-15
+
+### Fixed
+- **$0 Provider Wall Regression**: Fixed a configuration mismatch where `providerPolicy.js` checked only `process.env.GROQ_API_KEY` while `server.js` resolved the key with an embedded fallback. When the env var was unset (the default deployment), the Groq vision provider was incorrectly rejected at the configuration filter before the budget guardrail was evaluated, producing "Vision reasoning is temporarily unavailable."
+- **Vision Error Diagnostics**: Distinguished `NO_CONFIGURED_PROVIDER` in the vision error handler so legitimate configuration failures produce specific, actionable messages rather than the ambiguous generic fallback.
+
+### Added
+- **6 Regression Tests**: Dedicated test coverage proving the embedded fallback key is detected, free-eligible providers with paid plans are not blocked, unconfigured providers are correctly rejected, and production registry vision/text selection works end-to-end.
+
+### Unchanged
+- $0 cost guardrail (`free_only` mode) — paid providers remain strictly forbidden.
+- Emergency kill switch (`PYTHOS_AI_ENABLED`).
+- Deterministic math fast paths, vision timer, error taxonomy, accessibility (191/191).
+
 ## Pythos 1.7.0
 **Release Date:** 2026-09-13
 

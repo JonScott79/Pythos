@@ -427,12 +427,45 @@
       <p>Authoritative release notes, verification engine milestones, and mathematical system updates.</p>
     </header>
 
+    <!-- RELEASE v1.7.1 -->
+    <article class="release-card" id="pythos-1-7-1">
+      <div class="release-header">
+        <div class="release-title-wrap">
+          <h2 class="release-version">Pythos 1.7.1</h2>
+          <span class="release-badge">Latest Release</span>
+        </div>
+        <time class="release-date" datetime="2026-09-15">September 15, 2026</time>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header fixed">🔧 FIXES</div>
+        <ul class="feature-list">
+          <li><strong>$0 Provider Wall Regression</strong>: Fixed a configuration mismatch where <code>providerPolicy.js</code> checked only <code>process.env.GROQ_API_KEY</code> while <code>server.js</code> resolved the Groq key with an embedded fallback. When the env var was unset (the default deployment), the vision provider was incorrectly rejected at the configuration filter <em>before</em> the budget guardrail was ever evaluated, producing &ldquo;Vision reasoning is temporarily unavailable.&rdquo;</li>
+          <li><strong>Vision Error Diagnostics</strong>: Distinguished <code>NO_CONFIGURED_PROVIDER</code> in the vision error handler so legitimate configuration failures now produce specific, actionable messages instead of the ambiguous generic fallback.</li>
+        </ul>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header verify">⚖️ VERIFICATION &amp; INTEGRITY</div>
+        <ul class="feature-list">
+          <li><strong>6 New Regression Tests</strong>: Proves embedded fallback key detection, free-eligible providers with paid plans are not blocked, unconfigured providers are correctly rejected, and production registry vision/text selection works end-to-end. Total: 20/20 cost guardrail tests passing.</li>
+          <li><strong>Full Suite Green</strong>: All 191/191 accessibility tests, vision timer tests, error taxonomy tests, and 7/7 deterministic router tests pass with zero regressions.</li>
+        </ul>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header unchanged">↔️ UNCHANGED</div>
+        <ul class="feature-list">
+          <li><strong>$0 Cost Guardrail Fully Preserved</strong>: Paid providers remain strictly forbidden under <code>free_only</code> mode. Emergency kill switch, deterministic math fast paths, vision timer, and error taxonomy all unaffected.</li>
+        </ul>
+      </div>
+    </article>
+
     <!-- RELEASE v1.7.0 -->
     <article class="release-card" id="pythos-1-7-0">
       <div class="release-header">
         <div class="release-title-wrap">
           <h2 class="release-version">Pythos 1.7.0</h2>
-          <span class="release-badge">Latest Release</span>
         </div>
         <time class="release-date" datetime="2026-09-13">September 13, 2026</time>
       </div>

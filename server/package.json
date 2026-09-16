@@ -1,6 +1,6 @@
 {
   "name": "pythos-api",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "description": "Pythos AI Backend Gateway",
   "main": "server.js",
   "scripts": {
