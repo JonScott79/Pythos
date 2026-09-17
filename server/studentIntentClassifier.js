@@ -133,9 +133,9 @@ function classifyStudentIntent(userText, conversationHistory = []) {
 
   // -------------------------------------------------------------
   // 7. PURE VALIDATION_REQUEST (without proposed math)
-  // e.g. "Is this right?", "Did I do this right?", "Did I do this correctly?", "Am I right?", "Check this"
+  // e.g. "Is this right?", "Did I do this right?", "Did I do this correctly?", "Am I right?", "Does this look right?", "Check this"
   // -------------------------------------------------------------
-  const isPureValidation = /^(?:is\s+(?:this|that|it|my\s+answer|my\s+work)\s+(?:right|correct)\??|did\s+i\s+(?:do\s+this|get\s+this|get\s+it)\s+(?:right|correct|correctly)\??|am\s+i\s+(?:right|correct)\??|check\s+(?:my\s+work|this)\??)$/i.test(lower);
+  const isPureValidation = /^(?:is\s+(?:this|that|it|my\s+answer|my\s+work)\s+(?:right|correct)\??|did\s+i\s+(?:do\s+this|get\s+this|get\s+it)\s+(?:right|correct|correctly)\??|am\s+i\s+(?:right|correct)\??|does\s+(?:this|that)\s+look\s+(?:right|correct)\??|check\s+(?:my\s+work|this)\??)$/i.test(lower);
   if (isPureValidation) {
     signals.push('validation_query');
     return { intent: INTENTS.VALIDATION_REQUEST, confidence: 'high', signals };
@@ -150,11 +150,17 @@ function classifyStudentIntent(userText, conversationHistory = []) {
   const stepPrefixMatch = clean.match(/^(?:so\s+then\s+(?:it\s+becomes|we\s+get|it's|it\s+is)?|then\s+(?:it\s+becomes|we\s+get|it's|it\s+is)?|so\s+(?:now\s+)?(?:we\s+get|it\s+becomes)?|next\s+step\s*(?:is|:)?|which\s+(?:gives|becomes|means))\s*(.+)$/i);
   if (stepPrefixMatch && (containsMathSymbols(stepPrefixMatch[1]) || /\d/.test(stepPrefixMatch[1]))) {
     signals.push('step_transition_prefix', 'contains_math');
+    let expr = stepPrefixMatch[1].trim();
+    const trailingValMatch = expr.match(/^(.+?)[.,;?!]?\s+(?:is\s+(?:this|that|it)\s+(?:right|correct)|am\s+i\s+right|did\s+i\s+do\s+this\s+right|does\s+this\s+look\s+right)\??$/i);
+    if (trailingValMatch) {
+      expr = trailingValMatch[1].trim();
+      signals.push('validation_query');
+    }
     return {
       intent: INTENTS.PROPOSED_STEP,
       confidence: 'high',
       signals,
-      extractedExpression: stepPrefixMatch[1].trim()
+      extractedExpression: expr
     };
   }
 
@@ -166,11 +172,18 @@ function classifyStudentIntent(userText, conversationHistory = []) {
   const answerPrefixMatch = clean.match(/^(?:i\s+(?:got|think|found|calculated|arrived\s+at)\s+(?:that\s+)?|the\s+answer\s+is\s+|(?:is\s+(?:the\s+answer|it)\s+)|answer\s*[:=]\s*)(.+)$/i);
   if (answerPrefixMatch) {
     signals.push('answer_linguistic_prefix');
+    let expr = answerPrefixMatch[1].replace(/\?$/, '').trim();
+    // Strip trailing validation question if attached (e.g. "4. Is that right?")
+    const trailingValMatch = expr.match(/^(.+?)[.,;?!]?\s+(?:is\s+(?:this|that|it)\s+(?:right|correct)|am\s+i\s+right|did\s+i\s+do\s+this\s+right|does\s+this\s+look\s+right)\??$/i);
+    if (trailingValMatch) {
+      expr = trailingValMatch[1].trim();
+      signals.push('validation_query');
+    }
     return {
       intent: INTENTS.PROPOSED_ANSWER,
       confidence: 'high',
       signals,
-      extractedExpression: answerPrefixMatch[1].replace(/\?$/, '').trim()
+      extractedExpression: expr
     };
   }
 

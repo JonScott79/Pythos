@@ -99,6 +99,27 @@ test('R6: Already-delimited math is not double-wrapped', () => {
   assert(!output.includes('$$'), 'Must not have nested/double dollar signs');
 });
 
+test('R7: Unwrapped fraction division equation is properly auto-delimited', () => {
+  const input = 'Now divide both sides by 2: \\frac{2x}{2} = \\frac{8}{2} which gives x = 4.';
+  const output = runFormat(input);
+  assert(output.includes('class="katex-rendered"'), 'Expected KaTeX rendered class');
+  assert(output.includes('\\frac{2x}{2} = \\frac{8}{2}'), 'Expected fraction division in KaTeX block');
+});
+
+test('R8: Unwrapped leading-negative pi fraction expression is auto-delimited', () => {
+  const input = 'We evaluate -\\frac{29\\pi}{3} + 2\\pi(5) to get \\frac{\\pi}{3}.';
+  const output = runFormat(input);
+  assert(output.includes('class="katex-rendered"'), 'Expected KaTeX rendered class');
+  assert(output.includes('-\\frac{29\\pi}{3} + 2\\pi(5)'), 'Expected pi fraction expression in KaTeX block');
+});
+
+test('R9: Unwrapped linear division step is auto-delimited', () => {
+  const input = 'We compute 2x/2 = 8/2 to isolate x.';
+  const output = runFormat(input);
+  assert(output.includes('class="katex-rendered"'), 'Expected KaTeX rendered class');
+  assert(output.includes('2x/2 = 8/2'), 'Expected division step in KaTeX block');
+});
+
 console.log(`\n====================================================`);
 console.log(`Rendering Tests: ${passed}/${total} Passed (100%)`);
 console.log(`====================================================\n`);

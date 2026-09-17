@@ -1007,12 +1007,14 @@ function appendMessage(role, text, images = null, metadata = {}) {
     // 2b. Auto-delimit unwrapped mathematical expressions (fractions, quadratic formulas/equations)
     // Only applied outside code blocks and outside already-delimited math
     const unwrappedMathPatterns = [
-      // Standalone or chained equations with \\frac: e.g. \theta = \frac{15}{12} = \frac{5}{4} or s/r = 15/12
-      /(?:^|[ \t])((?:(?:\\[a-zA-Z]+|[a-zA-Z\u0370-\u03ff])\s*=\s*)?\\frac\{[^{}]*\}\{[^{}]*\}(?:\s*=\s*(?:\\frac\{[^{}]*\}\{[^{}]*\}|[a-zA-Z0-9.\u0370-\u03ff]+))*)/g,
+      // Standalone or chained equations with \frac: e.g. \theta = \frac{15}{12} = \frac{5}{4} or \frac{2x}{2} = \frac{8}{2} or -\frac{29\pi}{3} + 2\pi(5)
+      /(?:^|[ \t])((?:(?:[-+]|\\[a-zA-Z]+|[a-zA-Z\u0370-\u03ff])\s*=\s*)?[-+]?\\frac\{[^{}]*\}\{[^{}]*\}(?:\s*[-+*\/=]\s*(?:[-+]?\\frac\{[^{}]*\}\{[^{}]*\}|(?:\\[a-zA-Z]+|[a-zA-Z0-9.\u0370-\u03ff()])+))*)/g,
+      // Standalone linear division steps: e.g. 2x/2 = 8/2 or 3x/3 = 15/3
+      /(?:^|[ \t])([a-zA-Z0-9.\u0370-\u03ff]+\s*\/\s*\d+\s*=\s*[-+]?[a-zA-Z0-9.\u0370-\u03ff]+(?:\s*\/\s*\d+)?)/g,
       // Standalone quadratic equations: y^2 - 10y + 41 = 0 or x^2 + 5x + 6 = 0
       /(?:^|[ \t])([a-zA-Z]\^2\s*[-+]\s*(?:\d*[a-zA-Z])\s*[-+]\s*\d+\s*=\s*0)/g,
       // Standalone quadratic formula / radical fractions: (y = )? \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}
-      /(?:^|[ \t])((?:[a-zA-Z]\s*=\s*)?\\frac\{(?:[^{}]|\{[^{}]*\})*\}\{(?:[^{}]|\{[^{}]*\})*\})/g
+      /(?:^|[ \t])((?:[a-zA-Z]\s*=\s*)?[-+]?\\frac\{(?:[^{}]|\{[^{}]*\})*\}\{(?:[^{}]|\{[^{}]*\})*(?:\s*[-+*]\s*[a-zA-Z0-9.\u0370-\u03ff()]+)*)/g
     ];
 
     unwrappedMathPatterns.forEach((pattern) => {
@@ -1153,7 +1155,7 @@ function appendMessage(role, text, images = null, metadata = {}) {
             displayMode: isDisplay,
             throwOnError: false,
             errorColor: "#ef4444",
-            output: "htmlAndMathml"
+            output: "html"
           });
         } catch (err) {
           console.warn("[KATEX] renderToString error:", err);

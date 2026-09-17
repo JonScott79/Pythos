@@ -5,6 +5,16 @@ All notable changes to the Pythos project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Pythos 1.8.1
+**Release Date:** 2026-09-17
+
+### Added
+- **Nonprofit Educational Mission Page** (`nonprofit.html`): Published the authoritative Pythos Nonprofit Mission page outlining the long-term vision to establish a nonprofit organization, keep AI-powered math and physics tutoring permanently free, support educators, expand accessible STEM tools, and empower young developers through real-world software building.
+- **Contextual Step Validation (P1)** (`server/studentWorkEvaluator.js`, `server/server.js`): When students ask "Is this right?" or "Did I do this right?" following a proposed intermediate step (e.g. `3x = 15`), Pythos now directly validates the specific proposed transformation first, explains the arithmetic (`3x + 7 - 7 = 22 - 7 gives 3x = 15`), and guides the next step (`Next, divide both sides by 3`) rather than restarting or regenerating the entire problem derivation.
+- **Adversarial Error Correction (P1)** (`server/studentWorkEvaluator.js`, `server/server.js`): Incorrect proposed steps (e.g. `3x = 16` for `3x + 7 = 22`) are specifically diagnosed and corrected (`❌ Not quite. Subtracting 7 from 22 gives 15, not 16`), affirming valid methodology while keeping the active equation state accurate.
+- **State-Authoritative Continuation (P1)** (`server/contextManager.js`, `server/server.js`): The `CONTINUATION` intent ("Continue.") strictly adheres to the active state machine. If the problem is completed (`x = 5`), Pythos acknowledges completion without repeating substitution checks; if incomplete, Pythos advances directly to the next operation without restarting.
+- **Mathematical Presentation & Fraction Rendering Polish (P1)** (`index.html`, `app.js`): Enforced explicit fraction bar borders (`.frac-line`) and clipped KaTeX MathML duplication in CSS. Hardened client regex normalizers for negative rational expressions, LaTeX fractions, and division presentation.
+
 ## Pythos 1.8.0
 **Release Date:** 2026-09-16
 

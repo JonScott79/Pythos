@@ -314,6 +314,82 @@ runSuite("Pi, Parentheses & Division Arithmetic Precision Suite", () => {
   console.log(out.trim());
 });
 
+// 18. KaTeX Rendering & Fraction Presentation Regression Suite
+runSuite("KaTeX Rendering & Fraction Presentation Regression Suite", () => {
+  const out = execSync('node test-rendering-regression.js', {
+    cwd: __dirname,
+    encoding: 'utf-8',
+    stdio: 'pipe'
+  });
+  console.log(out.trim());
+});
+
+// 19. Student Intent & Deterministic Math Evaluation Suite
+runSuite("Student Intent & Deterministic Math Evaluation Suite", () => {
+  const out = execSync('node test/test-student-intent.js', {
+    cwd: __dirname,
+    encoding: 'utf-8',
+    stdio: 'pipe'
+  });
+  console.log(out.trim());
+});
+
+// 20. Contextual Validation & Continuation State Acceptance Suite
+runSuite("Contextual Validation & Continuation State Acceptance Suite", () => {
+  const out = execSync('node test/test-contextual-validation.js', {
+    cwd: __dirname,
+    encoding: 'utf-8',
+    stdio: 'pipe'
+  });
+  console.log(out.trim());
+});
+
+// 21. Generalized Algebraic Verification Suite
+runSuite("Generalized Algebraic Verification Suite", () => {
+  const out = execSync('node test/test-algebraic-verification.js', {
+    cwd: __dirname,
+    encoding: 'utf-8',
+    stdio: 'pipe'
+  });
+  console.log(out.trim());
+});
+
+// 22. Per-User Learning Store Isolation Suite
+runSuite("Per-User Learning Store Isolation Suite", () => {
+  const out = execSync('node test/test-learning-isolation.js', {
+    cwd: __dirname,
+    encoding: 'utf-8',
+    stdio: 'pipe'
+  });
+  console.log(out.trim());
+});
+
+// 23. Authenticated Identity & Memory Hardening Suite
+runSuite("Authenticated Identity & Memory Hardening Suite", () => {
+  const out1 = execSync('node test/test-identity-pipeline.js', {
+    cwd: __dirname,
+    encoding: 'utf-8',
+    stdio: 'pipe'
+  });
+  const out2 = execSync('node test/test-memory-hardening.js', {
+    cwd: __dirname,
+    encoding: 'utf-8',
+    stdio: 'pipe'
+  });
+  console.log(out1.trim());
+  console.log(out2.trim());
+});
+
+// 24. Revised Response Re-Verification Integrity Suite
+runSuite("Revised Response Re-Verification Integrity Suite", () => {
+  const out = execSync('node test/test-revision-reverification.js', {
+    cwd: __dirname,
+    encoding: 'utf-8',
+    stdio: 'pipe'
+  });
+  console.log(out.trim());
+});
+
 console.log(`\n${colors.bold}${colors.green}====================================================${colors.reset}`);
 console.log(`${colors.bold}${colors.green}ALL ${passedSuites}/${totalSuites} REGRESSION SUITES PASSED (100%)${colors.reset}`);
 console.log(`${colors.bold}${colors.green}====================================================${colors.reset}\n`);

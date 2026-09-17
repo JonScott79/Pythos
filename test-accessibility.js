@@ -11,6 +11,7 @@ const ROOT_DIR = path.resolve(__dirname);
 const PAGES = [
   'index.html',
   'changelog.html',
+  'nonprofit.html',
   'about/index.html',
   'algebra/index.html',
   'calculus/index.html',
@@ -160,8 +161,9 @@ assert(appJs.includes('LANG_LOCALES') && appJs.includes('aria-pressed'), 'Langua
 
 // 4. VERSION LINK & CHANGELOG ANCHOR AUDIT
 console.log('\n--- Auditing Version Links & Changelog Integrity ---');
-assert(indexHtml.includes('href="changelog.html#pythos-1-8-0"'), 'Version link points to #pythos-1-8-0 anchor');
-assert(changelogHtml.includes('id="pythos-1-8-0"'), 'Changelog has target anchor id="pythos-1-8-0"');
+assert(indexHtml.includes('href="changelog.html#pythos-1-8-1"'), 'Version link points to #pythos-1-8-1 anchor');
+assert(changelogHtml.includes('id="pythos-1-8-1"'), 'Changelog has target anchor id="pythos-1-8-1"');
+assert(changelogHtml.includes('id="pythos-1-8-0"'), 'Changelog retains previous release anchor id="pythos-1-8-0"');
 assert(changelogHtml.includes('id="pythos-1-7-3"'), 'Changelog retains previous release anchor id="pythos-1-7-3"');
 assert(changelogHtml.includes('id="pythos-1-7-2"'), 'Changelog retains previous release anchor id="pythos-1-7-2"');
 assert(changelogHtml.includes('id="pythos-1-7-1"'), 'Changelog retains previous release anchor id="pythos-1-7-1"');
@@ -172,7 +174,7 @@ assert(changelogHtml.includes('id="pythos-1-6-1"'), 'Changelog retains previous 
 assert(changelogHtml.includes('id="pythos-1-6-0"'), 'Changelog retains previous release anchor id="pythos-1-6-0"');
 assert(changelogHtml.includes('id="pythos-1-5-0"'), 'Changelog retains previous release anchor id="pythos-1-5-0"');
 assert(changelogHtml.includes('class="back-btn"') && changelogHtml.includes('href="index.html"'), 'Changelog has back-link to workspace');
-assert(indexHtml.includes('aria-label="Version 1.8.0 Release Notes"'), 'Version links have accessible screen reader names');
+assert(indexHtml.includes('aria-label="Version 1.8.1 Release Notes"'), 'Version links have accessible screen reader names');
 
 // 5. CONVERSATION HISTORY AUDIT
 console.log('\n--- Auditing Conversation History Filtering ---');

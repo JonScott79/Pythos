@@ -239,6 +239,29 @@
       border-color: var(--primary-color);
     }
 
+    /* KaTeX Fraction Line & Presentation Fidelity */
+    .katex .mfrac .frac-line {
+      border-bottom-style: solid !important;
+      border-bottom-width: 0.12em !important;
+      border-bottom-color: currentColor !important;
+      min-height: 1.5px !important;
+      display: inline-block !important;
+      vertical-align: middle !important;
+    }
+    .katex-html .mfrac > span > span {
+      line-height: 1.25 !important;
+    }
+    /* Strictly clip native MathML inside KaTeX to prevent dual-render / overlapping character collisions */
+    .katex .katex-mathml {
+      position: absolute !important;
+      clip: rect(1px, 1px, 1px, 1px) !important;
+      padding: 0 !important;
+      border: 0 !important;
+      height: 1px !important;
+      width: 1px !important;
+      overflow: hidden !important;
+    }
+
     /* Heading styles inside chat messages */
     .message-content h1, .message-content .msg-h1 {
       font-size: 1.25rem;
@@ -2567,7 +2590,8 @@
           <a href="calculus/">Calculus</a>
           <a href="physics/">Physics</a>
           <a href="about/">About</a>
-          <a href="changelog.html#pythos-1-8-0" title="View Changelog" aria-label="Version 1.8.0 Release Notes">v1.8.0</a>
+          <a href="nonprofit.html">Mission</a>
+          <a href="changelog.html#pythos-1-8-1" title="View Changelog" aria-label="Version 1.8.1 Release Notes">v1.8.1</a>
         </nav>
       </div>
     </aside>
@@ -2582,7 +2606,7 @@
         <header class="header">
           <img class="header-avatar" src="assets/pythos_avatar.jpg" alt="Pythos Oracle" width="40" height="40" />
           <div class="header-info">
-            <h1>PYTHOS <a href="changelog.html#pythos-1-8-0" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.0)" aria-label="Version 1.8.0 Release Notes">v1.8.0</a></h1>
+            <h1>PYTHOS <a href="changelog.html#pythos-1-8-1" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.1)" aria-label="Version 1.8.1 Release Notes">v1.8.1</a></h1>
             <p>Mathematics & Physics Oracle</p>
           </div>
           <button id="themeToggleBtn" class="theme-toggle-btn" title="Toggle Dark/Light Mode" aria-label="Toggle Dark and Light Theme">
@@ -2601,6 +2625,8 @@
               <li><a href="calculus/">Calculus Study Guide</a>: Limits, derivatives, integration techniques, and optimization.</li>
               <li><a href="physics/">Physics Study Guide</a>: Mechanics, kinematics, rotational dynamics, and Newton's laws.</li>
               <li><a href="tools/">Interactive Toolset</a>: Scientific calculators, 2D function grapher, and step verifiers.</li>
+              <li><a href="about/">About Pythos</a>: Educational mission, student origin, and verification architecture.</li>
+              <li><a href="nonprofit.html">Nonprofit Mission</a>: Long-term educational vision, keeping Pythos free, and supporting young developers.</li>
               <li><a href="changelog.html">Release Changelog</a>: Latest updates, verifier milestones, and version history.</li>
             </ul>
           </div>

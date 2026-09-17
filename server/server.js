@@ -536,7 +536,7 @@ async function executeGroqVisionCall(provider, { messages, visionSystemPrompt, o
       headers: {
         'Authorization': `Bearer ${groqApiKey}`,
         'Content-Type': 'application/json',
-        'User-Agent': 'Pythos-Vision/1.8.0',
+        'User-Agent': 'Pythos-Vision/1.8.1',
         'Content-Length': Buffer.byteLength(groqPayload)
       },
       timeout: timeoutMs
@@ -699,7 +699,7 @@ async function executeGeminiVisionCall(provider, { messages, visionSystemPrompt,
       headers: {
         'x-goog-api-key': geminiApiKey,
         'Content-Type': 'application/json',
-        'User-Agent': 'Pythos-Vision/1.8.0',
+        'User-Agent': 'Pythos-Vision/1.8.1',
         'Content-Length': Buffer.byteLength(geminiPayload)
       },
       timeout: timeoutMs
@@ -1031,10 +1031,28 @@ app.post('/api/chat', async (req, res) => {
   const preflightFacts = lastUserMsg ? extractPreflightDeterministicFacts(lastUserMsg.content, messages) : [];
   const preflightContext = buildPreflightContext(preflightFacts, classification);
 
+  // Phase B: Server-Side Bounded Conversation Context & Active Problem State
+  const boundedContext = contextManager.buildBoundedConversationContext(messages);
+  const activeProblemContext = boundedContext.activeProblemContext || '';
+  const activeProblemState = boundedContext.activeProblemState;
+
   // Student Intent Classification & Proposed Work Evaluation
   const studentIntent = lastUserMsg ? classifyStudentIntent(lastUserMsg.content, messages) : null;
-  const studentEvaluation = studentIntent ? evaluateStudentWork(lastUserMsg.content, studentIntent) : null;
-  const studentWorkContext = formatStudentWorkContext(studentIntent, studentEvaluation);
+  const studentEvaluation = studentIntent ? evaluateStudentWork(lastUserMsg.content, studentIntent, messages, activeProblemState) : null;
+  if (studentEvaluation && activeProblemState && activeProblemState.active) {
+    if (studentEvaluation.status === 'STEP_VERIFIED_CORRECT' || studentEvaluation.status === 'STEP_VERIFIED_INCORRECT') {
+      if (studentEvaluation.correctedStep) {
+        activeProblemState.active.currentStepEquation = studentEvaluation.correctedStep;
+      }
+      if (studentEvaluation.nextOperation) {
+        activeProblemState.active.nextOperation = studentEvaluation.nextOperation;
+      }
+    } else if (studentEvaluation.status === 'ANSWER_VERIFIED_CORRECT') {
+      activeProblemState.active.verifiedSolution = `${studentEvaluation.variable || 'x'} = ${studentEvaluation.proposedValue}`;
+      activeProblemState.active.isCompleted = true;
+    }
+  }
+  const studentWorkContext = formatStudentWorkContext(studentIntent, studentEvaluation, activeProblemState);
 
   const relevantLessons = (lastUserMsg && studentUid) ? await learningStore.retrieveRelevantCorrections(studentUid, lastUserMsg.content) : [];
   const learningContext = learningStore.formatLearningContext(relevantLessons);
@@ -1051,10 +1069,6 @@ app.post('/api/chat', async (req, res) => {
       console.warn('[MEMORY] Error injecting student memory context:', memErr.message);
     }
   }
-
-  // Phase B: Server-Side Bounded Conversation Context & Active Problem State
-  const boundedContext = contextManager.buildBoundedConversationContext(messages);
-  const activeProblemContext = boundedContext.activeProblemContext || '';
 
   // Trusted Identity Context Injection (< 60 words, separate from learned memory)
   const identityContext = buildTrustedIdentityContext({
@@ -1595,6 +1609,27 @@ ${preflightContext}${activeProblemContext}`;
           console.log('[REPORT SERVICE] Auto-flagged suspicious interaction for human review.');
         } catch (flagErr) {
           console.error('[REPORT SERVICE] Failed to auto-flag report:', flagErr.message);
+        }
+      }
+    }
+
+    // Enforce pedagogical consistency for contextual validation and continuation
+    if (studentEvaluation && studentEvaluation.preferredResponse) {
+      if (studentEvaluation.status === 'STEP_VERIFIED_INCORRECT') {
+        if (/\b(?:yes|that's right|you're right|correct|is right)\b/i.test(finalContent.slice(0, 80))) {
+          console.warn('[VERIFIER] Model mistakenly affirmed incorrect proposed step. Enforcing deterministic correction...');
+          finalContent = studentEvaluation.preferredResponse;
+          if (ollamaResponse && ollamaResponse.message) {
+            ollamaResponse.message.content = finalContent;
+          }
+        }
+      } else if (studentEvaluation.status === 'CONTINUATION_COMPLETED') {
+        if (/\b(?:substitut|check(?:ing)?\s+our\s+work|substituting)\b/i.test(finalContent)) {
+          console.warn('[VERIFIER] Model repeated substitution for completed problem. Enforcing completion advance...');
+          finalContent = studentEvaluation.preferredResponse;
+          if (ollamaResponse && ollamaResponse.message) {
+            ollamaResponse.message.content = finalContent;
+          }
         }
       }
     }

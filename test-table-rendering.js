@@ -17,7 +17,7 @@ const { analyzeDeterministicIntent, buildDeterministicResponse } = require('./se
 
 // Extract the formatResponseText function directly from app.js to ensure 100% fidelity with client code
 const appJsSource = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf-8');
-const fnMatch = appJsSource.match(/function formatResponseText\(raw\)\s*\{([\s\S]*?)\n  \}\n\n  const formattedText/);
+const fnMatch = appJsSource.match(/function formatResponseText\(raw\)\s*\{([\s\S]*?)\r?\n  \}\r?\n\r?\n  const formattedText/);
 
 if (!fnMatch) {
   throw new Error("Could not extract formatResponseText from app.js");

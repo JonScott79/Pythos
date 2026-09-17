@@ -16,6 +16,7 @@
     7. Provides robust, graceful fallback behavior so context management failures never disrupt tutoring.
 */
 
+const math = require('mathjs');
 const { classifyProblem, DOMAINS } = require('./problemClassifier');
 const { resolveReferentialContext } = require('./deterministicRouter');
 
@@ -97,8 +98,11 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
       (classification.confidence === 'high' || classification.confidence === 'medium' || (typeof classification.confidence === 'number' && classification.confidence >= 0.70));
 
     // Detect algebraic equation if problemClassifier returned UNKNOWN
-    const isAlgebraicEquation = /(?:solve\s+)?[-+]?\d*[a-zA-Z]\s*[-+*/]\s*\d+\s*=\s*[-+]?\d+/i.test(msg.content) ||
-                                /(?:solve\s+)?[-+]?\d*[a-zA-Z]\s*=\s*[-+]?\d+/i.test(msg.content);
+    const eqMatch = msg.content.match(/[-+]?\d*[a-zA-Z]\s*[-+*/]\s*\d+(?:\.\d+)?\s*=\s*[-+]?\d+(?:\.\d+)?/i) ||
+                    msg.content.match(/[-+]?\d*[a-zA-Z]\s*=\s*[-+]?\d+(?:\.\d+)?/i);
+    const extractedEq = eqMatch ? eqMatch[0].trim() : null;
+    const activeMath = mathExpr || extractedEq || null;
+    const isAlgebraicEquation = Boolean(extractedEq);
 
     const isRecognizedProblem = (classification &&
       classification.problemDomain !== 'UNKNOWN' &&
@@ -108,12 +112,12 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
 
     const detectedDomain = isRecognizedProblem
       ? (classification && classification.problemDomain !== 'UNKNOWN' ? classification.problemDomain : 'ALGEBRA')
-      : (mathExpr ? 'ALGEBRA' : 'MATHEMATICS');
+      : (activeMath ? 'ALGEBRA' : 'MATHEMATICS');
     const detectedSubtype = classification && classification.problemSubtype !== 'UNKNOWN'
       ? classification.problemSubtype
-      : (isAlgebraicEquation ? 'LINEAR_EQUATION' : (mathExpr ? 'FUNCTION' : 'GENERAL'));
+      : (isAlgebraicEquation ? 'LINEAR_EQUATION' : (activeMath ? 'FUNCTION' : 'GENERAL'));
 
-    if (trans.type === 'NEW_TOPIC_EXPLICIT' || (isRecognizedProblem && currentActive && currentActive.domain !== detectedDomain && !mathExpr)) {
+    if (trans.type === 'NEW_TOPIC_EXPLICIT' || (isRecognizedProblem && currentActive && currentActive.domain !== detectedDomain && !activeMath)) {
       if (currentActive) {
         currentActive.status = 'ARCHIVED_IN_SESSION';
         sessionProblems.push(currentActive);
@@ -121,24 +125,79 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
       }
     }
 
-    if (isRecognizedProblem || mathExpr) {
+    if (isRecognizedProblem || activeMath) {
       if (!currentActive) {
         currentActive = {
           domain: detectedDomain,
           subtype: detectedSubtype,
-          activeExpression: mathExpr || null,
+          activeExpression: activeMath || null,
           knownVariables: classification ? classification.knownQuantities : {},
           unknownQuantities: classification ? classification.unknownQuantities : [],
           assumptions: classification ? classification.assumptions : [],
           requiredMethod: classification ? classification.requiredMethod : null,
           initialUserPrompt: msg.content,
-          status: 'ACTIVE'
+          status: 'ACTIVE',
+          currentStepEquation: null,
+          verifiedSolution: null,
+          isCompleted: false,
+          nextOperation: null
         };
       } else {
         // Update active problem with any refined expressions or newly stated parameters
-        if (mathExpr) currentActive.activeExpression = mathExpr;
+        if (activeMath) currentActive.activeExpression = activeMath;
         if (classification && Object.keys(classification.knownQuantities).length > 0) {
           currentActive.knownVariables = { ...currentActive.knownVariables, ...classification.knownQuantities };
+        }
+      }
+    }
+  }
+
+  // Track intermediate equation steps and problem completion across conversation dialogue
+  if (currentActive && currentActive.activeExpression) {
+    for (let j = 0; j < messages.length; j++) {
+      const m = messages[j];
+      if (!m || !m.content) continue;
+      const text = m.content;
+
+      // Check for variable root assignment / completion (e.g. "x = 5" or "x = 4")
+      const rootMatch = text.match(/\b([a-zA-Z])\s*=\s*([-\d.]+)\b/);
+      if (rootMatch) {
+        const vName = rootMatch[1];
+        const vVal = parseFloat(rootMatch[2]);
+        if (currentActive.activeExpression.includes('=')) {
+          try {
+            const eqParts = currentActive.activeExpression.split('=');
+            if (eqParts.length === 2) {
+              const scope = { [vName]: vVal };
+              const lhsVal = math.evaluate(eqParts[0].trim(), scope);
+              const rhsVal = math.evaluate(eqParts[1].trim(), scope);
+              if (Math.abs(lhsVal - rhsVal) < 1e-5) {
+                const isConfirmed = messages.slice(j).some(postM =>
+                  postM && postM.role === 'assistant' &&
+                  /(?:correct|verified|great\s+job|exact|complete\s+solution|nicely\s+done)/i.test(postM.content)
+                );
+                if (isConfirmed || m.role === 'assistant' || j > 0) {
+                  currentActive.verifiedSolution = `${vName} = ${vVal}`;
+                  currentActive.isCompleted = true;
+                }
+              }
+            }
+          } catch (_) {}
+        }
+      }
+
+      // Check for intermediate linear equation step e.g. "3x = 15" or "2x = 8"
+      const stepEqMatch = text.match(/(?:^|\b)(\d*[a-zA-Z])\s*=\s*([-\d.]+)\b/);
+      if (stepEqMatch && !currentActive.isCompleted) {
+        const stepLhs = stepEqMatch[1];
+        const stepRhs = stepEqMatch[2];
+        const varLetter = stepLhs.replace(/\d/g, '');
+        if (varLetter && currentActive.activeExpression.includes(varLetter)) {
+          currentActive.currentStepEquation = `${stepLhs} = ${stepRhs}`;
+          const coeff = parseInt(stepLhs, 10);
+          if (!isNaN(coeff) && coeff > 1) {
+            currentActive.nextOperation = `divide both sides by ${coeff}`;
+          }
         }
       }
     }
@@ -193,6 +252,15 @@ function formatActiveProblemContext(state) {
   out += `- **Current Domain**: ${act.domain} (${act.subtype})\n`;
   if (act.activeExpression) {
     out += `- **Active Mathematical Object / Equation**: \`${act.activeExpression}\`\n`;
+  }
+  out += `- **Problem Status**: ${act.isCompleted ? 'COMPLETED' : 'IN_PROGRESS'}\n`;
+  if (act.isCompleted && act.verifiedSolution) {
+    out += `- **Verified Solution**: \`${act.verifiedSolution}\` (Problem complete)\n`;
+  } else if (act.currentStepEquation) {
+    out += `- **Active Intermediate Step**: \`${act.currentStepEquation}\`\n`;
+    if (act.nextOperation) {
+      out += `- **Next Operation**: ${act.nextOperation}\n`;
+    }
   }
   if (act.knownVariables && Object.keys(act.knownVariables).length > 0) {
     out += `- **Known Quantities / Parameters**: ${JSON.stringify(act.knownVariables)}\n`;

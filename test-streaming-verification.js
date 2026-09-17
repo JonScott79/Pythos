@@ -55,6 +55,9 @@ function setupMockOllama() {
 function stopMockOllama() {
   return new Promise((resolve) => {
     if (mockOllamaServer) {
+      if (typeof mockOllamaServer.closeAllConnections === 'function') {
+        mockOllamaServer.closeAllConnections();
+      }
       mockOllamaServer.close(() => resolve());
     } else {
       resolve();
@@ -500,6 +503,12 @@ async function runStreamingTests() {
     console.log(`====================================================\n`);
 
   } finally {
+    if (serverModule && serverModule.server) {
+      try {
+        if (typeof serverModule.server.closeAllConnections === 'function') serverModule.server.closeAllConnections();
+        serverModule.server.close();
+      } catch (_) {}
+    }
     await stopMockOllama();
   }
 }
