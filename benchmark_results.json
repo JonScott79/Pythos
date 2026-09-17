@@ -1,0 +1,83 @@
+{
+  "llava:7b": {
+    "case1_printed_hw": {
+      "elapsed_sec": 122.1,
+      "output": "",
+      "error": "timed out"
+    },
+    "case2_messy_crossedout": {
+      "elapsed_sec": 52.7,
+      "output": " 1. The original question: \"What is the difference between the two?\"\n\n2. What was crossed out: \"What is the difference between the two?\"\n\n3. What the student wrote as their active attempt: \"What is the difference between the two?\"\n\n4. If any writing is ambiguous or unclear, explicitly report your uncertainty: There is no ambiguity or unclear writing in the image provided. The student's active attempt is the same as the original question, which is not a typical homework page. It seems like there might be a mistake or a misunderstanding, as the student has not attempted to answer the question or provide any alternative text. ",
+      "error": null
+    },
+    "case3_fractions_inequalities": {
+      "elapsed_sec": 40.65,
+      "output": " The image contains mathematical content, but it is not clear enough to transcribe the formulas accurately. If you can provide a clearer image or describe the formulas, I would be happy to help transcribe them into LaTeX. ",
+      "error": null
+    },
+    "case4_physics_incline": {
+      "elapsed_sec": 108.35,
+      "output": " The image shows a physics diagram with a triangle and a few vectors and parameters labeled. Here are the details extracted from the diagram:\n\n- The triangle is labeled as \"\u0394ABC\" with sides labeled as \"AB,\" \"BC,\" and \"AC.\"\n- The angle between sides \"AB\" and \"BC\" is labeled as \"\u03b8.\"\n- The angle between sides \"BC\" and \"AC\" is labeled as \"\u03b1.\"\n- The angle between sides \"AC\" and \"AB\" is labeled as \"\u03b2.\"\n- The mass of the triangle is labeled as \"m.\"\n- The gravitational force acting on the triangle is labeled as \"mg.\"\n- The normal force acting on the triangle is labeled as \"F_N.\"\n- The frictional force acting on the triangle is labeled as \"friction.\"\n- The coefficient of friction is labeled as \"\u03bc.\"\n- The weight of the triangle is labeled as \"W.\"\n- The vector \"mg\" is labeled as the weight of the triangle.\n- The vector \"F_N\" is labeled as the normal force acting on the triangle.\n- The vector \"friction\" is labeled as the frictional force acting on the triangle.\n- The vector \"F_N\" is shown as a vector perpendicular to the surface and pointing upwards.\n- The vector \"mg\" is shown as a vector pointing downwards.\n- The vector \"friction\" is shown as a vector parallel to the surface and pointing to the right.\n- The vector \"F_N\" is shown as a vector with a magnitude of \"mg/\u03bc\" and a direction perpendicular to the surface.\n- The vector \"friction\" is shown as a vector with a magnitude of \"\u03bcmg\" and a direction parallel to the surface.\n- The vector \"mg\" is shown as a vector with a magnitude of \"mg\" and a direction downwards.\n- The vector \"F_N\" is shown as a vector with a magnitude of \"mg/\u03bc\" and a direction perpendicular to the surface.\n- The vector \"friction\" is shown as a vector with a magnitude of \"\u03bcmg\" and a direction parallel to the surface.\n- The vector \"mg\" is shown as a vector with a magnitude of \"mg\" and a direction downwards.\n\nThe question asked is:\n\n\"Find the acceleration down the ramp.\"\n\nThe diagram is a representation of a physics problem where a triangle is placed on a ramp with an angle of \u03b8. The triangle is subject to gravity, normal force, and friction. The task is to find the acceleration of the triangle down the ramp. ",
+      "error": null
+    },
+    "case5_geometry_circle": {
+      "elapsed_sec": 89.97,
+      "output": " The image shows a diagram with geometric shapes and angles. Here's an analysis of the diagram:\n\n1. Geometric Points:\n   - The diagram contains several points, including the center of the circle (C), the points on the circle (A, B, C), and the points on the line segment (D, E, F).\n   - The circle has a radius, and the line segment is perpendicular to the diameter of the circle.\n\n2. Circle Center (C):\n   - The center of the circle is located at point C.\n\n3. Inscribed Angle:\n   - The angle that is inscribed within the circle is the angle between points A and B.\n   - This angle is inscribed because it is formed by the intersection of the circle with the line segment.\n\n4. Angle to be Calculated:\n   - The angle that needs to be calculated is the angle between points D and E.\n   - This angle is not inscribed within the circle, so it is an external angle.\n\n5. Other Angles:\n   - There are other angles in the diagram, such as the angle between points A and C, and the angle between points B and C.\n   - These angles are not inscribed within the circle and are not part of the calculation requested.\n\nThe diagram appears to be a standard geometry problem where the radius of the circle and the length of the line segment are given, and the task is to calculate the angle between points D and E. The radius of the circle is 5 units, and the line segment is 10 units long. To calculate the angle, you would typically use the formula for the central angle of a circle, which is 180 degrees minus the sum of the inscribed angles. However, since the angle between points D and E is not inscribed within the circle, it is not part of the central angle calculation. ",
+      "error": null
+    }
+  },
+  "minicpm-v:latest": {
+    "case1_printed_hw": {
+      "elapsed_sec": 68.21,
+      "output": "The problem statement is:\n\nProblem 1: Solve for \\( x \\) in \\( 3x + 7 = 22 \\)\n\nThe student's handwritten work is:\n\n\\[ 3x = 22 - 7 \\]\n\n\\[ 3x = 15 \\]\n\n\\[ x = 5 \\]\n\nThe student has correctly solved the equation \\( 3x + 7 = 22 \\) by first subtracting 7 from both sides to get \\( 3x = 15 \\), and then dividing both sides by 3 to find \\( x = 5 \\).",
+      "error": null
+    },
+    "case2_messy_crossedout": {
+      "elapsed_sec": 85.65,
+      "output": "1. The original question was to calculate the area of a circle with a radius \\( r = 4 \\).\n2. The part of the question that was crossed out is \"A = 2 \\times \\pi \\times r = 8\\pi\".\n3. The student's active attempt was to calculate the area using the formula \\( A = \\pi \\times r^2 \\), which is correct.\n4. There is no ambiguity in the student's attempt to calculate the area.",
+      "error": null
+    },
+    "case3_fractions_inequalities": {
+      "elapsed_sec": 56.84,
+      "output": "\\textbf{Calculus 6 Limits} \\textbf{Review}\n\nEvaluate: \\(\\lim_{x \\to 0} \\sin(2x) / x\\)\n\n\\[\n= \\lim_{x \\to 0} \\sin(2x) \\cdot \\frac{2 \\cdot \\sin(2x)}{2 \\cdot \\sin(2x)} = \\frac{2 \\cdot (1)}{2} = 1\n\\]\n\n\\[\n= 2 \\cdot (1) = 2\n\\]\n\nInequality: \\(\\sqrt{2x} \\cdot (2 + x) \\geq 5\\)\n\n\\[\nx^2 + 2 \\cdot 9 \\geq 25\n\\]\n\n\\[\nx^2 \\cdot 2 \\cdot 16 \\cdot \\cdots \\geq 4\n\\]",
+      "error": null
+    },
+    "case4_physics_incline": {
+      "elapsed_sec": 122.05,
+      "output": "",
+      "error": "timed out"
+    },
+    "case5_geometry_circle": {
+      "elapsed_sec": 75.16,
+      "output": "The diagram shows a circle with a triangle inscribed within it. Here are the details:\n\n1. **Geometric Points:**\n   - **Center of the Circle:** Point O\n   - **Points on the Circle:** A, B, C\n\n2. **Inscribed Angle:**\n   - The angle at point A is labeled as \\( \\angle ACB \\) and is given as \\( 42^\\circ \\).\n\n3. **Angle to be Calculated:**\n   - The angle \\( \\angle AOB \\) needs to be calculated.\n\nTo find \\( \\angle AOB \\), we can use the property of inscribed angles. An inscribed angle is half the measure of the intercepted arc.\n\nGiven:\n- \\( \\angle ACB = 42^\\circ \\)\n\nSince \\( \\angle ACB \\) is an inscribed angle intercepting the arc \\( AB \\), the measure of the arc \\( AB \\) is \\( 2 \\times \\angle ACB \\).\n\n\\[ \\text{Arc } AB = 2 \\times 42^\\circ = 84^\\circ \\]\n\nTherefore, the angle \\( \\angle AOB \\) is the measure of the arc \\( AB \\), which is \\( 84^\\circ \\).",
+      "error": null
+    }
+  },
+  "llama3.2-vision:latest": {
+    "case1_printed_hw": {
+      "elapsed_sec": 3.88,
+      "output": "",
+      "error": "HTTP Error 500: Internal Server Error"
+    },
+    "case2_messy_crossedout": {
+      "elapsed_sec": 2.67,
+      "output": "",
+      "error": "HTTP Error 500: Internal Server Error"
+    },
+    "case3_fractions_inequalities": {
+      "elapsed_sec": 2.72,
+      "output": "",
+      "error": "HTTP Error 500: Internal Server Error"
+    },
+    "case4_physics_incline": {
+      "elapsed_sec": 2.7,
+      "output": "",
+      "error": "HTTP Error 500: Internal Server Error"
+    },
+    "case5_geometry_circle": {
+      "elapsed_sec": 2.68,
+      "output": "",
+      "error": "HTTP Error 500: Internal Server Error"
+    }
+  }
+}

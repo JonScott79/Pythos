@@ -91,18 +91,78 @@ function extractClaims(text, userPrompt = '') {
     } catch (_) {}
   }
 
-  // 5. Algebraic Equations (e.g. x^2 - 7x + 6 = 0, solutions: 6, 1)
-  const quadMatch = text.match(/x\^2\s*-\s*7x\s*\+\s*6\s*=\s*0/i);
-  if (quadMatch && (text.includes('6 and 1') || text.includes('1 and 6') || text.includes('6, 1'))) {
-    claims.push({
-      domain: 'algebra',
-      claim_type: 'equation_solution',
-      raw_match: quadMatch[0],
-      data: {
-        equation: 'x^2 - 7*x + 6 = 0',
-        proposed_solutions: [6, 1]
+  // Helper to isolate pure mathematical equation from surrounding conversational prose
+  function cleanAndNormalizeEquation(rawEqStr) {
+    if (!rawEqStr || typeof rawEqStr !== 'string' || !rawEqStr.includes('=')) return null;
+    const parts = rawEqStr.split('=');
+    if (parts.length !== 2) return null;
+    const rawLhs = parts[0].trim();
+    const rawRhs = parts[1].trim();
+
+    // Strip English prose before math begins in LHS
+    const tokens = rawLhs.split(/\s+/);
+    const mathIdx = tokens.findIndex(t => /[\d^+\-*/()]/.test(t) || /^[a-zA-Z]$/.test(t));
+    const lhs = mathIdx !== -1 ? tokens.slice(mathIdx).join(' ') : rawLhs;
+
+    const normLhs = lhs.replace(/(\d)\s*([a-zA-Z])(?![a-zA-Z])/g, (m, g1, g2) => g1 + '*' + g2);
+    const normRhs = rawRhs.replace(/(\d)\s*([a-zA-Z])(?![a-zA-Z])/g, (m, g1, g2) => g1 + '*' + g2);
+
+    const variableMatch = normLhs.match(/\b([a-zA-Z])\b/) || normRhs.match(/\b([a-zA-Z])\b/);
+    const variable = variableMatch ? variableMatch[1] : 'x';
+
+    return {
+      equation: `${normLhs} = ${normRhs}`,
+      variable
+    };
+  }
+
+  // 5. Algebraic Equations & Stated Solutions (Generalized)
+  // Pattern 5a: Equation followed by "solutions:" / "roots:" (e.g. "x^2 - 5x + 6 = 0, solutions: 2, 3")
+  const eqSolutionsRegex = /([a-zA-Z0-9^+\-*/().\s]+=[a-zA-Z0-9^+\-*/().\s]+)[,;:\s]+(?:with\s+)?(?:solutions?|roots?)\s*[:=]?\s*([-\d.,\s*andor]+)/gi;
+  let eqSolMatch;
+  while ((eqSolMatch = eqSolutionsRegex.exec(text)) !== null) {
+    const rawEq = eqSolMatch[1].trim();
+    const rawSols = eqSolMatch[2].trim();
+    const numbers = rawSols.match(/[-+]?\d+(?:\.\d+)?/g);
+    const cleaned = cleanAndNormalizeEquation(rawEq);
+    if (numbers && cleaned) {
+      claims.push({
+        domain: 'algebra',
+        claim_type: 'equation_solution',
+        raw_match: eqSolMatch[0],
+        data: {
+          equation: cleaned.equation,
+          variable: cleaned.variable,
+          proposed_solutions: numbers.map(Number)
+        }
+      });
+    }
+  }
+
+  // Pattern 5b: Equation followed by explicit solution assignment (e.g. "2x + 3 = 11, x = 4" or "x^2 - 5x + 6 = 0, x = 2 or x = 3")
+  const eqVarRegex = /([a-zA-Z0-9^+\-*/().\s]+=[a-zA-Z0-9^+\-*/().\s]+)[,;:\s]+(?:so\s+|therefore\s+)?([a-zA-Z])\s*=\s*([-\d.]+)(?:\s*(?:,|and|or)\s*\2\s*=\s*([-\d.]+))?/gi;
+  let eqVarMatch;
+  while ((eqVarMatch = eqVarRegex.exec(text)) !== null) {
+    const rawEq = eqVarMatch[1].trim();
+    const variable = eqVarMatch[2];
+    const sols = [parseFloat(eqVarMatch[3])];
+    if (eqVarMatch[4]) sols.push(parseFloat(eqVarMatch[4]));
+    const cleaned = cleanAndNormalizeEquation(rawEq);
+    if (cleaned) {
+      const alreadyClaimed = claims.some(c => c.data?.equation === cleaned.equation && c.claim_type === 'equation_solution');
+      if (!alreadyClaimed) {
+        claims.push({
+          domain: 'algebra',
+          claim_type: 'equation_solution',
+          raw_match: eqVarMatch[0],
+          data: {
+            equation: cleaned.equation,
+            variable: cleaned.variable || variable,
+            proposed_solutions: sols
+          }
+        });
       }
-    });
+    }
   }
 
   // 6. Comprehensive Arithmetic, Fraction, Percentage & Intermediate Step Extraction

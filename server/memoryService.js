@@ -83,12 +83,15 @@ function sanitizeMemoryString(str) {
     .trim();
 }
 
+// Mathematical propositions disallowed from personal memory (e.g. "2+2=5", "pi equals 3", "x^2 + y^2 = 25")
+const MATH_CLAIM_DENYLIST_REGEX = /\b(?:2\s*\+\s*2\s*=\s*5|pi\s*(?:equals?|=)\s*3|\d+\s*[+\-*/=]\s*\d+\s*=\s*\d+|theorem|formula|equation)\b|[-+*/^].*?=/i;
+
 /**
- * Checks whether candidate memory content violates privacy rules
+ * Checks whether candidate memory content violates privacy rules or represents invalid memory facts
  */
 function isSensitiveOrDisallowed(text) {
   if (!text || typeof text !== 'string') return false;
-  return SENSITIVE_DENYLIST_REGEX.test(text);
+  return SENSITIVE_DENYLIST_REGEX.test(text) || MATH_CLAIM_DENYLIST_REGEX.test(text);
 }
 
 /**

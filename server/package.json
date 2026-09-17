@@ -1,6 +1,6 @@
 {
   "name": "pythos-backend",
-  "version": "1.7.3",
+  "version": "1.8.0",
   "description": "Pythos AI Backend Service",
   "main": "server.js",
   "scripts": {

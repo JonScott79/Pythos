@@ -18,6 +18,9 @@ async function runLearningTests() {
   console.log('🧠 PYTHOS VERIFIED MISTAKE LEARNING SYSTEM TESTS');
   console.log('==================================================\n');
 
+  const TEST_UID = 'test_student_learning_runner';
+  await learningStore.clearStudentLearning(TEST_UID);
+
   const results = [];
 
   // =========================================================================
@@ -33,7 +36,7 @@ async function runLearningTests() {
     explanation: 'At n=23, the probability of at least one shared birthday is approximately 50.73%, which exceeds 50%. At n=22, P ≈ 47.57%.'
   };
 
-  const storeRes = learningStore.storeVerifiedCorrection(validCandidate);
+  const storeRes = await learningStore.storeVerifiedCorrection(TEST_UID, validCandidate);
   const testAPassed = storeRes.success === true && storeRes.status === 'verified_and_stored' && storeRes.record.confidence === 'verified';
   console.log(`Store Result:`, storeRes.status);
   console.log(`Result: ${testAPassed ? '✅ PASSED' : '❌ FAILED'}\n`);
@@ -52,7 +55,7 @@ async function runLearningTests() {
     explanation: 'Student insists 17 people exceed 50% probability.'
   };
 
-  const falseRes = learningStore.storeVerifiedCorrection(falseCandidate);
+  const falseRes = await learningStore.storeVerifiedCorrection(TEST_UID, falseCandidate);
   const testBPassed = falseRes.success === false && (falseRes.status === 'rejected' || falseRes.status === 'conflict_flagged');
   console.log(`Store Result (Expected rejection or conflict flag):`, falseRes.status, `(${falseRes.reason || falseRes.message})`);
   console.log(`Result: ${testBPassed ? '✅ PASSED' : '❌ FAILED'}\n`);
@@ -62,7 +65,7 @@ async function runLearningTests() {
   // TEST C: Future Recurrence Context Retrieval
   // =========================================================================
   console.log('▶ [TEST C] Testing Context Retrieval on Similar Problem...');
-  const retrieved = learningStore.retrieveRelevantCorrections('What is the probability of shared birthdays in a room of people?');
+  const retrieved = await learningStore.retrieveRelevantCorrections(TEST_UID, 'What is the probability of shared birthdays in a room of people?');
   const testCPassed = Array.isArray(retrieved) && retrieved.length > 0 && retrieved.some(r => r.problem_type === 'Birthday Problem');
   console.log(`Retrieved ${retrieved.length} relevant verified lessons:`, retrieved.map(r => r.failure_mode));
   console.log(`Result: ${testCPassed ? '✅ PASSED' : '❌ FAILED'}\n`);
@@ -72,7 +75,7 @@ async function runLearningTests() {
   // TEST D: Unrelated Problem Isolation
   // =========================================================================
   console.log('▶ [TEST D] Testing Isolation on Unrelated Problem (Physics Kinematics)...');
-  const physicsRetrieved = learningStore.retrieveRelevantCorrections('A ball is dropped from a height of 20 meters. Find the time to hit the ground.');
+  const physicsRetrieved = await learningStore.retrieveRelevantCorrections(TEST_UID, 'A ball is dropped from a height of 20 meters. Find the time to hit the ground.');
   const testDPassed = Array.isArray(physicsRetrieved) && physicsRetrieved.length === 0;
   console.log(`Retrieved lessons for physics query: ${physicsRetrieved.length} (Expected: 0)`);
   console.log(`Result: ${testDPassed ? '✅ PASSED' : '❌ FAILED'}\n`);
@@ -93,8 +96,8 @@ async function runLearningTests() {
     confidence: 'verified' // Simulated external flag attempting to overwrite
   };
 
-  const conflictRes = learningStore.storeVerifiedCorrection(conflictCandidate);
-  const data = learningStore.getLearningHistory();
+  const conflictRes = await learningStore.storeVerifiedCorrection(TEST_UID, conflictCandidate);
+  const data = await learningStore.getLearningHistory(TEST_UID);
   const existingUnchanged = data.records.find(r => r.problem_type === 'Birthday Problem').corrected_result === '23 people';
   const conflictLogged = data.conflicts && data.conflicts.length > 0;
   const testEPassed = conflictRes.status === 'conflict_flagged' && existingUnchanged && conflictLogged;
@@ -108,7 +111,7 @@ async function runLearningTests() {
   // TEST F: Failure Mode & Reasoning Auditability
   // =========================================================================
   console.log('▶ [TEST F] Testing Failure Mode & Reason Schema Verification...');
-  const history = learningStore.getLearningHistory();
+  const history = await learningStore.getLearningHistory(TEST_UID);
   const sampleRecord = history.records[0];
   const testFPassed = sampleRecord &&
                       typeof sampleRecord.failure_mode === 'string' && sampleRecord.failure_mode.length > 10 &&
@@ -126,6 +129,9 @@ async function runLearningTests() {
   });
   console.log(`Result: ${testFPassed ? '✅ PASSED' : '❌ FAILED'}\n`);
   results.push({ name: 'TEST F: Reason vs Answer Schema Audit', passed: testFPassed });
+
+  // Cleanup
+  await learningStore.clearStudentLearning(TEST_UID);
 
   // =========================================================================
   // SUMMARY

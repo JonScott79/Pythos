@@ -5,6 +5,18 @@ All notable changes to the Pythos project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Pythos 1.8.0
+**Release Date:** 2026-09-16
+
+### Added
+- **Per-User Learning Store Isolation (P0)** (`server/learningStore.js`): Verified student learning corrections are strictly partitioned by authenticated Firebase UID under `users/{uid}/pythos_learning/{recordId}`. Eliminates cross-user learning data leakage across student sessions and container restarts.
+- **Explicit Firestore Security Rules for Memory & Learning (P0)** (`firestore.rules`): Added explicit rules guaranteeing that authenticated students may read only their own memory and learning records (`request.auth.uid == userId || isAdmin()`) while completely denying all client-side write access.
+- **Deterministic Student Intent Classification (P1)** (`server/studentIntentClassifier.js`): Deterministic multi-signal classification engine categorizing student input across 11 conversational intents (`PROPOSED_ANSWER`, `PROPOSED_STEP`, `VALIDATION_REQUEST`, `CORRECTION`, `EXPLANATION_REQUEST`, `REFRAME_REQUEST`, `REFERENTIAL`, `NEW_PROBLEM`, `CONTINUATION`, `CONFUSION`, `UNKNOWN`).
+- **Student-Proposed Math Evaluation & Check-My-Work (P1)** (`server/studentWorkEvaluator.js`): Deterministically normalizes and evaluates student-proposed mathematical steps and exact rational $\pi$ arithmetic (e.g., `-29/3 pi + 2pi * 5` evaluates to $\pi/3$) prior to LLM reasoning. Safely tags ambiguous notation (`1/2x`, `sin 30`) as `AMBIGUOUS_NOTATION` / `UNKNOWN` without guessing.
+- **Mandatory Revision Re-Verification (P1)** (`server/server.js`): When initial LLM generations contain invalid claims, the resulting revision is now fully extracted, re-verified deterministically against Math.js / SymPy, and evaluated for consistency before sending, bounded to 1 revision cycle.
+- **Memory Poisoning Defense & Identity Isolation (P1)** (`server/memoryExtractor.js`, `server/memoryService.js`): Rejects attributed, quoted, hypothetical, or negated speech from personal memory. Rejects false mathematical claims (`2+2=5`, `pi=3`) from durable storage, maintaining strict authority separation between authenticated Firebase account identity and conversational preferred names.
+- **Generalized Algebraic Claim Extraction (P2)** (`server/verificationBridge.js`, `server/mathjsVerifier.js`): Replaced hardcoded single-quadratic patterns with generalized linear and quadratic equation extraction and substitution verification in Math.js.
+
 ## Pythos 1.7.3
 **Release Date:** 2026-09-16
 

@@ -469,6 +469,8 @@ const { buildTrustedIdentityContext, sanitizeDisplayName } = require('./identity
 const contextManager = require('./contextManager');
 const visionExtractor = require('./visionExtractor');
 const { classifyUpstreamError, sanitizeErrorDetail, extractRetrySeconds } = require('./errorHandler');
+const { classifyStudentIntent } = require('./studentIntentClassifier');
+const { evaluateStudentWork, formatStudentWorkContext } = require('./studentWorkEvaluator');
 
 // Mount Admin Routes
 app.use('/admin', adminRoutes);
@@ -534,7 +536,7 @@ async function executeGroqVisionCall(provider, { messages, visionSystemPrompt, o
       headers: {
         'Authorization': `Bearer ${groqApiKey}`,
         'Content-Type': 'application/json',
-        'User-Agent': 'Pythos-Vision/1.7.3',
+        'User-Agent': 'Pythos-Vision/1.8.0',
         'Content-Length': Buffer.byteLength(groqPayload)
       },
       timeout: timeoutMs
@@ -697,7 +699,7 @@ async function executeGeminiVisionCall(provider, { messages, visionSystemPrompt,
       headers: {
         'x-goog-api-key': geminiApiKey,
         'Content-Type': 'application/json',
-        'User-Agent': 'Pythos-Vision/1.7.3',
+        'User-Agent': 'Pythos-Vision/1.8.0',
         'Content-Length': Buffer.byteLength(geminiPayload)
       },
       timeout: timeoutMs
@@ -844,6 +846,36 @@ async function executeVisionCall(provider, context) {
     return executeGeminiVisionCall(provider, context);
   }
   throw new Error(`Unsupported vision provider: ${provider.name}`);
+}
+
+/**
+ * Extracts claims, checks consistency, and executes deterministic verification on content.
+ * Used for initial response audit and mandatory post-revision re-verification.
+ */
+async function verifyResponseClaims(content, userQueryText, abortSignal) {
+  const claims = extractClaims(content, userQueryText || '');
+  const internalContradictions = auditInternalConsistency(claims);
+  const verificationResults = [];
+  const invalidClaims = [];
+
+  for (let ci = 0; ci < claims.length; ci++) {
+    if (abortSignal && abortSignal.aborted) break;
+    const claim = claims[ci];
+    const verification = await runDeterministicVerification(claim);
+    if (verification) {
+      verificationResults.push(verification);
+    }
+    if (verification && verification.verified === false && verification.status !== 'UNKNOWN') {
+      invalidClaims.push({ claim, verification, claimIndex: ci });
+    }
+  }
+
+  return {
+    claims,
+    internalContradictions,
+    verificationResults,
+    invalidClaims
+  };
 }
 
 // =====================================
@@ -999,7 +1031,12 @@ app.post('/api/chat', async (req, res) => {
   const preflightFacts = lastUserMsg ? extractPreflightDeterministicFacts(lastUserMsg.content, messages) : [];
   const preflightContext = buildPreflightContext(preflightFacts, classification);
 
-  const relevantLessons = lastUserMsg ? learningStore.retrieveRelevantCorrections(lastUserMsg.content) : [];
+  // Student Intent Classification & Proposed Work Evaluation
+  const studentIntent = lastUserMsg ? classifyStudentIntent(lastUserMsg.content, messages) : null;
+  const studentEvaluation = studentIntent ? evaluateStudentWork(lastUserMsg.content, studentIntent) : null;
+  const studentWorkContext = formatStudentWorkContext(studentIntent, studentEvaluation);
+
+  const relevantLessons = (lastUserMsg && studentUid) ? await learningStore.retrieveRelevantCorrections(studentUid, lastUserMsg.content) : [];
   const learningContext = learningStore.formatLearningContext(relevantLessons);
 
   // Student Personal Memory Injection (<= 150 tokens)
@@ -1030,7 +1067,7 @@ app.post('/api/chat', async (req, res) => {
   let preparedMessages = [...boundedContext.messagesForModel];
   preparedMessages.unshift({
     role: 'system',
-    content: PYTHOS_SYSTEM_PROMPT + identityContext + preflightContext + activeProblemContext + learningContext + memoryContext
+    content: PYTHOS_SYSTEM_PROMPT + identityContext + preflightContext + studentWorkContext + activeProblemContext + learningContext + memoryContext
   });
 
   // Detect if latest user turn contains an image payload
@@ -1382,185 +1419,182 @@ ${preflightContext}${activeProblemContext}`;
     }
 
     let finalContent = ollamaResponse.message ? ollamaResponse.message.content : '';
-    const claims = extractClaims(finalContent, lastUserMsg ? lastUserMsg.content : '');
-    const internalContradictions = auditInternalConsistency(claims);
-    const verificationResults = [];
+    let { claims, internalContradictions, verificationResults, invalidClaims } = await verifyResponseClaims(
+      finalContent,
+      lastUserMsg ? lastUserMsg.content : '',
+      abortController.signal
+    );
 
-    if (claims.length > 0 || internalContradictions.length > 0) {
-      const invalidClaims = [];
+    if (invalidClaims.length > 0 || internalContradictions.length > 0) {
+      console.warn(`[VERIFIER] Detected ${invalidClaims.length} invalid claims and ${internalContradictions.length} internal contradictions. Requesting revision...`);
 
-      for (let ci = 0; ci < claims.length; ci++) {
-        const claim = claims[ci];
-        if (abortController.signal.aborted) break;
-        const verification = await runDeterministicVerification(claim);
-        if (verification) {
-          verificationResults.push(verification);
+      try {
+        const feedbackLines = [];
+        invalidClaims.forEach(({ claim, verification }, i) => {
+          feedbackLines.push(`- Step ${i + 1} Error: ${verification.error_type || verification.status}: ${verification.details || verification.reason}`);
+        });
+        internalContradictions.forEach((ic, i) => {
+          feedbackLines.push(`- Internal Contradiction ${i + 1}: ${ic.details}`);
+        });
+
+        const revisionPrompt = [
+          ...preparedMessages,
+          { role: 'assistant', content: finalContent },
+          {
+            role: 'user',
+            content: `[VERIFICATION FEEDBACK]: An independent verification check found mathematical contradictions in your steps:\n${feedbackLines.join('\n')}\n\nPlease revise your solution and provide the correct calculation and conclusions.`
+          }
+        ];
+
+        const revPayload = JSON.stringify({
+          model: targetModel,
+          messages: revisionPrompt,
+          stream: true,
+          options: options || { temperature: 0.1 }
+        });
+
+        const revisedResponse = await new Promise((resolveRev, rejectRev) => {
+          const revReq = httpLib.request({
+            hostname: parsedUrl.hostname,
+            port: parsedUrl.port || (isHttps ? 443 : 80),
+            path: parsedUrl.pathname,
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Content-Length': Buffer.byteLength(revPayload),
+              ...(OLLAMA_API_KEY ? { 'Authorization': `Bearer ${OLLAMA_API_KEY}` } : {})
+            },
+            timeout: REQUEST_TIMEOUT_MS
+          }, (revRes) => {
+            let revText = '';
+            let revBuffer = '';
+
+            revRes.on('data', (chunk) => {
+              revBuffer += chunk.toString();
+              const lines = revBuffer.split('\n');
+              revBuffer = lines.pop();
+
+              for (const l of lines) {
+                const trimmed = l.trim();
+                if (!trimmed) continue;
+                try {
+                  const d = JSON.parse(trimmed);
+                  if (d.message && d.message.content) revText += d.message.content;
+                } catch (e) {}
+              }
+            });
+            revRes.on('end', () => {
+              if (revBuffer && revBuffer.trim()) {
+                try {
+                  const d = JSON.parse(revBuffer.trim());
+                  if (d.message && d.message.content) revText += d.message.content;
+                } catch (e) {}
+              }
+              resolveRev(revText);
+            });
+          });
+
+          const onRevAbort = () => {
+            revReq.destroy();
+            const abortErr = new Error('Request aborted');
+            abortErr.name = 'AbortError';
+            rejectRev(abortErr);
+          };
+          abortController.signal.addEventListener('abort', onRevAbort, { once: true });
+
+          revReq.on('timeout', () => {
+            revReq.destroy();
+            rejectRev(new Error('ETIMEDOUT'));
+          });
+          revReq.on('error', (e) => rejectRev(e));
+          revReq.write(revPayload);
+          revReq.end();
+        });
+
+        if (revisedResponse && revisedResponse.trim()) {
+          console.log('[VERIFIER] Solution revised by Pythos. Performing full re-verification of revision...');
+          finalContent = revisedResponse.trim();
+          ollamaResponse.message.content = finalContent;
+
+          if (isStreaming && !res.writableEnded) {
+            res.write(JSON.stringify({
+              type: 'revision',
+              revisedContent: finalContent
+            }) + '\n');
+          }
+
+          // RE-VERIFICATION OF REVISED CONTENT (Task 6)
+          const revAudit = await verifyResponseClaims(
+            finalContent,
+            lastUserMsg ? lastUserMsg.content : '',
+            abortController.signal
+          );
+          claims = revAudit.claims;
+          internalContradictions = revAudit.internalContradictions;
+          verificationResults = revAudit.verificationResults;
+          invalidClaims = revAudit.invalidClaims;
+
+          console.log(`[VERIFIER] Post-revision verification complete: ${claims.length} claims extracted, ${invalidClaims.length} invalid, ${internalContradictions.length} contradictions.`);
         }
-        if (verification && verification.verified === false && verification.status !== 'UNKNOWN') {
-          invalidClaims.push({ claim, verification, claimIndex: ci });
-        }
+      } catch (revErr) {
+        console.error('[VERIFIER] Revision call failed:', revErr.message);
       }
 
-      if (invalidClaims.length > 0 || internalContradictions.length > 0) {
-        console.warn(`[VERIFIER] Detected ${invalidClaims.length} invalid claims and ${internalContradictions.length} internal contradictions. Requesting revision...`);
+      // Deterministic Supremacy: Enforce mathematical truth across any remaining invalid calculations
+      for (const { claim, verification, claimIndex } of invalidClaims) {
+        if (claim.raw_match && verification.exact_value !== undefined && verification.exact_value !== null) {
+          const exactNum = typeof verification.exact_value === 'number'
+            ? verification.exact_value
+            : Number(verification.exact_value);
+          const exactFormatted = Number.isFinite(exactNum) ? exactNum.toFixed(4) : String(verification.exact_value);
 
-        try {
-          const feedbackLines = [];
-          invalidClaims.forEach(({ claim, verification }, i) => {
-            feedbackLines.push(`- Step ${i + 1} Error: ${verification.error_type || verification.status}: ${verification.details || verification.reason}`);
-          });
-          internalContradictions.forEach((ic, i) => {
-            feedbackLines.push(`- Internal Contradiction ${i + 1}: ${ic.details}`);
-          });
+          const originalMatch = claim.raw_match;
+          const replacement = originalMatch.replace(
+            /[0-9.]+\s*%?$/,
+            claim.data?.is_percent ? `${(exactNum * 100).toFixed(2)}%` : exactFormatted
+          );
 
-          const revisionPrompt = [
-            ...preparedMessages,
-            { role: 'assistant', content: finalContent },
-            {
-              role: 'user',
-              content: `[VERIFICATION FEEDBACK]: An independent verification check found mathematical contradictions in your steps:\n${feedbackLines.join('\n')}\n\nPlease revise your solution and provide the correct calculation and conclusions.`
-            }
-          ];
-
-          const revPayload = JSON.stringify({
-            model: targetModel,
-            messages: revisionPrompt,
-            stream: true,
-            options: options || { temperature: 0.1 }
-          });
-
-          const revisedResponse = await new Promise((resolveRev, rejectRev) => {
-            const revReq = httpLib.request({
-              hostname: parsedUrl.hostname,
-              port: parsedUrl.port || (isHttps ? 443 : 80),
-              path: parsedUrl.pathname,
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Content-Length': Buffer.byteLength(revPayload),
-                ...(OLLAMA_API_KEY ? { 'Authorization': `Bearer ${OLLAMA_API_KEY}` } : {})
-              },
-              timeout: REQUEST_TIMEOUT_MS
-            }, (revRes) => {
-              let revText = '';
-              let revBuffer = '';
-
-              revRes.on('data', (chunk) => {
-                revBuffer += chunk.toString();
-                const lines = revBuffer.split('\n');
-                revBuffer = lines.pop();
-
-                for (const l of lines) {
-                  const trimmed = l.trim();
-                  if (!trimmed) continue;
-                  try {
-                    const d = JSON.parse(trimmed);
-                    if (d.message && d.message.content) revText += d.message.content;
-                  } catch (e) {}
-                }
-              });
-              revRes.on('end', () => {
-                if (revBuffer && revBuffer.trim()) {
-                  try {
-                    const d = JSON.parse(revBuffer.trim());
-                    if (d.message && d.message.content) revText += d.message.content;
-                  } catch (e) {}
-                }
-                resolveRev(revText);
-              });
-            });
-
-            const onRevAbort = () => {
-              revReq.destroy();
-              const abortErr = new Error('Request aborted');
-              abortErr.name = 'AbortError';
-              rejectRev(abortErr);
-            };
-            abortController.signal.addEventListener('abort', onRevAbort, { once: true });
-
-            revReq.on('timeout', () => {
-              revReq.destroy();
-              rejectRev(new Error('ETIMEDOUT'));
-            });
-            revReq.on('error', (e) => rejectRev(e));
-            revReq.write(revPayload);
-            revReq.end();
-          });
-
-          if (revisedResponse && revisedResponse.trim()) {
-            console.log('[VERIFIER] Solution revised successfully by Pythos.');
-            finalContent = revisedResponse.trim();
+          const spanIndex = finalContent.indexOf(originalMatch);
+          if (spanIndex !== -1) {
+            console.warn('[VERIFIER] Enforcing deterministic arithmetic override for claim index', claimIndex, ':', originalMatch);
+            finalContent = finalContent.slice(0, spanIndex) + replacement + finalContent.slice(spanIndex + originalMatch.length);
             ollamaResponse.message.content = finalContent;
 
             if (isStreaming && !res.writableEnded) {
               res.write(JSON.stringify({
-                type: 'revision',
+                type: 'correction',
+                claimIndex,
+                originalMatch,
+                replacement,
+                startIndex: spanIndex,
+                endIndex: spanIndex + originalMatch.length,
+                expression: claim.data?.expression || null,
                 revisedContent: finalContent
               }) + '\n');
             }
           }
-        } catch (revErr) {
-          console.error('[VERIFIER] Revision call failed:', revErr.message);
         }
+      }
 
-        // Deterministic Supremacy: Enforce mathematical truth across all detected invalid calculations
-        // Anchor each correction to its specific claim index, raw match span, and expression
-        for (const { claim, verification, claimIndex } of invalidClaims) {
-          if (claim.raw_match && verification.exact_value !== undefined && verification.exact_value !== null) {
-            const exactNum = typeof verification.exact_value === 'number'
-              ? verification.exact_value
-              : Number(verification.exact_value);
-            const exactFormatted = Number.isFinite(exactNum) ? exactNum.toFixed(4) : String(verification.exact_value);
-
-            const originalMatch = claim.raw_match;
-            const replacement = originalMatch.replace(
-              /[0-9.]+\s*%?$/,
-              claim.data?.is_percent ? `${(exactNum * 100).toFixed(2)}%` : exactFormatted
-            );
-
-            const spanIndex = finalContent.indexOf(originalMatch);
-            if (spanIndex !== -1) {
-              console.warn('[VERIFIER] Enforcing deterministic arithmetic override for claim index', claimIndex, ':', originalMatch);
-              finalContent = finalContent.slice(0, spanIndex) + replacement + finalContent.slice(spanIndex + originalMatch.length);
-              ollamaResponse.message.content = finalContent;
-
-              if (isStreaming && !res.writableEnded) {
-                res.write(JSON.stringify({
-                  type: 'correction',
-                  claimIndex,
-                  originalMatch,
-                  replacement,
-                  startIndex: spanIndex,
-                  endIndex: spanIndex + originalMatch.length,
-                  expression: claim.data?.expression || null,
-                  revisedContent: finalContent
-                }) + '\n');
-              }
+      // Automatic System Error Flagging (Priority 1)
+      if (invalidClaims.length > 0 || internalContradictions.length > 0) {
+        try {
+          reportService.createReport({
+            question: lastUserMsg?.content || '',
+            response: finalContent,
+            claims,
+            verification: invalidClaims.map(ic => ic.verification),
+            model: targetModel,
+            description: 'System-detected mathematical contradiction / verification failure after revision',
+            source: 'system_auto_flag',
+            metadata: {
+              invalidClaimsCount: invalidClaims.length,
+              internalContradictionsCount: internalContradictions.length
             }
-          }
-        }
-
-        // Automatic System Error Flagging (Priority 1)
-        // If unresolvable contradictions remain or revision failed, auto-log an internal report
-        if (invalidClaims.length > 0 || internalContradictions.length > 0) {
-          try {
-            reportService.createReport({
-              question: lastUserMsg?.content || '',
-              response: finalContent,
-              claims,
-              verification: invalidClaims.map(ic => ic.verification),
-              model: targetModel,
-              description: 'System-detected mathematical contradiction / verification failure',
-              source: 'system_auto_flag',
-              metadata: {
-                invalidClaimsCount: invalidClaims.length,
-                internalContradictionsCount: internalContradictions.length
-              }
-            });
-            console.log('[REPORT SERVICE] Auto-flagged suspicious interaction for human review.');
-          } catch (flagErr) {
-            console.error('[REPORT SERVICE] Failed to auto-flag report:', flagErr.message);
-          }
+          });
+          console.log('[REPORT SERVICE] Auto-flagged suspicious interaction for human review.');
+        } catch (flagErr) {
+          console.error('[REPORT SERVICE] Failed to auto-flag report:', flagErr.message);
         }
       }
     }
@@ -1790,22 +1824,22 @@ app.post('/api/memory/clear', studentAuthMiddleware, async (req, res) => {
 // =====================================
 // Verified Mistake Learning Routes
 // =====================================
-app.get('/api/learning/history', (req, res) => {
+app.get('/api/learning/history', studentAuthMiddleware, async (req, res) => {
   try {
-    const history = learningStore.getLearningHistory();
+    const history = await learningStore.getLearningHistory(req.studentUid);
     return res.status(200).json(history);
   } catch (err) {
     return res.status(500).json({ error: 'learning_history_error', message: err.message });
   }
 });
 
-app.post('/api/learning/record', (req, res) => {
+app.post('/api/learning/record', studentAuthMiddleware, async (req, res) => {
   const candidate = req.body;
   if (!candidate || typeof candidate !== 'object') {
     return res.status(400).json({ error: 'invalid_candidate', message: 'Candidate payload is required.' });
   }
 
-  const result = learningStore.storeVerifiedCorrection(candidate);
+  const result = await learningStore.storeVerifiedCorrection(req.studentUid, candidate);
   if (!result.success) {
     return res.status(400).json(result);
   }

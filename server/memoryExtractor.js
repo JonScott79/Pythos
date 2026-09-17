@@ -18,18 +18,42 @@ const memoryService = require('./memoryService');
 
 // Fast deterministic regex extractors for high-confidence explicit facts
 const FACT_PATTERNS = [
-  // Names: "I'm Jake", "My name is Sarah", "Call me Alex"
+  // Names: "I'm Jake", "My name is Sarah", "Call me Alex", "Please call me Jonathan"
+  // Defends against attributed, quoted, hypothetical, or negated speech
   {
-    regex: /\b(?:i am|i'm|my name is|call me)\s+([A-Z][a-z]{1,15})\b/i,
     category: 'identity',
     facet: 'preferredName',
     kind: 'observed_fact',
     confidence: 0.95,
-    transform: (match) => {
+    customExtractor: (text) => {
+      // 1. Attributed speech guard: "My friend says my name is...", "Teacher told me to call myself...", "People call me..."
+      if (/\b(?:(?:my\s+)?(?:friend|teacher|mom|dad|brother|sister|tutor|classmate|boss|colleague)|people|they|someone)\s+(?:says?|said|told\s+me|claims?|thinks?|calls?)\b/i.test(text)) {
+        return null;
+      }
+      // 2. Quoted speech guard: '"my name is Bob"', "'call me Bob'"
+      if (/["'“‘].*?\b(?:i am|i'm|my name is|call me)\s+[A-Za-z]+.*?["'”’]/i.test(text)) {
+        return null;
+      }
+      // 3. Hypothetical guard: "If my name were Bob...", "Suppose my name is Bob..."
+      if (/\b(?:if|suppose|imagine|pretend|assuming)\s+(?:my\s+name|i\s+am|i\s+were|i\s+was)\b/i.test(text)) {
+        return null;
+      }
+      // 4. Negation guard: "My name is NOT Bob", "I am not Bob", "Don't call me Bob"
+      if (/\b(?:my\s+name\s+is\s+not|i\s+am\s+not|i'?m\s+not|don'?t\s+call\s+me|never\s+call\s+me)\b/i.test(text)) {
+        return null;
+      }
+
+      // 5. Direct explicit preferred-name instruction
+      const match = text.match(/\b(?:please\s+call\s+me|call\s+me|my\s+name\s+is|i\s+am|i'm)\s+([A-Z][a-z]{1,15})\b/i);
+      if (!match) return null;
+
       const name = match[1];
-      // Blacklist common words that match grammar but aren't names
-      const banned = ['solving', 'doing', 'taking', 'asking', 'working', 'struggling', 'confused', 'ready', 'back', 'just'];
+      const banned = [
+        'solving', 'doing', 'taking', 'asking', 'working', 'struggling',
+        'confused', 'ready', 'back', 'just', 'not', 'here', 'now', 'fine', 'good'
+      ];
       if (banned.includes(name.toLowerCase())) return null;
+
       return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
     }
   },
@@ -97,8 +121,30 @@ function extractCandidates(userText, assistantReply) {
   const candidates = [];
   const text = userText.trim();
 
+  // False mathematical memory defense (Task 7):
+  // Reject memory candidates that attempt to store mathematical claims or propositions
+  if (/\bremember\s+(?:that\s+)?.*?(?:[=+\-*/^]|equals?|pi\b|\d+)/i.test(text) ||
+      /\b(?:2\s*\+\s*2\s*=\s*5|pi\s*(?:equals?|=)\s*3|\d+\s*[+\-*/=]\s*\d+)\b/i.test(text)) {
+    return [];
+  }
+
   // 1. Evaluate explicit fact patterns
   for (const pattern of FACT_PATTERNS) {
+    if (pattern.customExtractor) {
+      const val = pattern.customExtractor(text);
+      if (val) {
+        candidates.push({
+          category: pattern.category,
+          facet: pattern.facet,
+          value: val,
+          kind: pattern.kind,
+          confidence: pattern.confidence,
+          quote: text.slice(0, 150)
+        });
+      }
+      continue;
+    }
+
     const match = text.match(pattern.regex);
     if (match) {
       const val = pattern.transform ? pattern.transform(match) : (pattern.value || match[1]);

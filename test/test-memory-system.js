@@ -16,10 +16,12 @@ const fs = require('fs');
 
 process.env.NODE_ENV = 'test';
 
-// Set mock service account environment so Admin SDK boots in test mode
-const credsPath = path.resolve(__dirname, '..', 'firebase-credentials', 'lanzar-95ae3-firebase-adminsdk-fbsvc-86e8ea5817.json');
-if (fs.existsSync(credsPath)) {
-  process.env.FIREBASE_SERVICE_ACCOUNT_JSON = fs.readFileSync(credsPath, 'utf8');
+// Set service account environment so Admin SDK boots with credentials
+const credsPath1 = path.resolve(__dirname, '..', 'firebase-credentials', 'lanzar-95ae3-firebase-adminsdk-fbsvc-86e8ea5817.json');
+const credsPath2 = path.resolve(__dirname, '..', '..', 'firebase-credentials', 'lanzar-95ae3-firebase-adminsdk-fbsvc-86e8ea5817.json');
+const credPath = fs.existsSync(credsPath1) ? credsPath1 : (fs.existsSync(credsPath2) ? credsPath2 : null);
+if (credPath && !process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+  process.env.FIREBASE_SERVICE_ACCOUNT_JSON = fs.readFileSync(credPath, 'utf8');
 }
 
 const memoryService = require('../server/memoryService');

@@ -1,0 +1,23 @@
+{
+  "format_sniffing": "PASSED (All valid & unsupported formats correctly classified)",
+  "server_validation": "PASSED (Magic byte integrity enforced)",
+  "api_corrupt_rejection": "PASSED (Status 400 invalid_image)",
+  "4a_heic_math": {
+    "passed": false,
+    "status": 502,
+    "hasEquation": false,
+    "hasRoots": false
+  },
+  "4b_heic_handwriting": {
+    "passed": false,
+    "status": 502,
+    "has6": false,
+    "hasLimit": false
+  },
+  "4c_heic_physics": {
+    "passed": false,
+    "status": 502,
+    "has84": false,
+    "hasTheorem": false
+  }
+}

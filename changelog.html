@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="assets/favicon.png">
-  <title>Pythos Release History & Changelog | v1.7.3</title>
+  <title>Pythos Release History & Changelog | v1.8.0</title>
   <meta name="description" content="Pythos release notes & changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://pythos.lanzar.me/changelog.html">
 
   <!-- OPEN GRAPH -->
-  <meta property="og:title" content="Pythos Release History & Changelog | v1.7.3">
+  <meta property="og:title" content="Pythos Release History & Changelog | v1.8.0">
   <meta property="og:description" content="Pythos release notes & changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta property="og:url" content="https://pythos.lanzar.me/changelog.html">
   <meta property="og:type" content="article">
@@ -23,7 +23,7 @@
 
   <!-- TWITTER CARD -->
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Pythos Release History & Changelog | v1.7.3">
+  <meta name="twitter:title" content="Pythos Release History & Changelog | v1.8.0">
   <meta name="twitter:description" content="Pythos release notes & changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="twitter:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
 
@@ -32,7 +32,7 @@
   {
     "@context": "https://schema.org",
     "@type": "TechArticle",
-    "headline": "Pythos 1.7.3 Release Notes and Changelog",
+    "headline": "Pythos 1.8.0 Release Notes and Changelog",
     "description": "Authoritative release history for Pythos: specialized problem routing, two-stage reasoning, and CAS ground-truth verification.",
     "datePublished": "2026-08-26",
     "dateModified": "2026-09-16",
@@ -427,12 +427,43 @@
       <p>Authoritative release notes, verification engine milestones, and mathematical system updates.</p>
     </header>
 
+    <!-- RELEASE v1.8.0 -->
+    <article class="release-card" id="pythos-1-8-0">
+      <div class="release-header">
+        <div class="release-title-wrap">
+          <h2 class="release-version">Pythos 1.8.0</h2>
+          <span class="release-badge">Latest Release</span>
+        </div>
+        <time class="release-date" datetime="2026-09-16">September 16, 2026</time>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header added">✦ WHAT'S NEW</div>
+        <ul class="feature-list">
+          <li><strong>Per-User Learning Store Isolation (P0)</strong>: Verified learning corrections are now strictly partitioned by authenticated student UID under <code>users/{uid}/pythos_learning/{recordId}</code>, eliminating cross-user learning data leakage across sessions and container restarts.</li>
+          <li><strong>Deterministic Student Intent Classification (P1)</strong>: New multi-signal deterministic classifier identifying 11 distinct student conversational intents (proposed answers, proposed steps, validation requests, corrections, reframe requests, confusion, etc.) prior to LLM reasoning.</li>
+          <li><strong>Student-Proposed Math Evaluation &amp; Check-My-Work (P1)</strong>: Deterministically evaluates student-proposed mathematical steps and exact rational $\pi$ arithmetic (e.g. <code>-29/3 pi + 2pi * 5</code> evaluates to $\pi/3$) before model generation. Ambiguous notations (such as <code>1/2x</code> or <code>sin 30</code>) are safely tagged as ambiguous without guessing.</li>
+          <li><strong>Mandatory Revision Re-Verification (P1)</strong>: When initial LLM generations contain invalid claims, the resulting revision is now fully re-verified deterministically before sending to ensure secondary errors are caught.</li>
+          <li><strong>Generalized Algebraic Claim Extraction (P2)</strong>: Generalized linear and quadratic equation extraction with direct root substitution verification in Math.js.</li>
+        </ul>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header verify">⚖️ SECURITY &amp; INTEGRITY GUARDRAILS</div>
+        <ul class="feature-list">
+          <li><strong>Explicit Firestore Security Rules (P0)</strong>: Added explicit Firestore security rules for <code>pythos_memory</code> and <code>pythos_learning</code>, permitting authenticated users to read only their own data while strictly denying all client-side writes.</li>
+          <li><strong>Memory Poisoning Defense (P1)</strong>: Memory extraction rejects attributed speech (&ldquo;my friend says my name is...&rdquo;), quoted speech, hypotheticals, negated names, and false mathematical propositions (&ldquo;remember that 2 + 2 = 5&rdquo;) from entering persistent memory.</li>
+          <li><strong>Identity Authority Hierarchy</strong>: Maintains strict authority separation: Authenticated Account Identity &gt; Verified Math Facts &gt; Student Explicit Statements &gt; Conversation Context &gt; LLM Inference.</li>
+          <li><strong>Comprehensive Regression Verification</strong>: 18 test suites and 197/197 tests passing (100% green).</li>
+        </ul>
+      </div>
+    </article>
+
     <!-- RELEASE v1.7.3 -->
     <article class="release-card" id="pythos-1-7-3">
       <div class="release-header">
         <div class="release-title-wrap">
           <h2 class="release-version">Pythos 1.7.3</h2>
-          <span class="release-badge">Latest Release</span>
         </div>
         <time class="release-date" datetime="2026-09-16">September 16, 2026</time>
       </div>

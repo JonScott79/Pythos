@@ -1,0 +1,37 @@
+{
+  "1_text_request": {
+    "passed": true,
+    "status": 200,
+    "snippet": "✅ Here is the exact calculation:\n\n$$\n15 * 14 = 210\n$$\n\nIs there another step or concept you'd like t"
+  },
+  "2_image_request": {
+    "passed": false,
+    "status": 502,
+    "snippet": ""
+  },
+  "3_image_math_reasoning": {
+    "passed": false,
+    "status": 502,
+    "has84": false,
+    "hasTheorem": false,
+    "snippet": ""
+  },
+  "4_student_error_detection": {
+    "passed": false,
+    "status": 502,
+    "mentionsError": false,
+    "snippet": ""
+  },
+  "5_ambiguous_handwriting": {
+    "passed": false,
+    "status": 502,
+    "notesAmbiguity": false,
+    "snippet": ""
+  },
+  "6_conversational_followup": {
+    "passed": true,
+    "status": 200,
+    "has70": true,
+    "snippet": "The central angle is twice the inscribed angle.  \nSo for an inscribed angle of \\(35^\\circ\\),\n\n\\[\n\\theta = 2 \\times 35^\\circ = 70^\\circ.\n\\]"
+  }
+}
