@@ -144,9 +144,9 @@ function classifyStudentIntent(userText, conversationHistory = []) {
   // 3. CONFUSION Intent
   // e.g. "I don't get it", "I'm lost", "I don't understand", "Wait what?", "wait", "hold on"
   // -------------------------------------------------------------
-  const isConfusion = /^(?:i\s+(?:don't|do\s+not)\s+(?:get\s+it|understand|follow)|i'?m\s+(?:lost|confused)|wait\s+what\??|huh\??|what\s+do\s+you\s+mean\??|this\s+makes\s+no\s+sense)$/i.test(lower) ||
+  const isConfusion = /^(?:i\s+(?:don't|do\s+not)\s+(?:get\s+(?:it|this)|understand(?:\s+this)?|follow)|i'?m\s+(?:lost|confused)|wait\s+what\??|huh\??|what\s+do\s+you\s+mean\??|this\s+makes\s+no\s+sense)$/i.test(lower) ||
                       /^(?:wait|hold\s+on|wait\s+a\s+sec(?:ond)?|wait\s+wait|wait\.{1,3})$/i.test(lower) ||
-                      /\b(?:i\s+don't\s+get\s+it|i'm\s+completely\s+lost|you\s+lost\s+me)\b/i.test(lower) ||
+                      /\b(?:i\s+(?:don't|do\s+not)\s+get\s+(?:it|this|any\s+of\s+this)|i'?m\s+completely\s+lost|you\s+lost\s+me|wtf|what\s+(?:the\s+)?(?:heck|hell|fuck|fck))\b/i.test(lower) ||
                       /\b(?:waffling|torn|stuck|debating|unsure|not\s+sure)\s+(?:between|about)\b/i.test(lower);
   if (isConfusion) {
     signals.push('confusion_marker');
@@ -157,7 +157,7 @@ function classifyStudentIntent(userText, conversationHistory = []) {
   // 4. CONTINUATION Intent
   // e.g. "Okay, continue", "Go on", "Keep going", "Next step", "And then?", "what do I do now", "ohhh"
   // -------------------------------------------------------------
-  const isContinuation = /^(?:ok(?:ay)?|alright|cool|got\s+it|sure|yes|yeah)?[,.\s]*(?:continue|go\s+on|keep\s+going|next(?:\s+step)?|proceed|and\s+then\??|what(?:'s|\s+is)\s+next\??|what\s+now\??|what\s+do\s+i\s+do(?:\s+now)?\??|what\s+should\s+i\s+do(?:\s+now)?\??|how\s+do\s+i\s+start\??|where\s+do\s+i\s+go(?:\s+from\s+here)?\??)$/i.test(lower) ||
+  const isContinuation = /^(?:ok(?:ay)?|alright|cool|got\s+it|sure|yes|yeah)?[,.\s]*(?:continue|go\s+on|keep\s+going|next(?:\s+step)?|proceed|and\s+then\??|what(?:'s|\s+is)\s+next\??|what\s+now\??|what\s+(?:the\s+(?:heck|hell)\s+)?do\s+i\s+do(?:\s+now)?\??|what\s+should\s+i\s+do(?:\s+now)?\??|how\s+do\s+i\s+start\??|where\s+do\s+i\s+go(?:\s+from\s+here)?\??)$/i.test(lower) ||
                          (hasActiveProblem && /^(?:yes|yeah|yep|sure|ok(?:ay)?|oh+h*|oh\s+i\s+see|ah\s+ok(?:ay)?|that'?s\s+what\s+i\s+got|i\s+got\s+that\s+too|so\s+then\.{0,3})$/i.test(lower));
   if (isContinuation) {
     signals.push('continuation_command');
