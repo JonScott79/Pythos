@@ -27,6 +27,7 @@ const input = document.getElementById("userInput");
 const button = document.getElementById("submitBtn");
 
 let messages = [];
+let pendingImages = []; // Array of { base64: string, name: string }
 let currentUser = null;
 let currentChatId = null;
 let reportingEnabled = false;
@@ -1517,6 +1518,14 @@ function clearChatUI() {
   // Clear the preview
   const preview = document.getElementById("mathPreview");
   if (preview) preview.style.display = "none";
+  // Reset transient image attachments
+  pendingImages = [];
+  if (typeof imageFileInput !== "undefined" && imageFileInput) {
+    imageFileInput.value = "";
+  }
+  if (typeof updatePendingImagesUI === "function") {
+    updatePendingImagesUI();
+  }
 }
 
 // =========================
@@ -1785,7 +1794,23 @@ async function loadChat(chatId) {
     const docRef = doc(db, `users/${currentUser.uid}/pythos_chats`, chatId);
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
-      messages = docSnap.data().messages || [];
+      const rawMessages = docSnap.data().messages || [];
+      // Sanitize restored history: Ensure persistence placeholders like "[IMAGE_ATTACHED]"
+      // are recognized as historical indicators without leaking into runtime base64 validation
+      messages = rawMessages.map(msg => {
+        if (!msg) return msg;
+        const restored = { ...msg };
+        if (Array.isArray(restored.images)) {
+          const validImages = restored.images.filter(img => typeof img === "string" && img !== "[IMAGE_ATTACHED]" && sanitizeImageSrc(img) !== "");
+          if (validImages.length > 0) {
+            restored.images = validImages;
+          } else {
+            delete restored.images;
+            restored.hasHistoricalImage = true;
+          }
+        }
+        return restored;
+      });
       messages.forEach(msg => {
         if (msg.role === "assistant" && msg.isDeepThought) {
           showDeepThoughtResponse();
@@ -1950,7 +1975,7 @@ window.DeterministicMath = {
 // =========================
 // VISION & IMAGE UPLOAD HANDLING
 // =========================
-let pendingImages = []; // Array of { base64: string, name: string }
+// pendingImages declared in top-level state: Array of { base64: string, name: string }
 
 const pendingImagesStrip = document.getElementById("pendingImagesStrip");
 const imageFileInput = document.getElementById("imageFileInput");
@@ -2454,19 +2479,37 @@ if (imageFileInput) {
 
 // Clipboard Paste (Ctrl+V / Cmd+V) Listener for screenshots & phone photos
 document.addEventListener("paste", async (e) => {
-  const items = (e.clipboardData || window.clipboardData)?.items;
+  const clipboardData = e.clipboardData || window.clipboardData;
+  if (!clipboardData) return;
+
+  const textData = clipboardData.getData("text/plain") || "";
+  const hasMeaningfulText = textData.trim().length > 0;
+  const isInputFocused = document.activeElement === input;
+
+  // If focused on the Pythos text input and clipboard contains meaningful text,
+  // preserve natural text paste behavior and do not convert incidental rich-DOM image artifacts.
+  if (isInputFocused && hasMeaningfulText) {
+    return;
+  }
+
+  const items = clipboardData.items;
   if (!items) return;
 
   const imageFiles = [];
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
-    if (item.type.indexOf("image") !== -1 || item.kind === "file") {
+    if (item.type && item.type.startsWith("image/")) {
+      const blob = item.getAsFile();
+      if (blob) imageFiles.push(blob);
+    } else if (item.kind === "file" && item.type.indexOf("image") !== -1) {
       const blob = item.getAsFile();
       if (blob) imageFiles.push(blob);
     }
   }
 
-  if (imageFiles.length > 0) {
+  // Only intercept paste as an image attachment if image files exist and there is NO meaningful text
+  // (e.g. standalone screenshot or photo paste), or if the user is not actively pasting text into the input.
+  if (imageFiles.length > 0 && !hasMeaningfulText) {
     e.preventDefault();
     if (isVisionCooldownActive()) {
       const remainingSecs = Math.ceil((visionCooldownEndTime - Date.now()) / 1000);
@@ -2574,6 +2617,14 @@ async function askPythos(userText) {
     userMsgObj.images = imagesToSend;
   }
   messages.push(userMsgObj);
+
+  // Rollback helper: removes specifically this unconfirmed user message if the request fails
+  const removeFailedUserMessage = () => {
+    const idx = messages.lastIndexOf(userMsgObj);
+    if (idx !== -1) {
+      messages.splice(idx, 1);
+    }
+  };
   appendMessage("user", cleanText, dataUrlsToDisplay.length > 0 ? dataUrlsToDisplay : null);
   input.value = "";
   if (charCounter) charCounter.style.display = "none";
@@ -2776,6 +2827,7 @@ async function askPythos(userText) {
       await saveChatState(userText, finalReply);
     } else if (!res.ok) {
       removeThinking(thinking);
+      removeFailedUserMessage();
       let errorMsg = `Server error (${res.status})`;
       try {
         const errData = await res.json();
@@ -2818,6 +2870,7 @@ async function askPythos(userText) {
         // Save to Firebase
         await saveChatState(userText, botReply);
       } else {
+        removeFailedUserMessage();
         // If legacy response returns error structure with UPSTREAM_RATE_LIMITED and retryAfter
         if (data && data.error === "UPSTREAM_RATE_LIMITED" && typeof data.retryAfter === "number" && Number.isFinite(data.retryAfter) && data.retryAfter > 0) {
           startVisionCooldown(data.retryAfter);
@@ -2830,6 +2883,7 @@ async function askPythos(userText) {
   } catch (err) {
     console.error(err);
     removeThinking(thinking);
+    removeFailedUserMessage();
     appendMessage("assistant", "The connection to Athens has been lost. Is the inference server running?");
   }
 

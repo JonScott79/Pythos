@@ -961,17 +961,24 @@ app.post('/api/chat', async (req, res) => {
     });
   }
 
-  // Validate attached image payloads (checking magic bytes and rejecting corrupt/invalid binary payloads)
-  for (const m of messages) {
-    if (m && Array.isArray(m.images)) {
-      for (const img of m.images) {
-        const val = visionExtractor.validateBase64Image(img);
-        if (!val.valid) {
-          return res.status(400).json({
-            error: 'invalid_image',
-            message: `The uploaded image appears corrupted or in an unsupported format: ${val.error || 'unrecognized image'}`
-          });
-        }
+  // Validate attached image payloads on the active inbound user turn.
+  // Note: Historical messages may contain persistence placeholders (e.g. "[IMAGE_ATTACHED]")
+  // and are not active vision inputs; only the current inbound turn's images undergo binary validation.
+  const currentInboundUserMsg = [...messages].reverse().find(m => m && m.role === 'user');
+  if (currentInboundUserMsg && Array.isArray(currentInboundUserMsg.images)) {
+    for (const img of currentInboundUserMsg.images) {
+      if (img === '[IMAGE_ATTACHED]') {
+        return res.status(400).json({
+          error: 'invalid_image',
+          message: 'The uploaded image appears corrupted or in an unsupported format: Missing image data payload'
+        });
+      }
+      const val = visionExtractor.validateBase64Image(img);
+      if (!val.valid) {
+        return res.status(400).json({
+          error: 'invalid_image',
+          message: `The uploaded image appears corrupted or in an unsupported format: ${val.error || 'unrecognized image'}`
+        });
       }
     }
   }

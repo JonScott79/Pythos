@@ -99,7 +99,8 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
     if (isAssistant) {
       const prevMsg = i > 0 ? messages[i - 1] : null;
       const prevHadImage = prevMsg && ((Array.isArray(prevMsg.images) && prevMsg.images.length > 0) ||
-                                       (typeof prevMsg.content === 'string' && prevMsg.content.includes('[IMAGE_ATTACHED]')));
+                                       (typeof prevMsg.content === 'string' && prevMsg.content.includes('[IMAGE_ATTACHED]')) ||
+                                       prevMsg.hasHistoricalImage === true);
       const prevIsTerseOrGeneric = prevMsg && !prevHadImage &&
         /^(?:(?:can\s+you\s+)?(?:please\s+)?(?:help(?:\s+me)?|solve|check|work\s+out|look\s+at)\s+(?:this|my\s+work)|here\s+(?:is|'s)\s+(?:my\s+)?(?:problem|work|homework)|solve\s+this|what\s+is\s+this|check\s+this)[.?!]?$/i.test(prevMsg.content.trim());
 
