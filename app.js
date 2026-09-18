@@ -907,6 +907,34 @@ function renderInlineChart(canvas, config) {
   }
 }
 
+// ==========================================
+// HTML & DOM SANITIZATION UTILITIES
+// ==========================================
+function escapeHtml(str) {
+  if (str === null || str === undefined) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function sanitizeImageSrc(imgData) {
+  if (typeof imgData !== 'string') return '';
+  const trimmed = imgData.trim();
+  if (trimmed.startsWith('data:')) {
+    if (/^data:image\/(?:jpeg|png|webp|gif|bmp|heic|heif);base64,[A-Za-z0-9+/=]+$/i.test(trimmed)) {
+      return trimmed;
+    }
+    return '';
+  }
+  if (/^[A-Za-z0-9+/=]+$/.test(trimmed)) {
+    return `data:image/jpeg;base64,${trimmed}`;
+  }
+  return '';
+}
+
 function appendMessage(role, text, images = null, metadata = {}) {
   const div = document.createElement("div");
   div.className = `message ${role}`;
@@ -918,8 +946,10 @@ function appendMessage(role, text, images = null, metadata = {}) {
     imgContainer.className = "msg-image-attachment-wrap";
     imgContainer.style.cssText = "margin-bottom:8px; display:flex; flex-wrap:wrap; gap:8px;";
     images.forEach(imgData => {
+      const safeSrc = sanitizeImageSrc(imgData);
+      if (!safeSrc) return;
       const imgEl = document.createElement("img");
-      imgEl.src = typeof imgData === "string" && imgData.startsWith("data:") ? imgData : `data:image/jpeg;base64,${imgData}`;
+      imgEl.src = safeSrc;
       imgEl.style.cssText = "max-width:240px; max-height:180px; border-radius:6px; border:1px solid var(--border-color); object-fit:contain; background:#000;";
       imgContainer.appendChild(imgEl);
     });
@@ -1191,7 +1221,7 @@ function appendMessage(role, text, images = null, metadata = {}) {
 
         const caption = document.createElement("div");
         caption.className = "msg-graph-caption";
-        caption.innerHTML = `<strong>📈 Rendered Graph:</strong> <code>f(x) = ${exprToGraph}</code>`;
+        caption.innerHTML = `<strong>📈 Rendered Graph:</strong> <code>f(x) = ${escapeHtml(exprToGraph)}</code>`;
 
         const openBtn = document.createElement("button");
         openBtn.className = "msg-graph-open-btn";
@@ -1270,7 +1300,7 @@ function appendMessage(role, text, images = null, metadata = {}) {
         infoRow.className = "msg-viz-footer";
         const caption = document.createElement("div");
         caption.className = "msg-viz-caption";
-        caption.innerHTML = `<strong>📏 Number Line:</strong> ${config.interval ? `<code>${config.interval}</code>` : `<code>[${config.min || -5}, ${config.max || 5}]</code>`}`;
+        caption.innerHTML = `<strong>📏 Number Line:</strong> ${config.interval ? `<code>${escapeHtml(String(config.interval))}</code>` : `<code>[${escapeHtml(String(config.min !== undefined ? config.min : -5))}, ${escapeHtml(String(config.max !== undefined ? config.max : 5))}]</code>`}`;
         const badge = document.createElement("span");
         badge.className = "msg-viz-badge";
         badge.textContent = "Verified Visual";
@@ -1300,7 +1330,7 @@ function appendMessage(role, text, images = null, metadata = {}) {
         infoRow.className = "msg-viz-footer";
         const caption = document.createElement("div");
         caption.className = "msg-viz-caption";
-        caption.innerHTML = `<strong>📐 Geometry:</strong> <code>${config.type || "Triangle"} (a=${config.a || 3}, b=${config.b || 4}, c=${config.c || 5})</code>`;
+        caption.innerHTML = `<strong>📐 Geometry:</strong> <code>${escapeHtml(String(config.type || "Triangle"))} (a=${escapeHtml(String(config.a !== undefined ? config.a : 3))}, b=${escapeHtml(String(config.b !== undefined ? config.b : 4))}, c=${escapeHtml(String(config.c !== undefined ? config.c : 5))})</code>`;
         const badge = document.createElement("span");
         badge.className = "msg-viz-badge";
         badge.textContent = "Geometric Model";
@@ -1330,7 +1360,7 @@ function appendMessage(role, text, images = null, metadata = {}) {
         infoRow.className = "msg-viz-footer";
         const caption = document.createElement("div");
         caption.className = "msg-viz-caption";
-        caption.innerHTML = `<strong>📊 Distribution:</strong> <code>${config.title || "Data Chart"}</code>`;
+        caption.innerHTML = `<strong>📊 Distribution:</strong> <code>${escapeHtml(String(config.title || "Data Chart"))}</code>`;
         const badge = document.createElement("span");
         badge.className = "msg-viz-badge";
         badge.textContent = "Probability / Stats";
@@ -1355,7 +1385,7 @@ function appendMessage(role, text, images = null, metadata = {}) {
         vizContainer.innerHTML = `
           <div class="viz-render-fail" role="alert">
             <div style="font-weight: 600; margin-bottom: 4px;">⚠️ Interactive Visualization Unavailable</div>
-            <div style="font-size: 0.85em; opacity: 0.95;">The requested visual instrument could not be rendered (${reason}). The verified mathematical solution below remains valid and accurate.</div>
+            <div style="font-size: 0.85em; opacity: 0.95;">The requested visual instrument could not be rendered (${escapeHtml(String(reason))}). The verified mathematical solution below remains valid and accurate.</div>
           </div>
         `;
       };
@@ -2697,7 +2727,7 @@ async function askPythos(userText) {
             streamedText = ev.message || "An error occurred during inference.";
             contentDiv.textContent = streamedText;
             statusBadge.style.color = "#dc2626";
-            statusBadge.innerHTML = `<span>⚠️ ${ev.error || "Inference Error"}</span>`;
+            statusBadge.innerHTML = `<span>⚠️ ${escapeHtml(ev.error || "Inference Error")}</span>`;
 
             // If upstream rate limited with valid retryAfter, start or update Image button countdown timer
             if (ev.error === "UPSTREAM_RATE_LIMITED" && typeof ev.retryAfter === "number" && Number.isFinite(ev.retryAfter) && ev.retryAfter > 0) {
@@ -3227,12 +3257,12 @@ unitsConvertBtn.addEventListener("click", () => {
       const converted = u.to(targetUnit);
       unitsResultArea.style.display = "block";
       unitsResultArea.className = "check-result-area check-result-pass";
-      unitsResultArea.innerHTML = `<strong>Result:</strong> ${converted.toString()}`;
+      unitsResultArea.innerHTML = `<strong>Result:</strong> ${escapeHtml(converted.toString())}`;
     }
   } catch (err) {
     unitsResultArea.style.display = "block";
     unitsResultArea.className = "check-result-area check-result-fail";
-    unitsResultArea.innerHTML = `<strong>Error:</strong> Cannot convert <em>${valStr}</em> to <em>${targetUnit}</em>.`;
+    unitsResultArea.innerHTML = `<strong>Error:</strong> Cannot convert <em>${escapeHtml(valStr)}</em> to <em>${escapeHtml(targetUnit)}</em>.`;
   }
 });
 
@@ -3263,7 +3293,7 @@ function parseMatrix(inputStr) {
 function displayMatrixResult(res, opName) {
   matrixResultArea.style.display = "block";
   matrixResultArea.className = "check-result-area check-result-pass";
-  matrixResultArea.innerHTML = `<strong>${opName}:</strong><br><code>${JSON.stringify(res)}</code>`;
+  matrixResultArea.innerHTML = `<strong>${escapeHtml(opName)}:</strong><br><code>${escapeHtml(JSON.stringify(res))}</code>`;
 }
 
 document.getElementById("matDetBtn").addEventListener("click", () => {
@@ -3274,7 +3304,7 @@ document.getElementById("matDetBtn").addEventListener("click", () => {
   } catch (err) {
     matrixResultArea.style.display = "block";
     matrixResultArea.className = "check-result-area check-result-fail";
-    matrixResultArea.innerHTML = `Error: ${err.message}`;
+    matrixResultArea.innerHTML = `Error: ${escapeHtml(err.message)}`;
   }
 });
 
@@ -3286,7 +3316,7 @@ document.getElementById("matInvBtn").addEventListener("click", () => {
   } catch (err) {
     matrixResultArea.style.display = "block";
     matrixResultArea.className = "check-result-area check-result-fail";
-    matrixResultArea.innerHTML = `Error: ${err.message}`;
+    matrixResultArea.innerHTML = `Error: ${escapeHtml(err.message)}`;
   }
 });
 
@@ -3299,7 +3329,7 @@ document.getElementById("matMulBtn").addEventListener("click", () => {
   } catch (err) {
     matrixResultArea.style.display = "block";
     matrixResultArea.className = "check-result-area check-result-fail";
-    matrixResultArea.innerHTML = `Error: ${err.message}`;
+    matrixResultArea.innerHTML = `Error: ${escapeHtml(err.message)}`;
   }
 });
 
@@ -3312,7 +3342,7 @@ document.getElementById("matAddBtn").addEventListener("click", () => {
   } catch (err) {
     matrixResultArea.style.display = "block";
     matrixResultArea.className = "check-result-area check-result-fail";
-    matrixResultArea.innerHTML = `Error: ${err.message}`;
+    matrixResultArea.innerHTML = `Error: ${escapeHtml(err.message)}`;
   }
 });
 
@@ -3629,12 +3659,12 @@ checkRunBtn.addEventListener("click", () => {
   checkResultArea.style.display = "block";
   if (res && res.isCorrect) {
     checkResultArea.className = "check-result-area check-result-pass";
-    checkResultArea.innerHTML = `<strong>✓ Correct!</strong> Substituting ${variable} = ${parsedVal} gives: <br>Left Side = ${res.leftVal} | Right Side = ${res.rightVal} (Matches!)`;
+    checkResultArea.innerHTML = `<strong>✓ Correct!</strong> Substituting ${escapeHtml(variable)} = ${escapeHtml(String(parsedVal))} gives: <br>Left Side = ${escapeHtml(String(res.leftVal))} | Right Side = ${escapeHtml(String(res.rightVal))} (Matches!)`;
     checkAskPythosBtn.style.display = "none";
     lastFailedVerification = null;
   } else if (res) {
     checkResultArea.className = "check-result-area check-result-fail";
-    checkResultArea.innerHTML = `<strong>✗ Incorrect.</strong> Substituting ${variable} = ${parsedVal} gives: <br>Left Side: <code>${res.leftVal}</code> ≠ Right Side: <code>${res.rightVal}</code>`;
+    checkResultArea.innerHTML = `<strong>✗ Incorrect.</strong> Substituting ${escapeHtml(variable)} = ${escapeHtml(String(parsedVal))} gives: <br>Left Side: <code>${escapeHtml(String(res.leftVal))}</code> ≠ Right Side: <code>${escapeHtml(String(res.rightVal))}</code>`;
     checkAskPythosBtn.style.display = "block";
     lastFailedVerification = {
       equation: rawEq,

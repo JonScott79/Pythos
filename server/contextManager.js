@@ -90,7 +90,66 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
 
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i];
-    if (msg.role !== 'user') continue;
+    if (!msg || !msg.content) continue;
+
+    // We process user messages as primary problem statements, but when a user message
+    // did not establish a problem (e.g. image-based upload or terse prompt), we inspect
+    // the assistant message containing the transcribed/extracted problem!
+    const isAssistant = msg.role === 'assistant';
+    if (isAssistant) {
+      const prevMsg = i > 0 ? messages[i - 1] : null;
+      const prevHadImage = prevMsg && ((Array.isArray(prevMsg.images) && prevMsg.images.length > 0) ||
+                                       (typeof prevMsg.content === 'string' && prevMsg.content.includes('[IMAGE_ATTACHED]')));
+      const prevIsTerseOrGeneric = prevMsg && !prevHadImage &&
+        /^(?:(?:can\s+you\s+)?(?:please\s+)?(?:help(?:\s+me)?|solve|check|work\s+out|look\s+at)\s+(?:this|my\s+work)|here\s+(?:is|'s)\s+(?:my\s+)?(?:problem|work|homework)|solve\s+this|what\s+is\s+this|check\s+this)[.?!]?$/i.test(prevMsg.content.trim());
+
+      if (!currentActive || prevHadImage || prevIsTerseOrGeneric) {
+        const assistantCls = classifyProblem(msg.content);
+        if (assistantCls && assistantCls.problemDomain !== 'UNKNOWN' && assistantCls.problemDomain !== 'OFF_TOPIC') {
+          let extractedMath = null;
+          const displayMatch = msg.content.match(/\$\$\s*([^\$]+?)\s*\$\$/);
+          if (displayMatch) {
+            extractedMath = displayMatch[1].trim();
+          } else {
+            const inlineEqMatch = msg.content.match(/\$([a-zA-Z0-9+\-*/^().\s\\]+=[a-zA-Z0-9+\-*/^().\s\\]+)\$/);
+            if (inlineEqMatch) {
+              extractedMath = inlineEqMatch[1].trim();
+            }
+          }
+
+          if (!currentActive) {
+            currentActive = {
+              domain: assistantCls.problemDomain,
+              subtype: assistantCls.problemSubtype,
+              activeExpression: extractedMath || null,
+              knownVariables: assistantCls.knownQuantities || {},
+              unknownQuantities: assistantCls.unknownQuantities || [],
+              assumptions: assistantCls.assumptions || [],
+              requiredMethod: assistantCls.requiredMethod || null,
+              initialUserPrompt: prevMsg ? prevMsg.content : msg.content,
+              transcription: msg.content.slice(0, 300),
+              imageDerived: Boolean(prevHadImage),
+              status: 'ACTIVE',
+              currentStepEquation: null,
+              verifiedSolution: null,
+              isCompleted: false,
+              nextOperation: null
+            };
+          } else if (prevHadImage || prevIsTerseOrGeneric) {
+            currentActive.domain = assistantCls.problemDomain;
+            currentActive.subtype = assistantCls.problemSubtype;
+            if (extractedMath && !currentActive.activeExpression) currentActive.activeExpression = extractedMath;
+            if (assistantCls.knownQuantities && Object.keys(assistantCls.knownQuantities).length > 0) {
+              currentActive.knownVariables = { ...currentActive.knownVariables, ...assistantCls.knownQuantities };
+            }
+            if (!currentActive.transcription) {
+              currentActive.transcription = msg.content.slice(0, 300);
+            }
+          }
+        }
+      }
+      continue;
+    }
 
     const classification = classifyProblem(msg.content);
     const mathExpr = resolveReferentialContext(msg.content, messages.slice(0, i + 1));
@@ -105,10 +164,11 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
         foundIdx = sessionProblems.length - 1;
       } else {
         foundIdx = sessionProblems.findIndex(p =>
-          (p.domain && p.domain.toLowerCase().includes(target)) ||
+          (p.domain && (p.domain.toLowerCase().includes(target) || (target.includes('triangle') && (p.domain === 'TRIGONOMETRY' || p.domain === 'GEOMETRY')))) ||
           (p.subtype && p.subtype.toLowerCase().includes(target)) ||
           (p.activeExpression && p.activeExpression.toLowerCase().includes(target)) ||
-          (p.initialUserPrompt && p.initialUserPrompt.toLowerCase().includes(target))
+          (p.initialUserPrompt && p.initialUserPrompt.toLowerCase().includes(target)) ||
+          (p.transcription && p.transcription.toLowerCase().includes(target))
         );
       }
       if (foundIdx === -1 && sessionProblems.length > 0) {
@@ -210,7 +270,11 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
       !isIntermediateStepOfActive &&
       !isQuestionOrValidation;
 
-    if (trans.type === 'NEW_TOPIC_EXPLICIT' || isExplicitNewProblem || isDistinctNewEquation ||
+    const isTopicSwitch = (classification && (classification.problemDomain === 'PHYSICS' || classification.problemDomain === 'CONCEPTUAL') &&
+      currentActive && (currentActive.domain === 'TRIGONOMETRY' || currentActive.domain === 'GEOMETRY' || currentActive.domain === 'ALGEBRA') &&
+      !isTerseFollowUp && !activeMath);
+
+    if (trans.type === 'NEW_TOPIC_EXPLICIT' || isExplicitNewProblem || isDistinctNewEquation || isTopicSwitch ||
         (isRecognizedProblem && currentActive && currentActive.domain !== detectedDomain && !isTerseFollowUp && !activeMath)) {
       if (currentActive) {
         currentActive.status = 'ARCHIVED_IN_SESSION';
@@ -219,7 +283,7 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
       }
     }
 
-    if (!currentActive && (isRecognizedProblem || activeMath)) {
+    if (!currentActive && (isRecognizedProblem || activeMath || isTopicSwitch)) {
       currentActive = {
         domain: detectedDomain,
         subtype: detectedSubtype,
@@ -229,6 +293,7 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
         assumptions: classification ? classification.assumptions : [],
         requiredMethod: classification ? classification.requiredMethod : null,
         initialUserPrompt: msg.content,
+        transcription: msg.content,
         status: 'ACTIVE',
         currentStepEquation: null,
         verifiedSolution: null,

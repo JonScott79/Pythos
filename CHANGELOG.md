@@ -5,6 +5,16 @@ All notable changes to the Pythos project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Pythos 1.8.3
+**Release Date:** 2026-09-18
+
+### Added
+- **Multi-Modal Vision & Text Parity Architecture** (`server/contextManager.js`): Reconciled vision-extracted problem state with multi-turn dialogue history. When problems originate from images or handwritten diagrams, Pythos now records extracted problem expressions and domains into the conversational context tree, ensuring multi-turn student follow-ups ("Is my step right?", "What do I do next?") operate with identical state awareness to text-based dialogues.
+- **Handwritten Student Work Verification & Error Diagnosis** (`server/studentWorkEvaluator.js`): Enabled fast-path deterministic evaluation of student-submitted intermediate steps on image-extracted problems. Added linear equation equivalence verification ($3x + 7 = 22 \rightarrow 3x = 15$) to isolate arithmetic errors ($3x = 16 \rightarrow \text{arithmetic error: } 22 - 7 = 15$) and validate operations before LLM generation.
+- **Compound Validation & Visualization Intent Handling** (`server/studentIntentClassifier.js`, `server/server.js`): Enhanced intent classification to recognize compound intents combining work validation with visualization requests ("Is my step 3x=15 right? Can you graph it?"). Ensures tutoring validation executes while simultaneously dispatching visualization directives without state collision.
+- **Analytical Trigonometric Modeling & Right Triangle Geometry** (`server/deterministicRouter.js`): Added support for LaTeX degree notations (`^\circ`, `^{\circ}`, `\text{°}`) and analytical angle deduction from side ratios ($\theta = \arcsin(\text{opp}/\text{hyp})$) in right-triangle geometric problem spaces, generating mathematically accurate interactive instrument schemas.
+- **Production Runtime & Environment Reconciliation** (`server/Dockerfile`, `server/package.json`, `server/verificationBridge.js`): Aligned production containerization to `node:22-alpine` with system Python 3 and SymPy (`py3-sympy`), satisfying `firebase-admin@14.3.0` engine requirements (Node $\ge 22$) and guaranteeing full parity between local and production second-line CAS verification. Upgraded health probe telemetry to report CAS engine readiness.
+
 ## Pythos 1.8.2
 **Release Date:** 2026-09-17
 

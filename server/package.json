@@ -1,6 +1,6 @@
 {
   "name": "pythos-backend",
-  "version": "1.8.2",
+  "version": "1.8.3",
   "description": "Pythos Backend Verification and Reasoning Server",
   "main": "server.js",
   "scripts": {
@@ -12,5 +12,8 @@
     "express": "^4.19.2",
     "firebase-admin": "^14.3.0",
     "mathjs": "^15.2.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
   }
 }

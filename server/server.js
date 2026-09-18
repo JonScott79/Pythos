@@ -401,6 +401,7 @@ app.use(express.static(path.join(__dirname, '..')));
 // Standalone liveness probe: Returns 200 immediately without depending on Ollama availability
 app.get('/health', (req, res) => {
   const firebaseAdmin = require('./firebaseAdmin');
+  const { getCasTelemetry } = require('./verificationBridge');
   res.status(200).json({
     status: 'ok',
     service: 'pythos-api',
@@ -409,6 +410,7 @@ app.get('/health', (req, res) => {
     hasAuth: Boolean(OLLAMA_API_KEY),
     budgetPolicy: providerPolicy.getPolicyTelemetry(),
     firebaseAdmin: firebaseAdmin.getAdminSdkStatus ? firebaseAdmin.getAdminSdkStatus() : null,
+    casVerification: getCasTelemetry ? getCasTelemetry() : null,
     uptime: process.uptime(),
     timestamp: new Date().toISOString()
   });
@@ -419,6 +421,8 @@ app.get('/health/ready', async (req, res) => {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
+    const { getCasTelemetry } = require('./verificationBridge');
+    const casStatus = getCasTelemetry ? getCasTelemetry() : null;
     
     const checkRes = await fetch(`${OLLAMA_HOST}/api/tags`, {
       method: 'GET',
@@ -438,19 +442,23 @@ app.get('/health/ready', async (req, res) => {
         ollama: 'connected',
         model: OLLAMA_MODEL,
         visionModel: OLLAMA_VISION_MODEL,
-        availableModels: models
+        availableModels: models,
+        casVerification: casStatus
       });
     }
     return res.status(503).json({
       status: 'degraded',
       ollama: 'error',
-      statusCode: checkRes.status
+      statusCode: checkRes.status,
+      casVerification: casStatus
     });
   } catch (err) {
+    const { getCasTelemetry } = require('./verificationBridge');
     return res.status(503).json({
       status: 'degraded',
       ollama: 'unreachable',
-      message: err.message
+      message: err.message,
+      casVerification: getCasTelemetry ? getCasTelemetry() : null
     });
   }
 });
@@ -545,7 +553,7 @@ async function executeGroqVisionCall(provider, { messages, visionSystemPrompt, o
       headers: {
         'Authorization': `Bearer ${groqApiKey}`,
         'Content-Type': 'application/json',
-        'User-Agent': 'Pythos-Vision/1.8.2',
+        'User-Agent': 'Pythos-Vision/1.8.3',
         'Content-Length': Buffer.byteLength(groqPayload)
       },
       timeout: timeoutMs
@@ -708,7 +716,7 @@ async function executeGeminiVisionCall(provider, { messages, visionSystemPrompt,
       headers: {
         'x-goog-api-key': geminiApiKey,
         'Content-Type': 'application/json',
-        'User-Agent': 'Pythos-Vision/1.8.2',
+        'User-Agent': 'Pythos-Vision/1.8.3',
         'Content-Length': Buffer.byteLength(geminiPayload)
       },
       timeout: timeoutMs
@@ -891,6 +899,12 @@ async function verifyResponseClaims(content, userQueryText, abortSignal) {
 // Public Chat / Inference Route
 // =====================================
 app.post('/api/chat', async (req, res) => {
+  const startTime = Date.now();
+  const requestId = (typeof req.headers['x-request-id'] === 'string' && req.headers['x-request-id'].trim())
+    ? req.headers['x-request-id'].trim().slice(0, 64)
+    : `req_${require('crypto').randomBytes(6).toString('hex')}`;
+  res.setHeader('x-request-id', requestId);
+
   const { messages, options } = req.body;
 
   // Validate request structure
@@ -901,12 +915,49 @@ app.post('/api/chat', async (req, res) => {
     });
   }
 
+  // Bounded Request Guardrails: Protect Against Memory & CPU Exhaustion
+  if (messages.length > 250) {
+    return res.status(400).json({
+      error: 'invalid_request',
+      message: 'Maximum conversation history length exceeded (limit: 250 messages).'
+    });
+  }
+
   // Validate message objects (supports string content and optional images array for vision/OCR)
   const hasInvalidMsg = messages.some(m => !m || typeof m !== 'object' || typeof m.content !== 'string');
   if (hasInvalidMsg) {
     return res.status(400).json({
       error: 'invalid_request',
       message: 'All elements in "messages" must be objects containing a string "content" field.'
+    });
+  }
+
+  let totalChars = 0;
+  let totalImages = 0;
+  for (const m of messages) {
+    if (m.content.length > 20000) {
+      return res.status(400).json({
+        error: 'invalid_request',
+        message: 'Individual message content length exceeded (limit: 20,000 characters).'
+      });
+    }
+    totalChars += m.content.length;
+    if (Array.isArray(m.images)) {
+      totalImages += m.images.length;
+    }
+  }
+
+  if (totalChars > 100000) {
+    return res.status(400).json({
+      error: 'invalid_request',
+      message: 'Total conversation payload size exceeded (limit: 100,000 characters).'
+    });
+  }
+
+  if (totalImages > 5) {
+    return res.status(400).json({
+      error: 'invalid_request',
+      message: 'Maximum image attachment limit exceeded (limit: 5 images per request).'
     });
   }
 
@@ -971,6 +1022,8 @@ app.post('/api/chat', async (req, res) => {
           res.write(JSON.stringify({ type: 'token', content: directResponse }) + '\n');
           res.write(JSON.stringify({
             type: 'verified',
+            requestId,
+            latencyMs: Date.now() - startTime,
             claims: [],
             verification: [],
             model: 'pythos-deterministic-router',
@@ -981,6 +1034,8 @@ app.post('/api/chat', async (req, res) => {
         }
 
         return res.status(200).json({
+          requestId,
+          latencyMs: Date.now() - startTime,
           model: 'pythos-deterministic-router',
           message: {
             role: 'assistant',
@@ -1127,12 +1182,19 @@ app.post('/api/chat', async (req, res) => {
       await concurrencyLimiter.acquire(abortController.signal, REQUEST_TIMEOUT_MS);
       acquiredSemaphore = true;
 
+      const wantsViz = lastUserMsg && /\b(?:visualize|draw|plot|show|sketch)\b/i.test(lastUserMsg.content);
+      const vizPromptInstruction = wantsViz ? `\n\n# VISUALIZATION INSTRUCTION:
+The student requested to visualize or draw this problem.
+If this is a trigonometry, right triangle, projectile, force/dynamics, energy, wave, circuit, or calculus problem, include the interactive classical instrument token or geometric figure token representing this exact problem:
+[VIZ: {"type":"MATH","model":"trigonometry","title":"Classical Trigonometry: The Pythagorean Unit Circle","variables":{"angle":{"value":<angleDeg>,"default":<angleDeg>,"min":0,"max":360,"step":1,"unit":"°"}}}]
+or [GEOMETRY: triangle, a=<sideA>, b=<sideB>, c=<hypotenuse>, right_angle=C]` : '';
+
       // For hosted vision API, provide focused Pythos tutor instructions and vision directive
       // to keep total request tokens safely within provider rate limits (~1500 tokens)
       const visionSystemPrompt = `You are Pythos, a wise, warm mathematics and physics tutor inspired by Ancient Greek scholarship and Socratic pedagogy.
 Maintain clean, encouraging, child-safe language with zero bad words or profanity under all circumstances.
 ${identityContext}
-${visionExtractor.buildVisionPromptDirective()}
+${visionExtractor.buildVisionPromptDirective()}${vizPromptInstruction}
 ${preflightContext}${activeProblemContext}`;
 
       const triedProviders = new Set();
@@ -1178,6 +1240,20 @@ ${preflightContext}${activeProblemContext}`;
         let finalContent = successfulResult.content;
         finalContent = visionExtractor.postProcessVisionResponse(finalContent);
         const resolvedModel = successfulResult.model || targetModel;
+
+        if (wantsViz && !finalContent.includes('[VIZ:') && !finalContent.includes('[GEOMETRY:') && !finalContent.includes('[GRAPH:')) {
+          const angleData = parseAngleFromText(finalContent);
+          if (angleData) {
+            const vizResp = buildDeterministicResponse({
+              type: 'CLASSICAL_MODEL_VIZ',
+              model: 'trigonometry',
+              customAngle: Math.round(angleData.normalizedDeg)
+            });
+            if (vizResp) {
+              finalContent += '\n\n' + vizResp;
+            }
+          }
+        }
 
         const claims = extractClaims(finalContent, lastUserMsg ? lastUserMsg.content : '');
         const verificationResults = [];
@@ -1648,13 +1724,45 @@ ${preflightContext}${activeProblemContext}`;
       }
     }
 
+    const wantsTextViz = lastUserMsg && /\b(?:visualize|draw|plot|show|sketch)\b/i.test(lastUserMsg.content);
+    if (wantsTextViz && finalContent && !finalContent.includes('[VIZ:') && !finalContent.includes('[GEOMETRY:') && !finalContent.includes('[GRAPH:')) {
+      const angleData = parseAngleFromText(finalContent) || (activeProblemState?.active && parseAngleFromText(activeProblemState.active.activeExpression || activeProblemState.active.transcription || activeProblemState.active.initialUserPrompt || ''));
+      if (angleData) {
+        const vizResp = buildDeterministicResponse({
+          type: 'CLASSICAL_MODEL_VIZ',
+          model: 'trigonometry',
+          customAngle: Math.round(angleData.normalizedDeg)
+        });
+        if (vizResp) {
+          finalContent += '\n\n' + vizResp;
+        }
+      }
+    }
+
     if (!res.writableEnded) {
       if (finalContent && ollamaResponse && ollamaResponse.message) {
         ollamaResponse.message.content = finalContent;
       }
-      // Attach non-intrusive verification metadata so client can package with reports
+      const latencyMs = Date.now() - startTime;
+      const privacySafeUid = studentUid
+        ? require('crypto').createHash('sha256').update(studentUid).digest('hex').slice(0, 12)
+        : 'guest';
+
+      // Attach non-intrusive verification & diagnostic metadata
+      ollamaResponse.requestId = requestId;
+      ollamaResponse.latencyMs = latencyMs;
+      ollamaResponse.privacySafeUid = privacySafeUid;
       ollamaResponse.claims = claims || [];
       ollamaResponse.verification = verificationResults;
+      if (classification) {
+        ollamaResponse.classification = {
+          domain: classification.problemDomain,
+          subtype: classification.problemSubtype
+        };
+      }
+      if (studentIntent) {
+        ollamaResponse.intent = studentIntent.type;
+      }
 
       // Asynchronously trigger background personal memory extraction (non-blocking)
       if (studentUid && lastUserMsg?.content && finalContent) {
@@ -1667,6 +1775,12 @@ ${preflightContext}${activeProblemContext}`;
       if (isStreaming) {
         res.write(JSON.stringify({
           type: 'verified',
+          requestId,
+          latencyMs,
+          privacySafeUid,
+          domain: classification?.problemDomain || null,
+          subtype: classification?.problemSubtype || null,
+          intent: studentIntent?.type || null,
           claims: claims || [],
           verification: verificationResults,
           model: targetModel,

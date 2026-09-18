@@ -202,9 +202,22 @@ function classifyStudentIntent(userText, conversationHistory = []) {
 
   // -------------------------------------------------------------
   // 7. VALIDATION_REQUEST
-  // e.g. "Is this right?", "Is that 3x = 15 step definitely right?", "Did I do this right?", "Am I right?", "Does this look right?", "Check this"
+  // e.g. "Is this right?", "Is that 3x = 15 step definitely right?", "Did I do this right?", "Am I right?", "Does this look right?", "Check this", "Did I make a mistake?"
   // -------------------------------------------------------------
-  const valQuestionMatch = clean.match(/^is\s+(?:that|this|the)?\s*(.+?)\s*(?:step\s*)?(?:definitely|actually)?\s*(?:right|correct)\??$/i);
+  const isMistakeCheck = /\b(?:did\s+i\s+make\s+a\s+mistake|is\s+there\s+a\s+mistake|where\s+did\s+i\s+go\s+wrong|did\s+i\s+mess\s+up|what\s+did\s+i\s+do\s+wrong|am\s+i\s+wrong)\b/i.test(lower);
+  if (isMistakeCheck) {
+    signals.push('mistake_verification_query');
+    return { intent: INTENTS.VALIDATION_REQUEST, confidence: 'high', signals };
+  }
+
+  // Compound validation + visualization: e.g. "Is my work right? Can you visualize this?", "Is this right? Can you draw it?"
+  const isCompoundValViz = /^(?:is\s+(?:my\s+work|this|that|it|my\s+answer)\s+(?:right|correct)|did\s+i\s+(?:do\s+this|get\s+this)\s+(?:right|correct))[?.,;!\s]+(?:can\s+you\s+)?(?:visualize|draw|plot|show|sketch)\s+(?:this|it|that)/i.test(clean);
+  if (isCompoundValViz) {
+    signals.push('pure_validation_query', 'compound_visualization_query');
+    return { intent: INTENTS.VALIDATION_REQUEST, confidence: 'high', signals };
+  }
+
+  const valQuestionMatch = clean.match(/^is\s+(?:that|this|the)?\s*(.+?)\s*(?:step\s*)?(?:definitely|actually)?\s*(?:right|correct)\??(?:\s+(?:can\s+you\s+)?(?:visualize|draw|show|plot)\s+(?:this|it|that)[.?!]*)?$/i);
   if (valQuestionMatch) {
     const inner = valQuestionMatch[1].trim();
     if (inner === '' || /^(?:this|that|it|my\s+answer|my\s+work)$/i.test(inner)) {

@@ -475,7 +475,9 @@ function classifyProblem(userText) {
   const cleanAlg = text.replace(/^(?:solve(?:\s+for\s+[a-zA-Z])?[:\s]+)/i, '').replace(/\s+for\s+[a-zA-Z]\s*$/i, '').trim();
   const isSimpleLinearEq = /^([-+]?\d*(?:\.\d+)?\s*\*?\s*[a-zA-Z]\s*[-+]\s*\d+(?:\.\d+)?\s*=\s*[-+]?\d+(?:\.\d+)?)$/i.test(cleanAlg) ||
                            /^([-+]?\d*(?:\.\d+)?\s*\*?\s*[a-zA-Z]\s*=\s*[-+]?\d+(?:\.\d+)?)$/i.test(cleanAlg);
-  if (isSimpleLinearEq || (lower.includes('solve for') && cleanAlg.includes('='))) {
+  const embeddedLinearMatch = text.match(/[-+]?\d*(?:\.\d+)?\s*\*?\s*[a-zA-Z]\s*[-+]\s*\d+(?:\.\d+)?\s*=\s*[-+]?\d+(?:\.\d+)?/);
+  const hasLinearContext = embeddedLinearMatch && (lower.includes('solve') || lower.includes('equation') || lower.includes('problem') || lower.includes('asks to'));
+  if (isSimpleLinearEq || (lower.includes('solve for') && cleanAlg.includes('=')) || hasLinearContext) {
     return {
       problemDomain: DOMAINS.ALGEBRA,
       problemSubtype: 'LINEAR_EQUATION',
@@ -487,7 +489,7 @@ function classifyProblem(userText) {
       requiredMethod: 'Algebraic isolation of variable',
       specializedProtocol: PROTOCOLS.ALGEBRA,
       deterministicWorkAvailable: true,
-      canShortCircuit: true
+      canShortCircuit: isSimpleLinearEq && !hasConceptual
     };
   }
 

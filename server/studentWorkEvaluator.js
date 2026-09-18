@@ -626,10 +626,40 @@ function evaluateStudentWork(rawInput, classification, conversationHistory = [],
           break;
         }
       }
+
+      // If still no target found, scan recent assistant turns for transcribed student work
+      if (!target) {
+        for (let k = conversationHistory.length - 1; k >= 0; k--) {
+          const turn = conversationHistory[k];
+          if (!turn || turn.role !== 'assistant' || typeof turn.content !== 'string') continue;
+          const studentWorkBlock = turn.content.match(/(?:student(?:\s+has|\s+wrote|\s+proposed|\s+attempted)?|handwritten\s+work|your\s+work|you\s+wrote)[:\s]+([\s\S]+?)(?:\n\n|\n[A-Z]|$)/i);
+          const workText = studentWorkBlock ? studentWorkBlock[1] : turn.content;
+
+          // Look for candidate steps or answers in the student work section
+          const stepMatch = workText.match(/(?:step\s*\d+[:\s]+)?\$?(\d*[a-zA-Z]\s*=\s*[-+]?\d+(?:\.\d+)?)\$?/i);
+          if (stepMatch) {
+            target = stepMatch[1].trim();
+            break;
+          }
+          const varAssignMatch = workText.match(/\$?([a-zA-Z]\s*=\s*[-+]?\d+(?:\.\d+)?)\$?/) ||
+                                 workText.match(/\b([a-zA-Z]\s*=\s*[-+]?\d+(?:\.\d+)?)\b/);
+          if (varAssignMatch) {
+            target = varAssignMatch[1].trim();
+            break;
+          }
+        }
+      }
     }
 
     if (target) {
       if (activeEq) {
+        const linStepEval = evaluateLinearEquationStep(target, activeEq);
+        if (linStepEval) {
+          linStepEval.intent = intent;
+          linStepEval.rawExpression = target;
+          return linStepEval;
+        }
+
         const eqStepEval = evaluateEqualityStep(target, activeEq);
         if (eqStepEval) {
           eqStepEval.intent = intent;

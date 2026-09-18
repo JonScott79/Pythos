@@ -1,4 +1,8 @@
-FROM node:20-alpine
+FROM node:22-alpine
+
+# Install Python 3 and SymPy for Second-Line Deterministic CAS Verification
+RUN apk add --no-cache python3 py3-sympy && \
+    ln -sf /usr/bin/python3 /usr/bin/python
 
 WORKDIR /app
 

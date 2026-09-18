@@ -6,7 +6,7 @@
  * 3. Cross-Step Consistency & Contradiction Detection Engine
  */
 
-const { spawn } = require('child_process');
+const child_process = require('child_process');
 const path = require('path');
 const mathjsVerifier = require('./mathjsVerifier');
 
@@ -405,6 +405,77 @@ function auditInternalConsistency(claims) {
   return contradictions;
 }
 
+let resolvedPythonBin = null;
+
+/**
+ * Resolves the available Python executable following the priority:
+ * 1. process.env.PYTHON_BIN
+ * 2. python3
+ * 3. python
+ */
+function getPythonExecutable() {
+  if (process.env.PYTHON_BIN) {
+    return process.env.PYTHON_BIN;
+  }
+  if (resolvedPythonBin) {
+    return resolvedPythonBin;
+  }
+
+  const { spawnSync } = require('child_process');
+  const candidates = process.platform === 'win32'
+    ? ['python', 'python3']
+    : ['python3', 'python'];
+
+  for (const bin of candidates) {
+    try {
+      const probe = spawnSync(bin, ['-c', 'import sys; sys.exit(0)'], {
+        stdio: 'ignore',
+        timeout: 1500
+      });
+      if (probe && probe.status === 0) {
+        resolvedPythonBin = bin;
+        return bin;
+      }
+    } catch (_) {}
+  }
+
+  return candidates[0];
+}
+
+/**
+ * Probes whether the Python + SymPy CAS verification engine is operational.
+ * Used for truthful health, readiness, and monitoring telemetry.
+ */
+function getCasTelemetry() {
+  const bin = getPythonExecutable();
+  const { spawnSync } = require('child_process');
+  try {
+    const probe = spawnSync(bin, ['-c', 'import sympy; print(sympy.__version__)'], {
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 3000
+    });
+    if (probe && probe.status === 0 && probe.stdout && probe.stdout.trim()) {
+      return {
+        available: true,
+        executable: bin,
+        sympyVersion: probe.stdout.trim()
+      };
+    }
+    return {
+      available: false,
+      executable: bin,
+      error: 'SymPy library not found or import failed'
+    };
+  } catch (err) {
+    return {
+      available: false,
+      executable: bin,
+      error: err.code || err.message
+    };
+  }
+}
+
 /**
  * Runs deterministic verification against a claim.
  * Uses Math.js first-line engine and falls back to Python verifiers when appropriate.
@@ -422,39 +493,92 @@ async function runDeterministicVerification(claim) {
 
   // Second-Line: Python Symbolic Verifiers (SymPy / SciPy)
   return new Promise((resolve) => {
+    const pythonBin = getPythonExecutable();
     const pythonScript = path.join(__dirname, 'verifier', 'verifier.py');
-    const proc = spawn('python', [pythonScript], { stdio: ['pipe', 'pipe', 'pipe'] });
+    const proc = child_process.spawn(pythonBin, [pythonScript], { stdio: ['pipe', 'pipe', 'pipe'] });
 
     let stdout = '';
     let stderr = '';
+    let settled = false;
+
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        try { proc.kill('SIGKILL'); } catch (_) {}
+        resolve({
+          verified: false,
+          status: 'ERROR',
+          error_type: 'CAS_TIMEOUT',
+          reason: 'Verifier timeout after 5000ms'
+        });
+      }
+    }, 5000);
 
     proc.stdout.on('data', (d) => { stdout += d.toString(); });
     proc.stderr.on('data', (d) => { stderr += d.toString(); });
 
     proc.on('close', (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
       if (code === 0 && stdout.trim()) {
         try {
           const parsed = JSON.parse(stdout);
           resolve(parsed);
         } catch (_) {
-          resolve({ verified: false, status: 'UNKNOWN', reason: 'Failed to parse verifier output' });
+          resolve({
+            verified: false,
+            status: 'ERROR',
+            error_type: 'CAS_MALFORMED_OUTPUT',
+            reason: 'Failed to parse verifier output'
+          });
         }
       } else {
-        resolve({ verified: false, status: 'UNKNOWN', reason: stderr || 'Python verifier failed' });
+        resolve({
+          verified: false,
+          status: 'ERROR',
+          error_type: 'CAS_PROCESS_EXIT_ERROR',
+          reason: stderr.trim() || `Python verifier exited with code ${code}`
+        });
       }
     });
 
     proc.on('error', (err) => {
-      resolve({ verified: false, status: 'UNKNOWN', reason: err.message });
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        const isSpawnError = err.code === 'ENOENT';
+        resolve({
+          verified: false,
+          status: isSpawnError ? 'ERROR' : 'UNKNOWN',
+          error_type: isSpawnError ? 'CAS_INFRASTRUCTURE_UNAVAILABLE' : 'VERIFICATION_PROCESS_ERROR',
+          reason: `Python CAS verifier failed to execute (${pythonBin}): ${err.message}`
+        });
+      }
     });
 
-    proc.stdin.write(JSON.stringify(claim));
-    proc.stdin.end();
+    try {
+      proc.stdin.write(JSON.stringify(claim));
+      proc.stdin.end();
+    } catch (writeErr) {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        resolve({
+          verified: false,
+          status: 'ERROR',
+          error_type: 'CAS_PIPE_ERROR',
+          reason: writeErr.message
+        });
+      }
+    }
   });
 }
 
 module.exports = {
   extractClaims,
   auditInternalConsistency,
-  runDeterministicVerification
+  runDeterministicVerification,
+  getPythonExecutable,
+  getCasTelemetry
 };

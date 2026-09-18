@@ -146,8 +146,8 @@ function parseAngleFromText(text) {
   }
 
   // 2. Degree expression:
-  // e.g. 60°, -120°, 45 deg, 300 degrees
-  const degRegex = /([+-]?\s*\d+(?:\.\d+)?)\s*(?:°|(?:deg|degrees?)\b)/i;
+  // e.g. 60°, -120°, 45 deg, 300 degrees, 44.43^\circ, 45\circ
+  const degRegex = /([+-]?\s*\d+(?:\.\d+)?)\s*(?:°|\^(?:\\circ|\{\\circ\})|\\circ|(?:deg|degrees?)\b)/i;
   const degMatch = text.match(degRegex);
   if (degMatch) {
     const rawVal = parseFloat(degMatch[1].replace(/\s+/g, ''));
@@ -162,6 +162,58 @@ function parseAngleFromText(text) {
         normalizedDeg: normDeg,
         normalizedRad: normRad,
         quadrant: getQuadrant(normRad)
+      };
+    }
+  }
+
+  // 3. Right triangle trigonometric side ratio:
+  // e.g. opposite side = 7, hypotenuse = 10 -> sin(theta) = 7/10 -> theta = arcsin(0.7)
+  const oppMatch = text.match(/\b(?:opposite(?:\s+side)?|opp)\s*(?:=|is|of)?\s*(\d+(?:\.\d+)?)/i);
+  const hypMatch = text.match(/\b(?:hypotenuse|hyp)\s*(?:=|is|of)?\s*(\d+(?:\.\d+)?)/i);
+  const adjMatch = text.match(/\b(?:adjacent(?:\s+side)?|adj)\s*(?:=|is|of)?\s*(\d+(?:\.\d+)?)/i);
+  if (oppMatch && hypMatch) {
+    const opp = parseFloat(oppMatch[1]);
+    const hyp = parseFloat(hypMatch[1]);
+    if (hyp > 0 && opp <= hyp) {
+      const rad = Math.asin(opp / hyp);
+      const deg = (rad * 180) / Math.PI;
+      return {
+        isRadian: false,
+        originalString: `opposite=${opp}, hypotenuse=${hyp}`,
+        angleDeg: deg,
+        normalizedDeg: deg,
+        normalizedRad: rad,
+        quadrant: 'Quadrant I'
+      };
+    }
+  } else if (oppMatch && adjMatch) {
+    const opp = parseFloat(oppMatch[1]);
+    const adj = parseFloat(adjMatch[1]);
+    if (adj > 0) {
+      const rad = Math.atan(opp / adj);
+      const deg = (rad * 180) / Math.PI;
+      return {
+        isRadian: false,
+        originalString: `opposite=${opp}, adjacent=${adj}`,
+        angleDeg: deg,
+        normalizedDeg: deg,
+        normalizedRad: rad,
+        quadrant: 'Quadrant I'
+      };
+    }
+  } else if (adjMatch && hypMatch) {
+    const adj = parseFloat(adjMatch[1]);
+    const hyp = parseFloat(hypMatch[1]);
+    if (hyp > 0 && adj <= hyp) {
+      const rad = Math.acos(adj / hyp);
+      const deg = (rad * 180) / Math.PI;
+      return {
+        isRadian: false,
+        originalString: `adjacent=${adj}, hypotenuse=${hyp}`,
+        angleDeg: deg,
+        normalizedDeg: deg,
+        normalizedRad: rad,
+        quadrant: 'Quadrant I'
       };
     }
   }
