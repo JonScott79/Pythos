@@ -48,6 +48,11 @@ const PROTOCOLS = {
     'Execute step-by-step symbolic solving',
     'Substitute candidate solution back into original equation to eliminate extraneous roots'
   ],
+  EQUALITY_VERIFICATION: [
+    'Evaluate and simplify the left-hand side and right-hand side independently',
+    'Compare the reduced forms of both expressions',
+    'Determine whether the equality holds or does not hold with verified deterministic proof'
+  ],
   CALCULUS: [
     'Identify target function/objective and independent variable',
     'Determine domain and boundary constraints',
@@ -151,14 +156,32 @@ const PROTOCOLS = {
 function extractKnownQuantities(text) {
   const knowns = {};
 
-  // Velocity: 20 m/s, 50 km/h, v = 15
-  const velMatch = text.match(/(?:speed|velocity|v0|v_0|v)\s*(?:=|is|of)?\s*(\d+(?:\.\d+)?)\s*(m\/s|km\/h|mph|ft\/s)?/i);
+  // Acceleration: 3 m/s^2, 9.8 m/s^2, a = 5 (do not match English article 'a')
+  const accMatch = text.match(/\b(?:acceleration|accel)\s*(?:=|is|of)?\s*(\d+(?:\.\d+)?)\s*(?:m\/s\^2|m\/s2)?/i) ||
+                   text.match(/\ba\s*=\s*(\d+(?:\.\d+)?)\s*(?:m\/s\^2|m\/s2)?/i) ||
+                   text.match(/\b(\d+(?:\.\d+)?)\s*(m\/s\^2|m\/s2)\b/i);
+  if (accMatch) {
+    knowns.acceleration = `${accMatch[1]} m/s^2`.trim();
+  }
+
+  // Velocity: 20 m/s, 50 km/h, v = 15, travels at 25 m/s (do not match m/s in m/s^2)
+  const velMatch = text.match(/\b(?:speed|velocity|v0|v_0)\s*(?:=|is|of|at)?\s*(\d+(?:\.\d+)?)\s*(m\/s(?![\^2])|km\/h|mph|ft\/s)?/i) ||
+                   text.match(/\bv\s*=\s*(\d+(?:\.\d+)?)\s*(m\/s(?![\^2])|km\/h|mph|ft\/s)?/i) ||
+                   text.match(/\b(\d+(?:\.\d+)?)\s*(m\/s(?![\^2])|km\/h|mph|ft\/s)\b/i);
   if (velMatch) {
     knowns.velocity = `${velMatch[1]} ${velMatch[2] || 'm/s'}`.trim();
   }
 
+  // Time: 5 seconds, 10 s, 2 hours, t = 3
+  const timeMatch = text.match(/(?:time|duration|t)\s*(?:=|is|of)?\s*(\d+(?:\.\d+)?)\s*(seconds?|sec|s|minutes?|min|hours?|hr|h)\b/i) ||
+                    text.match(/\b(\d+(?:\.\d+)?)\s*(seconds?|sec|s)\b/i);
+  if (timeMatch) {
+    knowns.time = `${timeMatch[1]} ${timeMatch[2] || 's'}`.trim();
+  }
+
   // Length / Distance: preserve all quantities (e.g. 6 m, 700 cm, 12 yards, 15 yards)
-  const lengthRegex = /(\d+(?:\.\d+)?)\s*(meters|meter|m|centimeters|centimeter|cm|feet|foot|ft|inches|inch|in|km|kilometers|yards|yard|yd)\b/gi;
+  // Ensure we don't match "m" in "m/s" or "m/s^2"
+  const lengthRegex = /(\d+(?:\.\d+)?)\s*(meters?|centimeters?|cm|feet|foot|ft|inches|inch|in|kilometers?|km|yards?|yd|m(?!\s*\/))\b/gi;
   const lengthMatches = [...text.matchAll(lengthRegex)];
   if (lengthMatches.length > 0) {
     knowns.lengths = lengthMatches.map(m => m[0]);
@@ -184,7 +207,9 @@ function extractKnownQuantities(text) {
   }
 
   // Mass: 5 kg, 500 g, mass M
-  const massMatch = text.match(/(?:mass|m)\s*(?:=|is|of)?\s*(\d+(?:\.\d+)?)\s*(kg|g|grams|slugs)?/i);
+  const massMatch = text.match(/\bmass\s*(?:=|is|of)?\s*(\d+(?:\.\d+)?)\s*(kg|g|grams|slugs)?/i) ||
+                    text.match(/\bm\s*=\s*(\d+(?:\.\d+)?)\s*(kg|g)?/i) ||
+                    text.match(/\b(\d+(?:\.\d+)?)\s*(kg|g|grams|slugs)\b/i);
   if (massMatch) {
     knowns.mass = `${massMatch[1]} ${massMatch[2] || 'kg'}`.trim();
   }
@@ -420,21 +445,24 @@ function classifyProblem(userText) {
   }
 
   // -------------------------------------------------------------
-  // 6. Physics: Kinematics & Projectile Motion
+  // 6. Physics: Kinematics, Projectile Motion & Dynamics
   // -------------------------------------------------------------
   if (
-    (lower.includes('projectile') || lower.includes('trajectory') || lower.includes('launched at') || lower.includes('free fall')) &&
-    (lower.includes('velocity') || lower.includes('height') || lower.includes('angle') || lower.includes('range'))
+    ((lower.includes('projectile') || lower.includes('trajectory') || lower.includes('launched at') || lower.includes('free fall') ||
+      lower.includes('travels at') || lower.includes('moving at') || lower.includes('moves at') || lower.includes('runs at') || lower.includes('walks at') || lower.includes('accelerates') || lower.includes('car travels')) &&
+     (lower.includes('velocity') || lower.includes('speed') || lower.includes('height') || lower.includes('angle') || lower.includes('range') || lower.includes('how far') || lower.includes('m/s') || lower.includes('seconds'))) ||
+    ((lower.includes('force') || lower.includes('mass') || lower.includes('newton')) &&
+     (lower.includes('accelerates') || lower.includes('acceleration') || lower.includes('net force') || lower.includes('kg')))
   ) {
     return {
       problemDomain: DOMAINS.PHYSICS,
-      problemSubtype: 'PROJECTILE_KINEMATICS',
+      problemSubtype: lower.includes('projectile') ? 'PROJECTILE_KINEMATICS' : (lower.includes('force') ? 'NEWTONIAN_DYNAMICS' : 'KINEMATICS'),
       confidence: 'high',
       knownQuantities: knowns,
-      unknownQuantities: unknowns.length > 0 ? unknowns : ['flight_time', 'max_height', 'range'],
+      unknownQuantities: unknowns.length > 0 ? unknowns : (lower.includes('force') ? ['net_force'] : ['distance', 'time', 'velocity']),
       assumptions,
       constraints,
-      requiredMethod: '2D Kinematic motion decomposition (horizontal constant velocity, vertical constant gravity)',
+      requiredMethod: lower.includes('force') ? 'Newtonian Second Law (F = m*a)' : 'Kinematic motion equations (d = v*t or v = u + a*t)',
       specializedProtocol: PROTOCOLS.PHYSICS_KINEMATICS,
       deterministicWorkAvailable: true,
       canShortCircuit: false
@@ -442,7 +470,7 @@ function classifyProblem(userText) {
   }
 
   // -------------------------------------------------------------
-  // 7. General Algebra: Linear Equations & Solving
+  // 7. General Algebra & Equalities: Linear Equations, Equalities & Solving
   // -------------------------------------------------------------
   const cleanAlg = text.replace(/^(?:solve(?:\s+for\s+[a-zA-Z])?[:\s]+)/i, '').replace(/\s+for\s+[a-zA-Z]\s*$/i, '').trim();
   const isSimpleLinearEq = /^([-+]?\d*(?:\.\d+)?\s*\*?\s*[a-zA-Z]\s*[-+]\s*\d+(?:\.\d+)?\s*=\s*[-+]?\d+(?:\.\d+)?)$/i.test(cleanAlg) ||
@@ -461,6 +489,48 @@ function classifyProblem(userText) {
       deterministicWorkAvailable: true,
       canShortCircuit: true
     };
+  }
+
+  // Check for general equations or mathematical equality propositions (e.g. 42*pi*/18 = 2*pi*, 2x + 4 = 12, etc.)
+  if (cleanAlg.includes('=')) {
+    const eqParts = cleanAlg.split('=');
+    if (eqParts.length === 2 && eqParts[0].trim() && eqParts[1].trim()) {
+      const lhs = eqParts[0].trim();
+      const rhs = eqParts[1].trim();
+      const validMath = /^[-+*/^0-9.()\s\\a-zA-Zπ_]+$/;
+      if (validMath.test(lhs) && validMath.test(rhs) && (/\d/.test(lhs) || /[a-zA-Zπ]/.test(lhs)) && (/\d/.test(rhs) || /[a-zA-Zπ]/.test(rhs))) {
+        const lettersWithoutPi = cleanAlg.replace(/\\pi|π|pi/gi, '').match(/[a-zA-Z]/g) || [];
+        if (lettersWithoutPi.length > 0) {
+          return {
+            problemDomain: DOMAINS.ALGEBRA,
+            problemSubtype: 'ALGEBRAIC_EQUATION',
+            confidence: 'high',
+            knownQuantities: knowns,
+            unknownQuantities: [...new Set(lettersWithoutPi)].map(v => `${v}_root`),
+            assumptions: ['Algebraic equation equivalence'],
+            constraints: [],
+            requiredMethod: 'Symbolic equation solving',
+            specializedProtocol: PROTOCOLS.ALGEBRA,
+            deterministicWorkAvailable: true,
+            canShortCircuit: false
+          };
+        } else {
+          return {
+            problemDomain: DOMAINS.ALGEBRA,
+            problemSubtype: 'EQUALITY_VERIFICATION',
+            confidence: 'high',
+            knownQuantities: knowns,
+            unknownQuantities: ['equality_truth_value', 'simplified_lhs', 'simplified_rhs'],
+            assumptions: ['Mathematical proposition / equality verification'],
+            constraints: [],
+            requiredMethod: 'Independent simplification of left and right sides to evaluate equality',
+            specializedProtocol: PROTOCOLS.EQUALITY_VERIFICATION,
+            deterministicWorkAvailable: true,
+            canShortCircuit: false
+          };
+        }
+      }
+    }
   }
 
   // -------------------------------------------------------------

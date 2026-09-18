@@ -24,6 +24,7 @@ const INTENTS = Object.freeze({
   NEW_PROBLEM: 'NEW_PROBLEM',
   CONTINUATION: 'CONTINUATION',
   CONFUSION: 'CONFUSION',
+  HYPOTHETICAL: 'HYPOTHETICAL',
   UNKNOWN: 'UNKNOWN'
 });
 
@@ -48,6 +49,26 @@ function sanitizeInput(text) {
 }
 
 /**
+ * Validates whether a short string represents a mathematical expression rather than arbitrary words.
+ */
+function isMathematicalExpression(str) {
+  if (!str || typeof str !== 'string') return false;
+  const s = str.trim();
+  if (!/^[-+*/^0-9.()\s\\a-zA-Zπ_]+$/.test(s)) return false;
+
+  const lower = s.toLowerCase();
+  if (/\b(?:the|this|that|and|what|with|from|have|got|think|know|like|banana|pancake|hello|hi|please|maybe|because|about|apple|fruit)\b/i.test(lower)) {
+    return false;
+  }
+
+  const hasDigitsOrPi = /\d|π|\bpi\b/i.test(s);
+  const hasOperators = /[-+*/^]/.test(s);
+  const isSingleVarTerm = /^[+-]?\d*\s*\*?\s*[a-zA-Z]$/.test(s);
+
+  return Boolean(hasDigitsOrPi || hasOperators || isSingleVarTerm);
+}
+
+/**
  * Classifies the student's conversational intent.
  *
  * @param {string} userText - The student's current message
@@ -64,15 +85,47 @@ function classifyStudentIntent(userText, conversationHistory = []) {
   const lower = clean.toLowerCase();
   const signals = [];
 
+  // Extract active problem state from conversation history if available
+  let hasActiveProblem = false;
+  let activeProblemState = null;
+  if (conversationHistory && conversationHistory.length > 0) {
+    try {
+      const { extractActiveProblemState } = require('./contextManager');
+      activeProblemState = extractActiveProblemState(conversationHistory);
+      hasActiveProblem = Boolean(activeProblemState && activeProblemState.active);
+    } catch (_) {}
+  }
+
+  // Fail-closed safeguard: Deliberate multi-word nonsense phrases or keyboard mash return UNKNOWN with low confidence
+  if (/(?:banana\s+pancake|spaghetti\s+rocket|random\s+waffle|asdfghjk|qwertyuiop|zxcvbnm)/i.test(lower)) {
+    return {
+      intent: INTENTS.UNKNOWN,
+      confidence: 'low',
+      signals: ['nonsense_or_corrupt_tokens']
+    };
+  }
+
   // -------------------------------------------------------------
   // 1. CORRECTION Intent
-  // e.g. "Wait, I meant the other 2", "Sorry, I meant x = 4", "Typo: meant 5"
+  // e.g. "Wait, I meant the other 2", "Sorry, I meant x = 4", "Actually I meant 4x = 20", "Typo: meant 5"
   // -------------------------------------------------------------
   const isCorrection = /\b(?:wait|sorry|actually|correction|oops|no\s*wait)\b.*?\b(?:i\s+meant|i\s+mean|i\s+said|instead\s+of)\b/i.test(lower) ||
                        /\b(?:i\s+meant|meant\s+to\s+say|my\s+bad,?\s+i\s+meant|typo,?\s+meant)\b/i.test(lower) ||
-                       /^(?:no,?\s+)?(?:i\s+meant|actually\s+i\s+meant)\b/i.test(lower);
+                       /^(?:no,?\s+)?(?:i\s+meant|actually\s+i\s+meant)\b/i.test(lower) ||
+                       /^(?:no,?\s+)?(?:that'?s\s+not\s+what\s+i\s+got|i\s+got\s+something\s+else|that'?s\s+wrong|i\s+didn'?t\s+get\s+that)\b/i.test(lower);
   if (isCorrection) {
     signals.push('correction_linguistic_marker');
+    const correctionExprMatch = clean.match(/(?:i\s+meant|meant\s+to\s+say|meant|said|instead\s+of)\s+([a-zA-Z0-9+\-*/^().\s=π-]+)$/i);
+    let extractedExpr = correctionExprMatch ? correctionExprMatch[1].trim() : null;
+    if (extractedExpr && (containsMathSymbols(extractedExpr) || /^[-+]?\d+(?:\.\d+)?$/.test(extractedExpr) || /^[a-zA-Z]\s*=\s*[-+]?\d+/.test(extractedExpr))) {
+      signals.push('correction_with_math_expression');
+      return {
+        intent: INTENTS.CORRECTION,
+        confidence: 'high',
+        signals,
+        extractedExpression: extractedExpr
+      };
+    }
     return { intent: INTENTS.CORRECTION, confidence: 'high', signals };
   }
 
@@ -89,10 +142,12 @@ function classifyStudentIntent(userText, conversationHistory = []) {
 
   // -------------------------------------------------------------
   // 3. CONFUSION Intent
-  // e.g. "I don't get it", "I'm lost", "I don't understand", "Wait what?"
+  // e.g. "I don't get it", "I'm lost", "I don't understand", "Wait what?", "wait", "hold on"
   // -------------------------------------------------------------
   const isConfusion = /^(?:i\s+(?:don't|do\s+not)\s+(?:get\s+it|understand|follow)|i'?m\s+(?:lost|confused)|wait\s+what\??|huh\??|what\s+do\s+you\s+mean\??|this\s+makes\s+no\s+sense)$/i.test(lower) ||
-                      /\b(?:i\s+don't\s+get\s+it|i'm\s+completely\s+lost|you\s+lost\s+me)\b/i.test(lower);
+                      /^(?:wait|hold\s+on|wait\s+a\s+sec(?:ond)?|wait\s+wait|wait\.{1,3})$/i.test(lower) ||
+                      /\b(?:i\s+don't\s+get\s+it|i'm\s+completely\s+lost|you\s+lost\s+me)\b/i.test(lower) ||
+                      /\b(?:waffling|torn|stuck|debating|unsure|not\s+sure)\s+(?:between|about)\b/i.test(lower);
   if (isConfusion) {
     signals.push('confusion_marker');
     return { intent: INTENTS.CONFUSION, confidence: 'high', signals };
@@ -100,9 +155,10 @@ function classifyStudentIntent(userText, conversationHistory = []) {
 
   // -------------------------------------------------------------
   // 4. CONTINUATION Intent
-  // e.g. "Okay, continue", "Go on", "Keep going", "Next step", "And then?"
+  // e.g. "Okay, continue", "Go on", "Keep going", "Next step", "And then?", "what do I do now", "ohhh"
   // -------------------------------------------------------------
-  const isContinuation = /^(?:ok(?:ay)?|alright|cool|got\s+it|sure|yes|yeah)?[,.\s]*(?:continue|go\s+on|keep\s+going|next(?:\s+step)?|proceed|and\s+then\??|what(?:'s|\s+is)\s+next\??|what\s+now\??)$/i.test(lower);
+  const isContinuation = /^(?:ok(?:ay)?|alright|cool|got\s+it|sure|yes|yeah)?[,.\s]*(?:continue|go\s+on|keep\s+going|next(?:\s+step)?|proceed|and\s+then\??|what(?:'s|\s+is)\s+next\??|what\s+now\??|what\s+do\s+i\s+do(?:\s+now)?\??|what\s+should\s+i\s+do(?:\s+now)?\??|how\s+do\s+i\s+start\??|where\s+do\s+i\s+go(?:\s+from\s+here)?\??)$/i.test(lower) ||
+                         (hasActiveProblem && /^(?:yes|yeah|yep|sure|ok(?:ay)?|oh+h*|oh\s+i\s+see|ah\s+ok(?:ay)?|that'?s\s+what\s+i\s+got|i\s+got\s+that\s+too|so\s+then\.{0,3})$/i.test(lower));
   if (isContinuation) {
     signals.push('continuation_command');
     return { intent: INTENTS.CONTINUATION, confidence: 'high', signals };
@@ -113,6 +169,7 @@ function classifyStudentIntent(userText, conversationHistory = []) {
   // e.g. "What about the other one?", "What about the other 2?", "How about the other problem?"
   // -------------------------------------------------------------
   const isReferential = /^(?:what|how)\s+about\s+(?:the\s+)?(?:other(?:\s+one|\s+\d+|\s+root|\s+solution)?|second\s+one|first\s+one|that\s+other\s+one)\??$/i.test(lower) ||
+                        /^(?:no,?\s+)?(?:the\s+other\s+one|what\s+about\s+the\s+first\s+(?:one|problem))\??$/i.test(lower) ||
                         /\bwhat\s+about\s+the\s+other\b/i.test(lower);
   if (isReferential) {
     signals.push('referential_pronoun');
@@ -120,22 +177,51 @@ function classifyStudentIntent(userText, conversationHistory = []) {
   }
 
   // -------------------------------------------------------------
-  // 6. NEW_PROBLEM Intent
-  // e.g. "Now solve 3x + 5 = 20", "Let's do a new problem", "Next problem: 2x - 1 = 9"
+  // 5b. HYPOTHETICAL Intent
+  // e.g. "what if x is 5", "what happens if I change the 4"
   // -------------------------------------------------------------
+  const isHypothetical = /^(?:what\s+if\s+(.+)|what\s+happens\s+if\s+(?:i|we)\s+change\s+(?:the\s+)?(.+))\??$/i.test(lower);
+  if (isHypothetical) {
+    signals.push('hypothetical_parameter_query');
+    return { intent: INTENTS.HYPOTHETICAL, confidence: 'high', signals };
+  }
+
+  // -------------------------------------------------------------
+  // 6. NEW_PROBLEM Intent
+  // e.g. "Now solve 3x + 5 = 20", "Let's do a new problem", "Next problem: 2x - 1 = 9", or full word problems
+  // -------------------------------------------------------------
+  const isWordProblem = /\b(?:how\s+(?:many|much|far|fast|long)|what\s+is\s+(?:the|its|her|his))\b/i.test(clean) &&
+                        /\d+/.test(clean);
   const isNewProblem = /^(?:(?:now|can\s+you|please|let's)\s+)?(?:solve|do|try|calculate|work\s+out)\s+([a-zA-Z0-9+\-*/^()=.\s]+)$/i.test(clean) &&
                        containsMathSymbols(clean) && !/^(?:so|then|next)\b/i.test(lower);
   const isExplicitNewTopic = /^(?:new\s+problem|next\s+problem|different\s+problem|let's\s+switch\s+to)\b/i.test(lower);
-  if (isExplicitNewTopic || isNewProblem) {
+  if (isExplicitNewTopic || isNewProblem || isWordProblem) {
     signals.push('new_problem_directive');
     return { intent: INTENTS.NEW_PROBLEM, confidence: 'high', signals };
   }
 
   // -------------------------------------------------------------
-  // 7. PURE VALIDATION_REQUEST (without proposed math)
-  // e.g. "Is this right?", "Did I do this right?", "Did I do this correctly?", "Am I right?", "Does this look right?", "Check this"
+  // 7. VALIDATION_REQUEST
+  // e.g. "Is this right?", "Is that 3x = 15 step definitely right?", "Did I do this right?", "Am I right?", "Does this look right?", "Check this"
   // -------------------------------------------------------------
-  const isPureValidation = /^(?:is\s+(?:this|that|it|my\s+answer|my\s+work)\s+(?:right|correct)\??|did\s+i\s+(?:do\s+this|get\s+this|get\s+it)\s+(?:right|correct|correctly)\??|am\s+i\s+(?:right|correct)\??|does\s+(?:this|that)\s+look\s+(?:right|correct)\??|check\s+(?:my\s+work|this)\??)$/i.test(lower);
+  const valQuestionMatch = clean.match(/^is\s+(?:that|this|the)?\s*(.+?)\s*(?:step\s*)?(?:definitely|actually)?\s*(?:right|correct)\??$/i);
+  if (valQuestionMatch) {
+    const inner = valQuestionMatch[1].trim();
+    if (inner === '' || /^(?:this|that|it|my\s+answer|my\s+work)$/i.test(inner)) {
+      signals.push('pure_validation_query');
+      return { intent: INTENTS.VALIDATION_REQUEST, confidence: 'high', signals };
+    } else {
+      signals.push('validation_query_with_expression');
+      return {
+        intent: INTENTS.VALIDATION_REQUEST,
+        confidence: 'high',
+        signals,
+        extractedExpression: inner
+      };
+    }
+  }
+
+  const isPureValidation = /^(?:is\s+(?:this|that|it|my\s+answer|my\s+work)\s+(?:right|correct)\??|did\s+i\s+(?:do\s+this|get\s+this|get\s+it)\s+(?:right|correct|correctly)\??|am\s+i\s+(?:right|correct)\??|does\s+(?:this|that)\s+look\s+(?:right|correct)\??|check\s+(?:my\s+work|this)\??|what\s+about\s+this\??|how\s+about\s+this\??|how'?s\s+this\??)$/i.test(lower);
   if (isPureValidation) {
     signals.push('validation_query');
     return { intent: INTENTS.VALIDATION_REQUEST, confidence: 'high', signals };
@@ -169,7 +255,7 @@ function classifyStudentIntent(userText, conversationHistory = []) {
   // e.g. "I got 7", "I think x = 4", "The answer is 12", "x = 4", "is it 7?", "Answer is -29"
   // Or standalone number / equation in an answering posture
   // -------------------------------------------------------------
-  const answerPrefixMatch = clean.match(/^(?:i\s+(?:got|think|found|calculated|arrived\s+at)\s+(?:that\s+)?|the\s+answer\s+is\s+|(?:is\s+(?:the\s+answer|it)\s+)|answer\s*[:=]\s*)(.+)$/i);
+  const answerPrefixMatch = clean.match(/^(?:i\s+(?:got|think|found|calculated|arrived\s+at)\s+(?:that\s+)?|(?:(?:my\s+)?(?:teacher|calculator|friend|book|textbook)|google|siri|alexa)\s+(?:said|says|gave|gives|has|got)\s+(?:that\s+)?(?:the\s+answer\s+is\s+|it(?:'s|\s+is)\s+)?|the\s+answer\s+is\s+|(?:is\s+(?:the\s+answer|it)\s+)|answer\s*[:=]\s*)(.+)$/i);
   if (answerPrefixMatch) {
     signals.push('answer_linguistic_prefix');
     let expr = answerPrefixMatch[1].replace(/\?$/, '').trim();
@@ -187,16 +273,57 @@ function classifyStudentIntent(userText, conversationHistory = []) {
     };
   }
 
-  // Check for stated variable equality e.g. "x = 4", "theta = pi/3"
-  const varAssignMatch = clean.match(/^[a-zA-Z]\s*=\s*([-\d./\s*+^piπ]+)$/i);
+  // Check for stated variable equality e.g. "x = 4", "x=5", "theta = pi/3", "x = 5 no cap", "x = 4 periodt"
+  const varAssignMatch = clean.match(/^((?:[a-zA-Z]|theta)\s*=\s*[-+]?\d+(?:\.\d+)?(?:(?:\s*\/\s*\d+)?(?:\*?pi|\*?π)?)?)(?:[,\s!]+.*)?$/i);
   if (varAssignMatch) {
     signals.push('variable_assignment');
     return {
       intent: INTENTS.PROPOSED_ANSWER,
       confidence: 'high',
       signals,
-      extractedExpression: clean
+      extractedExpression: varAssignMatch[1].trim()
     };
+  }
+
+  // Intermediate equation step e.g. "3x = 15", "2x = 8", "3x = 16", "2x = 8 eureka!"
+  const stepEqMatch = clean.match(/^(\d*[a-zA-Z]\s*=\s*[-+]?\d+(?:\.\d+)?(?:(?:\s*\/\s*\d+)?(?:\*?pi|\*?π)?)?)(?:[,\s!]+.*)?$/i);
+  if (stepEqMatch) {
+    signals.push('intermediate_equation_step');
+    return {
+      intent: INTENTS.PROPOSED_STEP,
+      confidence: 'high',
+      signals,
+      extractedExpression: stepEqMatch[1].trim()
+    };
+  }
+
+  // Contextual short mathematical follow-ups during active mathematical task (e.g. 7/3, (7/3)pi, 10, 5x)
+  if (hasActiveProblem) {
+    const looksMath = isMathematicalExpression(clean);
+    if (looksMath && clean.length <= 40 && !clean.includes('=')) {
+      const isSimpleNum = /^[-+]?\d+(?:\.\d+)?$/.test(clean);
+      const isSingleVarEq = activeProblemState?.active?.activeExpression &&
+        !activeProblemState.active.activeExpression.includes('pi') &&
+        !activeProblemState.active.activeExpression.includes('π');
+
+      if (isSimpleNum && isSingleVarEq) {
+        signals.push('candidate_root_answer');
+        return {
+          intent: INTENTS.PROPOSED_ANSWER,
+          confidence: 'high',
+          signals,
+          extractedExpression: clean
+        };
+      }
+
+      signals.push('contextual_active_problem_step');
+      return {
+        intent: INTENTS.PROPOSED_STEP,
+        confidence: 'high',
+        signals,
+        extractedExpression: clean
+      };
+    }
   }
 
   // Check for standalone numeric answer e.g. "7", "-4.5", "23"
@@ -214,8 +341,8 @@ function classifyStudentIntent(userText, conversationHistory = []) {
   // 10. EXPLANATION_REQUEST Intent
   // e.g. "Can you explain that?", "Why is that?", "How did you get 7?", "Where did that come from?"
   // -------------------------------------------------------------
-  const isExplanation = /^(?:why(?:\s+is\s+that)?\??|how\s+did\s+you\s+get\s+that\??|can\s+you\s+explain(?:\s+that|\s+why|\s+how)?\??|explain\s+how|where\s+did\s+(?:that|\d+|the)\s+come\s+from\??)$/i.test(lower) ||
-                        /^(?:why|how)\b/i.test(lower);
+  const isExplanation = /^(?:why(?:\s+is\s+that)?\??|why\s+did\s+you\s+do\s+that\??|how\s+did\s+you\s+get\s+that\??|can\s+you\s+explain(?:\s+that|\s+why|\s+how)?(?:\s+again)?\??|explain\s+how|what\s+does\s+that\s+mean\??|where\s+did\s+(?:that|\d+|the)\s+come\s+from\??)$/i.test(lower) ||
+                        /^(?:why|how)\s+(?:is|did|does|can|would|are|was|were|come|so|to)\b/i.test(lower);
   if (isExplanation) {
     signals.push('explanation_query');
     return { intent: INTENTS.EXPLANATION_REQUEST, confidence: 'high', signals };

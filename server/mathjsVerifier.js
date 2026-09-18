@@ -121,7 +121,8 @@ const MathJSVerifier = {
           }
 
           // Catch floating-point underflow: if expression was non-zero but evaluated to 0 due to precision limit
-          if (numResult === 0 && Number(proposed_value) === 0 && /[1-9]/.test(expression) && !/^[0\s+*./-]+$/.test(expression)) {
+          const isExactZeroFraction = isFraction && exactMath.equal(exactResult, 0);
+          if (!isExactZeroFraction && numResult === 0 && Number(proposed_value) === 0 && /[1-9]/.test(expression) && !/^[0\s+*./-]+$/.test(expression)) {
             return {
               verified: false,
               engine: 'mathjs',
@@ -525,7 +526,7 @@ const MathJSVerifier = {
 
     // 4. Equation Root Substitution
     // Pure substitution checks stay in Math.js; full algebraic solving / lost-root checks defer to Python SymPy
-    if (domain === 'algebra' && (claim_type === 'substitution' || claim_type === 'equation_solution' || data.equation)) {
+    if (domain === 'algebra' && (claim_type === 'substitution' || claim_type === 'equation_solution')) {
       return this.verifyEquationSolution(data);
     }
 

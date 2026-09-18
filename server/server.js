@@ -536,7 +536,7 @@ async function executeGroqVisionCall(provider, { messages, visionSystemPrompt, o
       headers: {
         'Authorization': `Bearer ${groqApiKey}`,
         'Content-Type': 'application/json',
-        'User-Agent': 'Pythos-Vision/1.8.1',
+        'User-Agent': 'Pythos-Vision/1.8.2',
         'Content-Length': Buffer.byteLength(groqPayload)
       },
       timeout: timeoutMs
@@ -699,7 +699,7 @@ async function executeGeminiVisionCall(provider, { messages, visionSystemPrompt,
       headers: {
         'x-goog-api-key': geminiApiKey,
         'Content-Type': 'application/json',
-        'User-Agent': 'Pythos-Vision/1.8.1',
+        'User-Agent': 'Pythos-Vision/1.8.2',
         'Content-Length': Buffer.byteLength(geminiPayload)
       },
       timeout: timeoutMs
@@ -1046,6 +1046,10 @@ app.post('/api/chat', async (req, res) => {
       }
       if (studentEvaluation.nextOperation) {
         activeProblemState.active.nextOperation = studentEvaluation.nextOperation;
+      }
+      if (studentEvaluation.equalityEvaluated) {
+        activeProblemState.active.isCompleted = true;
+        activeProblemState.active.verifiedSolution = studentEvaluation.isEqual ? 'Equality holds (True)' : 'Equality does not hold (False)';
       }
     } else if (studentEvaluation.status === 'ANSWER_VERIFIED_CORRECT') {
       activeProblemState.active.verifiedSolution = `${studentEvaluation.variable || 'x'} = ${studentEvaluation.proposedValue}`;

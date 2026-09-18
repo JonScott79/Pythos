@@ -290,17 +290,273 @@ function evaluateLinearEquationStep(targetEqStr, activeEqStr) {
           preferredResponse: `Yes. \`${parsedActive.expectedStep}\` is correct.\nYou subtracted ${parsedActive.b} from both sides:\n\`${aPrefix}${parsedActive.variable} ${bSign} ${bUndo} = ${parsedActive.c} ${bUndo}\`\nwhich gives \`${parsedActive.expectedStep}\`.\n\nNext, ${parsedActive.nextOp}.`
         };
       } else {
-        // Incorrect arithmetic in step!
+        // Check if this is specifically a sign error (e.g. adding instead of subtracting b, or subtracting instead of adding)
+        const signErrorRhs = parsedActive.c + parsedActive.b;
+        const isSignMistake = Math.abs(parsedTarget.c - signErrorRhs) < 1e-5;
+        const bUndoWord = parsedActive.b >= 0 ? 'subtract' : 'add';
+        const bWrongWord = parsedActive.b >= 0 ? 'added' : 'subtracted';
+
         return {
           status: 'STEP_VERIFIED_INCORRECT',
           target: targetEqStr.trim(),
+          isSignError: isSignMistake,
           correctedStep: parsedActive.expectedStep,
           nextOperation: parsedActive.nextOp,
-          details: `Subtracting ${parsedActive.b} from ${parsedActive.c} gives ${parsedActive.expectedStepRhs}, not ${parsedTarget.c}. So the equation becomes \`${parsedActive.expectedStep}\`.`,
-          affirmation: `Your approach is right; the arithmetic in that step needs correction.`,
-          preferredResponse: `❌ Not quite. Subtracting ${parsedActive.b} from ${parsedActive.c} gives ${parsedActive.expectedStepRhs}, not ${parsedTarget.c}.\nSo the equation becomes \`${parsedActive.expectedStep}\`.\nYour approach is right; the arithmetic in that step needs correction.`
+          details: isSignMistake
+            ? `Watch the sign: you ${bWrongWord} ${Math.abs(parsedActive.b)} instead of ${bUndoWord}ing it. ${parsedActive.c} minus ${parsedActive.b} gives ${parsedActive.expectedStepRhs}, not ${parsedTarget.c}. So the equation becomes \`${parsedActive.expectedStep}\`.`
+            : `Subtracting ${parsedActive.b} from ${parsedActive.c} gives ${parsedActive.expectedStepRhs}, not ${parsedTarget.c}. So the equation becomes \`${parsedActive.expectedStep}\`.`,
+          affirmation: isSignMistake
+            ? `Your overall strategy is on track; check the sign operation when moving terms across the equals sign.`
+            : `Your approach is right; the arithmetic in that step needs correction.`,
+          preferredResponse: isSignMistake
+            ? `❌ Watch the sign! To eliminate ${parsedActive.b >= 0 ? '+' : '-'}${Math.abs(parsedActive.b)}, you need to ${bUndoWord} ${Math.abs(parsedActive.b)} from both sides (${parsedActive.c} ${parsedActive.b >= 0 ? '-' : '+'} ${Math.abs(parsedActive.b)} = ${parsedActive.expectedStepRhs}, not ${parsedTarget.c}).\nSo the equation becomes \`${parsedActive.expectedStep}\`.`
+            : `❌ Not quite. Subtracting ${parsedActive.b} from ${parsedActive.c} gives ${parsedActive.expectedStepRhs}, not ${parsedTarget.c}.\nSo the equation becomes \`${parsedActive.expectedStep}\`.\nYour approach is right; the arithmetic in that step needs correction.`
         };
       }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Evaluates an intermediate simplification or reduction step for an active equality proposition (e.g. 42pi/18 = 2pi).
+ */
+function evaluateEqualityStep(targetExpr, activeEq) {
+  if (!targetExpr || !activeEq || !activeEq.includes('=')) return null;
+  const eqParts = activeEq.split('=');
+  if (eqParts.length !== 2) return null;
+
+  const rawLhs = eqParts[0].trim();
+  const rawRhs = eqParts[1].trim();
+  const normTarget = normalizeExpression(targetExpr);
+
+  // Check for pi-equality proposition (e.g. 42*pi*/18 = 2*pi* or 42pi/18 = 2pi)
+  const isPiEquality = /pi|π/i.test(activeEq);
+  if (isPiEquality) {
+    const lhsNoPi = rawLhs.replace(/\\pi|π|\bpi\b|\*/gi, ' ').replace(/\s+/g, ' ').replace(/\s*\/\s*/g, '/').trim();
+    let lhsFrac = null;
+    try {
+      lhsFrac = math.fraction(math.evaluate(lhsNoPi));
+    } catch (_) {}
+
+    const rhsNoPi = rawRhs.replace(/\\pi|π|\bpi\b|\*/gi, ' ').replace(/\s+/g, ' ').replace(/\s*\/\s*/g, '/').trim();
+    let rhsFrac = null;
+    try {
+      rhsFrac = math.fraction(math.evaluate(rhsNoPi || '1'));
+    } catch (_) {}
+
+    if (lhsFrac) {
+      const simplifiedLhsFrac = `${lhsFrac.s * lhsFrac.n}/${lhsFrac.d}`;
+      const simplifiedLhsDisplay = `${lhsFrac.s * lhsFrac.n === 1 ? '' : (lhsFrac.s * lhsFrac.n === -1 ? '-' : lhsFrac.s * lhsFrac.n)}π/${lhsFrac.d}`;
+      const rhsDisplay = rawRhs.replace(/\*pi\*/g, 'π').replace(/pi/g, 'π');
+      const rhsFracDisplay = rhsFrac ? (rhsFrac.d === 1 ? String(rhsFrac.s * rhsFrac.n) : `${rhsFrac.s * rhsFrac.n}/${rhsFrac.d}`) : rhsNoPi;
+
+      const targetNoPi = targetExpr.replace(/\\pi|π|\bpi\b|\*/gi, ' ').replace(/[()]/g, '').trim();
+      const hasPi = /pi|π/i.test(targetExpr);
+
+      // 1. Numerical fraction simplification (e.g. "7/3" or "5/2")
+      if (!hasPi && /^\s*-?\d+\s*\/\s*\d+\s*$/.test(targetNoPi)) {
+        try {
+          const tFrac = math.fraction(math.evaluate(targetNoPi));
+          if (math.equal(tFrac, lhsFrac)) {
+            return {
+              status: 'STEP_VERIFIED_CORRECT',
+              rawExpression: targetExpr,
+              correctedStep: `${simplifiedLhsDisplay} = ${rhsDisplay}`,
+              nextOperation: `compare with ${rhsDisplay}`,
+              details: `${lhsNoPi} simplifies to ${simplifiedLhsFrac}, so the left side becomes ${simplifiedLhsDisplay}.`,
+              preferredResponse: `Yes. ${lhsNoPi} simplifies to ${simplifiedLhsFrac}, so the left side becomes ${simplifiedLhsDisplay}. Now compare that with ${rhsDisplay}.`
+            };
+          } else {
+            return {
+              status: 'STEP_VERIFIED_INCORRECT',
+              rawExpression: targetExpr,
+              correctedStep: simplifiedLhsFrac,
+              nextOperation: `simplify ${lhsNoPi} to ${simplifiedLhsFrac}`,
+              details: `${lhsNoPi} simplifies to ${simplifiedLhsFrac}, not ${targetExpr}.`,
+              affirmation: 'Your approach of simplifying the coefficient is correct; the arithmetic reduction needs correction.',
+              preferredResponse: `❌ Not quite. ${lhsNoPi} simplifies to ${simplifiedLhsFrac}, not ${targetExpr}. So the left side becomes ${simplifiedLhsDisplay}.`
+            };
+          }
+        } catch (_) {}
+      }
+
+      // 2. Pi-expression representation (e.g. "(7/3)pi", "7pi/3", "23pi/3")
+      if (hasPi) {
+        try {
+          const tFracVal = math.fraction(math.evaluate(targetNoPi || '1'));
+          const matchesLhs = math.equal(tFracVal, lhsFrac);
+          const equalsRhs = rhsFrac ? math.equal(tFracVal, rhsFrac) : false;
+
+          if (matchesLhs && !equalsRhs) {
+            return {
+              status: 'STEP_VERIFIED_CORRECT',
+              equalityEvaluated: true,
+              isEqual: false,
+              rawExpression: targetExpr,
+              details: `The left side simplifies to ${simplifiedLhsDisplay}. Since ${simplifiedLhsFrac} ≠ ${rhsFracDisplay}, the two sides are not equal (${simplifiedLhsDisplay} ≠ ${rhsDisplay}).`,
+              preferredResponse: `Right. The left side simplifies to ${simplifiedLhsDisplay}. Since ${simplifiedLhsFrac} ≠ ${rhsFracDisplay}, the two sides are not equal (${simplifiedLhsDisplay} ≠ ${rhsDisplay}).`
+            };
+          } else if (matchesLhs && equalsRhs) {
+            return {
+              status: 'STEP_VERIFIED_CORRECT',
+              equalityEvaluated: true,
+              isEqual: true,
+              rawExpression: targetExpr,
+              details: `The left side simplifies to ${simplifiedLhsDisplay}, which equals ${rhsDisplay}. The equality holds.`,
+              preferredResponse: `Yes. The left side simplifies to ${simplifiedLhsDisplay}, which matches the right side. The equality is verified.`
+            };
+          } else {
+            // Expression differs from both LHS and RHS (e.g. 23pi/3)
+            return {
+              status: 'STEP_VERIFIED_CORRECT',
+              equalityEvaluated: true,
+              isEqual: false,
+              rawExpression: targetExpr,
+              details: `${targetExpr} does not equal ${rhsDisplay}.`,
+              preferredResponse: `${targetExpr} is not equal to ${rhsDisplay}.`
+            };
+          }
+        } catch (_) {}
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Evaluates intermediate steps or candidate solutions for active equations (e.g. 3x + 7 = 22).
+ */
+function evaluateEquationCandidate(targetExpr, activeEq) {
+  if (!targetExpr || !activeEq || !activeEq.includes('=')) return null;
+
+  // 1. Intermediate linear equation step (e.g. "3x = 15" or "3x = 16")
+  if (targetExpr.includes('=')) {
+    const stepEval = evaluateLinearEquationStep(targetExpr, activeEq);
+    if (stepEval) return stepEval;
+  }
+
+  // 2. Candidate root/answer (e.g. "10", "5", "x = 5")
+  let proposedVar = 'x';
+  let proposedVal = null;
+  const valAssign = targetExpr.match(/\b([a-zA-Z])\s*=\s*([-\d.]+)\b/);
+  if (valAssign) {
+    proposedVar = valAssign[1];
+    proposedVal = parseFloat(valAssign[2]);
+  } else if (/^[-+]?\d+(?:\.\d+)?$/.test(targetExpr.trim())) {
+    const varMatch = activeEq.match(/[a-zA-Z]/);
+    if (varMatch) proposedVar = varMatch[0];
+    proposedVal = parseFloat(targetExpr.trim());
+  }
+
+  if (proposedVal !== null && !isNaN(proposedVal)) {
+    try {
+      const eqParts = activeEq.split('=');
+      if (eqParts.length === 2) {
+        const scope = { [proposedVar]: proposedVal };
+        const lhsVal = math.evaluate(eqParts[0].trim(), scope);
+        const rhsVal = math.evaluate(eqParts[1].trim(), scope);
+        const satisfies = Math.abs(lhsVal - rhsVal) < 1e-5;
+        const subExpr = eqParts[0].trim().replace(new RegExp(proposedVar, 'g'), `(${proposedVal})`);
+        return {
+          status: satisfies ? 'ANSWER_VERIFIED_CORRECT' : 'ANSWER_VERIFIED_INCORRECT',
+          rawExpression: targetExpr,
+          variable: proposedVar,
+          proposedValue: proposedVal,
+          details: satisfies
+            ? `Substituting ${proposedVar} = ${proposedVal} into ${activeEq} gives ${subExpr} = ${lhsVal}, which satisfies the equation.`
+            : `Substituting ${proposedVar} = ${proposedVal} into ${activeEq} gives ${subExpr} = ${lhsVal}, not ${rhsVal}.`,
+          preferredResponse: satisfies
+            ? `Yes, \`${proposedVar} = ${proposedVal}\` is correct.\nSubstituting \`${proposedVar} = ${proposedVal}\` into \`${activeEq}\` gives \`${subExpr} = ${lhsVal}\`.\nThat's the complete solution!`
+            : `❌ Not quite. Substituting \`${proposedVar} = ${proposedVal}\` into \`${activeEq}\` gives \`${subExpr} = ${lhsVal}\`, not ${rhsVal}.`
+        };
+      }
+    } catch (_) {}
+  }
+
+  return null;
+}
+
+/**
+ * Evaluates candidate student steps or answers for physics problems (kinematics, dynamics).
+ */
+function evaluatePhysicsStep(targetExpr, activeProblem) {
+  if (!targetExpr || !activeProblem) return null;
+  const kv = activeProblem.knownVariables || {};
+
+  const cleanTarget = targetExpr.trim().replace(/[.,;?!]+$/, '');
+  const assignMatch = cleanTarget.match(/^([a-zA-Z]+)\s*=\s*([-\d.]+)\s*([a-zA-Z/^0-9]+)?$/);
+  const bareNumMatch = cleanTarget.match(/^([-\d.]+)\s*([a-zA-Z/^0-9]+)?$/);
+
+  const candVar = assignMatch ? assignMatch[1].toLowerCase() : null;
+  const candVal = assignMatch ? parseFloat(assignMatch[2]) : (bareNumMatch ? parseFloat(bareNumMatch[1]) : null);
+
+  if (candVal === null || isNaN(candVal)) return null;
+
+  // Case 1: Constant velocity kinematics (d = v * t or s = v * t)
+  const v = typeof kv.velocity === 'string' ? parseFloat(kv.velocity) : (typeof kv.velocity === 'number' ? kv.velocity : null);
+  const t = typeof kv.time === 'string' ? parseFloat(kv.time) : (typeof kv.time === 'number' ? kv.time : null);
+  if (typeof v === 'number' && !isNaN(v) && typeof t === 'number' && !isNaN(t)) {
+    const expectedDist = v * t;
+    if (candVar === 'd' || candVar === 's' || candVar === 'distance' || !candVar) {
+      const isCorrect = Math.abs(candVal - expectedDist) < 1e-4;
+      return {
+        status: isCorrect ? 'ANSWER_VERIFIED_CORRECT' : 'ANSWER_VERIFIED_INCORRECT',
+        variable: candVar || 'distance',
+        proposedValue: candVal,
+        expectedValue: expectedDist,
+        details: isCorrect
+          ? `d = v * t = ${v} * ${t} = ${expectedDist} m`
+          : `Using d = v * t: ${v} * ${t} = ${expectedDist} m, not ${candVal}.`,
+        preferredResponse: isCorrect
+          ? `Yes! \`d = ${expectedDist} m\` is correct.\nUsing $d = v \\times t = ${v} \\times ${t} = ${expectedDist}\\text{ m}$.`
+          : `❌ Not quite. Using $d = v \\times t$, we have $${v} \\times ${t} = ${expectedDist}\\text{ m}$, not ${candVal}.`
+      };
+    }
+  }
+
+  // Case 2: Newton's Second Law (F = m * a)
+  const m = typeof kv.mass === 'string' ? parseFloat(kv.mass) : (typeof kv.mass === 'number' ? kv.mass : null);
+  const a = typeof kv.acceleration === 'string' ? parseFloat(kv.acceleration) : (typeof kv.acceleration === 'number' ? kv.acceleration : null);
+  if (typeof m === 'number' && !isNaN(m) && typeof a === 'number' && !isNaN(a)) {
+    const expectedForce = m * a;
+    if (candVar === 'f' || candVar === 'force' || !candVar) {
+      const isCorrect = Math.abs(candVal - expectedForce) < 1e-4;
+      return {
+        status: isCorrect ? 'ANSWER_VERIFIED_CORRECT' : 'ANSWER_VERIFIED_INCORRECT',
+        variable: candVar || 'force',
+        proposedValue: candVal,
+        expectedValue: expectedForce,
+        details: isCorrect
+          ? `F = m * a = ${m} * ${a} = ${expectedForce} N`
+          : `Using F = m * a: ${m} * ${a} = ${expectedForce} N, not ${candVal}.`,
+        preferredResponse: isCorrect
+          ? `Yes! \`F = ${expectedForce} N\` is correct.\nUsing $F = m \\times a = ${m} \\times ${a} = ${expectedForce}\\text{ N}$.`
+          : `❌ Not quite. Using $F = m \\times a$, we have $${m} \\times ${a} = ${expectedForce}\\text{ N}$, not ${candVal}.`
+      };
+    }
+  }
+
+  // Case 3: Kinematics velocity from acceleration (v = a * t)
+  const aVal = typeof kv.acceleration === 'string' ? parseFloat(kv.acceleration) : (typeof kv.acceleration === 'number' ? kv.acceleration : null);
+  if (typeof aVal === 'number' && !isNaN(aVal) && typeof t === 'number' && !isNaN(t) && (typeof v !== 'number' || isNaN(v))) {
+    const expectedVel = aVal * t;
+    if (candVar === 'v' || candVar === 'velocity' || !candVar) {
+      const isCorrect = Math.abs(candVal - expectedVel) < 1e-4;
+      return {
+        status: isCorrect ? 'ANSWER_VERIFIED_CORRECT' : 'ANSWER_VERIFIED_INCORRECT',
+        variable: candVar || 'velocity',
+        proposedValue: candVal,
+        expectedValue: expectedVel,
+        details: isCorrect
+          ? `v = a * t = ${aVal} * ${t} = ${expectedVel} m/s`
+          : `Using v = a * t: ${aVal} * ${t} = ${expectedVel} m/s, not ${candVal}.`,
+        preferredResponse: isCorrect
+          ? `Yes! \`v = ${expectedVel} m/s\` is correct.\nUsing $v = a \\times t = ${aVal} \\times ${t} = ${expectedVel}\\text{ m/s}$.`
+          : `❌ Not quite. Using $v = a \\times t$, we have $${aVal} \\times ${t} = ${expectedVel}\\text{ m/s}$, not ${candVal}.`
+      };
     }
   }
 
@@ -373,17 +629,23 @@ function evaluateStudentWork(rawInput, classification, conversationHistory = [],
     }
 
     if (target) {
-      // 2a. Intermediate linear equation step evaluation against active problem
       if (activeEq) {
-        const stepEval = evaluateLinearEquationStep(target, activeEq);
-        if (stepEval) {
-          stepEval.intent = intent;
-          stepEval.rawExpression = target;
-          return stepEval;
+        const eqStepEval = evaluateEqualityStep(target, activeEq);
+        if (eqStepEval) {
+          eqStepEval.intent = intent;
+          eqStepEval.rawExpression = target;
+          return eqStepEval;
+        }
+
+        const candEval = evaluateEquationCandidate(target, activeEq);
+        if (candEval) {
+          candEval.intent = intent;
+          candEval.rawExpression = target;
+          return candEval;
         }
       }
 
-      // 2b. Pi-rational transformation evaluation (e.g. -29/3 pi + 2pi * 5)
+      // Pi-rational transformation evaluation (e.g. -29/3 pi + 2pi * 5)
       const normTarget = normalizeExpression(target);
       const piEval = evaluatePiRationalExpression(normTarget);
       if (piEval) {
@@ -397,45 +659,6 @@ function evaluateStudentWork(rawInput, classification, conversationHistory = [],
           details: `${target} deterministically evaluates to ${piEval.exactString} (${piEval.approxDeg}°).`,
           preferredResponse: `Yes. Adding 5 full rotations (2π * 5 = 10π = 30π/3) gives:\n\`-29π/3 + 30π/3 = ${piEval.exactString}\` (or ${piEval.approxDeg}°).\nYour coterminal angle transformation is correct.`
         };
-      }
-
-      // 2c. Root / answer substitution check (e.g. x = 4 or 4) against active equation
-      if (activeEq && activeEq.includes('=')) {
-        let proposedVar = 'x';
-        let proposedVal = null;
-        const valAssign = target.match(/\b([a-zA-Z])\s*=\s*([-\d.]+)\b/);
-        if (valAssign) {
-          proposedVar = valAssign[1];
-          proposedVal = parseFloat(valAssign[2]);
-        } else if (/^[-+]?\d+(?:\.\d+)?$/.test(target.trim())) {
-          proposedVal = parseFloat(target.trim());
-        }
-
-        if (proposedVal !== null && !isNaN(proposedVal)) {
-          try {
-            const eqParts = activeEq.split('=');
-            if (eqParts.length === 2) {
-              const scope = { [proposedVar]: proposedVal };
-              const lhsVal = math.evaluate(eqParts[0].trim(), scope);
-              const rhsVal = math.evaluate(eqParts[1].trim(), scope);
-              const satisfies = Math.abs(lhsVal - rhsVal) < 1e-5;
-              const subExpr = eqParts[0].trim().replace(new RegExp(proposedVar, 'g'), `(${proposedVal})`);
-              return {
-                status: satisfies ? 'ANSWER_VERIFIED_CORRECT' : 'ANSWER_VERIFIED_INCORRECT',
-                intent,
-                rawExpression: target,
-                variable: proposedVar,
-                proposedValue: proposedVal,
-                details: satisfies
-                  ? `Substituting ${proposedVar} = ${proposedVal} into ${activeEq} gives ${subExpr} = ${lhsVal}, which satisfies the equation.`
-                  : `Substituting ${proposedVar} = ${proposedVal} into ${activeEq} gives ${subExpr} = ${lhsVal}, not ${rhsVal}.`,
-                preferredResponse: satisfies
-                  ? `Yes, \`${proposedVar} = ${proposedVal}\` is correct.\nSubstituting \`${proposedVar} = ${proposedVal}\` into \`${activeEq}\` gives \`${subExpr} = ${lhsVal}\`.\nThat's the complete solution!`
-                  : `❌ Not quite. Substituting \`${proposedVar} = ${proposedVal}\` into \`${activeEq}\` gives \`${subExpr} = ${lhsVal}\`, not ${rhsVal}.`
-              };
-            }
-          } catch (_) {}
-        }
       }
     }
 
@@ -452,7 +675,11 @@ function evaluateStudentWork(rawInput, classification, conversationHistory = [],
   // -------------------------------------------------------------
   const targetExpr = extractedExpression || rawInput;
 
-  if (intent !== INTENTS.PROPOSED_STEP && intent !== INTENTS.PROPOSED_ANSWER) {
+  const isMathAction = intent === INTENTS.PROPOSED_STEP ||
+                       intent === INTENTS.PROPOSED_ANSWER ||
+                       (intent === INTENTS.CORRECTION && Boolean(extractedExpression));
+
+  if (!isMathAction) {
     return {
       status: 'INTENT_ONLY',
       intent
@@ -471,7 +698,30 @@ function evaluateStudentWork(rawInput, classification, conversationHistory = [],
     };
   }
 
-  // 2. Normalization
+  // 2. Evaluate against active physics problem if present
+  if (activeProblemState?.active?.domain === 'PHYSICS') {
+    const physEval = evaluatePhysicsStep(targetExpr, activeProblemState.active);
+    if (physEval) {
+      physEval.intent = intent;
+      return physEval;
+    }
+  }
+
+  // 2b. Evaluate against active algebra problem if present
+  if (activeEq) {
+    const eqStepEval = evaluateEqualityStep(targetExpr, activeEq);
+    if (eqStepEval) {
+      eqStepEval.intent = intent;
+      return eqStepEval;
+    }
+    const candEval = evaluateEquationCandidate(targetExpr, activeEq);
+    if (candEval) {
+      candEval.intent = intent;
+      return candEval;
+    }
+  }
+
+  // 3. Normalization
   const normalized = normalizeExpression(targetExpr);
   if (!normalized) {
     return { status: 'UNPARSEABLE', intent, rawExpression: targetExpr };
@@ -568,7 +818,15 @@ function formatStudentWorkContext(classification, evaluation, activeProblemState
   }
 
   if (evaluation) {
-    if (evaluation.status === 'STEP_VERIFIED_CORRECT') {
+    if (evaluation.equalityEvaluated) {
+      out += `- Proposed Step / Evaluation: \`${evaluation.rawExpression}\`\n`;
+      out += `- Equality Status: ${evaluation.isEqual ? 'EQUAL (Holds)' : 'UNEQUAL (Does not hold)'}\n`;
+      out += `- Deterministic Evaluation: ${evaluation.details}\n`;
+      out += `- CRITICAL PEDAGOGICAL DIRECTIVE:\n`;
+      out += `  State whether the two sides are equal based on exact reductions:\n`;
+      out += `  ${evaluation.preferredResponse}\n`;
+      out += `  DO NOT treat this input as an isolated standalone decimal calculation.\n`;
+    } else if (evaluation.status === 'STEP_VERIFIED_CORRECT') {
       out += `- Proposed Intermediate Step: \`${evaluation.target || evaluation.rawExpression}\`\n`;
       out += `- Verification Status: STEP_VERIFIED_CORRECT (Ground truth: step is mathematically valid)\n`;
       out += `- Deterministic Evaluation: ${evaluation.details}\n`;
@@ -583,13 +841,19 @@ function formatStudentWorkContext(classification, evaluation, activeProblemState
       out += `  4. DO NOT regenerate or solve the problem from the beginning. Continue from this exact step.\n`;
     } else if (evaluation.status === 'STEP_VERIFIED_INCORRECT') {
       out += `- Proposed Intermediate Step: \`${evaluation.target || evaluation.rawExpression}\`\n`;
-      out += `- Verification Status: STEP_VERIFIED_INCORRECT (Ground truth: arithmetic error in proposed step)\n`;
-      out += `- Arithmetic Error: ${evaluation.details}\n`;
+      out += `- Verification Status: STEP_VERIFIED_INCORRECT (Ground truth: ${evaluation.isSignError ? 'sign mistake' : 'arithmetic error'} in proposed step)\n`;
+      out += `- Error Details: ${evaluation.details}\n`;
       out += `- Corrected Step: \`${evaluation.correctedStep}\`\n`;
       out += `- CRITICAL PEDAGOGICAL DIRECTIVE:\n`;
-      out += `  The student asks to validate their proposed step, which contains an arithmetic mistake.\n`;
-      out += `  1. Explicitly state: "❌ Not quite. ${evaluation.details}"\n`;
-      out += `  2. Affirm student's method: "${evaluation.affirmation}"\n`;
+      if (evaluation.isSignError) {
+        out += `  The student made a SIGN ERROR.\n`;
+        out += `  1. Explicitly identify the sign mistake: "${evaluation.details}"\n`;
+        out += `  2. Affirm student's overall method: "${evaluation.affirmation}"\n`;
+      } else {
+        out += `  The student asks to validate their proposed step, which contains an arithmetic mistake.\n`;
+        out += `  1. Explicitly state: "❌ Not quite. ${evaluation.details}"\n`;
+        out += `  2. Affirm student's method: "${evaluation.affirmation}"\n`;
+      }
       out += `  3. DO NOT solve the entire problem from the beginning or dump the complete solution.\n`;
       out += `  4. Continue from the corrected state \`${evaluation.correctedStep}\`.\n`;
     } else if (evaluation.status === 'ANSWER_VERIFIED_CORRECT') {
@@ -654,6 +918,8 @@ function formatStudentWorkContext(classification, evaluation, activeProblemState
     out += `- Action Required: Student requested an alternative explanation. Use a different mental model, visual analogy, or concrete numbers.\n`;
   } else if (classification.intent === INTENTS.CONFUSION) {
     out += `- Action Required: Student expresses confusion. Break the current step into a simpler, foundational question.\n`;
+  } else if (classification.intent === INTENTS.HYPOTHETICAL) {
+    out += `- Action Required: Student is asking a hypothetical variation ("What if..."). Walk through the parameter change and show how it alters the intermediate steps and final answer.\n`;
   }
 
   return out;
@@ -665,6 +931,9 @@ module.exports = {
   evaluatePiRationalExpression,
   parseLinearEquation,
   evaluateLinearEquationStep,
+  evaluateEqualityStep,
+  evaluateEquationCandidate,
+  evaluatePhysicsStep,
   evaluateStudentWork,
   formatStudentWorkContext
 };

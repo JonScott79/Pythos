@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="assets/favicon.png">
-  <title>Pythos Release History & Changelog | v1.8.1</title>
+  <title>Pythos Release History & Changelog | v1.8.2</title>
   <meta name="description" content="Pythos release notes & changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://pythos.lanzar.me/changelog.html">
 
   <!-- OPEN GRAPH -->
-  <meta property="og:title" content="Pythos Release History & Changelog | v1.8.1">
+  <meta property="og:title" content="Pythos Release History & Changelog | v1.8.2">
   <meta property="og:description" content="Pythos release notes & changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta property="og:url" content="https://pythos.lanzar.me/changelog.html">
   <meta property="og:type" content="article">
@@ -23,7 +23,7 @@
 
   <!-- TWITTER CARD -->
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Pythos Release History & Changelog | v1.8.1">
+  <meta name="twitter:title" content="Pythos Release History & Changelog | v1.8.2">
   <meta name="twitter:description" content="Pythos release notes & changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="twitter:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
 
@@ -32,7 +32,7 @@
   {
     "@context": "https://schema.org",
     "@type": "TechArticle",
-    "headline": "Pythos 1.8.1 Release Notes and Changelog",
+    "headline": "Pythos 1.8.2 Release Notes and Changelog",
     "description": "Authoritative release history for Pythos: specialized problem routing, two-stage reasoning, and CAS ground-truth verification.",
     "datePublished": "2026-08-26",
     "dateModified": "2026-09-17",
@@ -430,12 +430,36 @@
       <p>Authoritative release notes, verification engine milestones, and mathematical system updates.</p>
     </header>
 
+    <!-- RELEASE v1.8.2 -->
+    <article class="release-card" id="pythos-1-8-2">
+      <div class="release-header">
+        <div class="release-title-wrap">
+          <h2 class="release-version">Pythos 1.8.2</h2>
+          <span class="release-badge">Latest Release</span>
+        </div>
+        <time class="release-date" datetime="2026-09-17">September 17, 2026</time>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header added">✦ WHAT'S NEW</div>
+        <ul class="feature-list">
+          <li><strong>Multi-Turn Destruction Testing &amp; Child-Readiness Certification</strong>: Certified Pythos against a comprehensive 1,004-conversation, 2,176-turn adversarial destruction battery covering math/physics topic switching, interruptions (&ldquo;wait&rdquo;, &ldquo;hold on&rdquo;), self-corrections, third-party/calculator claims, terse answers, random mutations, and long-context dialogue torture up to 250 turns with zero failures.</li>
+          <li><strong>Mathematical Payload Extraction on Self-Corrections (P1)</strong>: When students self-correct with mathematical work (e.g. &ldquo;Actually I meant 4x = 20&rdquo;), Pythos extracts the mathematical clause and verifies it against the active problem rather than dropping into an intent-only state.</li>
+          <li><strong>Chronological Topic Restoration in Long-Context Dialogues (P1)</strong>: Topic restoration requests (&ldquo;Can we go back to problem 1?&rdquo;) are now resolved chronologically inside the dialogue traversal loop, ensuring restored problem context persists across subsequent turns in 50+, 100+, and 250-turn dialogues.</li>
+          <li><strong>Unverified Student Guess State Shielding (P0)</strong>: Prevented candidate answers (e.g. <code>F = 8</code>) and physics domains from polluting <code>activeExpression</code>, ensuring student operational errors are diagnosed and corrected rather than self-verifying.</li>
+          <li><strong>Third-Party &amp; Authority Claim Verification (P1)</strong>: Added deterministic extraction and evaluation for student claims citing teachers, calculators, textbooks, and third parties (&ldquo;My teacher said the answer is 4&rdquo;, &ldquo;My calculator says x = 5&rdquo;).</li>
+          <li><strong>Conversational Slang &amp; Idiomatic Expression Tolerance (P1)</strong>: Relaxed strict string termination to allow trailing slang and emphatic phrases (&ldquo;x = 5 no cap&rdquo;, &ldquo;2x = 8 eureka!&rdquo;, &ldquo;x = 4 periodt&rdquo;) without diverting valid math to <code>UNKNOWN</code>.</li>
+          <li><strong>Kinematics Velocity Verification (P1)</strong>: Expanded physics evaluation to include acceleration-to-velocity calculation ($v = a \times t$) alongside distance ($d = v \times t$) and Newtonian dynamics ($F = m \times a$).</li>
+          <li><strong>Implicit Problem Abandonment &amp; Equation Partitioning (P1)</strong>: Distinct new equations (e.g. <code>5y - 10 = 15</code>) seamlessly archive earlier problems and establish new active tasks without requiring the explicit phrase &ldquo;new problem&rdquo;.</li>
+        </ul>
+      </div>
+    </article>
+
     <!-- RELEASE v1.8.1 -->
     <article class="release-card" id="pythos-1-8-1">
       <div class="release-header">
         <div class="release-title-wrap">
           <h2 class="release-version">Pythos 1.8.1</h2>
-          <span class="release-badge">Latest Release</span>
         </div>
         <time class="release-date" datetime="2026-09-17">September 17, 2026</time>
       </div>

@@ -1298,6 +1298,19 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   const eqMatch = clean.match(/^(?:solve(?:\s+for\s+[a-zA-Z])?[:\s]+)?([a-zA-Z0-9.\s*+^/()-]+=[a-zA-Z0-9.\s*+^/()-]+)$/i);
   if (eqMatch) {
     const rawEq = eqMatch[1].trim();
+
+    // If an active problem exists and student did not explicitly command "solve...", defer to contextual student work evaluation
+    const hasExplicitSolveDirective = /^(?:solve|find\s+(?:the\s+)?root|calculate)\b/i.test(clean);
+    if (!hasExplicitSolveDirective && conversationHistory && conversationHistory.length > 0) {
+      try {
+        const { extractActiveProblemState } = require('./contextManager');
+        const state = extractActiveProblemState(conversationHistory);
+        if (state && state.active && state.active.activeExpression) {
+          return null;
+        }
+      } catch (_) {}
+    }
+
     // Check if linear equation: a*x + b = c
     const linearMatch = rawEq.match(/^([-+]?\d*(?:\.\d+)?)\s*\*?\s*([a-zA-Z])\s*([-+])\s*(\d+(?:\.\d+)?)\s*=\s*([-+]?\d+(?:\.\d+)?)$/i) ||
                         rawEq.match(/^([-+]?\d*(?:\.\d+)?)\s*\*?\s*([a-zA-Z])\s*=\s*([-+]?\d+(?:\.\d+)?)$/i);
@@ -1331,21 +1344,32 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
     return null;
   }
 
-  // 4a. Contextual Dimensional Check: If this arithmetic is a follow-up to an active
-  // problem with dimensional/unit requirements or unit mismatches, do NOT silently calculate raw numbers.
+  // 4a. Active Problem Context Check:
+  // If an active mathematical problem exists, do NOT silently hijack short student work
+  // (e.g. 7/3, (7/3)pi, 10, 15) as standalone arithmetic unless explicitly directed.
   if (conversationHistory && conversationHistory.length > 0) {
     try {
       const { extractActiveProblemState } = require('./contextManager');
       const state = extractActiveProblemState(conversationHistory);
-      if (state && state.active && state.active.knownVariables) {
+      if (state && state.active) {
+        // Contextual Dimensional Check:
+        // If the active problem has mismatched units (e.g. 6 m and 700 cm), raw division is invalid
         const kv = state.active.knownVariables;
-        if (kv.hasUnitMismatch) {
-          // If the expression uses numbers matching the incompatible quantities (e.g. 700 and 6)
+        if (kv && kv.hasUnitMismatch) {
           const allNums = extractedExprs.join(' ').match(/\d+(?:\.\d+)?/g) || [];
           const knownNums = (kv.lengths || []).map(l => (l.match(/\d+(?:\.\d+)?/) || [])[0]).filter(Boolean);
           const overlaps = knownNums.filter(n => allNums.includes(n));
           if (overlaps.length >= 2 || (knownNums.length > 0 && overlaps.length === knownNums.length)) {
-            // Student is calculating raw values from active problem with incompatible units -> let Socratic tutor guide unit normalization
+            return null;
+          }
+        }
+
+        // Active Equation Verification or Equality Problem Check:
+        // If the active problem is an equation with both LHS and RHS (e.g. 42pi/18 = 2pi or 3x + 7 = 22),
+        // terse arithmetic like 7/3 or (7/3)pi is student work toward the equation, not standalone calculation
+        if (state.active.activeExpression && state.active.activeExpression.includes('=')) {
+          const isExplicitStandalone = /^(?:calculate|compute|what\s+is|evaluate|how\s+much\s+is|find\s+the\s+value\s+of|new\s+problem)[:\s]/i.test(clean);
+          if (!isExplicitStandalone) {
             return null;
           }
         }

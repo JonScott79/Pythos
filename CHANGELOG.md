@@ -5,6 +5,19 @@ All notable changes to the Pythos project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Pythos 1.8.2
+**Release Date:** 2026-09-17
+
+### Added
+- **Multi-Turn Destruction Testing & Child-Readiness Certification** (`test/test-conversation-destruction-engine.js`, `test/test-child-readiness-battery.js`): Certified Pythos against an adversarial 1,004-conversation, 2,176-turn destruction battery covering topic switches between math and physics, interruptions ("wait", "hold on"), corrections ("actually", "never mind"), third-party claims ("my teacher said", "calculator says"), terse answers, mutations, and long-context torture up to 250 turns with zero failures.
+- **Mathematical Payload Extraction on Self-Corrections (P1)** (`server/studentIntentClassifier.js`, `server/studentWorkEvaluator.js`): When students self-correct with mathematical work (e.g. "Actually I meant 4x = 20"), Pythos extracts the mathematical clause and verifies it against the active problem rather than dropping into an intent-only state.
+- **Chronological Topic Restoration in Long-Context Dialogues (P1)** (`server/contextManager.js`): Topic restoration requests ("Can we go back to problem 1?") are now resolved chronologically inside the dialogue traversal loop, ensuring restored problem context persists across subsequent turns in 50+, 100+, and 250-turn dialogues.
+- **Unverified Student Guess State Shielding (P0)** (`server/contextManager.js`, `server/studentWorkEvaluator.js`): Prevented candidate answers (e.g. $F = 8$) and physics domains from polluting `activeExpression`, ensuring student operational errors are diagnosed and corrected rather than self-verifying.
+- **Third-Party & Authority Claim Verification (P1)** (`server/studentIntentClassifier.js`): Added deterministic extraction and evaluation for student claims citing teachers, calculators, textbooks, and third parties ("My teacher said the answer is 4", "My calculator says x = 5").
+- **Conversational Slang & Idiomatic Expression Tolerance (P1)** (`server/studentIntentClassifier.js`): Relaxed strict string termination to allow trailing slang and emphatic phrases ("x = 5 no cap", "2x = 8 eureka!", "x = 4 periodt") without diverting valid math to `UNKNOWN`.
+- **Kinematics Velocity Verification (P1)** (`server/studentWorkEvaluator.js`, `server/problemClassifier.js`): Expanded physics evaluation to include acceleration-to-velocity calculation ($v = a \times t$) alongside distance ($d = v \times t$) and Newtonian dynamics ($F = m \times a$).
+- **Implicit Problem Abandonment & Equation Partitioning (P1)** (`server/contextManager.js`): Distinct new equations (e.g. $5y - 10 = 15$) seamlessly archive earlier problems and establish new active tasks without requiring the explicit phrase "new problem".
+
 ## Pythos 1.8.1
 **Release Date:** 2026-09-17
 
