@@ -156,21 +156,29 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
         }
       }
     }
-    const activeMath = mathExpr || extractedEq || null;
+    let extractedExpr = null;
+    if (!cleanPrompt.includes('=') && !isProse(cleanPrompt) && /^[-+*/^0-9.()\s\\a-zA-Zπ_]+$/.test(cleanPrompt) &&
+        (/\d/.test(cleanPrompt) || /[a-zA-Zπ]/.test(cleanPrompt)) && cleanPrompt.length <= 60 &&
+        (/[-+*/^]/.test(cleanPrompt) || /\b(?:pi|π|sqrt|sin|cos|tan)\b/i.test(cleanPrompt))) {
+      extractedExpr = cleanPrompt;
+    }
+
+    const activeMath = mathExpr || extractedEq || extractedExpr || null;
     const isAlgebraicEquation = Boolean(extractedEq);
+    const isMathematicalExpression = Boolean(extractedExpr);
 
     const isRecognizedProblem = (classification &&
       classification.problemDomain !== 'UNKNOWN' &&
       classification.problemDomain !== 'OFF_TOPIC' &&
       classification.problemDomain !== 'CONCEPTUAL' &&
-      isHighConfidence) || isAlgebraicEquation;
+      isHighConfidence) || isAlgebraicEquation || isMathematicalExpression;
 
     const detectedDomain = isRecognizedProblem
-      ? (classification && classification.problemDomain !== 'UNKNOWN' ? classification.problemDomain : 'ALGEBRA')
+      ? (classification && classification.problemDomain !== 'UNKNOWN' ? classification.problemDomain : (isMathematicalExpression && (extractedExpr.includes('pi') || extractedExpr.includes('π')) ? 'TRIGONOMETRY' : 'MATHEMATICS'))
       : (activeMath ? 'ALGEBRA' : 'MATHEMATICS');
     const detectedSubtype = classification && classification.problemSubtype !== 'UNKNOWN'
       ? classification.problemSubtype
-      : (isAlgebraicEquation ? (extractedEq.includes('pi') || extractedEq.includes('π') ? 'EQUALITY_VERIFICATION' : 'LINEAR_EQUATION') : (activeMath ? 'FUNCTION' : 'GENERAL'));
+      : (isAlgebraicEquation ? (extractedEq.includes('pi') || extractedEq.includes('π') ? 'EQUALITY_VERIFICATION' : 'LINEAR_EQUATION') : (isMathematicalExpression ? (extractedExpr.includes('pi') || extractedExpr.includes('π') ? 'RADIAN_EXPRESSION' : 'EXPRESSION_SIMPLIFICATION') : (activeMath ? 'FUNCTION' : 'GENERAL')));
 
     // Distinguish genuine new problems from terse student work/follow-ups
     const isExplicitNewProblem = trans.type === 'NEW_TOPIC_EXPLICIT' ||

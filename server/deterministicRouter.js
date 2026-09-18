@@ -17,7 +17,7 @@ const mathjsVerifier = require('./mathjsVerifier');
  */
 function hasConceptualIntent(text) {
   if (!text || typeof text !== 'string') return false;
-  const conceptualPattern = /\b(explain|why|how come|concept|intuition|derive|derivation|interpret|interpretation|meaning|proof|prove|guide|teach|what does it mean|understand|reasoning|significance|discuss|difference between|demonstrate|exhibit|illustrate|is this|does this|paradox|fallacy|reversal)\b/i;
+  const conceptualPattern = /\b(explain|why|how come|concept|intuition|derive|derivation|interpret|interpretation|meaning|proof|prove|guide|teach|what does it mean|understand|reasoning|significance|discuss|difference between|demonstrate|exhibit|illustrate|is this|does this|is that|is it|are they|same thing|same as|the same|equivalent|equal to each other|mean the same|does that mean|what about|would that be|paradox|fallacy|reversal)\b/i;
   return conceptualPattern.test(text);
 }
 
@@ -190,6 +190,15 @@ function extractArithmeticExpressions(text) {
     }
   }
 
+  // If the query is an inquiry, question, or conversational comparison (e.g. "is that the same thing?", "what does that mean?"),
+  // do NOT extract arithmetic unless the prompt is an explicit standalone calculation command
+  const isQuestionOrProse = /[?]$/.test(text.trim()) ||
+    /\b(?:is\s+(?:that|this|it)|same\s+thing|same\s+as|the\s+same|equivalent|what\s+about|why|how|explain|does\s+(?:this|that))\b/i.test(text);
+  const isExplicitStandaloneCalc = /^(?:calculate|compute|evaluate|what is|find|how much is)[:\s]/i.test(text.trim());
+  if (isQuestionOrProse && !isExplicitStandaloneCalc) {
+    return expressions;
+  }
+
   // Split into lines
   const lines = text.split(/\r?\n/);
 
@@ -234,8 +243,8 @@ function extractArithmeticExpressions(text) {
       .replace(/\\pi/g, 'pi')
       .replace(/π/g, 'pi');
 
-    // Only match if the fraction is NOT immediately followed by or prefixed by a variable, pi, or algebraic expression
-    const fracMatches = normLine.matchAll(/(?:\\frac\{([\d.]+|\bpi\b)\}\{([\d.]+|\bpi\b)\}|(\b(?:\d+(?:\.\d+)?|\bpi\b)\s*\/\s*(?:\d+(?:\.\d+)?|\bpi\b)\b))(?!\s*(?:[a-zA-Z]|\\pi|π))/gi);
+    // Only match if the fraction is NOT immediately followed by or prefixed by a variable, pi, closing paren with variable/pi, or algebraic expression
+    const fracMatches = normLine.matchAll(/(?:\\frac\{([\d.]+|\bpi\b)\}\{([\d.]+|\bpi\b)\}|(\b(?:\d+(?:\.\d+)?|\bpi\b)\s*\/\s*(?:\d+(?:\.\d+)?|\bpi\b)\b))(?!\s*\)?\s*(?:[a-zA-Z]|\\pi|π))/gi);
     for (const m of fracMatches) {
       if (m[1] && m[2]) {
         expressions.push(`(${m[1]}) / (${m[2]})`);
@@ -246,8 +255,11 @@ function extractArithmeticExpressions(text) {
         const afterMatch = normLine.slice(matchIdx + matchStr.length).trim();
         const beforeMatch = normLine.slice(0, matchIdx).trim();
 
-        // If surrounded by operators (+, -, *, ^) or pi, it is a subexpression of a larger expression, not a standalone division
-        const isSubExpr = /[-+*^/]$/.test(beforeMatch) || /^[-+*^/]/.test(afterMatch) || /^(?:pi|[a-zA-Z])\b/i.test(afterMatch);
+        // If surrounded by operators (+, -, *, ^) or pi, or inside parentheses followed by a variable/pi/operator, it is a subexpression
+        const isSubExpr = /[-+*^/]$/.test(beforeMatch) ||
+                          (/\($/.test(beforeMatch) && /^\)/.test(afterMatch) && /^\)\s*(?:pi|[a-zA-Z]|[-+*^/])/i.test(afterMatch)) ||
+                          /^[-+*^/]/.test(afterMatch) ||
+                          /^(?:pi|[a-zA-Z])\b/i.test(afterMatch);
         if (!isSubExpr) {
           expressions.push(m[3].trim());
         }
@@ -1364,10 +1376,10 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
           }
         }
 
-        // Active Equation Verification or Equality Problem Check:
-        // If the active problem is an equation with both LHS and RHS (e.g. 42pi/18 = 2pi or 3x + 7 = 22),
-        // terse arithmetic like 7/3 or (7/3)pi is student work toward the equation, not standalone calculation
-        if (state.active.activeExpression && state.active.activeExpression.includes('=')) {
+        // Active Problem Context Check:
+        // If an active problem exists in the conversation (equation like 42pi/18 = 2pi, or expression like 23pi/7),
+        // terse arithmetic like 7/3 or (7/3)pi or candidate values are student work/inquiry, not standalone calculation
+        if (state.active.activeExpression) {
           const isExplicitStandalone = /^(?:calculate|compute|what\s+is|evaluate|how\s+much\s+is|find\s+the\s+value\s+of|new\s+problem)[:\s]/i.test(clean);
           if (!isExplicitStandalone) {
             return null;
