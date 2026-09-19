@@ -149,8 +149,8 @@ const MathJSVerifier = {
                 : `${expression} evaluated to ${numResult}, not ${proposed_value}`
             };
           } else {
-            // Strict exact match
-            const matches = Math.abs(numResult - Number(proposed_value)) === 0;
+            // Strict exact match (allowing for IEEE 754 floating-point machine epsilon ~1e-11)
+            const matches = Math.abs(numResult - Number(proposed_value)) < 1e-11;
             return {
               verified: matches,
               engine: 'mathjs',

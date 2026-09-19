@@ -353,6 +353,26 @@ test('K3: Active problem with matching units allows normal calculation', () => {
   assert.strictEqual(intent.result, 1.25);
 });
 
+// ============================================================================
+// SUITE L: Simpson's Paradox & Coterminal Reduction Hardening
+// ============================================================================
+console.log('--- Suite L: Simpson\'s Paradox & Coterminal Angles ---');
+
+test('L1: Conceptual Simpson\'s paradox query resolves without fall-through', () => {
+  const intent = analyzeDeterministicIntent('Explain Simpson\'s paradox with hospital treatment success rates');
+  assert(intent, 'Expected non-null intent for Simpson\'s paradox');
+  assert.strictEqual(intent.type, 'SIMPSONS_PARADOX_CONCEPTUAL');
+  assert.strictEqual(intent.result, 'SIMPSONS_PARADOX');
+});
+
+test('L2: Coterminal query with negative multi-rotation angle parses target correctly', () => {
+  const intent = analyzeDeterministicIntent('What is the positive angle less than 360 degrees coterminal with -1040 degrees?');
+  assert(intent, 'Expected non-null intent for coterminal reduction');
+  assert.strictEqual(intent.type, 'COTERMINAL_ANGLE');
+  assert.strictEqual(intent.result, 40);
+  assert.strictEqual(intent.formatted, '40°');
+});
+
 console.log(`\n====================================================`);
 console.log(`Phase A Tests: ${passedTests}/${totalTests} Passed (100%)`);
 console.log(`====================================================\n`);

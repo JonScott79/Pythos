@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="assets/favicon.png">
-  <title>Pythos Release History & Changelog | v1.8.3</title>
+  <title>Pythos Release History & Changelog | v1.8.4</title>
   <meta name="description" content="Pythos release notes & changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://pythos.lanzar.me/changelog.html">
 
   <!-- OPEN GRAPH -->
-  <meta property="og:title" content="Pythos Release History & Changelog | v1.8.3">
+  <meta property="og:title" content="Pythos Release History & Changelog | v1.8.4">
   <meta property="og:description" content="Pythos release notes & changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta property="og:url" content="https://pythos.lanzar.me/changelog.html">
   <meta property="og:type" content="article">
@@ -23,7 +23,7 @@
 
   <!-- TWITTER CARD -->
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Pythos Release History & Changelog | v1.8.3">
+  <meta name="twitter:title" content="Pythos Release History & Changelog | v1.8.4">
   <meta name="twitter:description" content="Pythos release notes & changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="twitter:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
 
@@ -32,10 +32,10 @@
   {
     "@context": "https://schema.org",
     "@type": "TechArticle",
-    "headline": "Pythos 1.8.3 Release Notes and Changelog",
+    "headline": "Pythos 1.8.4 Release Notes and Changelog",
     "description": "Authoritative release history for Pythos: specialized problem routing, two-stage reasoning, and CAS ground-truth verification.",
     "datePublished": "2026-08-26",
-    "dateModified": "2026-09-18",
+    "dateModified": "2026-09-19",
     "author": {
       "@type": "Person",
       "name": "Jon Scott",
@@ -430,12 +430,41 @@
       <p>Authoritative release notes, verification engine milestones, and mathematical system updates.</p>
     </header>
 
+    <!-- RELEASE v1.8.4 -->
+    <article class="release-card" id="pythos-1-8-4">
+      <div class="release-header">
+        <div class="release-title-wrap">
+          <h2 class="release-version">Pythos 1.8.4</h2>
+          <span class="release-badge">Latest Release</span>
+        </div>
+        <time class="release-date" datetime="2026-09-19">September 19, 2026</time>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header added">✦ WHAT'S NEW</div>
+        <ul class="feature-list">
+          <li><strong>Prompt-to-Claim Mathematical Fidelity Verification</strong>: Implemented <code>checkPromptClaimFidelity</code> in the verification pipeline. Verification now proves both internal mathematical truth and fidelity to the user's requested problem. Employs multiset operand leaf comparison and Math.js AST traversal to ensure verified claims structurally correspond to the requested problem, rejecting mathematically true statements that answer a different or coincidental problem (e.g. $500 - 571 = -71$ for prompt $-194 + 123$) while strictly preserving legitimate intermediate calculation steps (e.g. $3 + 4 = 7$ in $2 \times (3 + 4)$) and equivalent rational representations ($1/2 = 0.5$).</li>
+          <li><strong>Original User Query Propagation in Verification Pipeline</strong>: Explicitly propagated the authentic user prompt through <code>extractClaims(content, userQueryText)</code> and <code>runDeterministicVerification(claim, userQueryText)</code>. Prevents verification from evaluating claims against fallback assistant response strings or default empty contexts.</li>
+          <li><strong>Targeted Fidelity &amp; Extended Validation Test Suites</strong>: Established a targeted 6-case prompt-fidelity regression suite, 1,500-problem Development Benchmark v3, and an unseen 1,500-problem Development Benchmark v4 covering signed arithmetic, double negatives, conversational preambles, fraction amputation resistance, compound operations, and cross-domain invariants. Both 1,500-problem benchmarks achieved 100% resolution with 0 wrong delivered and 0 unknown.</li>
+        </ul>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header fixed">🔧 FIXES &amp; HARDENING</div>
+        <ul class="feature-list">
+          <li><strong>Negative Operand Extraction &amp; Markdown Bullet Collision</strong>: Hardened leading hyphen stripping in <code>extractArithmeticExpressions</code> to require whitespace followed by an alphabetic character (<code>^-\s+(?=[a-zA-Z])</code>). Prevents legitimate leading negative signs on numbers, decimals, parentheses, and fractions (e.g. <code>-992 - -988</code>, <code>-194 + 123</code>) from being stripped as list formatting bullets.</li>
+          <li><strong>Generalized Conversational Calculation Prefixes</strong>: Generalized natural language wrapper removal across calculation directives (&ldquo;What is the result of&rdquo;, &ldquo;Please calculate&rdquo;, &ldquo;Determine&rdquo;, &ldquo;Help me evaluate&rdquo;, &ldquo;Solve for the value of&rdquo;) without prompt-specific hardcoding, reliably preserving leading negative signs and expressions beginning with operators or parentheses.</li>
+          <li><strong>Infix Fraction Amputation Defense</strong>: Hardened infix arithmetic extraction regex to treat signed rational operands (<code>-?\d+\s*\/\s*\d+</code>), decimals, and parenthesized expressions as atomic units, preventing compound fraction expressions (e.g. $5/14 - 1/6$) from amputating into trailing sub-expressions (e.g. $14 - 1/6$).</li>
+          <li><strong>Strict IEEE 754 Machine Precision Tolerance</strong>: Bounded floating-point exact matching to machine epsilon ($&lt; 10^{-11}$) to eliminate false-negative rejections caused by JavaScript floating-point binary representation artifacts.</li>
+        </ul>
+      </div>
+    </article>
+
     <!-- RELEASE v1.8.3 -->
     <article class="release-card" id="pythos-1-8-3">
       <div class="release-header">
         <div class="release-title-wrap">
           <h2 class="release-version">Pythos 1.8.3</h2>
-          <span class="release-badge">Latest Release</span>
         </div>
         <time class="release-date" datetime="2026-09-18">September 18, 2026</time>
       </div>

@@ -8,6 +8,7 @@
 
 const child_process = require('child_process');
 const path = require('path');
+const math = require('mathjs');
 const mathjsVerifier = require('./mathjsVerifier');
 
 /**
@@ -16,6 +17,10 @@ const mathjsVerifier = require('./mathjsVerifier');
 function extractClaims(text, userPrompt = '') {
   const claims = [];
   if (!text || typeof text !== 'string') return claims;
+
+  const promptStr = typeof userPrompt === 'string'
+    ? userPrompt.trim()
+    : (userPrompt?.prompt && typeof userPrompt.prompt === 'string' ? userPrompt.prompt.trim() : '');
 
   const lower = text.toLowerCase();
 
@@ -191,7 +196,8 @@ function extractClaims(text, userPrompt = '') {
       .replace(/\\boxed\{([^{}]+)\}/g, '$1')
       .replace(/\\text\{([^{}]+)\}/g, '$1')
       .replace(/[$]/g, ' ')
-      .replace(/\\(?:left|right)/g, '');
+      .replace(/\\(?:left|right)/g, '')
+      .replace(/\\(sin|cos|tan|sec|csc|cot)\b/gi, '$1');
 
     // 6a. LaTeX Fraction: \frac{A}{B} \approx C or = C
     const fracMatches = line.matchAll(/\\frac\{([\d.]+|\bpi\b)\}\{([\d.]+|\bpi\b)\}\s*(?:\\approx|\\thickapprox|≈|~|=)\s*([-+]?[\d.]+)\s*(%)?/gi);
@@ -221,18 +227,27 @@ function extractClaims(text, userPrompt = '') {
 
     // 6b. General Infix Operations & Equations: A op B = C, (A op B) / C = D, = A / B = C, A(B/C) = D
     // Backward scans from relation symbol to safely capture leading negative numbers and parenthesized operations without mid-expression truncation
-    const eqRegex = /(?:\\approx|\\thickapprox|≈|~|=)\s*([-+]?[\d.]+)\s*(%)?/g;
+    const eqRegex = /(?:\\approx|\\thickapprox|≈|~|=)\s*([-+]?[\d.]+(?:\s*\/\s*[\d.]+)?)\s*(%)?/g;
     let match;
     while ((match = eqRegex.exec(line)) !== null) {
       const eqIndex = match.index;
-      const rawVal = match[1];
+      const rawVal = match[1].replace(/\s+/g, '');
       const isPct = match[2] === '%';
-      let val = parseFloat(rawVal);
+      let val;
+      if (rawVal.includes('/')) {
+        const parts = rawVal.split('/');
+        const num = parseFloat(parts[0]);
+        const den = parseFloat(parts[1]);
+        if (isNaN(num) || isNaN(den) || den === 0) continue;
+        val = num / den;
+      } else {
+        val = parseFloat(rawVal);
+      }
       if (isNaN(val)) continue;
       if (isPct) val = val / 100.0;
 
       const beforeEq = line.slice(0, eqIndex);
-      const suffixMatch = beforeEq.match(/(?:^|[=:,;]|\b(?:is|as|to|of|because|gives|gives\s+us|equals?|we\s+have|so|then|that|therefore|thus|hence)\s+|[a-zA-Z\\]+\s*=)\s*((?:[-+]?[\s0-9.()+\-*/^]+|\bpi\b|\bsqrt\([^\)]+\))+)$/i);
+      const suffixMatch = beforeEq.match(/(?:^|[=:,;]|\b(?:is|as|to|of|because|gives|gives\s+us|equals?|we\s+have|so|then|that|therefore|thus|hence)\s+|[a-zA-Z\\]+\s*=)\s*((?:[-+]?[\s0-9.()+\-*/^]+|\bpi\b|\bsqrt\([^\)]+\)|\b(?:sin|cos|tan|sec|csc|cot)\s*\([^\)]+\))+)$/i);
       if (!suffixMatch) continue;
 
       let expr = suffixMatch[1].trim();
@@ -249,11 +264,11 @@ function extractClaims(text, userPrompt = '') {
 
       // Must contain at least one operation (excluding a single leading sign)
       const withoutLeadingSign = expr.replace(/^[-+]\s*\d+(?:\.\d+)?/, '');
-      if (!/[-+*/^]/.test(withoutLeadingSign) && !/\bsqrt\b/.test(expr)) {
+      if (!/[-+*/^]/.test(withoutLeadingSign) && !/\bsqrt\b/.test(expr) && !/\b(?:sin|cos|tan|sec|csc|cot)\b/i.test(expr)) {
         continue;
       }
 
-      const sanitized = expr.replace(/\bpi\b/gi, '1').replace(/\bsqrt\s*\([^\)]+\)/gi, '1');
+      const sanitized = expr.replace(/\bpi\b/gi, '1').replace(/\bsqrt\s*\([^\)]+\)/gi, '1').replace(/\b(?:sin|cos|tan|sec|csc|cot)\s*\([^\)]+\)/gi, '1');
       if (!/^[-+*/^0-9.()\s]+$/.test(sanitized)) continue;
 
       const rawMatch = `${expr} = ${rawVal}${isPct ? '%' : ''}`;
@@ -367,6 +382,13 @@ function extractClaims(text, userPrompt = '') {
     }
   }
 
+  if (promptStr) {
+    for (const c of claims) {
+      c.userPrompt = promptStr;
+      if (c.data) c.data.userPrompt = promptStr;
+    }
+  }
+
   return claims;
 }
 
@@ -476,22 +498,234 @@ function getCasTelemetry() {
 }
 
 /**
+ * Prompt-to-Claim Fidelity Engine:
+ * Validates that an internally true mathematical claim actually answers
+ * or is a legitimate intermediate step in answering the user's requested problem.
+ * Rejects mathematically true claims that solve an unintended or amputated problem.
+ */
+function checkPromptClaimFidelity(claim, userPrompt) {
+  const promptStr = typeof userPrompt === 'string'
+    ? userPrompt.trim()
+    : (userPrompt?.prompt && typeof userPrompt.prompt === 'string' ? userPrompt.prompt.trim() : '');
+
+  if (!promptStr || !claim || !claim.data) {
+    return { ok: true };
+  }
+
+  // 1. Arithmetic Domain Fidelity Check
+  if (claim.domain === 'arithmetic' || claim.claim_type === 'arithmetic') {
+    const claimExpr = claim.data.expression;
+    const claimVal = typeof claim.data.proposed_value === 'number'
+      ? claim.data.proposed_value
+      : parseFloat(claim.data.proposed_value);
+
+    if (!claimExpr || isNaN(claimVal)) {
+      return { ok: true };
+    }
+
+    const { extractArithmeticExpressions, analyzeDeterministicIntent } = require('./deterministicRouter');
+    const promptExprs = extractArithmeticExpressions(promptStr);
+    let intent = null;
+    try {
+      intent = analyzeDeterministicIntent(promptStr, []);
+    } catch (_) {}
+
+    // If prompt has neither arithmetic expressions nor a deterministic math intent, no fidelity constraint
+    if ((!promptExprs || promptExprs.length === 0) && !intent) {
+      return { ok: true };
+    }
+
+    let claimEval;
+    try {
+      claimEval = Number(math.evaluate(claimExpr));
+    } catch (_) {}
+
+    const candidateTargets = [];
+    if (intent && (typeof intent.result === 'number' || typeof intent.solution === 'number' || typeof intent.result === 'string')) {
+      const intentNum = typeof intent.result === 'number' ? intent.result : parseFloat(intent.result);
+      if (!isNaN(intentNum)) {
+        candidateTargets.push({ expr: intent.expression || promptStr, val: intentNum });
+      }
+    }
+
+    for (const pe of (promptExprs || [])) {
+      try {
+        const pv = Number(math.evaluate(pe));
+        if (Number.isFinite(pv)) {
+          candidateTargets.push({ expr: pe, val: pv });
+        }
+      } catch (_) {}
+    }
+
+    if (candidateTargets.length === 0) {
+      return { ok: true };
+    }
+
+    for (const target of candidateTargets) {
+      const valMatches = (Math.abs(target.val - claimVal) < 1e-4) ||
+                         (claimEval !== undefined && Math.abs(target.val - claimEval) < 1e-4) ||
+                         (target.val !== 0 && Math.abs((target.val - claimVal) / target.val) < 1e-4);
+
+      if (valMatches) {
+        // Check Problem Identity & Structural Equivalence:
+        if (claimExpr) {
+          try {
+            // A. Exact or whitespace-normalized equivalence between claim expression and target expression
+            const normClaim = claimExpr.replace(/\s+/g, '');
+            const normTarget = target.expr.replace(/\s+/g, '');
+            if (normClaim === normTarget) {
+              return { ok: true };
+            }
+
+            // B. Operand derivation check:
+            // Ensure claim operands are structurally identical to the prompt problem (multiset matching)
+            // (Rejects unrelated expressions producing the same numeric result, e.g. 500 - 571 = -71 vs -194 + 123)
+            const targetAst = math.parse(target.expr);
+            const claimAst = math.parse(claimExpr);
+
+            const targetLeaves = [];
+            targetAst.traverse(n => { if (n.isConstantNode) targetLeaves.push(Number(n.value)); });
+            const claimLeaves = [];
+            claimAst.traverse(n => { if (n.isConstantNode) claimLeaves.push(Number(n.value)); });
+
+            targetLeaves.sort((a, b) => a - b);
+            claimLeaves.sort((a, b) => a - b);
+
+            const isMultisetEqual = (targetLeaves.length === claimLeaves.length) &&
+              targetLeaves.every((v, i) => Math.abs(v - claimLeaves[i]) < 1e-6);
+
+            if (isMultisetEqual && claimLeaves.length > 0) {
+              return { ok: true };
+            }
+
+            // C. Equivalent atomic number / fraction representation (e.g. prompt '1/2', claim '0.5' or '1/2')
+            try {
+              const fTarget = math.fraction(target.val);
+              const fClaim = math.fraction(claimVal);
+              if (math.equal(fTarget, fClaim)) {
+                if (/^[-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+(?:\.\d+)?)?$/.test(claimExpr)) {
+                  return { ok: true };
+                }
+              }
+            } catch (_) {}
+
+          } catch (_) {}
+        } else {
+          // No claimExpr (scalar claim with matching value)
+          return { ok: true };
+        }
+      }
+
+      // Case 2: AST Subexpression / Legitimate intermediate step (e.g. prompt: '2 * (3 + 4)', claim: '3 + 4 = 7')
+      if (claimExpr) {
+        try {
+          const promptAst = math.parse(target.expr);
+          let isAstSubexpression = false;
+
+          promptAst.traverse((node) => {
+            if (node.isOperatorNode && node.toString() !== promptAst.toString()) {
+              try {
+                const nodeVal = Number(node.evaluate());
+                if (Math.abs(nodeVal - claimVal) < 1e-4) {
+                  const normNode = node.toString().replace(/\s+/g, '');
+                  const normClaim = claimExpr.replace(/\s+/g, '');
+                  if (normNode === normClaim) {
+                    isAstSubexpression = true;
+                  }
+                }
+              } catch (_) {}
+            }
+          });
+
+          if (isAstSubexpression) {
+            return { ok: true };
+          }
+        } catch (_) {}
+      }
+    }
+
+    return {
+      ok: false,
+      reason: `Prompt-to-claim fidelity mismatch: Claim asserts '${claimExpr} = ${claimVal}', but prompt requested '${candidateTargets[0].expr}' (expected value: ${candidateTargets[0].val})`
+    };
+  }
+
+  // 2. Algebraic Domain Fidelity Check
+  if (claim.domain === 'algebra' || claim.claim_type === 'equation_solution') {
+    const claimEq = claim.data.equation;
+    const claimSols = claim.data.proposed_solutions;
+    if (claimEq && Array.isArray(claimSols) && claimSols.length > 0) {
+      const { analyzeDeterministicIntent } = require('./deterministicRouter');
+      let intent = null;
+      try {
+        intent = analyzeDeterministicIntent(promptStr, []);
+      } catch (_) {}
+
+      if (intent && intent.equation) {
+        const promptEqParts = intent.equation.split('=');
+        if (promptEqParts.length === 2) {
+          try {
+            const v = intent.variable || 'x';
+            const exprDiff = `(${promptEqParts[0]}) - (${promptEqParts[1]})`;
+            const allRootsValid = claimSols.every(sol => {
+              const res = math.evaluate(exprDiff, { [v]: sol });
+              return Math.abs(res) < 1e-4;
+            });
+            if (!allRootsValid) {
+              return {
+                ok: false,
+                reason: `Prompt-to-claim fidelity mismatch: Claim solves equation '${claimEq}', which does not satisfy requested equation '${intent.equation}'`
+              };
+            }
+          } catch (_) {}
+        }
+      }
+    }
+  }
+
+  return { ok: true };
+}
+
+/**
  * Runs deterministic verification against a claim.
  * Uses Math.js first-line engine and falls back to Python verifiers when appropriate.
+ * Enforces prompt-to-claim fidelity when prompt context is present.
  */
-async function runDeterministicVerification(claim) {
+async function runDeterministicVerification(claim, userPrompt = '') {
   if (!claim || !claim.data) {
     return { verified: false, status: 'UNKNOWN', reason: 'Invalid claim structure' };
+  }
+
+  const promptStr = (typeof userPrompt === 'string' && userPrompt.trim() ? userPrompt.trim() : '') ||
+    (userPrompt?.prompt && typeof userPrompt.prompt === 'string' ? userPrompt.prompt.trim() : '') ||
+    (typeof claim.userPrompt === 'string' ? claim.userPrompt.trim() : '') ||
+    (typeof claim.data?.userPrompt === 'string' ? claim.data.userPrompt.trim() : '');
+
+  if (promptStr) {
+    claim.userPrompt = promptStr;
+    if (claim.data) claim.data.userPrompt = promptStr;
   }
 
   // First-Line: Math.js verifier
   const mathjsResult = mathjsVerifier.verify(claim);
   if (mathjsResult.status !== 'UNKNOWN') {
+    if (mathjsResult.verified && promptStr) {
+      const fidelity = checkPromptClaimFidelity(claim, promptStr);
+      if (!fidelity.ok) {
+        return {
+          verified: false,
+          engine: 'mathjs',
+          status: 'FIDELITY_MISMATCH',
+          error_type: 'PROMPT_CLAIM_FIDELITY_MISMATCH',
+          details: fidelity.reason
+        };
+      }
+    }
     return mathjsResult;
   }
 
   // Second-Line: Python Symbolic Verifiers (SymPy / SciPy)
-  return new Promise((resolve) => {
+  const pythonResult = await new Promise((resolve) => {
     const pythonBin = getPythonExecutable();
     const pythonScript = path.join(__dirname, 'verifier', 'verifier.py');
     const proc = child_process.spawn(pythonBin, [pythonScript], { stdio: ['pipe', 'pipe', 'pipe'] });
@@ -572,12 +806,28 @@ async function runDeterministicVerification(claim) {
       }
     }
   });
+
+  if (pythonResult && pythonResult.verified && promptStr) {
+    const fidelity = checkPromptClaimFidelity(claim, promptStr);
+    if (!fidelity.ok) {
+      return {
+        verified: false,
+        engine: 'python_cas',
+        status: 'FIDELITY_MISMATCH',
+        error_type: 'PROMPT_CLAIM_FIDELITY_MISMATCH',
+        details: fidelity.reason
+      };
+    }
+  }
+
+  return pythonResult;
 }
 
 module.exports = {
   extractClaims,
   auditInternalConsistency,
   runDeterministicVerification,
+  checkPromptClaimFidelity,
   getPythonExecutable,
   getCasTelemetry
 };

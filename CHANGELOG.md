@@ -5,6 +5,20 @@ All notable changes to the Pythos project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Pythos 1.8.4
+**Release Date:** 2026-09-19
+
+### Added & Hardened
+- **Prompt-to-Claim Mathematical Fidelity Verification** (`server/verificationBridge.js`): Implemented `checkPromptClaimFidelity` in the deterministic verification pipeline. Verification now proves both internal consistency and fidelity to the user's requested problem. Employs multiset operand leaf comparison and Math.js AST traversal to ensure verified claims structurally correspond to the requested problem, rejecting mathematically true statements that answer a different or coincidental problem (e.g. $500 - 571 = -71$ for prompt $-194 + 123$) while strictly preserving legitimate intermediate calculation steps (e.g. $3 + 4 = 7$ in $2 \times (3 + 4)$) and equivalent rational representations ($1/2 = 0.5$).
+- **Original User Query Propagation in Verification Pipeline** (`server/server.js`, `server/verificationBridge.js`): Explicitly propagated the authentic user prompt through `extractClaims(content, userQueryText)` and `runDeterministicVerification(claim, userQueryText)`. Prevents verification from evaluating claims against fallback assistant response strings or default empty contexts.
+- **Targeted Fidelity & Regression Test Suites** (`test-targeted-fidelity.js`, `test/test-dev-benchmark-v3.js`, `test/test-dev-benchmark-v4.js`): Established a targeted 6-case prompt-fidelity regression suite, 1,500-problem Development Benchmark v3, and an unseen 1,500-problem Development Benchmark v4 covering signed arithmetic, double negatives, conversational preambles, fraction amputation resistance, compound operations, and cross-domain invariants. Both 1,500-problem benchmarks achieved 100% resolution with 0 wrong delivered and 0 unknown.
+
+### Fixed
+- **Negative Operand Extraction & Markdown Bullet Collision** (`server/deterministicRouter.js`): Hardened leading hyphen stripping in `extractArithmeticExpressions` to require whitespace followed by an alphabetic character (`^-\s+(?=[a-zA-Z])`). Prevents legitimate leading negative signs on numbers, decimals, parentheses, and fractions (e.g. `-992 - -988`, `-194 + 123`) from being stripped as list formatting bullets.
+- **Generalized Conversational Calculation Prefixes** (`server/deterministicRouter.js`): Generalized natural language wrapper removal across calculation directives (`What is the result of`, `Please calculate`, `Determine`, `Help me evaluate`, `Solve for the value of`) without prompt-specific hardcoding, reliably preserving leading negative signs and expressions beginning with operators or parentheses.
+- **Infix Fraction Amputation Defense** (`server/deterministicRouter.js`): Hardened infix arithmetic extraction regex to treat signed rational operands (`-?\d+\s*\/\s*\d+`), decimals, and parenthesized expressions as atomic units, preventing compound fraction expressions (e.g. $5/14 - 1/6$) from amputating into trailing sub-expressions (e.g. $14 - 1/6$).
+- **Strict IEEE 754 Machine Precision Tolerance** (`server/mathjsVerifier.js`): Bounded floating-point exact matching to machine epsilon ($< 10^{-11}$) to eliminate false-negative rejections caused by JavaScript floating-point binary representation artifacts.
+
 ## Pythos 1.8.3
 **Release Date:** 2026-09-18
 

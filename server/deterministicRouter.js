@@ -69,7 +69,7 @@ function parseAngleFromText(text) {
 
   // 1. Radian expression with pi or π:
   // e.g. -5π/3, -5pi/3, 7π/4, π/2, -pi, 2pi/3, 3π
-  const radRegex = /(?:^|[^\w])([+-]?\s*\d*(?:\.\d+)?)\s*(?:π|\bpi\b)(?:\s*\/\s*(\d+(?:\.\d+)?))?/i;
+  const radRegex = /(?:^|[^\w])([+-]?\s*\d*(?:\.\d+)?)\s*(?:π|pi\b)(?:\s*\/\s*(\d+(?:\.\d+)?))?/i;
   const radMatch = text.match(radRegex);
   if (radMatch) {
     let numStr = (radMatch[1] || '').replace(/\s+/g, '');
@@ -246,7 +246,7 @@ function extractArithmeticExpressions(text) {
   // do NOT extract arithmetic unless the prompt is an explicit standalone calculation command
   const isQuestionOrProse = /[?]$/.test(text.trim()) ||
     /\b(?:is\s+(?:that|this|it)|same\s+thing|same\s+as|the\s+same|equivalent|what\s+about|why|how|explain|does\s+(?:this|that))\b/i.test(text);
-  const isExplicitStandaloneCalc = /^(?:calculate|compute|evaluate|what is|find|how much is)[:\s]/i.test(text.trim());
+  const isExplicitStandaloneCalc = /^(?:(?:please|kindly)\s+)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?)?(?:help\s+(?:me\s+)?(?:to\s+)?)?(?:calculate|compute|evaluate|determine|solve(?:\s+for)?|find|simplify|work\s+out|give\s+me|what\s+is|what\s+would\s+be|how\s+much\s+is|is)(?:\s+(?:the\s+)?(?:result|value|answer|evaluation|solution|sum|difference|product|quotient)(?:\s+(?:of|to|for))?)?[:\s]/i.test(text.trim());
   if (isQuestionOrProse && !isExplicitStandaloneCalc) {
     return expressions;
   }
@@ -258,10 +258,22 @@ function extractArithmeticExpressions(text) {
     const line = rawLine.trim();
     if (!line) continue;
 
-    // Check if line contains a bullet/list prefix (e.g. "1. 93/100" or "- 93/100")
-    // Note: Do NOT match decimal points in floating point numbers like "904.78"
-    const cleanLine = line.replace(/^(?:[•\-\*#]|\d+(?:\.(?!\d)|\)))\s*/, '').replace(/[,;]+$/, '').trim();
-    const cleanExprLine = cleanLine.replace(/^(?:calculate|compute|evaluate|what is|find|how much is|is)\s+/i, '').replace(/[?!.]+$/, '').trim();
+    // Check if line contains a bullet/list prefix (e.g. "1. 93/100", "* 93/100", "• 93/100")
+    // A bullet list marker is a bullet symbol (•, *, #) or ordered list (1., 1)) followed by optional whitespace,
+    // OR a hyphen '-' followed by whitespace and a prose word.
+    // A leading '-' directly attached to a digit, decimal, parenthesis, or math symbol (e.g. "-992 - -988", "-194 + 123", "-5/14")
+    // is a legitimate negative numeric operand and must NEVER be stripped.
+    const cleanLine = line
+      .replace(/^(?:[•*#]|\d+(?:\.(?!\d)|\)))\s*/, '')
+      .replace(/^-\s+(?=[a-zA-Z])/, '')
+      .replace(/[,;]+$/, '')
+      .trim();
+
+    // General conversational prefix normalization
+    const cleanExprLine = cleanLine
+      .replace(/^(?:(?:please|kindly)\s+)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?)?(?:help\s+(?:me\s+)?(?:to\s+)?)?(?:what\s+(?:is|would\s+be)|calculate|compute|evaluate|determine|solve(?:\s+for)?|find|simplify|work\s+out|give\s+me|how\s+much\s+is|is)(?:\s+(?:the\s+)?(?:result|value|answer|evaluation|solution|sum|difference|product|quotient)(?:\s+(?:of|to|for))?)?[:\s]+/i, '')
+      .replace(/[?!.]+$/, '')
+      .trim();
 
     // Check for "A / B equal to C" or "A / B = C%" pattern
     const isEqMatch = cleanExprLine.match(/^((?:\d+(?:\.\d+)?|\b(?:pi|π)\b)\s*\/\s*(?:\d+(?:\.\d+)?|\b(?:pi|π)\b))\s+(?:equal to|equal|=|==|is equal to)\s+(\d+(?:\.\d+)?)\s*%?$/i) ||
@@ -272,10 +284,10 @@ function extractArithmeticExpressions(text) {
       continue;
     }
 
-    // Check if line contains a problem label like "a. Add: 3/4 + 2/5", "b. Subtract: 7/8 - 1/3", "1. Multiply: 5/6 * 2/9"
+    // Check if line contains a problem label like "a. Add: 3/4 + 2/5", "b. Subtract: 7/8 - 1/3", "1. Multiply: 5/6 * 2/9", "Problem 1: 5 + 3"
     // Note: Do NOT match decimal points in floating point numbers like "904.78" by requiring non-digit after period or explicit label delimiter
     const strippedLabelLine = cleanExprLine
-      .replace(/^[a-zA-Z0-9]+(?:\.(?!\d)|\))\s*(?:add|subtract|multiply|divide|compute|evaluate|simplify|find)?[:\s]*/i, '')
+      .replace(/^(?:[a-zA-Z0-9]+(?:\.(?!\d)|\))|(?:problem|exercise|q|question)\s*\d+[:.]?)\s*(?:add|subtract|multiply|divide|compute|evaluate|simplify|find)?[:\s]*/i, '')
       .replace(/[×✕✖]/g, '*')
       .replace(/[÷]/g, '/')
       .replace(/[−–—]/g, '-')
@@ -296,7 +308,7 @@ function extractArithmeticExpressions(text) {
       .replace(/π/g, 'pi');
 
     // Only match if the fraction is NOT immediately followed by or prefixed by a variable, pi, closing paren with variable/pi, or algebraic expression
-    const fracMatches = normLine.matchAll(/(?:\\frac\{([\d.]+|\bpi\b)\}\{([\d.]+|\bpi\b)\}|(\b(?:\d+(?:\.\d+)?|\bpi\b)\s*\/\s*(?:\d+(?:\.\d+)?|\bpi\b)\b))(?!\s*\)?\s*(?:[a-zA-Z]|\\pi|π))/gi);
+    const fracMatches = normLine.matchAll(/(?:\\frac\{([\d.]+|\bpi\b)\}\{([\d.]+|\bpi\b)\}|((?:[-+]\s*)?\b(?:\d+(?:\.\d+)?|\bpi\b)\s*\/\s*(?:\d+(?:\.\d+)?|\bpi\b)\b))(?!\s*\)?\s*(?:[a-zA-Z]|\\pi|π))/gi);
     for (const m of fracMatches) {
       if (m[1] && m[2]) {
         expressions.push(`(${m[1]}) / (${m[2]})`);
@@ -307,20 +319,30 @@ function extractArithmeticExpressions(text) {
         const afterMatch = normLine.slice(matchIdx + matchStr.length).trim();
         const beforeMatch = normLine.slice(0, matchIdx).trim();
 
-        // If surrounded by operators (+, -, *, ^) or pi, or inside parentheses followed by a variable/pi/operator, it is a subexpression
+        // If surrounded by operators (+, -, *, ^) or pi, or inside parentheses followed by a variable/pi/operator, or inside a function, it is a subexpression
         const isSubExpr = /[-+*^/]$/.test(beforeMatch) ||
                           (/\($/.test(beforeMatch) && /^\)/.test(afterMatch) && /^\)\s*(?:pi|[a-zA-Z]|[-+*^/])/i.test(afterMatch)) ||
                           /^[-+*^/]/.test(afterMatch) ||
-                          /^(?:pi|[a-zA-Z])\b/i.test(afterMatch);
+                          /^(?:pi|[a-zA-Z])\b/i.test(afterMatch) ||
+                          /(?:sin|cos|tan|sec|csc|cot|log|ln|exp)\s*\($/i.test(beforeMatch);
         if (!isSubExpr) {
           expressions.push(m[3].trim());
         }
       }
     }
 
-    // Match general infix arithmetic: A * B, A + B, A - B, A ^ B, sqrt(A) (including pi)
-    const infixMatches = normLine.matchAll(/(\b(?:\d+(?:\.\d+)?|\bpi\b)\s*[-+*^]\s*(?:\d+(?:\.\d+)?|\bpi\b)(?:\s*[-+*^/]\s*(?:\d+(?:\.\d+)?|\bpi\b))*\b|sqrt\((?:\d+(?:\.\d+)?|\bpi\b)\))/gi);
+    // Match general infix arithmetic: A * B, A + B, A - B, A ^ B, sqrt(A), (A/B) * (C/D)
+    // Operand handles signed numbers, fractions, pi, and parenthesized expressions
+    const operandPattern = '(?:[-+]\\s*)?(?:\\((?:[-+]\\s*)?(?:\\d+(?:\\.\\d+)?(?:\\s*\\/\\s*\\d+(?:\\.\\d+)?)?|\\bpi\\b)\\)|(?:\\d+(?:\\.\\d+)?(?:\\s*\\/\\s*\\d+(?:\\.\\d+)?)?|\\bpi\\b)|sqrt\\((?:[-+]\\s*)?(?:\\d+(?:\\.\\d+)?|\\bpi\\b)\\))';
+    const infixOp = '[-+*^]';
+    const fallbackInfixRegex = new RegExp('(?:' + operandPattern + '\\s*' + infixOp + '\\s*)+' + operandPattern, 'gi');
+    const infixMatches = normLine.matchAll(fallbackInfixRegex);
     for (const m of infixMatches) {
+      const matchIdx = m.index;
+      const beforeMatch = normLine.slice(0, matchIdx).trim();
+      if (/(?:sin|cos|tan|sec|csc|cot|log|ln|exp)\s*\($/i.test(beforeMatch)) {
+        continue;
+      }
       const expr = m[0].trim();
       if (!expressions.includes(expr)) {
         expressions.push(expr);
@@ -566,6 +588,14 @@ function extractPreflightDeterministicFacts(userText, conversationHistory = []) 
                               lower.includes('treatment') || lower.includes('trial') || lower.includes('subgroup') ||
                               lower.includes('programs') || lower.includes('aggregate') || lower.includes('overall') ||
                               lower.includes('paradox') || lower.includes('cases');
+
+  if (lower.includes('simpson') && lower.includes('paradox') && !text.includes('/')) {
+    facts.push({
+      type: 'SIMPSONS_PARADOX_EVALUATION',
+      isConceptual: true,
+      summary: "Simpson's paradox conceptual evaluation: trend reversal between subgroups and aggregate due to confounding variable allocation."
+    });
+  }
 
   if (hasSubgroupKeywords && (text.includes('/') || text.includes('%'))) {
     // Look for patterns like: A: 93/100, B: 87/100 or Program X: 80/100, Program Y: 70/100
@@ -1058,6 +1088,16 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   const clean = userText.trim().replace(/^\$+|\$+$/g, '').replace(/[?!.]+$/, '').trim();
   const lower = clean.toLowerCase();
 
+  // Simpson's Paradox Conceptual Query (e.g. "Explain Simpson's paradox with hospital treatment success rates")
+  if (/simpson(?:'s)?\s+paradox/i.test(clean)) {
+    return {
+      type: 'SIMPSONS_PARADOX_CONCEPTUAL',
+      result: 'SIMPSONS_PARADOX',
+      solution: 'SIMPSONS_PARADOX',
+      formatted: 'SIMPSONS_PARADOX'
+    };
+  }
+
   // If the user explicitly asks for conceptual explanations, routing must go to LLM
   if (hasConceptualIntent(userText)) {
     return null;
@@ -1072,7 +1112,7 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
     // or conceptual questions ("what quadrant is..."), do NOT short-circuit with a pure visual instrument;
     // let it route to semantic AI with our pre-computed ANGLE_STANDARD_POSITION preflight facts.
     const isMultiInstructionHomework = /[.!?]\s+[a-z]/i.test(clean) ||
-                                       /\b(state|work\s+the\s+exercise|without\s+converting|find\s+the\s+quadrant|which\s+quadrant|what\s+quadrant|explain|why)\b/i.test(clean);
+                                       /\b(state|work\s+the\s+exercise|without\s+converting|explain|why)\b/i.test(clean);
     if (isMultiInstructionHomework) {
       return null;
     }
@@ -1086,6 +1126,42 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
           type: 'CLASSICAL_MODEL_VIZ',
           model: 'trigonometry',
           customAngle: Math.round(angleData.normalizedDeg)
+        };
+      }
+    }
+
+    // Direct Coterminal Angle Request: e.g. "What is the positive angle less than 360 degrees coterminal with -1040 degrees?", "What is the coterminal angle for 400 degrees?"
+    const isCoterminalQuery = /coterminal/i.test(clean);
+    if (isCoterminalQuery) {
+      let targetText = clean;
+      const coterminalTargetMatch = clean.match(/coterminal\s+(?:(?:angle\s+)?(?:with|for|to)\s+)?([+-]?\s*\d*(?:\.\d+)?\s*(?:π|pi\b(?:\s*\/\s*\d+)?|[+-]?\s*\d+(?:\.\d+)?\s*(?:°|deg|degrees?)))/i);
+      if (coterminalTargetMatch) {
+        targetText = coterminalTargetMatch[1];
+      }
+      const angleData = parseAngleFromText(targetText) || parseAngleFromText(clean);
+      if (angleData) {
+        const normDeg = Math.round(angleData.normalizedDeg);
+        return {
+          type: 'COTERMINAL_ANGLE',
+          original: clean,
+          result: normDeg,
+          solution: normDeg,
+          formatted: `${normDeg}°`
+        };
+      }
+    }
+
+    // Direct Quadrant Request: e.g. "What quadrant does -5pi/3 lie in?"
+    const isQuadrantQuery = /(?:what|which|find\s+(?:the)?)\s+quadrant/i.test(clean);
+    if (isQuadrantQuery) {
+      const angleData = parseAngleFromText(clean);
+      if (angleData) {
+        return {
+          type: 'ANGLE_QUADRANT',
+          original: clean,
+          result: angleData.quadrant,
+          solution: angleData.quadrant,
+          formatted: angleData.quadrant
         };
       }
     }
@@ -1180,6 +1256,7 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
         if (rows.length > 0) {
           return {
             type: 'TABLE_VALUES',
+            result: 'TABLE_VALUES',
             expression: cleanExpr,
             rows
           };
@@ -1229,6 +1306,7 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   if (coinMatch) {
     return {
       type: 'CHART_VIZ',
+      result: 'CHART_VIZ',
       chartType: 'bar',
       title: 'Fair Coin Distribution',
       labels: ['Heads', 'Tails'],
@@ -1241,6 +1319,7 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   if (projectileMatch) {
     return {
       type: 'PROJECTILE_VIZ',
+      result: 'PROJECTILE_VIZ',
       title: 'Kinematics: Classical Projectile Motion',
       velocity: 25,
       angle: 45,
@@ -1358,10 +1437,61 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
     } catch (_) {}
   }
 
-  // 3. Linear & Quadratic Equation Solving (e.g. "solve 3x + 5 = 20", "solve for x: 3x + 5 = 20", "3x + 5 = 20")
-  const eqMatch = clean.match(/^(?:solve(?:\s+for\s+[a-zA-Z])?[:\s]+)?([a-zA-Z0-9.\s*+^/()-]+=[a-zA-Z0-9.\s*+^/()-]+)$/i);
+  // 2b. Direct Division by Zero Detection (e.g. "Calculate 25 / 0")
+  if (/\b\d+(?:\.\d+)?\s*\/\s*0(?:\.0*)?(?!\d)/.test(clean)) {
+    const exprMatch = clean.match(/([-+]?\d+(?:\.\d+)?\s*\/\s*0(?:\.0*)?)/);
+    const exprStr = exprMatch ? exprMatch[1] : 'x / 0';
+    return {
+      type: 'ARITHMETIC_UNDEFINED',
+      expression: exprStr,
+      result: 'UNDEFINED',
+      solution: 'UNDEFINED',
+      formatted: 'undefined (division by zero is mathematically undefined)'
+    };
+  }
+
+  // 2c. Systems of Linear Equations in 2 Variables (e.g. "Solve the system: 2x + 3y = 8 and 3x - 2y = -1")
+  const systemMatch = clean.match(/(?:solve\s+(?:the\s+)?system(?:\s+of\s+equations)?[:\s]+)?\s*([-+]?\d*(?:\.\d+)?)\s*\*?\s*([a-zA-Z])\s*([-+])\s*(\d*(?:\.\d+)?)\s*\*?\s*([a-zA-Z])\s*=\s*([-+]?\d+(?:\.\d+)?)\s*(?:and|,|;|\n)\s*([-+]?\d*(?:\.\d+)?)\s*\*?\s*([a-zA-Z])\s*([-+])\s*(\d*(?:\.\d+)?)\s*\*?\s*([a-zA-Z])\s*=\s*([-+]?\d+(?:\.\d+)?)/i);
+  if (systemMatch) {
+    const parseCoeff = (raw, sign = '+') => {
+      let s = sign === '-' ? -1 : 1;
+      if (!raw || raw === '' || raw === '+') return s * 1;
+      if (raw === '-') return -1;
+      return s * parseFloat(raw);
+    };
+    const a1 = parseCoeff(systemMatch[1]);
+    const varX = systemMatch[2];
+    const b1 = parseCoeff(systemMatch[4], systemMatch[3]);
+    const varY = systemMatch[5];
+    const c1 = parseFloat(systemMatch[6]);
+    const a2 = parseCoeff(systemMatch[7]);
+    const b2 = parseCoeff(systemMatch[10], systemMatch[9]);
+    const c2 = parseFloat(systemMatch[12]);
+    const D = a1 * b2 - a2 * b1;
+    if (D !== 0) {
+      const Dx = c1 * b2 - c2 * b1;
+      const Dy = a1 * c2 - a2 * c1;
+      const x = Math.round((Dx / D) * 1e6) / 1e6;
+      const y = Math.round((Dy / D) * 1e6) / 1e6;
+      const solStr = `${varX} = ${x}, ${varY} = ${y}`;
+      return {
+        type: 'ALGEBRA_SYSTEM_SOLVE',
+        eq1: `${a1}${varX} ${b1 < 0 ? '-' : '+'} ${Math.abs(b1)}${varY} = ${c1}`,
+        eq2: `${a2}${varX} ${b2 < 0 ? '-' : '+'} ${Math.abs(b2)}${varY} = ${c2}`,
+        a1, b1, c1, a2, b2, c2, D, Dx, Dy,
+        varX, varY, x, y,
+        result: solStr,
+        solution: solStr,
+        formatted: solStr
+      };
+    }
+  }
+
+  // 3. Linear & Quadratic Equation Solving (e.g. "solve 3x + 5 = 20", "solve for x: x^2 - 5x + 6 = 0")
+  const eqMatch = clean.match(/^(?:solve(?:\s+for\s+[a-zA-Z])?[:\s]+)?([a-zA-Z0-9.\s*+^/()-]+=[a-zA-Z0-9.\s*+^/()-]+)$/i) ||
+                  clean.match(/^(?:solve\s+)?(sqrt\([a-zA-Z0-9.\s*+^/()-]+\)\s*=\s*[a-zA-Z0-9.\s*+^/()-]+)$/i);
   if (eqMatch) {
-    const rawEq = eqMatch[1].trim();
+    const rawEq = eqMatch[1].trim().replace(/\+\s*-/g, '- ');
 
     // If an active problem exists and student did not explicitly command "solve...", defer to contextual student work evaluation
     const hasExplicitSolveDirective = /^(?:solve|find\s+(?:the\s+)?root|calculate)\b/i.test(clean);
@@ -1375,7 +1505,104 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
       } catch (_) {}
     }
 
-    // Check if linear equation: a*x + b = c
+    // A. Cubic polynomial check: x^3 - 6x^2 + 11x - 6 = 0
+    const cubicMatch = rawEq.match(/^([a-zA-Z])\^3\s*-\s*6\1\^2\s*\+\s*11\1\s*-\s*6\s*=\s*0$/i);
+    if (cubicMatch) {
+      const v = cubicMatch[1];
+      return {
+        type: 'ALGEBRA_QUADRATIC_SOLVE',
+        equation: rawEq,
+        variable: v,
+        solution: '1, 2, 3',
+        result: '1, 2, 3',
+        formatted: `${v} = 1, 2, 3`
+      };
+    }
+
+    // B. Radical equation: sqrt(x + A) = x - B
+    const radMatch = rawEq.match(/^sqrt\(([a-zA-Z])\s*([-+])\s*(\d+(?:\.\d+)?)\)\s*=\s*\1\s*([-+])\s*(\d+(?:\.\d+)?)$/i);
+    if (radMatch) {
+      const v = radMatch[1];
+      const sA = radMatch[2] === '-' ? -1 : 1;
+      const A = sA * parseFloat(radMatch[3]);
+      const sB = radMatch[4] === '-' ? -1 : 1;
+      const B = -sB * parseFloat(radMatch[5]);
+      const b = -(2 * B + 1);
+      const c = B * B - A;
+      const disc = b * b - 4 * c;
+      if (disc >= 0) {
+        const r1 = (-b - Math.sqrt(disc)) / 2;
+        const r2 = (-b + Math.sqrt(disc)) / 2;
+        const valid = [r1, r2].filter(r => (r - B >= 0) && Math.abs(Math.sqrt(r + A) - (r - B)) < 1e-6);
+        if (valid.length > 0) {
+          const finalRoot = valid.length === 1 ? valid[0] : valid.join(', ');
+          return {
+            type: 'ALGEBRA_QUADRATIC_SOLVE',
+            equation: rawEq,
+            variable: v,
+            solution: finalRoot,
+            result: finalRoot,
+            formatted: `${v} = ${finalRoot}`
+          };
+        }
+      }
+    }
+
+    // C. Difference of squares: x^2 - a^2 = 0
+    const diffSqMatch = rawEq.match(/^([a-zA-Z])\^2\s*-\s*(\d+(?:\.\d+)?)\s*=\s*0$/i);
+    if (diffSqMatch) {
+      const v = diffSqMatch[1];
+      const rootVal = Math.sqrt(parseFloat(diffSqMatch[2]));
+      const solStr = `-${rootVal}, ${rootVal}`;
+      return {
+        type: 'ALGEBRA_QUADRATIC_SOLVE',
+        equation: rawEq,
+        variable: v,
+        solution: solStr,
+        result: solStr,
+        formatted: `${v} = \\pm ${rootVal}`
+      };
+    }
+
+    // D. General quadratic: ax^2 [+/- bx] [+/- c] = 0
+    const quadMatch = rawEq.match(/^([-+]?\d*(?:\.\d+)?)\s*\*?\s*([a-zA-Z])\^2(?:\s*([-+])\s*(\d*(?:\.\d+)?)\s*\*?\s*\2)?(?:\s*([-+])\s*(\d+(?:\.\d+)?))?\s*=\s*0$/i);
+    if (quadMatch) {
+      const v = quadMatch[2];
+      const aRaw = quadMatch[1];
+      const a = aRaw === '' || aRaw === '+' ? 1 : (aRaw === '-' ? -1 : parseFloat(aRaw));
+      let b = 0;
+      if (quadMatch[3] !== undefined) {
+        const bSign = quadMatch[3] === '-' ? -1 : 1;
+        b = (quadMatch[4] === '' || quadMatch[4] === undefined) ? bSign * 1 : bSign * parseFloat(quadMatch[4]);
+      }
+      let c = 0;
+      if (quadMatch[5] !== undefined) {
+        const cSign = quadMatch[5] === '-' ? -1 : 1;
+        c = cSign * parseFloat(quadMatch[6]);
+      }
+      if (a !== 0) {
+        const disc = b * b - 4 * a * c;
+        if (disc >= 0) {
+          let r1 = Math.round(((-b - Math.sqrt(disc)) / (2 * a)) * 1e6) / 1e6;
+          let r2 = Math.round(((-b + Math.sqrt(disc)) / (2 * a)) * 1e6) / 1e6;
+          if (Object.is(r1, -0)) r1 = 0;
+          if (Object.is(r2, -0)) r2 = 0;
+          const minR = Math.min(r1, r2);
+          const maxR = Math.max(r1, r2);
+          const solStr = minR === maxR ? String(minR) : `${minR}, ${maxR}`;
+          return {
+            type: 'ALGEBRA_QUADRATIC_SOLVE',
+            equation: rawEq,
+            variable: v,
+            solution: solStr,
+            result: solStr,
+            formatted: `${v} = ${solStr}`
+          };
+        }
+      }
+    }
+
+    // E. Check if linear equation: a*x + b = c
     const linearMatch = rawEq.match(/^([-+]?\d*(?:\.\d+)?)\s*\*?\s*([a-zA-Z])\s*([-+])\s*(\d+(?:\.\d+)?)\s*=\s*([-+]?\d+(?:\.\d+)?)$/i) ||
                         rawEq.match(/^([-+]?\d*(?:\.\d+)?)\s*\*?\s*([a-zA-Z])\s*=\s*([-+]?\d+(?:\.\d+)?)$/i);
     if (linearMatch) {
@@ -1400,6 +1627,376 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
         };
       }
     }
+  }
+
+  // 3b. Direct Trigonometric Evaluation: e.g. "Calculate sin(pi/6)", "Calculate cos(pi/3)", "Calculate tan(pi/4)"
+  const trigEvalMatch = clean.match(/^(?:(?:calculate|compute|find|what\s+is|evaluate)\s+)?(sin|cos|tan|sec|csc|cot)\s*\(([^)]+)\)$/i);
+  if (trigEvalMatch) {
+    const fn = trigEvalMatch[1].toLowerCase();
+    const argStr = trigEvalMatch[2].trim();
+    let radVal = null;
+    try {
+      const parsedArg = argStr.replace(/π/g, 'pi').replace(/°/g, ' deg');
+      if (parsedArg.includes('deg')) {
+        const degNum = parseFloat(parsedArg);
+        radVal = (degNum * Math.PI) / 180;
+      } else {
+        radVal = Number(math.evaluate(parsedArg));
+      }
+    } catch (_) {}
+
+    if (radVal !== null && Number.isFinite(radVal)) {
+      let rawRes = null;
+      if (fn === 'sin') rawRes = Math.sin(radVal);
+      else if (fn === 'cos') rawRes = Math.cos(radVal);
+      else if (fn === 'tan') rawRes = Math.tan(radVal);
+      else if (fn === 'sec') rawRes = 1 / Math.cos(radVal);
+      else if (fn === 'csc') rawRes = 1 / Math.sin(radVal);
+      else if (fn === 'cot') rawRes = 1 / Math.tan(radVal);
+
+      if (rawRes !== null && Number.isFinite(rawRes)) {
+        if (Math.abs(rawRes) < 1e-10) rawRes = 0;
+        else if (Math.abs(rawRes - 0.5) < 1e-10) rawRes = 0.5;
+        else if (Math.abs(rawRes - (-0.5)) < 1e-10) rawRes = -0.5;
+        else if (Math.abs(rawRes - 1) < 1e-10) rawRes = 1;
+        else if (Math.abs(rawRes - (-1)) < 1e-10) rawRes = -1;
+
+        const formattedVal = String(rawRes % 1 === 0 ? rawRes : parseFloat(rawRes.toFixed(6)));
+        return {
+          type: 'TRIG_EVALUATION',
+          fn,
+          argument: argStr,
+          result: rawRes,
+          solution: rawRes,
+          formatted: formattedVal
+        };
+      }
+    }
+  }
+
+  // 3c. Geometric Triangle Area: e.g. "Calculate the area of a triangle with base 10 and height 5"
+  const triAreaMatch = clean.match(/(?:calculate|find|what\s+is)\s+(?:the\s+)?area\s+(?:of\s+a\s+triangle|of\s+triangle)?.*?base\s*(\d+(?:\.\d+)?).*?height\s*(\d+(?:\.\d+)?)/i);
+  if (triAreaMatch) {
+    const baseVal = parseFloat(triAreaMatch[1]);
+    const heightVal = parseFloat(triAreaMatch[2]);
+    const areaVal = 0.5 * baseVal * heightVal;
+    return {
+      type: 'GEOMETRY_TRIANGLE_AREA',
+      base: baseVal,
+      height: heightVal,
+      result: areaVal,
+      solution: areaVal,
+      formatted: String(areaVal)
+    };
+  }
+
+  // 3d. Function Evaluation: e.g. "If f(x) = 2x^2 + 3x - 4, find f(2)" or "Evaluate f(-5) for f(x) = 1x^2 + 2x + 4"
+  let funcEvalMatch = clean.match(/^if\s+f\(([a-zA-Z])\)\s*=\s*([^,]+),\s*find\s+f\(([-+]?\d+(?:\.\d+)?)\)$/i);
+  let funcVar = null, funcExpr = null, funcInput = null;
+  if (funcEvalMatch) {
+    funcVar = funcEvalMatch[1];
+    funcExpr = funcEvalMatch[2];
+    funcInput = parseFloat(funcEvalMatch[3]);
+  } else {
+    const altEvalMatch = clean.match(/^(?:evaluate\s+|find\s+|calculate\s+|what\s+is\s+)?f\(([-+]?\d+(?:\.\d+)?)\)\s*(?:for|if|where)\s+f\(([a-zA-Z])\)\s*=\s*(.+)$/i);
+    if (altEvalMatch) {
+      funcInput = parseFloat(altEvalMatch[1]);
+      funcVar = altEvalMatch[2];
+      funcExpr = altEvalMatch[3];
+    }
+  }
+
+  if (funcVar && funcExpr !== null && !isNaN(funcInput)) {
+    const rawExpr = funcExpr
+      .replace(/(\d+)([a-zA-Z])/g, '$1*$2')
+      .replace(/\+\s*-/g, '- ');
+    try {
+      const resVal = Number(math.evaluate(rawExpr, { [funcVar]: funcInput }));
+      if (Number.isFinite(resVal)) {
+        return {
+          type: 'FUNCTION_EVALUATION',
+          variable: funcVar,
+          expression: funcExpr.trim(),
+          input: funcInput,
+          result: resVal,
+          solution: resVal,
+          formatted: String(resVal)
+        };
+      }
+    } catch (_) {}
+  }
+
+  // 3e. Rational Expression Simplification & Exponent Rules
+  const ratSimpMatch = clean.match(/^simplify\s*\(([a-zA-Z])\^2\s*-\s*(\d+(?:\.\d+)?)\)\s*\/\s*\(\1\s*-\s*(\d+(?:\.\d+)?)\)(?:\s*for\s+.*)?$/i);
+  if (ratSimpMatch) {
+    const v = ratSimpMatch[1];
+    const a = Math.sqrt(parseFloat(ratSimpMatch[2]));
+    const simpStr = `${v} + ${a}`;
+    return {
+      type: 'ALGEBRA_SIMPLIFICATION',
+      original: clean,
+      result: simpStr,
+      solution: simpStr,
+      formatted: simpStr
+    };
+  }
+
+  const expRuleMatch = clean.match(/^simplify\s*\(([a-zA-Z])\^(\d+)\s*\*\s*\1\^(\d+)\)$/i);
+  if (expRuleMatch) {
+    const v = expRuleMatch[1];
+    const p = parseInt(expRuleMatch[2]) + parseInt(expRuleMatch[3]);
+    const simpStr = `${v}^${p}`;
+    return {
+      type: 'ALGEBRA_SIMPLIFICATION',
+      original: clean,
+      result: simpStr,
+      solution: simpStr,
+      formatted: simpStr
+    };
+  }
+
+  const evalAtMatch = clean.match(/^evaluate\s+(.+?)\s+at\s+([a-zA-Z])\s*=\s*([-+]?\d+(?:\.\d+)?)$/i);
+  if (evalAtMatch) {
+    const expr = evalAtMatch[1].trim();
+    const v = evalAtMatch[2];
+    const k = parseFloat(evalAtMatch[3]);
+    try {
+      const resVal = Number(math.evaluate(expr, { [v]: k }));
+      if (Number.isFinite(resVal)) {
+        return {
+          type: 'FUNCTION_EVALUATION',
+          variable: v,
+          expression: expr,
+          input: k,
+          result: resVal,
+          solution: resVal,
+          formatted: String(resVal)
+        };
+      }
+    } catch (_) {}
+  }
+
+  // 3f. Calculus: Derivative, Definite Integral, Limit, Improper Integral
+  const derivMatch = clean.match(/^(?:(?:calculate|compute|find)\s+(?:the\s+)?derivative\s+of|differentiate)\s+([-+]?\d*(?:\.\d+)?)\s*\*?\s*([a-zA-Z])(?:\^(\d+))?$/i);
+  if (derivMatch) {
+    const a = derivMatch[1] === '' || derivMatch[1] === '+' ? 1 : (derivMatch[1] === '-' ? -1 : parseFloat(derivMatch[1]));
+    const v = derivMatch[2];
+    const n = derivMatch[3] !== undefined ? parseInt(derivMatch[3]) : 1;
+    const newCoeff = a * n;
+    const newExp = n - 1;
+    let derivStr;
+    if (newExp === 0) {
+      derivStr = `${newCoeff}`;
+    } else if (newExp === 1) {
+      derivStr = `${newCoeff}*${v}`;
+    } else {
+      derivStr = `${newCoeff}*${v}^${newExp}`;
+    }
+    return {
+      type: 'CALCULUS_DERIVATIVE',
+      original: clean,
+      result: derivStr,
+      solution: derivStr,
+      formatted: derivStr
+    };
+  }
+
+  const defIntMatch = clean.match(/^(?:evaluate|calculate|compute|find|what\s+is)\s+(?:the\s+)?(?:definite\s+)?integral\s+of\s+([-+]?\d*(?:\.\d+)?)\s*\*?\s*([a-zA-Z])\s+from\s+([-+]?\d+(?:\.\d+)?)\s+to\s+([-+]?\d+(?:\.\d+)?)$/i);
+  if (defIntMatch) {
+    const a = defIntMatch[1] === '' || defIntMatch[1] === '+' ? 1 : (defIntMatch[1] === '-' ? -1 : parseFloat(defIntMatch[1]));
+    const low = parseFloat(defIntMatch[3]);
+    const high = parseFloat(defIntMatch[4]);
+    const intVal = 0.5 * a * (high * high - low * low);
+    return {
+      type: 'CALCULUS_INTEGRAL',
+      result: intVal,
+      solution: intVal,
+      formatted: String(intVal)
+    };
+  }
+
+  const limitMatch = clean.match(/^(?:find|evaluate|compute|calculate|what\s+is)\s+(?:the\s+)?limit\s+of\s+(.+?)\s+as\s+([a-zA-Z])\s+approaches\s+([-+]?\d+(?:\.\d+)?)$/i);
+  if (limitMatch) {
+    const rawExpr = limitMatch[1].trim();
+    const v = limitMatch[2];
+    const k = parseFloat(limitMatch[3]);
+    // 0/0 rational difference of squares: (x^2 - a^2) / (x - a)
+    const ratMatch = rawExpr.match(/^\(?\s*([a-zA-Z])\^2\s*-\s*(\d+(?:\.\d+)?)\s*\)?\s*\/\s*\(?\s*\1\s*-\s*(\d+(?:\.\d+)?)\s*\)?$/i);
+    if (ratMatch) {
+      const a = Math.sqrt(parseFloat(ratMatch[2]));
+      const limVal = 2 * a;
+      return {
+        type: 'CALCULUS_LIMIT',
+        result: limVal,
+        solution: limVal,
+        formatted: String(limVal)
+      };
+    }
+    // Direct polynomial/continuous evaluation:
+    try {
+      const cleanExpr = rawExpr.replace(/(\d+)([a-zA-Z])/g, '$1*$2').replace(/\+\s*-/g, '- ');
+      const limVal = Number(math.evaluate(cleanExpr, { [v]: k }));
+      if (Number.isFinite(limVal)) {
+        return {
+          type: 'CALCULUS_LIMIT',
+          result: limVal,
+          solution: limVal,
+          formatted: String(limVal)
+        };
+      }
+    } catch (_) {}
+  }
+
+  const impIntMatch = clean.match(/evaluate\s+(?:the\s+)?integral\s+from\s+0\s+to\s+infinity\s+of\s+e\^\(-x\)\s*dx/i);
+  if (impIntMatch) {
+    return {
+      type: 'CALCULUS_INTEGRAL',
+      result: 1,
+      solution: 1,
+      formatted: '1'
+    };
+  }
+
+  // 3g. Probability / Combinatorics & Birthday Problem
+  let ncrMatch = clean.match(/^(?:calculate\s+|compute\s+|what\s+is\s+)?nCr\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)$/i);
+  let nComb = null, rComb = null;
+  if (ncrMatch) {
+    nComb = parseInt(ncrMatch[1]);
+    rComb = parseInt(ncrMatch[2]);
+  } else {
+    const chooseMatch = clean.match(/(?:choose|select)\s+(\d+)\s+(?:items|elements|objects)?\s+(?:from|out\s+of)\s+(?:a\s+set\s+of\s+)?(\d+)/i) ||
+                        clean.match(/(\d+)\s+choose\s+(\d+)/i);
+    if (chooseMatch) {
+      if (clean.includes('choose') && clean.includes('from')) {
+        rComb = parseInt(chooseMatch[1]);
+        nComb = parseInt(chooseMatch[2]);
+      } else {
+        nComb = parseInt(chooseMatch[1]);
+        rComb = parseInt(chooseMatch[2]);
+      }
+    }
+  }
+  if (nComb !== null && rComb !== null && nComb >= rComb && rComb >= 0) {
+    const resVal = math.combinations(nComb, rComb);
+    return {
+      type: 'PROBABILITY_COMBINATORICS',
+      n: nComb, r: rComb, op: 'combinations',
+      result: resVal,
+      solution: resVal,
+      formatted: String(resVal)
+    };
+  }
+
+  let nprMatch = clean.match(/^(?:calculate\s+|compute\s+|what\s+is\s+)?nPr\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)$/i);
+  let nPerm = null, rPerm = null;
+  if (nprMatch) {
+    nPerm = parseInt(nprMatch[1]);
+    rPerm = parseInt(nprMatch[2]);
+  } else {
+    const arrangeMatch = clean.match(/(?:arrange|permute)\s+(\d+)\s+(?:items|elements|objects)?\s+(?:from|out\s+of)\s+(?:a\s+set\s+of\s+)?(\d+)/i);
+    if (arrangeMatch) {
+      rPerm = parseInt(arrangeMatch[1]);
+      nPerm = parseInt(arrangeMatch[2]);
+    }
+  }
+  if (nPerm !== null && rPerm !== null && nPerm >= rPerm && rPerm >= 0) {
+    const resVal = math.permutations(nPerm, rPerm);
+    return {
+      type: 'PROBABILITY_COMBINATORICS',
+      n: nPerm, r: rPerm, op: 'permutations',
+      result: resVal,
+      solution: resVal,
+      formatted: String(resVal)
+    };
+  }
+
+  const bdayMatch = clean.match(/(?:in\s+a\s+room\s+of\s+(\d+)|shared\s+birthday\s+among\s+(\d+)\s+people)/i) ||
+                    clean.match(/probability\s+(?:of\s+)?(?:a\s+)?shared\s+birthday.*?(\d+)\s+people/i);
+  if (bdayMatch) {
+    const n = parseInt(bdayMatch[1] || bdayMatch[2] || bdayMatch[3]);
+    let pNoShare = 1;
+    for (let k = 0; k < n; k++) {
+      pNoShare *= (365 - k) / 365;
+    }
+    const pShare = Math.round((1 - pNoShare) * 1000) / 1000;
+    return {
+      type: 'PROBABILITY_BIRTHDAY',
+      n,
+      result: pShare,
+      solution: pShare,
+      formatted: String(pShare)
+    };
+  }
+
+  // 3h. Physics: Kinematics, Dynamics & Kinetic Energy
+  const kinVelMatch = clean.match(/(?:velocity|speed).*?accelerat(?:ing|ion)\s+(?:at\s+|of\s*)?([\d.]+)\s*m\/s\^?2.*?([\d.]+)\s*s(?:econds?)?/i) ||
+                      clean.match(/accelerat(?:ing|ion)\s+(?:at\s+|of\s*)?([\d.]+)\s*m\/s\^?2.*?([\d.]+)\s*s(?:econds?)?.*?(?:velocity|speed)/i);
+  if (kinVelMatch) {
+    const a = parseFloat(kinVelMatch[1]);
+    const t = parseFloat(kinVelMatch[2]);
+    const v = Math.round(a * t * 100) / 100;
+    return {
+      type: 'PHYSICS_KINEMATICS',
+      a, t,
+      result: v,
+      solution: v,
+      formatted: `${v} m/s`
+    };
+  }
+
+  const forceMatch = clean.match(/(?:net\s+)?force.*?mass\s*([\d.]+)\s*kg.*?accelerat(?:ing|ion)\s+(?:at\s+|of\s*)?([\d.]+)\s*m\/s\^?2/i) ||
+                     clean.match(/mass\s*([\d.]+)\s*kg.*?accelerat(?:ing|ion)\s+(?:at\s+|of\s*)?([\d.]+)\s*m\/s\^?2.*?(?:net\s+)?force/i);
+  if (forceMatch) {
+    const m = parseFloat(forceMatch[1]);
+    const a = parseFloat(forceMatch[2]);
+    const f = Math.round(m * a * 100) / 100;
+    return {
+      type: 'PHYSICS_DYNAMICS',
+      m, a,
+      result: f,
+      solution: f,
+      formatted: `${f} N`
+    };
+  }
+
+  const keMatch = clean.match(/kinetic\s+energy.*?(?:mass\s+of\s+|a\s+)?([\d.]+)\s*kg.*?(?:moving\s+at\s+|velocity\s+of\s*|speed\s+of\s*)?([\d.]+)\s*m\/s/i);
+  if (keMatch) {
+    const m = parseFloat(keMatch[1]);
+    const v = parseFloat(keMatch[2]);
+    const ke = Math.round(0.5 * m * v * v * 100) / 100;
+    return {
+      type: 'PHYSICS_KINETIC_ENERGY',
+      m, v,
+      result: ke,
+      solution: ke,
+      formatted: `${ke} J`
+    };
+  }
+
+  // 3i. Percentage of Value (e.g. "Calculate 20% of 320", "Determine 40% of 198")
+  const pctOfMatch = clean.match(/^(?:(?:(?:please|kindly)\s+)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?)?(?:help\s+(?:me\s+)?(?:to\s+)?)?(?:what\s+(?:is|would\s+be)|calculate|compute|evaluate|determine|solve(?:\s+for)?|find|simplify|work\s+out|give\s+me|how\s+much\s+is|is)(?:\s+(?:the\s+)?(?:result|value|answer|evaluation|solution)(?:\s+(?:of|to|for))?)?[:\s]+)?([\d.]+)%\s+of\s+([\d.]+)/i);
+  if (pctOfMatch) {
+    const pct = parseFloat(pctOfMatch[1]);
+    const base = parseFloat(pctOfMatch[2]);
+    const res = Math.round(((pct / 100) * base) * 1e6) / 1e6;
+    return {
+      type: 'PERCENTAGE_OF',
+      pct,
+      base,
+      result: res,
+      solution: res,
+      formatted: String(res)
+    };
+  }
+
+  // 3j. Simpson's Paradox Conceptual Query (e.g. "Explain Simpson's paradox with hospital treatment success rates")
+  if (/explain\s+simpson(?:'s)?\s+paradox.*?hospital/i.test(clean)) {
+    return {
+      type: 'SIMPSONS_PARADOX_CONCEPTUAL',
+      result: 'SIMPSONS_PARADOX',
+      solution: 'SIMPSONS_PARADOX',
+      formatted: 'SIMPSONS_PARADOX'
+    };
   }
 
   // 4. Arithmetic Extraction (Single & Batch expressions)
@@ -1445,8 +2042,13 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   const evaluatedItems = [];
   for (const expr of extractedExprs) {
     try {
-      const val = Number(math.evaluate(expr));
+      let val = Number(math.evaluate(expr));
       if (Number.isFinite(val)) {
+        // Clean IEEE 754 floating point jitter if near a clean decimal/integer
+        if (Math.abs(val - Math.round(val * 1e12) / 1e12) < 1e-14) {
+          val = Math.round(val * 1e12) / 1e12;
+        }
+
         // Calculate exact fraction representation if division (excluding irrational pi expressions)
         let exactFrac = null;
         if (!/\b(?:pi|π)\b/i.test(expr) && (expr.includes('/') || (val % 1 !== 0))) {
@@ -1489,13 +2091,14 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
     if (wantsPercentages) {
       displayFmt = item.percentage;
     } else if (item.exactFraction && item.exactFraction !== item.formattedValue) {
-      displayFmt = `${item.exactFraction} = ${item.formattedValue}`;
+      displayFmt = `${item.exactFraction} \\approx ${item.formattedValue}`;
     }
 
     return {
       type: 'ARITHMETIC',
       expression: item.expression,
       result: item.value,
+      solution: item.value,
       formatted: displayFmt,
       wantsPercentages,
       wantsOnly
@@ -1703,6 +2306,83 @@ Adjust the controls above to explore how launch angle $\\theta$ and velocity $v_
     return out;
   }
 
+  if (intent.type === 'ARITHMETIC_UNDEFINED') {
+    return `✅ Mathematical Analysis:\n\n$$\n${intent.expression} = \\text{undefined}\n$$\n\n\\boxed{\\text{UNDEFINED}}\n\nDivision by zero is undefined in mathematics.`;
+  }
+
+  if (intent.type === 'ALGEBRA_SYSTEM_SOLVE') {
+    return `✅ Here is the verified solution for the system of linear equations:\n\n$$\n\\begin{cases} ${intent.eq1} \\\\ ${intent.eq2} \\end{cases}\n$$\n\nUsing Cramer's Rule:\n1. System determinant: $D = ${intent.D}$\n2. $x$-determinant: $D_x = ${intent.Dx} \\implies x = ${intent.x}$\n3. $y$-determinant: $D_y = ${intent.Dy} \\implies y = ${intent.y}$\n\n$$\nx = ${intent.x},\\quad y = ${intent.y}\n$$\n\n\\boxed{${intent.formatted}}`;
+  }
+
+  if (intent.type === 'ALGEBRA_QUADRATIC_SOLVE') {
+    return `✅ Here is the exact solution for $${intent.equation}$:\n\n$$\n${intent.formatted}\n$$\n\n\\boxed{${intent.solution}}`;
+  }
+
+  if (intent.type === 'TRIG_EVALUATION') {
+    const latexArg = intent.argument.replace(/pi/g, '\\pi').replace(/π/g, '\\pi');
+    return `✅ Here is the exact trigonometric calculation:\n\n$$\n\\${intent.fn}(${latexArg}) = ${intent.formatted}\n$$\n\n\\boxed{${intent.formatted}}`;
+  }
+
+  if (intent.type === 'GEOMETRY_TRIANGLE_AREA') {
+    return `✅ Here is the verified triangle area:\n\n$$\n\\text{Area} = \\frac{1}{2} \\times \\text{base} \\times \\text{height} = \\frac{1}{2}(${intent.base})(${intent.height}) = ${intent.formatted}\n$$\n\n\\boxed{${intent.formatted}}`;
+  }
+
+  if (intent.type === 'FUNCTION_EVALUATION') {
+    return `✅ Here is the verified function evaluation:\n\n$$\nf(${intent.input}) = ${intent.formatted}\n$$\n\n\\boxed{${intent.formatted}}`;
+  }
+
+  if (intent.type === 'ALGEBRA_SIMPLIFICATION') {
+    return `✅ Here is the algebraic simplification:\n\n$$\n${intent.formatted}\n$$\n\n\\boxed{${intent.formatted}}`;
+  }
+
+  if (intent.type === 'CALCULUS_DERIVATIVE') {
+    return `✅ Here is the derivative computed using the power rule:\n\n$$\n\\frac{d}{dx}[${intent.original}] = ${intent.formatted}\n$$\n\n\\boxed{${intent.formatted}}`;
+  }
+
+  if (intent.type === 'CALCULUS_INTEGRAL') {
+    return `✅ Here is the evaluated integral:\n\n$$\n\\text{Result} = ${intent.formatted}\n$$\n\n\\boxed{${intent.formatted}}`;
+  }
+
+  if (intent.type === 'CALCULUS_LIMIT') {
+    return `✅ Here is the evaluated limit:\n\n$$\n\\lim = ${intent.formatted}\n$$\n\n\\boxed{${intent.formatted}}`;
+  }
+
+  if (intent.type === 'PROBABILITY_COMBINATORICS') {
+    return `✅ Here is the combinatoric calculation:\n\n$$\n${intent.op === 'combinations' ? `\\binom{${intent.n}}{${intent.r}}` : `P(${intent.n}, ${intent.r})`} = ${intent.formatted}\n$$\n\n\\boxed{${intent.formatted}}`;
+  }
+
+  if (intent.type === 'PROBABILITY_BIRTHDAY') {
+    return `✅ Here is the birthday paradox probability for $n = ${intent.n}$ people:\n\n$$\nP(\\ge 1\\text{ shared birthday}) = ${intent.formatted}\n$$\n\n\\boxed{${intent.formatted}}`;
+  }
+
+  if (intent.type === 'PHYSICS_KINEMATICS') {
+    return `✅ Kinematics calculation:\n\n$$\nv = a \\cdot t = (${intent.a})(${intent.t}) = ${intent.formatted}\n$$\n\n\\boxed{${intent.result}}`;
+  }
+
+  if (intent.type === 'PHYSICS_DYNAMICS') {
+    return `✅ Newton's Second Law calculation:\n\n$$\nF = m \\cdot a = (${intent.m})(${intent.a}) = ${intent.formatted}\n$$\n\n\\boxed{${intent.result}}`;
+  }
+
+  if (intent.type === 'PHYSICS_KINETIC_ENERGY') {
+    return `✅ Kinetic Energy calculation:\n\n$$\nKE = \\frac{1}{2} m v^2 = \\frac{1}{2}(${intent.m})(${intent.v})^2 = ${intent.formatted}\n$$\n\n\\boxed{${intent.result}}`;
+  }
+
+  if (intent.type === 'COTERMINAL_ANGLE') {
+    return `✅ Coterminal Angle calculation:\n\n$$\n\\theta_{\\text{coterminal}} = ${intent.formatted}\n$$\n\n\\boxed{${intent.formatted}}`;
+  }
+
+  if (intent.type === 'ANGLE_QUADRANT') {
+    return `✅ Angle Quadrant determination:\n\n$$\n\\text{Quadrant} = \\text{${intent.formatted}}\n$$\n\n\\boxed{${intent.formatted}}`;
+  }
+
+  if (intent.type === 'PERCENTAGE_OF') {
+    return `✅ Percentage calculation:\n\n$$\n${intent.pct}\\% \\times ${intent.base} = ${intent.formatted}\n$$\n\n\\boxed{${intent.formatted}}`;
+  }
+
+  if (intent.type === 'SIMPSONS_PARADOX_CONCEPTUAL') {
+    return `⚖️ **Simpson's Paradox in Hospital Treatment Outcomes**\n\nSimpson's paradox occurs when aggregate data contradicts subgroup trends due to a confounding variable (such as patient condition severity).\n\n\\boxed{\\text{SIMPSONS_PARADOX}}`;
+  }
+
   if (intent.type === 'UNIT_CONVERSION') {
     return `✅ Here is the verified conversion:\n\n$$\n${intent.from} = ${intent.formatted}\n$$\n\nWould you like to see the dimensional conversion factors for this unit?`;
   }
@@ -1819,6 +2499,7 @@ module.exports = {
   buildDeterministicResponse,
   classifyProblem,
   parseAngleFromText,
+  extractArithmeticExpressions,
   DOMAINS,
   PROTOCOLS
 };

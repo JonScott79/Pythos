@@ -554,7 +554,7 @@ async function executeGroqVisionCall(provider, { messages, visionSystemPrompt, o
       headers: {
         'Authorization': `Bearer ${groqApiKey}`,
         'Content-Type': 'application/json',
-        'User-Agent': 'Pythos-Vision/1.8.3',
+        'User-Agent': 'Pythos-Vision/1.8.4',
         'Content-Length': Buffer.byteLength(groqPayload)
       },
       timeout: timeoutMs
@@ -717,7 +717,7 @@ async function executeGeminiVisionCall(provider, { messages, visionSystemPrompt,
       headers: {
         'x-goog-api-key': geminiApiKey,
         'Content-Type': 'application/json',
-        'User-Agent': 'Pythos-Vision/1.8.3',
+        'User-Agent': 'Pythos-Vision/1.8.4',
         'Content-Length': Buffer.byteLength(geminiPayload)
       },
       timeout: timeoutMs
@@ -879,7 +879,7 @@ async function verifyResponseClaims(content, userQueryText, abortSignal) {
   for (let ci = 0; ci < claims.length; ci++) {
     if (abortSignal && abortSignal.aborted) break;
     const claim = claims[ci];
-    const verification = await runDeterministicVerification(claim);
+    const verification = await runDeterministicVerification(claim, userQueryText || '');
     if (verification) {
       verificationResults.push(verification);
     }
@@ -1263,10 +1263,11 @@ ${preflightContext}${activeProblemContext}`;
           }
         }
 
-        const claims = extractClaims(finalContent, lastUserMsg ? lastUserMsg.content : '');
+        const userQueryPrompt = lastUserMsg ? lastUserMsg.content : '';
+        const claims = extractClaims(finalContent, userQueryPrompt);
         const verificationResults = [];
         for (const claim of claims) {
-          const v = await runDeterministicVerification(claim);
+          const v = await runDeterministicVerification(claim, userQueryPrompt);
           if (v) verificationResults.push(v);
         }
 
