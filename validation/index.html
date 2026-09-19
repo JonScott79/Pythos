@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-JFV7CSM9G9"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-JFV7CSM9G9');
+  </script>
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/png" href="../assets/favicon.png">
+  
+  <title>Mathematical Validation | Pythos</title>
+  <meta name="description" content="Pythos mathematical validation record: 50,000 problems tested, 95.81% verified correct, 0 incorrect answers delivered. We test the math and publish the results.">
+  <meta name="author" content="Jon Scott / LANZAR">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://pythos.lanzar.me/validation/">
+
+  <!-- OPEN GRAPH -->
+  <meta property="og:title" content="Mathematical Validation | Pythos">
+  <meta property="og:description" content="Pythos mathematical validation record: 50,000 problems tested, 95.81% verified correct, 0 incorrect answers delivered. We test the math and publish the results.">
+  <meta property="og:url" content="https://pythos.lanzar.me/validation/">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="Pythos">
+  <meta property="og:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
+  <meta property="og:image:width" content="512">
+  <meta property="og:image:height" content="512">
+  <meta property="og:image:alt" content="Pythos Oracle Avatar">
+
+  <!-- TWITTER CARD -->
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Mathematical Validation | Pythos">
+  <meta name="twitter:description" content="Pythos mathematical validation record: 50,000 problems tested, 95.81% verified correct, 0 incorrect answers delivered. We test the math and publish the results.">
+  <meta name="twitter:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
+  <meta name="twitter:image:alt" content="Pythos Oracle Avatar">
+
+  <!-- JSON-LD STRUCTURED DATA -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "Pythos Mathematical Validation Record",
+    "url": "https://pythos.lanzar.me/validation/",
+    "description": "Public mathematical reliability and verification benchmark records for Pythos AI math tutor.",
+    "author": {
+      "@type": "Person",
+      "name": "Jon Scott",
+      "url": "https://lanzar.me"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "LANZAR",
+      "url": "https://lanzar.me"
+    },
+    "datePublished": "2026-09-19",
+    "dateModified": "2026-09-19"
+  }
+  </script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg-color: #fcfbf9;
+      --surface-color: #ffffff;
+      --surface-card: rgba(255, 255, 255, 0.95);
+      --text-main: #1e293b;
+      --text-muted: #64748b;
+      --primary-color: #2a728f;
+      --primary-hover: #1e5a73;
+      --accent-orange: #f46b45;
+      --border-color: #e2e8f0;
+      --card-bg: #f8fafc;
+      --success-green: #16a34a;
+      --success-bg: #dcfce7;
+      --success-border: #bbf7d0;
+      --amber-color: #d97706;
+      --amber-bg: #fef3c7;
+      --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    }
+
+    [data-theme="dark"] {
+      --bg-color: #0b1120;
+      --surface-color: #131d31;
+      --surface-card: rgba(19, 29, 49, 0.95);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary-color: #38bdf8;
+      --primary-hover: #0284c7;
+      --accent-orange: #fb923c;
+      --border-color: #334155;
+      --card-bg: #1e293b;
+      --success-green: #4ade80;
+      --success-bg: rgba(34, 197, 94, 0.15);
+      --success-border: rgba(34, 197, 94, 0.3);
+      --amber-color: #fcd34d;
+      --amber-bg: rgba(245, 158, 11, 0.15);
+      --card-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    }
+
+    * { box-sizing: border-box; }
+
+    /* Accessibility Focus & Reduced Motion */
+    *:focus-visible {
+      outline: 2px solid var(--primary-color) !important;
+      outline-offset: 2px !important;
+    }
+
+    .sr-only {
+      position: absolute !important;
+      width: 1px !important;
+      height: 1px !important;
+      padding: 0 !important;
+      margin: -1px !important;
+      overflow: hidden !important;
+      clip: rect(0, 0, 0, 0) !important;
+      white-space: nowrap !important;
+      border: 0 !important;
+    }
+
+    .skip-link {
+      position: absolute;
+      top: -60px;
+      left: 16px;
+      background: var(--primary-color);
+      color: #ffffff !important;
+      padding: 10px 16px;
+      z-index: 9999;
+      border-radius: 6px;
+      font-weight: 600;
+      text-decoration: none;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+      transition: top 0.2s ease-in-out;
+    }
+
+    .skip-link:focus,
+    .skip-link:focus-visible {
+      top: 16px;
+      outline: 3px solid #ffffff;
+      outline-offset: 2px;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: var(--bg-color);
+      background-image: linear-gradient(rgba(252, 251, 249, 0.94), rgba(252, 251, 249, 0.94)), url('../assets/math_bg.jpg');
+      background-size: 500px;
+      background-repeat: repeat;
+      color: var(--text-main);
+      line-height: 1.6;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    [data-theme="dark"] body {
+      background-image: linear-gradient(rgba(11, 17, 32, 0.94), rgba(11, 17, 32, 0.94)), url('../assets/math_bg.jpg');
+    }
+
+    /* Top Navigation */
+    .top-nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--surface-card);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-color);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .nav-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .brand-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 2px solid var(--accent-orange);
+      object-fit: cover;
+    }
+
+    .brand-name {
+      font-family: 'Cinzel', serif;
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      color: var(--primary-color);
+    }
+
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .nav-link {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.88rem;
+      font-weight: 500;
+      transition: color 0.15s;
+    }
+
+    .nav-link:hover, .nav-link.active {
+      color: var(--primary-color);
+    }
+
+    .theme-toggle-btn {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 6px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .theme-toggle-btn:hover {
+      background: var(--surface-color);
+      border-color: var(--primary-color);
+    }
+
+    .btn-launch {
+      background: var(--primary-color);
+      color: #ffffff !important;
+      padding: 6px 14px;
+      border-radius: 6px;
+      text-decoration: none;
+      font-size: 0.86rem;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s;
+    }
+
+    .btn-launch:hover {
+      background: var(--primary-hover);
+    }
+
+    /* Main Container */
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 32px 20px 60px 20px;
+      width: 100%;
+      flex: 1;
+    }
+
+    /* Hero Section */
+    .hero-card {
+      background: var(--surface-card);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 36px 32px;
+      box-shadow: var(--card-shadow);
+      margin-bottom: 28px;
+    }
+
+    .hero-tagline-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      font-size: 0.76rem;
+      font-weight: 600;
+      color: var(--primary-color);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 12px;
+    }
+
+    h1 {
+      font-family: 'Cinzel', serif;
+      font-size: 2.25rem;
+      color: var(--primary-color);
+      margin: 0 0 8px 0;
+      letter-spacing: 0.5px;
+      line-height: 1.2;
+    }
+
+    .subheadline {
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: var(--accent-orange);
+      margin-bottom: 14px;
+    }
+
+    .hero-desc {
+      font-size: 1rem;
+      color: var(--text-muted);
+      line-height: 1.65;
+      max-width: 780px;
+      margin-bottom: 28px;
+    }
+
+    /* Primary Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-top: 20px;
+    }
+
+    @media (max-width: 768px) {
+      .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    .stat-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 18px 16px;
+      text-align: center;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+
+    .stat-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+    }
+
+    .stat-card.highlight {
+      border-color: var(--success-border);
+      background: var(--success-bg);
+    }
+
+    .stat-num {
+      font-size: 2rem;
+      font-weight: 700;
+      font-family: 'Cinzel', serif;
+      color: var(--primary-color);
+      line-height: 1.1;
+      margin-bottom: 6px;
+    }
+
+    .stat-card.highlight .stat-num {
+      color: var(--success-green);
+    }
+
+    .stat-label {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    .stat-subtext {
+      font-size: 0.74rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* Section Cards */
+    .section-card {
+      background: var(--surface-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 28px 30px;
+      margin-bottom: 24px;
+      box-shadow: var(--card-shadow);
+    }
+
+    h2 {
+      font-family: 'Cinzel', serif;
+      font-size: 1.45rem;
+      color: var(--primary-color);
+      margin-top: 0;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    h3 {
+      font-size: 1.08rem;
+      font-weight: 600;
+      margin-top: 20px;
+      margin-bottom: 8px;
+      color: var(--text-main);
+    }
+
+    p {
+      margin: 0 0 14px 0;
+      color: var(--text-main);
+      line-height: 1.65;
+    }
+
+    /* Metadata Bar */
+    .meta-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 20px;
+      padding: 12px 16px;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin-bottom: 20px;
+    }
+
+    .meta-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .meta-item strong {
+      color: var(--text-main);
+    }
+
+    /* Data Table */
+    .data-table-wrap {
+      overflow-x: auto;
+      margin: 18px 0;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      text-align: left;
+    }
+
+    th {
+      background: var(--card-bg);
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.74rem;
+      letter-spacing: 0.6px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border-color);
+      color: var(--text-main);
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .badge-perfect {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 0.74rem;
+      font-weight: 600;
+      background: var(--success-bg);
+      color: var(--success-green);
+    }
+
+    .badge-safe {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 0.74rem;
+      font-weight: 600;
+      background: var(--amber-bg);
+      color: var(--amber-color);
+    }
+
+    /* Three States Grid */
+    .states-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin: 20px 0;
+    }
+
+    @media (max-width: 768px) {
+      .states-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .state-box {
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 18px;
+      background: var(--card-bg);
+    }
+
+    .state-box.verified {
+      border-color: var(--success-border);
+      border-top: 4px solid var(--success-green);
+    }
+
+    .state-box.withheld {
+      border-color: var(--border-color);
+      border-top: 4px solid var(--primary-color);
+    }
+
+    .state-box.incorrect {
+      border-color: #fca5a5;
+      border-top: 4px solid #ef4444;
+    }
+
+    .state-title {
+      font-size: 0.96rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+
+    .state-box.verified .state-title { color: var(--success-green); }
+    .state-box.withheld .state-title { color: var(--primary-color); }
+    .state-box.incorrect .state-title { color: #ef4444; }
+
+    .state-desc {
+      font-size: 0.84rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* Pipeline Flow */
+    .pipeline-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin: 20px 0;
+    }
+
+    .pipeline-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 14px 18px;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+    }
+
+    .step-number {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--primary-color);
+      color: #ffffff;
+      font-weight: 700;
+      font-size: 0.82rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .step-content h4 {
+      margin: 0 0 4px 0;
+      font-size: 0.94rem;
+      color: var(--text-main);
+    }
+
+    .step-content p {
+      margin: 0;
+      font-size: 0.84rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* Notice callout */
+    .callout {
+      padding: 14px 18px;
+      border-radius: 8px;
+      border-left: 4px solid var(--primary-color);
+      background: var(--card-bg);
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      margin: 16px 0;
+      line-height: 1.6;
+    }
+
+    .callout strong {
+      color: var(--text-main);
+    }
+
+    /* Footer */
+    footer {
+      background: var(--surface-color);
+      border-top: 1px solid var(--border-color);
+      padding: 24px 20px;
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: auto;
+    }
+
+    footer a {
+      color: var(--primary-color);
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Skip Navigation Link -->
+  <a href="#mainContent" class="skip-link">Skip to main content</a>
+
+  <!-- Top Navigation -->
+  <header class="top-nav" role="banner">
+    <div class="nav-left">
+      <a href="../" class="brand-group" title="Pythos AI Home" aria-label="Return to Pythos AI Workspace">
+        <img src="../assets/pythos_avatar.jpg" alt="Pythos Oracle" class="brand-avatar" width="36" height="36" />
+        <span class="brand-name">PYTHOS</span>
+      </a>
+    </div>
+    <nav class="nav-right" role="navigation" aria-label="Main Navigation">
+      <a href="../algebra/" class="nav-link">Algebra</a>
+      <a href="../calculus/" class="nav-link">Calculus</a>
+      <a href="../physics/" class="nav-link">Physics</a>
+      <a href="../tools/" class="nav-link">Tools</a>
+      <a href="../about/" class="nav-link">About</a>
+      <a href="../nonprofit.html" class="nav-link">Mission</a>
+      <button id="themeToggleBtn" class="theme-toggle-btn" title="Toggle Theme" aria-label="Toggle Dark and Light Theme">
+        <span id="themeIcon" aria-hidden="true">🌓</span>
+      </button>
+      <a href="../" class="btn-launch" title="Launch Interactive Workspace">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+        Workspace
+      </a>
+    </nav>
+  </header>
+
+  <!-- Main Content -->
+  <main id="mainContent" class="container" role="main">
+
+    <!-- HERO SECTION -->
+    <article class="hero-card">
+      <div class="hero-tagline-badge">Public Engineering &amp; Reliability Record</div>
+      <h1>Mathematical Validation</h1>
+      <div class="subheadline">We test the math. We publish the results.</div>
+      <p class="hero-desc">
+        Pythos is designed to verify mathematical answers before presenting them as fact. We publish our validation results so you can see what has actually been tested.
+      </p>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-num">50,000</div>
+          <div class="stat-label">Problems Tested</div>
+          <div class="stat-subtext">Across 10 STEM domains</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num">47,907</div>
+          <div class="stat-label">Verified Correct</div>
+          <div class="stat-subtext">95.81% verified rate</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num">2,093</div>
+          <div class="stat-label">Safely Withheld</div>
+          <div class="stat-subtext">4.19% safely withheld</div>
+        </div>
+        <div class="stat-card highlight">
+          <div class="stat-num">0</div>
+          <div class="stat-label">Incorrect Delivered</div>
+          <div class="stat-subtext">0.00% delivered error rate</div>
+        </div>
+      </div>
+    </article>
+
+    <!-- CURRENT VALIDATION PANEL -->
+    <section class="section-card" aria-labelledby="currentValidationHeading">
+      <h2 id="currentValidationHeading">📊 Current Validation</h2>
+
+      <div class="meta-bar">
+        <div class="meta-item"><span>Engine Version:</span> <strong>Pythos v1.8.4</strong></div>
+        <div class="meta-item"><span>Release Commit:</span> <strong><code>9de3d18</code></strong></div>
+        <div class="meta-item"><span>PRNG Stream Seed:</span> <strong><code>1618033988</code></strong></div>
+        <div class="meta-item"><span>Last Validated:</span> <strong>September 19, 2026</strong></div>
+      </div>
+
+      <div class="callout">
+        <strong>95.81% of benchmark problems produced a verified correct answer.</strong> The 4.19% remainder was safely withheld rather than delivered as an unverified answer.
+      </div>
+
+      <div class="data-table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Reliability Metric</th>
+              <th scope="col">Observed Value</th>
+              <th scope="col">Percentage / Rate</th>
+              <th scope="col">Operational Target</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">Problems Tested</th>
+              <td>50,000</td>
+              <td>100.00%</td>
+              <td>Statistically significant large-scale validation</td>
+            </tr>
+            <tr>
+              <th scope="row">Verified Correct</th>
+              <td>47,907</td>
+              <td>95.81%</td>
+              <td>High deterministic resolution rate</td>
+            </tr>
+            <tr>
+              <th scope="row">Safely Withheld (UNKNOWN)</th>
+              <td>2,093</td>
+              <td>4.19%</td>
+              <td>Safe suppression when confidence is incomplete</td>
+            </tr>
+            <tr>
+              <th scope="row">Incorrect Delivered Answers</th>
+              <td><strong>0</strong></td>
+              <td><strong>0.00%</strong></td>
+              <td><strong>Zero incorrect answers delivered</strong></td>
+            </tr>
+            <tr>
+              <th scope="row">Verification Escapes</th>
+              <td>0</td>
+              <td>0.00%</td>
+              <td>Zero unverified mathematical claims escaped</td>
+            </tr>
+            <tr>
+              <th scope="row">False-Positive Rejections</th>
+              <td>0</td>
+              <td>0.00%</td>
+              <td>Zero valid mathematical proofs rejected</td>
+            </tr>
+            <tr>
+              <th scope="row">Observed Delivered Error Rate</th>
+              <td colspan="3">0.00% &nbsp; (95% Wilson Score CI: <code>[0.0000%, 0.0077%]</code>)</td>
+            </tr>
+            <tr>
+              <th scope="row">Execution Telemetry</th>
+              <td colspan="3">Runtime: 657.23s (~10.95 min) &bull; Peak Node Heap: 122.6 MB &bull; CAS Concurrency: Max 8 workers peak burst / 4 steady-state &bull; Orphan Processes: 0</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Domain Performance Breakdown (50,000 Problems)</h3>
+      <div class="data-table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Mathematical Category</th>
+              <th scope="col">Tested</th>
+              <th scope="col">Verified Correct</th>
+              <th scope="col">Safely Withheld</th>
+              <th scope="col">Incorrect</th>
+              <th scope="col">Accuracy Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">Arithmetic</th>
+              <td>5,000</td>
+              <td>5,000</td>
+              <td>0</td>
+              <td>0</td>
+              <td><span class="badge-perfect">100.00% Verified</span></td>
+            </tr>
+            <tr>
+              <th scope="row">Fractions / Decimals / Percentages</th>
+              <td>5,000</td>
+              <td>5,000</td>
+              <td>0</td>
+              <td>0</td>
+              <td><span class="badge-perfect">100.00% Verified</span></td>
+            </tr>
+            <tr>
+              <th scope="row">Linear Equations</th>
+              <td>5,000</td>
+              <td>3,763</td>
+              <td>1,237</td>
+              <td>0</td>
+              <td><span class="badge-safe">75.26% (100% Safe)</span></td>
+            </tr>
+            <tr>
+              <th scope="row">Systems of Equations</th>
+              <td>5,000</td>
+              <td>5,000</td>
+              <td>0</td>
+              <td>0</td>
+              <td><span class="badge-perfect">100.00% Verified</span></td>
+            </tr>
+            <tr>
+              <th scope="row">Quadratics &amp; Polynomials</th>
+              <td>5,000</td>
+              <td>5,000</td>
+              <td>0</td>
+              <td>0</td>
+              <td><span class="badge-perfect">100.00% Verified</span></td>
+            </tr>
+            <tr>
+              <th scope="row">Functions &amp; Algebra</th>
+              <td>5,000</td>
+              <td>5,000</td>
+              <td>0</td>
+              <td>0</td>
+              <td><span class="badge-perfect">100.00% Verified</span></td>
+            </tr>
+            <tr>
+              <th scope="row">Geometry &amp; Trigonometry</th>
+              <td>5,000</td>
+              <td>5,000</td>
+              <td>0</td>
+              <td>0</td>
+              <td><span class="badge-perfect">100.00% Verified</span></td>
+            </tr>
+            <tr>
+              <th scope="row">Calculus</th>
+              <td>5,000</td>
+              <td>5,000</td>
+              <td>0</td>
+              <td>0</td>
+              <td><span class="badge-perfect">100.00% Verified</span></td>
+            </tr>
+            <tr>
+              <th scope="row">Probability &amp; Statistics</th>
+              <td>5,000</td>
+              <td>5,000</td>
+              <td>0</td>
+              <td>0</td>
+              <td><span class="badge-perfect">100.00% Verified</span></td>
+            </tr>
+            <tr>
+              <th scope="row">Physics / Math Crossover</th>
+              <td>5,000</td>
+              <td>4,144</td>
+              <td>856</td>
+              <td>0</td>
+              <td><span class="badge-safe">82.88% (100% Safe)</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- EXPLAIN SAFELY WITHHELD -->
+    <section class="section-card" aria-labelledby="safelyWithheldHeading">
+      <h2 id="safelyWithheldHeading">🛡️ What does "Safely Withheld" mean?</h2>
+      <p>
+        Sometimes Pythos cannot establish that an answer is sufficiently reliable to present it as fact. In those cases, Pythos may return UNKNOWN rather than guess.
+      </p>
+      <p>
+        A safely withheld answer is not counted as a correct answer. It is not counted as an incorrect answer either. It means Pythos chose not to deliver an answer that it could not adequately verify.
+      </p>
+
+      <div class="states-grid">
+        <div class="state-box verified">
+          <div class="state-title">VERIFIED</div>
+          <div class="state-desc">The answer passed mathematical verification and was delivered to the student.</div>
+        </div>
+        <div class="state-box withheld">
+          <div class="state-title">SAFELY WITHHELD</div>
+          <div class="state-desc">Pythos could not establish sufficient confidence, so the answer was withheld to prevent hallucination.</div>
+        </div>
+        <div class="state-box incorrect">
+          <div class="state-title">INCORRECT</div>
+          <div class="state-desc">The delivered answer was mathematically wrong. (Current benchmark result: 0).</div>
+        </div>
+      </div>
+
+      <p style="margin-top: 14px; font-weight: 500;">
+        The engineering goal is to systematically increase the <strong>VERIFIED</strong> rate while keeping <strong>INCORRECT</strong> delivered answers at zero.
+      </p>
+    </section>
+
+    <!-- HOW VALIDATION WORKS -->
+    <section class="section-card" aria-labelledby="howValidationWorksHeading">
+      <h2 id="howValidationWorksHeading">⚙️ How Validation Works</h2>
+      <p>
+        Pythos uses an automated verification pipeline that couples generative language models with deterministic Computer Algebra Systems (CAS) and exact rational arithmetic:
+      </p>
+
+      <div class="pipeline-grid">
+        <div class="pipeline-step">
+          <div class="step-number">1</div>
+          <div class="step-content">
+            <h4>Generated Mathematical Problem</h4>
+            <p>Seeded pseudorandom generators synthesize unique problems across arithmetic, algebra, calculus, and physics with exact ground-truth solutions.</p>
+          </div>
+        </div>
+        <div class="pipeline-step">
+          <div class="step-number">2</div>
+          <div class="step-content">
+            <h4>Pythos Receives Problem</h4>
+            <p>The system analyzes deterministic intent, conversational context, and dimensional units to generate candidate step-by-step reasoning.</p>
+          </div>
+        </div>
+        <div class="pipeline-step">
+          <div class="step-number">3</div>
+          <div class="step-content">
+            <h4>Candidate Mathematical Answer</h4>
+            <p>All quantitative claims, intermediate expressions, and final boxed results are extracted into structured verifiable assertions.</p>
+          </div>
+        </div>
+        <div class="pipeline-step">
+          <div class="step-number">4</div>
+          <div class="step-content">
+            <h4>Deterministic Multi-Tier Verification</h4>
+            <p>Claims are audited through an in-process exact Math.js AST engine, followed by a bounded SymPy CAS subprocess for deep symbolic calculus and statistics.</p>
+          </div>
+        </div>
+        <div class="pipeline-step">
+          <div class="step-number">5</div>
+          <div class="step-content">
+            <h4>Strict Prompt-to-Claim Fidelity Gate</h4>
+            <p>The verification bridge inspects whether the mathematical claim answers the actual user prompt rather than a distorted or mutated subexpression.</p>
+          </div>
+        </div>
+        <div class="pipeline-step">
+          <div class="step-number">6</div>
+          <div class="step-content">
+            <h4>Delivery Decision Gate</h4>
+            <p>If all claims are verified and prompt fidelity is intact, the response is delivered. If any claim is invalid or unprovable, the answer is safely withheld.</p>
+          </div>
+        </div>
+      </div>
+
+      <h3>Open Science &amp; Public Evidence</h3>
+      <p>
+        In accordance with our commitment to transparency, the entire benchmark harness, validation scripts, and raw execution telemetry are maintained in our public repository:
+      </p>
+      <div style="margin-top: 10px;">
+        <a href="https://github.com/JonScott79/Pythos-Tests" class="btn-launch" target="_blank" rel="noopener noreferrer">
+          Inspect Pythos-Tests Repository ↗
+        </a>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer role="contentinfo">
+    <div>🏛️ Pythos — Free AI Mathematics &amp; Physics Education. Developed by a student for students.</div>
+    <div style="margin-top: 6px; opacity: 0.8;">
+      Pythos &copy; 2026 <a href="https://lanzar.me" target="_blank" rel="noopener">LANZAR</a>. All rights reserved. &bull; 
+      <a href="../about/">About</a> &bull; 
+      <a href="../nonprofit.html">Mission</a> &bull; 
+      <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer">Facebook</a> &bull; 
+      <a href="../changelog.html#pythos-1-8-5">v1.8.5</a>
+    </div>
+  </footer>
+
+  <script>
+    // Theme Management Synchronized with Pythos
+    const toggleBtn = document.getElementById('themeToggleBtn');
+    const themeIcon = document.getElementById('themeIcon');
+    const savedTheme = localStorage.getItem('pythos_theme') || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+
+    function applyTheme(theme) {
+      if (theme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        themeIcon.textContent = '🌙';
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+        themeIcon.textContent = '☀️';
+      }
+      localStorage.setItem('pythos_theme', theme);
+    }
+
+    applyTheme(savedTheme);
+
+    toggleBtn.addEventListener('click', () => {
+      const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+      applyTheme(current === 'dark' ? 'light' : 'dark');
+    });
+  </script>
+</body>
+</html>

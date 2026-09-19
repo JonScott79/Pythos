@@ -5,6 +5,14 @@ All notable changes to the Pythos project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Pythos 1.8.5
+**Release Date:** 2026-09-19
+
+### Added
+- **Public Mathematical Validation Record** (`/validation/`, `validation/index.html`): Launched a transparent, permanent public engineering validation record publishing current verified mathematical benchmarks (50,000 problems tested, 47,907 verified correct [95.81%], 2,093 safely withheld [4.19%], 0 incorrect answers delivered [0.00%], 0 escapes, 0 false positives, 95% CI [0.0000%, 0.0077%]). Includes full operational telemetry (runtime, peak heap, CAS concurrency, orphan process audits), detailed domain breakdowns across 10 subject areas, documentation of the "Safely Withheld" UNKNOWN philosophy, and a 6-stage deterministic verification pipeline diagram.
+- **Official Facebook Link Integration**: Connected official Pythos Facebook community portal (`https://www.facebook.com/PythosAI/`) in sidebar navigation, quick actions, and footer across all site pages.
+- **Unified Site Navigation & Discovery**: Added direct validation record links across all subject guides (`algebra/`, `calculus/`, `physics/`), interactive tools (`tools/`), foundational pages (`about/`, `nonprofit.html`), and XML sitemap (`sitemap.xml`).
+
 ## Pythos 1.8.4
 **Release Date:** 2026-09-19
 

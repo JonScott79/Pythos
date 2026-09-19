@@ -554,7 +554,7 @@ async function executeGroqVisionCall(provider, { messages, visionSystemPrompt, o
       headers: {
         'Authorization': `Bearer ${groqApiKey}`,
         'Content-Type': 'application/json',
-        'User-Agent': 'Pythos-Vision/1.8.4',
+        'User-Agent': 'Pythos-Vision/1.8.5',
         'Content-Length': Buffer.byteLength(groqPayload)
       },
       timeout: timeoutMs
@@ -717,7 +717,7 @@ async function executeGeminiVisionCall(provider, { messages, visionSystemPrompt,
       headers: {
         'x-goog-api-key': geminiApiKey,
         'Content-Type': 'application/json',
-        'User-Agent': 'Pythos-Vision/1.8.4',
+        'User-Agent': 'Pythos-Vision/1.8.5',
         'Content-Length': Buffer.byteLength(geminiPayload)
       },
       timeout: timeoutMs
