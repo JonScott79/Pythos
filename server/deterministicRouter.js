@@ -242,11 +242,13 @@ function extractArithmeticExpressions(text) {
     }
   }
 
-  // If the query is an inquiry, question, or conversational comparison (e.g. "is that the same thing?", "what does that mean?"),
+  // If the query is an inquiry, question, conversational commentary, or observation
+  // (e.g. "is that the same thing?", "what does that mean?", "its ~95-96% with 0 incorrect answers returned", "Your accuracy is 95.81%"),
   // do NOT extract arithmetic unless the prompt is an explicit standalone calculation command
   const isQuestionOrProse = /[?]$/.test(text.trim()) ||
-    /\b(?:is\s+(?:that|this|it)|same\s+thing|same\s+as|the\s+same|equivalent|what\s+about|why|how|explain|does\s+(?:this|that))\b/i.test(text);
-  const isExplicitStandaloneCalc = /^(?:(?:please|kindly)\s+)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?)?(?:help\s+(?:me\s+)?(?:to\s+)?)?(?:calculate|compute|evaluate|determine|solve(?:\s+for)?|find|simplify|work\s+out|give\s+me|what\s+is|what\s+would\s+be|how\s+much\s+is|is)(?:\s+(?:the\s+)?(?:result|value|answer|evaluation|solution|sum|difference|product|quotient)(?:\s+(?:of|to|for))?)?[:\s]/i.test(text.trim());
+    /\b(?:is\s+(?:that|this|it)|same\s+thing|same\s+as|the\s+same|equivalent|what\s+about|why|how|explain|does\s+(?:this|that))\b/i.test(text) ||
+    /\b(?:accuracy|accurate|validation|validated|benchmark|withheld|incorrect\s+answers?|correct\s+answers?|answers?\s+returned|error\s+rate|pythos|tutor|model)\b/i.test(text);
+  const isExplicitStandaloneCalc = /^(?:pythos[,\s]+)?(?:(?:please|kindly)\s+)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?)?(?:help\s+(?:me\s+)?(?:to\s+)?)?(?:calculate|compute|evaluate|determine|solve(?:\s+for)?|find|simplify|work\s+out|give\s+me|what\s+is|what\s+would\s+be|how\s+much\s+is|is)(?:\s+(?:the\s+)?(?:result|value|answer|evaluation|solution|sum|difference|product|quotient)(?:\s+(?:of|to|for))?)?[:\s]/i.test(text.trim());
   if (isQuestionOrProse && !isExplicitStandaloneCalc) {
     return expressions;
   }
@@ -258,20 +260,24 @@ function extractArithmeticExpressions(text) {
     const line = rawLine.trim();
     if (!line) continue;
 
+    // Strip leading "Pythos," address if present
+    const unaddressedLine = line.replace(/^(?:pythos[,\s]+)+/i, '');
+
     // Check if line contains a bullet/list prefix (e.g. "1. 93/100", "* 93/100", "• 93/100")
     // A bullet list marker is a bullet symbol (•, *, #) or ordered list (1., 1)) followed by optional whitespace,
     // OR a hyphen '-' followed by whitespace and a prose word.
     // A leading '-' directly attached to a digit, decimal, parenthesis, or math symbol (e.g. "-992 - -988", "-194 + 123", "-5/14")
     // is a legitimate negative numeric operand and must NEVER be stripped.
-    const cleanLine = line
+    const cleanLine = unaddressedLine
       .replace(/^(?:[•*#]|\d+(?:\.(?!\d)|\)))\s*/, '')
       .replace(/^-\s+(?=[a-zA-Z])/, '')
+      .replace(/(\d),(\d{3})\b/g, '$1$2')
       .replace(/[,;]+$/, '')
       .trim();
 
     // General conversational prefix normalization
     const cleanExprLine = cleanLine
-      .replace(/^(?:(?:please|kindly)\s+)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?)?(?:help\s+(?:me\s+)?(?:to\s+)?)?(?:what\s+(?:is|would\s+be)|calculate|compute|evaluate|determine|solve(?:\s+for)?|find|simplify|work\s+out|give\s+me|how\s+much\s+is|is)(?:\s+(?:the\s+)?(?:result|value|answer|evaluation|solution|sum|difference|product|quotient)(?:\s+(?:of|to|for))?)?[:\s]+/i, '')
+      .replace(/^(?:pythos[,\s]+)?(?:(?:please|kindly)\s+)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?)?(?:help\s+(?:me\s+)?(?:to\s+)?)?(?:what\s+(?:is|would\s+be)|calculate|compute|evaluate|determine|solve(?:\s+for)?|find|simplify|work\s+out|give\s+me|how\s+much\s+is|is)(?:\s+(?:the\s+)?(?:result|value|answer|evaluation|solution|sum|difference|product|quotient)(?:\s+(?:of|to|for))?)?[:\s]+/i, '')
       .replace(/[?!.]+$/, '')
       .trim();
 
@@ -304,6 +310,8 @@ function extractArithmeticExpressions(text) {
 
     // Match fraction/division patterns: A / B or \frac{A}{B} (including pi / π)
     const normLine = line
+      .replace(/^(?:pythos[,\s]+)+/i, '')
+      .replace(/(\d),(\d{3})\b/g, '$1$2')
       .replace(/\\pi/g, 'pi')
       .replace(/π/g, 'pi');
 
@@ -339,11 +347,23 @@ function extractArithmeticExpressions(text) {
     const infixMatches = normLine.matchAll(fallbackInfixRegex);
     for (const m of infixMatches) {
       const matchIdx = m.index;
-      const beforeMatch = normLine.slice(0, matchIdx).trim();
-      if (/(?:sin|cos|tan|sec|csc|cot|log|ln|exp)\s*\($/i.test(beforeMatch)) {
+      const matchStr = m[0];
+      const beforeMatch = normLine.slice(0, matchIdx);
+      const afterMatch = normLine.slice(matchIdx + matchStr.length);
+
+      if (/(?:sin|cos|tan|sec|csc|cot|log|ln|exp)\s*\($/i.test(beforeMatch.trim())) {
         continue;
       }
-      const expr = m[0].trim();
+
+      // Reject range expressions (e.g. ~95-96, 95-96%, ~95-96%)
+      // A hyphen between numbers followed by % or preceded by ~ is a range/estimate, NOT subtraction
+      if (/[-–—]/.test(matchStr)) {
+        if (/~\s*$/.test(beforeMatch) || /^\s*%/.test(afterMatch) || /^\s*-\s*\d/.test(afterMatch)) {
+          continue;
+        }
+      }
+
+      const expr = matchStr.trim();
       if (!expressions.includes(expr)) {
         expressions.push(expr);
       }
@@ -1085,7 +1105,7 @@ function resolveReferentialContext(userText, conversationHistory = []) {
  */
 function analyzeDeterministicIntent(userText, conversationHistory = []) {
   if (!userText || typeof userText !== 'string') return null;
-  const clean = userText.trim().replace(/^\$+|\$+$/g, '').replace(/[?!.]+$/, '').trim();
+  const clean = userText.trim().replace(/^\$+|\$+$/g, '').replace(/[?!.]+$/, '').replace(/(\d),(\d{3})\b/g, '$1$2').trim();
   const lower = clean.toLowerCase();
 
   // Simpson's Paradox Conceptual Query (e.g. "Explain Simpson's paradox with hospital treatment success rates")
@@ -1487,9 +1507,9 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
     }
   }
 
-  // 3. Linear & Quadratic Equation Solving (e.g. "solve 3x + 5 = 20", "solve for x: x^2 - 5x + 6 = 0")
-  const eqMatch = clean.match(/^(?:solve(?:\s+for\s+[a-zA-Z])?[:\s]+)?([a-zA-Z0-9.\s*+^/()-]+=[a-zA-Z0-9.\s*+^/()-]+)$/i) ||
-                  clean.match(/^(?:solve\s+)?(sqrt\([a-zA-Z0-9.\s*+^/()-]+\)\s*=\s*[a-zA-Z0-9.\s*+^/()-]+)$/i);
+  // 3. Linear & Quadratic Equation Solving (e.g. "solve 3x + 5 = 20", "solve for x: x^2 - 5x + 6 = 0", "Pythos, solve this equation: 2x + 7 = 15", "Okay, now solve x^2 - 5x + 6 = 0")
+  const eqMatch = clean.match(/^(?:(?:(?:okay|ok|now|pythos|please|kindly)[,\s]+)*(?:solve|find)(?:\s+(?:this|the)?\s*equation)?(?:\s+for\s+[a-zA-Z])?[:\s]+)?([a-zA-Z0-9.\s*+^/()-]+=[a-zA-Z0-9.\s*+^/()-]+)$/i) ||
+                  clean.match(/^(?:(?:(?:okay|ok|now|pythos|please|kindly)[,\s]+)*(?:solve|find)(?:\s+(?:this|the)?\s*equation)?(?:\s+for\s+[a-zA-Z])?[:\s]+)?(sqrt\([a-zA-Z0-9.\s*+^/()-]+\)\s*=\s*[a-zA-Z0-9.\s*+^/()-]+)$/i);
   if (eqMatch) {
     const rawEq = eqMatch[1].trim().replace(/\+\s*-/g, '- ');
 

@@ -26,6 +26,7 @@ const OLLAMA_VISION_MODEL = process.env.OLLAMA_VISION_MODEL || 'qwen/qwen3.8-27b
 const OLLAMA_API_KEY = process.env.OLLAMA_API_KEY ? process.env.OLLAMA_API_KEY.trim() : null;
 const providerPolicy = require('./providerPolicy');
 const GROQ_API_KEY = providerPolicy.getGroqApiKey();
+const projectKnowledgeService = require('./projectKnowledgeService');
 const PORT = process.env.PORT || 3006;
 const REQUEST_TIMEOUT_MS = parseInt(process.env.REQUEST_TIMEOUT_MS, 10) || 180000; // 180s timeout for vision models
 const REVISION_TIMEOUT_MS = parseInt(process.env.REVISION_TIMEOUT_MS, 10) || 25000; // 25s bounded timeout for revision calls
@@ -412,6 +413,7 @@ app.get('/health', (req, res) => {
     budgetPolicy: providerPolicy.getPolicyTelemetry(),
     firebaseAdmin: firebaseAdmin.getAdminSdkStatus ? firebaseAdmin.getAdminSdkStatus() : null,
     casVerification: getCasTelemetry ? getCasTelemetry() : null,
+    projectKnowledge: projectKnowledgeService.getServiceTelemetry(),
     uptime: process.uptime(),
     timestamp: new Date().toISOString()
   });
@@ -1153,11 +1155,16 @@ app.post('/api/chat', async (req, res) => {
     uid: studentUid
   });
 
+  // Project Knowledge Context Injection (authoritative site data, 0 tokens on regular math turns)
+  const projectKnowledgeContext = lastUserMsg
+    ? projectKnowledgeService.buildProjectKnowledgeContext(lastUserMsg.content, messages)
+    : '';
+
   // Ensure system instructions are always present, up-to-date, and enriched with deterministic ground truth
   let preparedMessages = [...boundedContext.messagesForModel];
   preparedMessages.unshift({
     role: 'system',
-    content: PYTHOS_SYSTEM_PROMPT + identityContext + preflightContext + studentWorkContext + activeProblemContext + learningContext + memoryContext
+    content: PYTHOS_SYSTEM_PROMPT + identityContext + preflightContext + studentWorkContext + activeProblemContext + learningContext + memoryContext + projectKnowledgeContext
   });
 
   // Detect if latest user turn contains an image payload
@@ -1203,7 +1210,7 @@ or [GEOMETRY: triangle, a=<sideA>, b=<sideB>, c=<hypotenuse>, right_angle=C]` : 
 Maintain clean, encouraging, child-safe language with zero bad words or profanity under all circumstances.
 ${identityContext}
 ${visionExtractor.buildVisionPromptDirective()}${vizPromptInstruction}
-${preflightContext}${activeProblemContext}`;
+${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
 
       const triedProviders = new Set();
       let lastError = null;
