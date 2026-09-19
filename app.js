@@ -2627,6 +2627,7 @@ async function askPythos(userText) {
   };
   appendMessage("user", cleanText, dataUrlsToDisplay.length > 0 ? dataUrlsToDisplay : null);
   input.value = "";
+  autoResizeInput();
   if (charCounter) charCounter.style.display = "none";
   // Hide the math preview
   const preview = document.getElementById("mathPreview");
@@ -2915,8 +2916,24 @@ button.addEventListener("click", () => {
   askPythos(input.value);
 });
 
+function autoResizeInput() {
+  if (!input) return;
+  input.style.height = "auto";
+  const newHeight = Math.min(Math.max(input.scrollHeight, 38), 180);
+  input.style.height = `${newHeight}px`;
+  input.style.overflowY = input.scrollHeight > 180 ? "auto" : "hidden";
+}
+
 input.addEventListener("keydown", e => {
-  if (e.key === "Enter" && !e.shiftKey) {
+  if (e.key === "Enter") {
+    if (e.shiftKey) {
+      // Shift + Enter creates a new line in the text input
+      // Native textarea inserts \n; auto-resize on next tick or input event
+      setTimeout(autoResizeInput, 0);
+      return;
+    }
+
+    // Regular Enter without Shift submits the query
     e.preventDefault();
     addToPromptHistory(input.value);
     askPythos(input.value);
@@ -2936,6 +2953,7 @@ input.addEventListener("keydown", e => {
         }
         input.value = promptHistory[historyIndex];
         e.preventDefault();
+        autoResizeInput();
         renderInputPreview();
       }
     }
@@ -2951,6 +2969,7 @@ input.addEventListener("keydown", e => {
         input.value = savedDraft;
       }
       e.preventDefault();
+      autoResizeInput();
       renderInputPreview();
     }
   }
@@ -2961,6 +2980,7 @@ input.addEventListener("input", () => {
   if (input.value.length > MAX_INPUT_LENGTH) {
     input.value = input.value.substring(0, MAX_INPUT_LENGTH);
   }
+  autoResizeInput();
   const len = input.value.length;
   if (charCounter) {
     if (len > 100) {
@@ -2973,6 +2993,9 @@ input.addEventListener("input", () => {
   }
   renderInputPreview();
 });
+
+// Initialize input sizing
+autoResizeInput();
 
 // Mobile menu toggle & sidebar backdrop management
 const sidebar = document.getElementById("sidebar");

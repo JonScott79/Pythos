@@ -979,6 +979,7 @@
       border-radius: 6px;
       border: 1px solid var(--border-color);
       transition: border-color 0.2s;
+      align-items: flex-end;
     }
 
     .input-wrapper:focus-within {
@@ -986,7 +987,8 @@
       box-shadow: 0 0 0 2px rgba(42, 114, 143, 0.1);
     }
 
-    input {
+    input,
+    textarea#userInput {
       flex: 1;
       background: transparent;
       border: none;
@@ -995,6 +997,20 @@
       font-size: 0.92rem;
       outline: none;
       color: var(--text-main);
+      resize: none;
+      line-height: 1.4;
+      min-height: 38px;
+      max-height: 180px;
+      height: 38px;
+      box-sizing: border-box;
+      overflow-y: hidden;
+    }
+
+    .char-counter {
+      align-self: flex-end;
+      margin-bottom: 9px;
+      font-size: 0.75rem;
+      white-space: nowrap;
     }
 
     button.send-btn {
@@ -2682,7 +2698,7 @@
             </button>
             <button id="helpBtn" type="button" class="help-btn" title="Math Input Guide" aria-label="Open Math Input Guide" aria-haspopup="dialog" aria-expanded="false" aria-controls="mathGuideOverlay">?</button>
             <label for="userInput" class="sr-only">Ask Pythos a math or physics question, or enter an equation</label>
-            <input id="userInput" type="text" placeholder="Speak to the Oracle, dictate, paste/upload a problem image..." autocomplete="off" maxlength="1500" aria-label="Math or physics problem input" autofocus />
+            <textarea id="userInput" rows="1" placeholder="Speak to the Oracle, dictate, paste/upload a problem image..." autocomplete="off" maxlength="1500" aria-label="Math or physics problem input" autofocus></textarea>
             <span id="charCounter" class="char-counter" style="display:none;" aria-live="polite">0/1500</span>
             <button id="voiceBtn" type="button" class="help-btn voice-btn" title="Voice Input (Speech-to-Text)" aria-label="Toggle Voice Speech-to-Text Input">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
