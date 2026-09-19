@@ -2719,8 +2719,17 @@ async function askPythos(userText) {
       let metaVerification = [];
       let metaModel = "pythos:latest";
 
+      let isStreamDone = false;
+      let verificationTimer = null;
+
       while (true) {
-        const { value, done } = await reader.read();
+        let readResult;
+        try {
+          readResult = await reader.read();
+        } catch (_) {
+          break;
+        }
+        const { value, done } = readResult;
         if (done) break;
 
         lineBuffer += decoder.decode(value, { stream: true });
@@ -2749,6 +2758,12 @@ async function askPythos(userText) {
           } else if (ev.type === "status" && ev.stage === "verifying") {
             statusBadge.style.color = "#d97706";
             statusBadge.innerHTML = `<span class="stream-dot" style="width:6px; height:6px; border-radius:50%; background:#d97706; animation:pulse 1.5s infinite;"></span><span>Verifying calculations...</span>`;
+            if (verificationTimer) clearTimeout(verificationTimer);
+            verificationTimer = setTimeout(() => {
+              if (reader) {
+                try { reader.cancel(); } catch (_) {}
+              }
+            }, 15000);
           } else if (ev.type === "revision" && ev.revisedContent) {
             streamedText = ev.revisedContent;
             contentDiv.textContent = streamedText;
@@ -2770,12 +2785,18 @@ async function askPythos(userText) {
             statusBadge.style.color = "#059669";
             statusBadge.innerHTML = `<span style="color:#059669; font-weight:600;">✓ Calculation verified & corrected</span>`;
           } else if (ev.type === "verified") {
+            if (verificationTimer) { clearTimeout(verificationTimer); verificationTimer = null; }
             if (ev.claims) metaClaims = ev.claims;
             if (ev.verification) metaVerification = ev.verification;
             if (ev.model) metaModel = ev.model;
             statusBadge.style.color = "#16a34a";
             statusBadge.innerHTML = `<span style="color:#16a34a; font-weight:500;">✓ Verified</span>`;
+          } else if (ev.type === "done") {
+            if (verificationTimer) { clearTimeout(verificationTimer); verificationTimer = null; }
+            isStreamDone = true;
+            break;
           } else if (ev.type === "error") {
+            if (verificationTimer) { clearTimeout(verificationTimer); verificationTimer = null; }
             streamedText = ev.message || "An error occurred during inference.";
             contentDiv.textContent = streamedText;
             statusBadge.style.color = "#dc2626";
@@ -2787,7 +2808,9 @@ async function askPythos(userText) {
             }
           }
         }
+        if (isStreamDone) break;
       }
+      if (verificationTimer) { clearTimeout(verificationTimer); verificationTimer = null; }
 
       // Process any trailing buffered line
       if (lineBuffer.trim()) {

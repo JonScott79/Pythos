@@ -28,6 +28,7 @@ const providerPolicy = require('./providerPolicy');
 const GROQ_API_KEY = providerPolicy.getGroqApiKey();
 const PORT = process.env.PORT || 3006;
 const REQUEST_TIMEOUT_MS = parseInt(process.env.REQUEST_TIMEOUT_MS, 10) || 180000; // 180s timeout for vision models
+const REVISION_TIMEOUT_MS = parseInt(process.env.REVISION_TIMEOUT_MS, 10) || 25000; // 25s bounded timeout for revision calls
 
 // Pythos Socratic System Instructions (Passed at runtime for cloud models)
 const PYTHOS_SYSTEM_PROMPT = `You are Pythos, a wise, warm, and sharp mathematics and physics tutor inspired by Ancient Greek scholarship and Socratic pedagogy.
@@ -1561,22 +1562,27 @@ ${preflightContext}${activeProblemContext}`;
           model: targetModel,
           messages: revisionPrompt,
           stream: true,
-          options: options || { temperature: 0.1 }
+          options: effectiveOptions
         });
 
-        const revisedResponse = await new Promise((resolveRev, rejectRev) => {
+        const revHeaders = {
+          ...getOllamaHeaders(),
+          'Content-Length': Buffer.byteLength(revPayload)
+        };
+
+        const revisedResponse = await new Promise((resolveRev) => {
           const revReq = httpLib.request({
             hostname: parsedUrl.hostname,
             port: parsedUrl.port || (isHttps ? 443 : 80),
             path: parsedUrl.pathname,
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Content-Length': Buffer.byteLength(revPayload),
-              ...(OLLAMA_API_KEY ? { 'Authorization': `Bearer ${OLLAMA_API_KEY}` } : {})
-            },
-            timeout: REQUEST_TIMEOUT_MS
+            headers: revHeaders,
+            timeout: REVISION_TIMEOUT_MS
           }, (revRes) => {
+            if (revRes.statusCode >= 400) {
+              revRes.resume();
+              return resolveRev('');
+            }
             let revText = '';
             let revBuffer = '';
 
@@ -1607,17 +1613,19 @@ ${preflightContext}${activeProblemContext}`;
 
           const onRevAbort = () => {
             revReq.destroy();
-            const abortErr = new Error('Request aborted');
-            abortErr.name = 'AbortError';
-            rejectRev(abortErr);
+            resolveRev('');
           };
           abortController.signal.addEventListener('abort', onRevAbort, { once: true });
 
           revReq.on('timeout', () => {
+            console.warn(`[VERIFIER] Revision call timed out after ${REVISION_TIMEOUT_MS}ms. Proceeding to deterministic overrides.`);
             revReq.destroy();
-            rejectRev(new Error('ETIMEDOUT'));
+            resolveRev('');
           });
-          revReq.on('error', (e) => rejectRev(e));
+          revReq.on('error', (e) => {
+            console.warn('[VERIFIER] Revision call network error:', e.message);
+            resolveRev('');
+          });
           revReq.write(revPayload);
           revReq.end();
         });
@@ -1661,27 +1669,31 @@ ${preflightContext}${activeProblemContext}`;
 
           const originalMatch = claim.raw_match;
           const replacement = originalMatch.replace(
-            /[0-9.]+\s*%?$/,
+            /[-+]?[0-9.]+\s*%?$/,
             claim.data?.is_percent ? `${(exactNum * 100).toFixed(2)}%` : exactFormatted
           );
 
           const spanIndex = finalContent.indexOf(originalMatch);
           if (spanIndex !== -1) {
-            console.warn('[VERIFIER] Enforcing deterministic arithmetic override for claim index', claimIndex, ':', originalMatch);
-            finalContent = finalContent.slice(0, spanIndex) + replacement + finalContent.slice(spanIndex + originalMatch.length);
-            ollamaResponse.message.content = finalContent;
+            const charBefore = spanIndex > 0 ? finalContent[spanIndex - 1] : ' ';
+            const isMidMath = /[+\-*/^0-9.]/.test(charBefore);
+            if (!isMidMath) {
+              console.warn('[VERIFIER] Enforcing deterministic arithmetic override for claim index', claimIndex, ':', originalMatch);
+              finalContent = finalContent.slice(0, spanIndex) + replacement + finalContent.slice(spanIndex + originalMatch.length);
+              ollamaResponse.message.content = finalContent;
 
-            if (isStreaming && !res.writableEnded) {
-              res.write(JSON.stringify({
-                type: 'correction',
-                claimIndex,
-                originalMatch,
-                replacement,
-                startIndex: spanIndex,
-                endIndex: spanIndex + originalMatch.length,
-                expression: claim.data?.expression || null,
-                revisedContent: finalContent
-              }) + '\n');
+              if (isStreaming && !res.writableEnded) {
+                res.write(JSON.stringify({
+                  type: 'correction',
+                  claimIndex,
+                  originalMatch,
+                  replacement,
+                  startIndex: spanIndex,
+                  endIndex: spanIndex + originalMatch.length,
+                  expression: claim.data?.expression || null,
+                  revisedContent: finalContent
+                }) + '\n');
+              }
             }
           }
         }
@@ -1803,7 +1815,18 @@ ${preflightContext}${activeProblemContext}`;
     }
 
   } catch (error) {
-    if (res.headersSent || res.writableEnded) {
+    if (res.headersSent) {
+      if (!res.writableEnded) {
+        try {
+          if (isStreaming) {
+            res.write(JSON.stringify({ type: 'done' }) + '\n');
+          }
+          res.end();
+        } catch (_) {}
+      }
+      return;
+    }
+    if (res.writableEnded) {
       return;
     }
 

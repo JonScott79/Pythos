@@ -184,10 +184,19 @@ function extractClaims(text, userPrompt = '') {
       .replace(/÷/g, '/')
       .replace(/−/g, '-')
       .replace(/\\pi/g, 'pi')
-      .replace(/π/g, 'pi');
+      .replace(/π/g, 'pi')
+      .replace(/\^\{\s*\\?circ\s*\}/gi, '')
+      .replace(/\^\\?circ\b/gi, '')
+      .replace(/°/g, '')
+      .replace(/\\boxed\{([^{}]+)\}/g, '$1')
+      .replace(/\\text\{([^{}]+)\}/g, '$1')
+      .replace(/[$]/g, ' ')
+      .replace(/\\(?:left|right)/g, '')
+      .replace(/(\d)\s*\(/g, '$1 * (')
+      .replace(/\)\s*(\d)/g, ') * $1');
 
     // 6a. LaTeX Fraction: \frac{A}{B} \approx C or = C
-    const fracMatches = line.matchAll(/\\frac\{([\d.]+|\bpi\b)\}\{([\d.]+|\bpi\b)\}\s*(?:\\approx|\\thickapprox|≈|~|=)\s*([\d.]+)\s*(%)?/gi);
+    const fracMatches = line.matchAll(/\\frac\{([\d.]+|\bpi\b)\}\{([\d.]+|\bpi\b)\}\s*(?:\\approx|\\thickapprox|≈|~|=)\s*([-+]?[\d.]+)\s*(%)?/gi);
     for (const m of fracMatches) {
       const num = m[1];
       const den = m[2];
@@ -212,62 +221,54 @@ function extractClaims(text, userPrompt = '') {
       });
     }
 
-    // 6b. General Infix Operations & Parentheses: A op B = C, (A op B) / C = D, = A / B = C, A(B/C) = D
-    // Supports chained arithmetic operations, pi, and leading = lines
-    const calcMatches = line.matchAll(/(?:^|[$\s(,:=])(?:\(?([0-9.a-zA-Z()]+(?:\s*[-+*/^]\s*[0-9.a-zA-Z()]+)+)\)?)\s*(?:\\approx|\\thickapprox|≈|~|=)\s*([\d.]+)\s*(%)?/g);
-    for (const m of calcMatches) {
-      const expr = m[1].trim();
-      // Ensure the expression consists only of valid arithmetic tokens (numbers, pi, operators, parens)
-      if (!/^[-+*/^0-9.()\s]+$/i.test(expr.replace(/\bpi\b/gi, '1').replace(/\bsqrt\b/gi, '')) ||
-          !(/(?:\d|\bpi\b)/i.test(expr))) {
-        continue;
-      }
-
-      const rawVal = m[2];
-      const isPct = m[3] === '%';
+    // 6b. General Infix Operations & Equations: A op B = C, (A op B) / C = D, = A / B = C, A(B/C) = D
+    // Backward scans from relation symbol to safely capture leading negative numbers and parenthesized operations without mid-expression truncation
+    const eqRegex = /(?:\\approx|\\thickapprox|≈|~|=)\s*([-+]?[\d.]+)\s*(%)?/g;
+    let match;
+    while ((match = eqRegex.exec(line)) !== null) {
+      const eqIndex = match.index;
+      const rawVal = match[1];
+      const isPct = match[2] === '%';
       let val = parseFloat(rawVal);
       if (isNaN(val)) continue;
       if (isPct) val = val / 100.0;
 
-      claims.push({
-        domain: 'arithmetic',
-        claim_type: 'arithmetic',
-        raw_match: m[0].trim(),
-        data: {
-          expression: expr,
-          proposed_value: val,
-          is_approximate: m[0].includes('approx') || m[0].includes('≈') || m[0].includes('~'),
-          tolerance: 0.005,
-          is_percent: isPct,
-          raw_val_str: rawVal
-        }
-      });
-    }
+      const beforeEq = line.slice(0, eqIndex);
+      const suffixMatch = beforeEq.match(/(?:^|[=:,;]|\b(?:is|as|to|of|because|gives|gives\s+us|equals?|we\s+have|so|then|that)\s+|[a-zA-Z\\]+\s*=)\s*([-+]?[\s0-9.()+\-*/^]+|\bpi\b|\bsqrt\([^\)]+\))+$/i);
+      if (!suffixMatch) continue;
 
-    // 6c. Chained equation lines: = A + B = C (e.g. "= 0.014 + 0.018 = 0.032")
-    const chainedMatches = line.matchAll(/=\s*([0-9.a-zA-Z()]+\s*[-+*/^]\s*[0-9.a-zA-Z()]+)\s*(?:\\approx|\\thickapprox|≈|~|=)\s*([\d.]+)\s*(%)?/g);
-    for (const m of chainedMatches) {
-      const expr = m[1].trim();
-      if (!/^[-+*/^0-9.()\s]+$/i.test(expr.replace(/\bpi\b/gi, '1').replace(/\bsqrt\b/gi, '')) ||
-          !(/(?:\d|\bpi\b)/i.test(expr))) {
+      let expr = suffixMatch[1].trim();
+
+      // Clean unbalanced boundary parentheses
+      if (expr.startsWith('(') && !expr.endsWith(')') && (expr.match(/\(/g) || []).length > (expr.match(/\)/g) || []).length) {
+        expr = expr.slice(1).trim();
+      }
+      if (expr.endsWith(')') && !expr.startsWith('(') && (expr.match(/\)/g) || []).length > (expr.match(/\(/g) || []).length) {
+        expr = expr.slice(0, -1).trim();
+      }
+
+      if (!/(?:\d|\bpi\b)/.test(expr)) continue;
+
+      // Must contain at least one operation (excluding a single leading sign)
+      const withoutLeadingSign = expr.replace(/^[-+]\s*\d+(?:\.\d+)?/, '');
+      if (!/[-+*/^]/.test(withoutLeadingSign) && !/\bsqrt\b/.test(expr)) {
         continue;
       }
 
-      const rawVal = m[2];
-      const isPct = m[3] === '%';
-      let val = parseFloat(rawVal);
-      if (isNaN(val)) continue;
-      if (isPct) val = val / 100.0;
+      const sanitized = expr.replace(/\bpi\b/gi, '1').replace(/\bsqrt\s*\([^\)]+\)/gi, '1');
+      if (!/^[-+*/^0-9.()\s]+$/.test(sanitized)) continue;
 
-      if (!claims.some(c => c.data.expression === expr && Math.abs(c.data.proposed_value - val) < 1e-4)) {
+      const rawMatch = `${expr} = ${rawVal}${isPct ? '%' : ''}`;
+
+      if (!claims.some(c => c.data?.expression === expr && Math.abs(c.data.proposed_value - val) < 1e-4)) {
         claims.push({
           domain: 'arithmetic',
           claim_type: 'arithmetic',
-          raw_match: m[0].trim(),
+          raw_match: rawMatch,
           data: {
             expression: expr,
             proposed_value: val,
-            is_approximate: m[0].includes('approx') || m[0].includes('≈') || m[0].includes('~'),
+            is_approximate: match[0].includes('approx') || match[0].includes('≈') || match[0].includes('~'),
             tolerance: 0.005,
             is_percent: isPct,
             raw_val_str: rawVal
