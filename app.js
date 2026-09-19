@@ -50,8 +50,199 @@ function getPythosApiBase() {
 }
 
 // =========================
-// KATEX RENDERING
+// KATEX RENDERING & MATHEMATICAL EXTRACTION
 // =========================
+
+/**
+ * Converts a LaTeX mathematical expression to a clean, readable text representation,
+ * preserving correct mathematical ordering (numerator/denominator, exponents, symbols).
+ */
+function latexToMathText(latex) {
+  if (!latex || typeof latex !== "string") return "";
+  let str = latex.trim();
+
+  // Strip wrapping commands: \boxed, \fbox, \mathbf, \mathrm, \boldsymbol, \text
+  const unwrapCmds = ["boxed", "fbox", "mathbf", "mathrm", "mathnormal", "boldsymbol", "text"];
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const cmd of unwrapCmds) {
+      const prefix = `\\${cmd}{`;
+      if (str.startsWith(prefix) && str.endsWith("}")) {
+        str = str.slice(prefix.length, -1).trim();
+        changed = true;
+      }
+    }
+    if (str.startsWith("$") && str.endsWith("$")) {
+      str = str.slice(1, -1).trim();
+      changed = true;
+    } else if (str.startsWith("\\(") && str.endsWith("\\)")) {
+      str = str.slice(2, -2).trim();
+      changed = true;
+    }
+  }
+
+  // Recursive fraction converter: \frac{A}{B} -> A/B (or (A)/(B))
+  function convertFractions(s) {
+    const fracPattern = /\\frac\s*\{/g;
+    let match;
+    while ((match = fracPattern.exec(s)) !== null) {
+      const startIndex = match.index;
+      let depth = 1;
+      let numEnd = -1;
+      for (let i = startIndex + match[0].length; i < s.length; i++) {
+        if (s[i] === "{") depth++;
+        else if (s[i] === "}") {
+          depth--;
+          if (depth === 0) {
+            numEnd = i;
+            break;
+          }
+        }
+      }
+      if (numEnd === -1) break;
+      const numRaw = s.slice(startIndex + match[0].length, numEnd);
+
+      let denStart = -1;
+      for (let i = numEnd + 1; i < s.length; i++) {
+        if (s[i] === "{") {
+          denStart = i;
+          break;
+        } else if (!/\s/.test(s[i])) {
+          break;
+        }
+      }
+      if (denStart === -1) break;
+
+      depth = 1;
+      let denEnd = -1;
+      for (let i = denStart + 1; i < s.length; i++) {
+        if (s[i] === "{") depth++;
+        else if (s[i] === "}") {
+          depth--;
+          if (depth === 0) {
+            denEnd = i;
+            break;
+          }
+        }
+      }
+      if (denEnd === -1) break;
+      const denRaw = s.slice(denStart + 1, denEnd);
+
+      const numParsed = convertFractions(numRaw);
+      const denParsed = convertFractions(denRaw);
+
+      const numStr = numParsed.includes("/") ? `(${numParsed})` : numParsed;
+      const denStr = denParsed.includes("/") ? `(${denParsed})` : denParsed;
+
+      const replacement = `${numStr}/${denStr}`;
+      s = s.slice(0, startIndex) + replacement + s.slice(denEnd + 1);
+      fracPattern.lastIndex = startIndex + replacement.length;
+    }
+    return s;
+  }
+
+  str = convertFractions(str);
+
+  // Clean common LaTeX symbols and formatting
+  str = str
+    .replace(/\\pi\b/g, "π")
+    .replace(/\\theta\b/g, "θ")
+    .replace(/\\alpha\b/g, "α")
+    .replace(/\\beta\b/g, "β")
+    .replace(/\\gamma\b/g, "γ")
+    .replace(/\\times\b/g, "×")
+    .replace(/\\cdot\b/g, "·")
+    .replace(/\\pm\b/g, "±")
+    .replace(/\\le(q)?\b/g, "≤")
+    .replace(/\\ge(q)?\b/g, "≥")
+    .replace(/\\neq\b/g, "≠")
+    .replace(/\\sqrt\{([^{}]+)\}/g, "√($1)")
+    .replace(/\\([,;! ])/g, " ")
+    .replace(/\\left([()[\]{}|])/g, "$1")
+    .replace(/\\right([()[\]{}|])/g, "$1")
+    .replace(/[{}]/g, "")
+    .replace(/−/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return str;
+}
+
+/**
+ * Traverses a KaTeX-rendered DOM element to recover the mathematical order
+ * of components (specifically ensuring fractions output numerator/denominator,
+ * rather than KaTeX's internal DOM order of denominator before numerator).
+ */
+function extractKaTeXDomText(el) {
+  if (!el) return "";
+  if (el.nodeType === 3) return el.nodeValue || "";
+  if (el.nodeType !== 1) return "";
+
+  // Skip hidden MathML if we are traversing katex DOM to avoid duplicated text
+  if (el.classList && el.classList.contains("katex-mathml")) return "";
+  // Skip layout struts
+  if (el.classList && (el.classList.contains("strut") || el.classList.contains("pstrut"))) return "";
+
+  // Handle KaTeX fractions (.mfrac)
+  if (el.classList && el.classList.contains("mfrac")) {
+    const fracLine = el.querySelector ? el.querySelector(".frac-line") : null;
+    if (fracLine) {
+      let lineSpan = fracLine;
+      while (lineSpan && lineSpan.parentElement && (!lineSpan.parentElement.classList || !lineSpan.parentElement.classList.contains("vlist"))) {
+        lineSpan = lineSpan.parentElement;
+      }
+      if (lineSpan && lineSpan.parentElement) {
+        const vlist = lineSpan.parentElement;
+        const spans = Array.from(vlist.children).filter(c => c.nodeType === 1 && (!c.classList || !c.classList.contains("vlist-s")));
+        const lineIdx = spans.indexOf(lineSpan);
+        if (lineIdx > 0 && lineIdx < spans.length) {
+          const denEl = spans[lineIdx - 1];
+          const numEl = spans[lineIdx + 1] || spans[spans.length - 1];
+          const numText = extractKaTeXDomText(numEl).trim();
+          const denText = extractKaTeXDomText(denEl).trim();
+          const formattedNum = numText.includes("/") ? `(${numText})` : numText;
+          const formattedDen = denText.includes("/") ? `(${denText})` : denText;
+          return `${formattedNum}/${formattedDen}`;
+        }
+      }
+    }
+  }
+
+  let text = "";
+  for (let i = 0; i < el.childNodes.length; i++) {
+    text += extractKaTeXDomText(el.childNodes[i]);
+  }
+  return text.replace(/−/g, "-");
+}
+
+/**
+ * Recovers the mathematical source text from a KaTeX element or container,
+ * using the original source expression before KaTeX compilation when available,
+ * or extracting from MathML / DOM with preserved fraction ordering.
+ */
+function getKaTeXMathText(node) {
+  if (!node) return "";
+
+  // 1. Check data-math-source attribute on node or closest container
+  const mathSource = (node.getAttribute && node.getAttribute("data-math-source")) ||
+                     (node.closest && node.closest("[data-math-source]")?.getAttribute("data-math-source"));
+  if (mathSource) {
+    return latexToMathText(mathSource);
+  }
+
+  // 2. Check MathML annotation for original TeX source
+  const annot = (node.querySelector ? node.querySelector('annotation[encoding="application/x-tex"], annotation') : null) ||
+                (node.closest ? node.closest(".katex")?.querySelector('annotation[encoding="application/x-tex"], annotation') : null) ||
+                (node.parentElement ? node.parentElement.querySelector('annotation[encoding="application/x-tex"], annotation') : null);
+  if (annot && annot.textContent) {
+    return latexToMathText(annot.textContent);
+  }
+
+  // 3. Fallback: DOM traversal preserving mathematical ordering
+  return extractKaTeXDomText(node).trim();
+}
+
 function renderMath(element) {
   if (!element) return;
   
@@ -82,7 +273,8 @@ function renderMath(element) {
       try {
         element.querySelectorAll(".katex .fbox, .katex .boxed").forEach(box => {
           if (!box.getAttribute("aria-label")) {
-            const txt = (box.textContent || "").trim();
+            const target = (box.children && box.children.length > 0) ? box : (box.closest(".katex") || box.parentElement || box);
+            const txt = (getKaTeXMathText(target) || (box.textContent || "")).trim();
             if (txt) {
               box.setAttribute("role", "group");
               box.setAttribute("aria-label", `Final answer: ${txt}`);
@@ -1186,7 +1378,7 @@ function appendMessage(role, text, images = null, metadata = {}) {
             displayMode: isDisplay,
             throwOnError: false,
             errorColor: "#ef4444",
-            output: "html"
+            output: "htmlAndMathml"
           });
         } catch (err) {
           console.warn("[KATEX] renderToString error:", err);
@@ -2580,9 +2772,11 @@ async function askPythos(userText) {
   const hasPendingImages = pendingImages.length > 0;
   if ((!userText || !userText.trim()) && !hasPendingImages) return;
   if (isProcessing) return; // Block spam
+  isProcessing = true;
 
   // Client-side prevention: If student attempts an image request while vision cooldown timer is active
   if (hasPendingImages && isVisionCooldownActive()) {
+    isProcessing = false;
     const remainingSecs = Math.ceil((visionCooldownEndTime - Date.now()) / 1000);
     const formatted = formatTimerCountdown(remainingSecs);
     appendMessage(
@@ -2935,6 +3129,7 @@ function addToPromptHistory(text) {
 
 // ===== EVENTS =====
 button.addEventListener("click", () => {
+  if (isProcessing) return;
   addToPromptHistory(input.value);
   askPythos(input.value);
 });
@@ -2947,7 +3142,18 @@ function autoResizeInput() {
   input.style.overflowY = input.scrollHeight > 180 ? "auto" : "hidden";
 }
 
+// Ensure the enclosing form cannot trigger a separate submission
+const inputForm = document.querySelector(".input-wrapper");
+if (inputForm) {
+  inputForm.addEventListener("submit", e => {
+    e.preventDefault();
+  });
+}
+
 input.addEventListener("keydown", e => {
+  // Ignore Enter during IME composition or virtual keyboard input
+  if (e.isComposing || e.keyCode === 229) return;
+
   if (e.key === "Enter") {
     if (e.shiftKey) {
       // Shift + Enter creates a new line in the text input
@@ -2958,6 +3164,7 @@ input.addEventListener("keydown", e => {
 
     // Regular Enter without Shift submits the query
     e.preventDefault();
+    if (e.repeat || isProcessing) return;
     addToPromptHistory(input.value);
     askPythos(input.value);
     return;
@@ -4262,3 +4469,14 @@ setTimeout(() => {
   const palette = document.getElementById("editorPaletteContainer");
   if (palette) renderMath(palette);
 }, 100);
+
+if (typeof window !== "undefined") {
+  window.latexToMathText = latexToMathText;
+  window.getKaTeXMathText = getKaTeXMathText;
+  window.extractKaTeXDomText = extractKaTeXDomText;
+}
+if (typeof module !== "undefined" && module.exports) {
+  module.exports.latexToMathText = latexToMathText;
+  module.exports.getKaTeXMathText = getKaTeXMathText;
+  module.exports.extractKaTeXDomText = extractKaTeXDomText;
+}

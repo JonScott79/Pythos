@@ -451,6 +451,15 @@
           <li><strong>Multiline Text Input &amp; Shift+Enter Line Breaking</strong>: Upgraded the primary problem input (<code>#userInput</code>) to an accessible, auto-resizing multiline text area. Pressing <code>Shift+Enter</code> now creates a new line for composing multi-step equations, proofs, and formatted queries, while pressing <code>Enter</code> immediately dispatches the problem. Includes dynamic viewport height auto-expansion up to 180px with scroll containment.</li>
         </ul>
       </div>
+
+      <div class="section-group">
+        <div class="section-header fixed">🔧 FIXES &amp; HARDENING</div>
+        <ul class="feature-list">
+          <li><strong>KaTeX Fraction &amp; Mathematical DOM Order Extraction</strong>: Resolved a display/extraction inversion bug where reading <code>.textContent</code> from KaTeX-rendered <code>.mfrac</code> DOM elements extracted denominator before numerator due to KaTeX's vertical alignment layout (e.g. $\frac{17\pi}{5} \rightarrow \text{&ldquo;517}\pi\text{&rdquo;}$, $\frac{7\pi}{5} \rightarrow \text{&ldquo;57}\pi\text{&rdquo;}$, $\frac{\pi}{2} \rightarrow \text{&ldquo;2}\pi\text{&rdquo;}$). Implemented <code>latexToMathText()</code> and <code>extractKaTeXDomText()</code> to recover visual/mathematical ordering ($\text{&ldquo;17}\pi\text{/5&rdquo;}$), enabled <code>htmlAndMathml</code> output with LaTeX <code>&lt;annotation&gt;</code> tags for screen readers, and enhanced final answer box accessibility labeling.</li>
+          <li><strong>Verification Engine Token Capture &amp; Parentheses Arithmetic</strong>: Corrected a regex capture group flaw in arithmetic claim extraction that captured only trailing tokens rather than the complete arithmetic expression during multi-token calculations (e.g. $345(180/\pi) = 19768.46$). Restored full arithmetic extraction across parentheses, fractional multipliers, and coterminal angle conversions.</li>
+          <li><strong>Form Submission Lock &amp; Concurrency Hardening</strong>: Hardened the multiline input submission lifecycle against double-triggering by enforcing an immediate <code>isProcessing</code> submission lock, ignoring IME composition (<code>keyCode 229</code>) and keyboard repeat events, and explicitly preventing parent <code>.input-wrapper</code> form submit bubbling.</li>
+        </ul>
+      </div>
     </article>
 
     <!-- RELEASE v1.8.2 -->

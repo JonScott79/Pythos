@@ -191,9 +191,7 @@ function extractClaims(text, userPrompt = '') {
       .replace(/\\boxed\{([^{}]+)\}/g, '$1')
       .replace(/\\text\{([^{}]+)\}/g, '$1')
       .replace(/[$]/g, ' ')
-      .replace(/\\(?:left|right)/g, '')
-      .replace(/(\d)\s*\(/g, '$1 * (')
-      .replace(/\)\s*(\d)/g, ') * $1');
+      .replace(/\\(?:left|right)/g, '');
 
     // 6a. LaTeX Fraction: \frac{A}{B} \approx C or = C
     const fracMatches = line.matchAll(/\\frac\{([\d.]+|\bpi\b)\}\{([\d.]+|\bpi\b)\}\s*(?:\\approx|\\thickapprox|≈|~|=)\s*([-+]?[\d.]+)\s*(%)?/gi);
@@ -234,7 +232,7 @@ function extractClaims(text, userPrompt = '') {
       if (isPct) val = val / 100.0;
 
       const beforeEq = line.slice(0, eqIndex);
-      const suffixMatch = beforeEq.match(/(?:^|[=:,;]|\b(?:is|as|to|of|because|gives|gives\s+us|equals?|we\s+have|so|then|that)\s+|[a-zA-Z\\]+\s*=)\s*([-+]?[\s0-9.()+\-*/^]+|\bpi\b|\bsqrt\([^\)]+\))+$/i);
+      const suffixMatch = beforeEq.match(/(?:^|[=:,;]|\b(?:is|as|to|of|because|gives|gives\s+us|equals?|we\s+have|so|then|that|therefore|thus|hence)\s+|[a-zA-Z\\]+\s*=)\s*((?:[-+]?[\s0-9.()+\-*/^]+|\bpi\b|\bsqrt\([^\)]+\))+)$/i);
       if (!suffixMatch) continue;
 
       let expr = suffixMatch[1].trim();
