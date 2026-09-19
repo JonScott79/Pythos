@@ -26,3 +26,12 @@ Thumbs.db
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Generated Benchmark & Validation Artifacts
+benchmark-report.md
+benchmark-results.json
+validation-progress-v2.json
+validation-report-v2.md
+validation-report.md
+validation-results-v2.json
+validation-results.json
