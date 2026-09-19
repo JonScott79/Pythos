@@ -17,7 +17,8 @@ const PAGES = [
   'calculus/index.html',
   'physics/index.html',
   'tools/index.html',
-  'validation/index.html'
+  'validation/index.html',
+  'subjects/index.html'
 ];
 
 let totalTests = 0;
