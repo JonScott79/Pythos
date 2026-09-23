@@ -1,18 +1,27 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <!-- Microsoft Clarity Tracking (Asynchronous & Privacy-Masked) -->
+  <script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+      c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+      t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+      y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "xkhxzoeiol");
+  </script>
+
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="assets/favicon.png">
-  <title>Pythos Release History & Changelog | v1.8.7</title>
-  <meta name="description" content="Pythos release notes & changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
+  <title>Pythos Release History &amp; Changelog | v1.8.8</title>
+  <meta name="description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://pythos.lanzar.me/changelog.html">
 
   <!-- OPEN GRAPH -->
-  <meta property="og:title" content="Pythos Release History & Changelog | v1.8.7">
-  <meta property="og:description" content="Pythos release notes & changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
+  <meta property="og:title" content="Pythos Release History &amp; Changelog | v1.8.8">
+  <meta property="og:description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta property="og:url" content="https://pythos.lanzar.me/changelog.html">
   <meta property="og:type" content="article">
   <meta property="og:site_name" content="Pythos">
@@ -23,8 +32,8 @@
 
   <!-- TWITTER CARD -->
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Pythos Release History & Changelog | v1.8.7">
-  <meta name="twitter:description" content="Pythos release notes & changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
+  <meta name="twitter:title" content="Pythos Release History &amp; Changelog | v1.8.8">
+  <meta name="twitter:description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="twitter:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
 
   <!-- JSON-LD -->
@@ -32,7 +41,7 @@
   {
     "@context": "https://schema.org",
     "@type": "TechArticle",
-    "headline": "Pythos 1.8.7 Release Notes and Changelog",
+    "headline": "Pythos 1.8.8 Release Notes and Changelog",
     "description": "Authoritative release history for Pythos: specialized problem routing, two-stage reasoning, and CAS ground-truth verification.",
     "datePublished": "2026-08-26",
     "dateModified": "2026-09-23",
@@ -171,6 +180,7 @@
       background-image: linear-gradient(rgba(11, 17, 32, 0.94), rgba(11, 17, 32, 0.94)), url('assets/math_bg.jpg');
     }
 
+    /* Top Navigation */
     .top-nav {
       position: sticky;
       top: 0;
@@ -182,28 +192,61 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: 12px;
     }
 
-    .back-btn {
-      display: inline-flex;
+    .nav-left {
+      display: flex;
       align-items: center;
-      gap: 8px;
-      text-decoration: none;
-      color: var(--primary-color);
-      font-weight: 600;
-      font-size: 0.9rem;
-      padding: 6px 14px;
-      border-radius: 8px;
-      border: 1px solid var(--border-color);
-      background: var(--surface-color);
-      transition: all 0.2s ease;
+      gap: 16px;
     }
 
-    .back-btn:hover {
-      background: var(--primary-color);
-      color: #ffffff;
-      border-color: var(--primary-color);
-      transform: translateX(-2px);
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .brand-logo {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      border: 2px solid var(--primary-color);
+      object-fit: cover;
+    }
+
+    .brand-title {
+      font-family: 'Cinzel', serif;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--primary-color);
+      letter-spacing: 0.5px;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      font-size: 0.88rem;
+    }
+
+    .nav-link {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-weight: 500;
+      transition: color 0.15s;
+    }
+
+    .nav-link:hover, .nav-link.active {
+      color: var(--primary-color);
+    }
+
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
 
     .theme-toggle {
@@ -213,7 +256,7 @@
       border-radius: 8px;
       padding: 6px 10px;
       cursor: pointer;
-      font-size: 0.9rem;
+      font-size: 0.88rem;
       display: flex;
       align-items: center;
       gap: 6px;
@@ -223,6 +266,65 @@
     .theme-toggle:hover {
       color: var(--primary-color);
       border-color: var(--primary-color);
+    }
+
+    .btn-launch, .back-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--primary-color);
+      color: #ffffff !important;
+      padding: 6px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--primary-color);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.85rem;
+      transition: all 0.2s ease;
+    }
+
+    .btn-launch:hover, .back-btn:hover {
+      background: var(--primary-hover);
+      border-color: var(--primary-hover);
+      transform: translateY(-1px);
+    }
+
+    .mobile-nav-toggle {
+      display: none;
+      background: var(--surface-color);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      border-radius: 8px;
+      padding: 6px 8px;
+      cursor: pointer;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+    .mobile-nav-toggle:hover {
+      color: var(--primary-color);
+      border-color: var(--primary-color);
+    }
+
+    @media (max-width: 768px) {
+      .top-nav { flex-wrap: wrap; position: sticky; }
+      .mobile-nav-toggle { display: inline-flex; }
+      .nav-links {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: var(--surface-card);
+        border-bottom: 1px solid var(--border-color);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        padding: 16px 20px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 14px;
+        z-index: 1000;
+      }
+      .nav-links.nav-open { display: flex; }
     }
 
     .container {
@@ -409,18 +511,31 @@
   <a href="#mainContent" class="skip-link">Skip to release history</a>
 
   <nav class="top-nav" role="navigation" aria-label="Main Navigation">
-    <a href="index.html" class="back-btn" aria-label="Return to Pythos Oracle Workspace">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-      Back to Pythos Oracle
-    </a>
+    <div class="nav-left">
+      <a href="./" class="brand-group" aria-label="Pythos Home">
+        <img src="assets/pythos_avatar.jpg" alt="Pythos Oracle" class="brand-logo" width="34" height="34" />
+        <span class="brand-title">PYTHOS</span>
+      </a>
+      <div class="nav-links" id="navLinks">
+        <a href="subjects/" class="nav-link">Subjects</a>
+        <a href="validation/" class="nav-link">Validation</a>
+        <a href="about/" class="nav-link">About</a>
+        <a href="nonprofit.html" class="nav-link">Mission &amp; Roadmap</a>
+        <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" class="nav-link">Facebook</a>
+        <a href="changelog.html#pythos-1-8-8" class="nav-link active" aria-current="page">v1.8.8</a>
+      </div>
+    </div>
 
-    <div style="display: flex; align-items: center; gap: 10px;">
-      <a href="subjects/" class="back-btn" style="border:none; background:transparent;">Subjects</a>
-      <a href="validation/" class="back-btn" style="border:none; background:transparent;">Validation</a>
-      <a href="nonprofit.html" class="back-btn" style="border:none; background:transparent;">Nonprofit</a>
+    <div class="nav-right">
       <button id="themeToggleBtn" class="theme-toggle" title="Toggle Dark/Light Mode" aria-label="Toggle Dark and Light Mode">
         <span id="themeIcon" aria-hidden="true">🌓</span>
-        <span id="themeLabel">Theme</span>
+      </button>
+      <a href="index.html" class="btn-launch back-btn" aria-label="Return to Pythos Oracle Workspace">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+        Back to Pythos Oracle
+      </a>
+      <button id="mobileNavToggleBtn" class="mobile-nav-toggle" aria-label="Toggle Navigation Menu" aria-expanded="false" aria-controls="navLinks">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
       </button>
     </div>
   </nav>
@@ -432,12 +547,33 @@
       <p>Authoritative release notes, verification engine milestones, and mathematical system updates.</p>
     </header>
 
+    <!-- RELEASE v1.8.8 -->
+    <article class="release-card" id="pythos-1-8-8">
+      <div class="release-header">
+        <div class="release-title-wrap">
+          <h2 class="release-version">Pythos 1.8.8</h2>
+          <span class="release-badge">Latest Release</span>
+        </div>
+        <time class="release-date" datetime="2026-09-23">September 23, 2026</time>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header added">✦ WHAT'S NEW</div>
+        <ul class="feature-list">
+          <li><strong>UI/UX Workspace Ergonomics</strong>: Interactive Pythos Oracle welcome card on new chats with starter problem chips (algebra, calculus, kinematics, graphing), refined mobile toolbox, touch targets, and compact input ergonomics.</li>
+          <li><strong>Standardized Site Navigation &amp; Mobile Menus</strong>: Unified header and footer navigation across study guides (<code>subjects/</code>, <code>algebra/</code>, <code>calculus/</code>, <code>physics/</code>) and informational pages, featuring responsive mobile toggle menus and the <em>Mission &amp; Roadmap</em> label.</li>
+          <li><strong>Microsoft Clarity Integration &amp; Privacy Masking</strong>: Embedded asynchronous Microsoft Clarity analytics with strict zero-leak privacy masking (<code>data-clarity-mask="true"</code>) across chat messages, inputs, diagram attachments, and memory ledgers.</li>
+          <li><strong>Canonical Identity &amp; 3-Layer Verification</strong>: Standardized attribution to Jon Scott (LANZAR initiative), documented the 3 distinct verification layers (Math.js, SymPy, Pythos Verifier), and separated current availability from the future 501(c)(3) roadmap.</li>
+          <li><strong>Transparent User Memory Ledger</strong>: Documented the student-facing, user-controlled Memory Ledger for inspecting and deleting stored learning entries.</li>
+        </ul>
+      </div>
+    </article>
+
     <!-- RELEASE v1.8.7 -->
     <article class="release-card" id="pythos-1-8-7">
       <div class="release-header">
         <div class="release-title-wrap">
           <h2 class="release-version">Pythos 1.8.7</h2>
-          <span class="release-badge">Latest Release</span>
         </div>
         <time class="release-date" datetime="2026-09-23">September 23, 2026</time>
       </div>
@@ -1065,8 +1201,8 @@
   </main>
 
   <footer>
-    <div>🏛️ Developed by a student for students. Built on deterministic CAS verification.</div>
-    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Nonprofit</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a></div>
+    <div>🏛️ Pythos — Free AI Mathematics &amp; Physics Education. Created by Jon Scott as part of the LANZAR initiative.</div>
+    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-8-8" style="color:var(--primary-color); text-decoration:none;">v1.8.8</a></div>
   </footer>
 
   <script>
@@ -1088,10 +1224,28 @@
 
     applyTheme(savedTheme);
 
-    toggleBtn.addEventListener('click', () => {
-      const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
-      applyTheme(current === 'dark' ? 'light' : 'dark');
-    });
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', () => {
+        const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+        applyTheme(current === 'dark' ? 'light' : 'dark');
+      });
+    }
+
+    // Mobile Navigation Toggle
+    const mobileToggle = document.getElementById('mobileNavToggleBtn');
+    const navLinks = document.getElementById('navLinks');
+    if (mobileToggle && navLinks) {
+      mobileToggle.addEventListener('click', () => {
+        const isOpen = navLinks.classList.toggle('nav-open');
+        mobileToggle.setAttribute('aria-expanded', isOpen);
+      });
+      document.querySelectorAll('.nav-link').forEach(link => {
+        link.addEventListener('click', () => {
+          navLinks.classList.remove('nav-open');
+          mobileToggle.setAttribute('aria-expanded', 'false');
+        });
+      });
+    }
 
     // Render KaTeX Math Delimiters
     document.addEventListener('DOMContentLoaded', () => {

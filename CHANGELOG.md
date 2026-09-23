@@ -5,6 +5,16 @@ All notable changes to the Pythos project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Pythos 1.8.8
+**Release Date:** 2026-09-23
+
+### Added & Hardened
+- **UI/UX Modernization & Workspace Ergonomics** (`index.html`, `app.js`): Integrated an interactive Pythos Oracle welcome card on new chats featuring one-click starter problem chips (quadratic equations, logarithmic derivatives, kinematics projectile range, and cubic function graphing), refined mobile toolbox horizontal scrolling, touch target sizing, and streamlined input ergonomics.
+- **Site Navigation & Mobile Architecture Standardization** (`subjects/`, `algebra/`, `calculus/`, `physics/`, `about/`, `validation/`, `tools/`, `nonprofit.html`, `changelog.html`): Unified site-wide header and footer navigation across all study guides and informational pages. Added accessible mobile toggle menus (`aria-expanded`, `aria-controls`) and standardized the *Mission & Roadmap* navigation label.
+- **Microsoft Clarity Integration & Zero-Leak Privacy Masking** (`index.html`, all public pages, `app.js`): Embedded asynchronous Microsoft Clarity behavioral tracking with strict privacy masking (`data-clarity-mask="true"`) protecting student chat inputs, assistant reasoning streams, uploaded diagram attachments, personal memory ledgers, and bug report notes.
+- **Canonical Initiative & Mission Alignment**: Standardized public documentation attributing Pythos's creation to Jon Scott within the LANZAR educational initiative, accurately documenting the 3-layer deterministic verification pipeline (Math.js, SymPy, and Proprietary Pythos Verifier), and explicitly distinguishing current public educational availability from the future 501(c)(3) nonprofit roadmap.
+- **User-Controlled Memory Transparency**: Clarified privacy documentation to accurately reflect Pythos's user-visible, user-controlled Memory Ledger accessible via the brain icon for reviewing and deleting stored memories.
+
 ## Pythos 1.8.7
 **Release Date:** 2026-09-23
 

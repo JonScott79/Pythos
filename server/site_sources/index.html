@@ -11,6 +11,15 @@
     gtag('config', 'G-JFV7CSM9G9');
   </script>
 
+  <!-- Microsoft Clarity Tracking (Asynchronous & Privacy-Masked) -->
+  <script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+      c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+      t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+      y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "xkhxzoeiol");
+  </script>
+
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="assets/favicon.png">
@@ -1140,30 +1149,112 @@
     .toolbox-bar {
       display: flex;
       align-items: center;
-      gap: 5px;
-      margin-bottom: 5px;
-      padding: 0 2px;
+      gap: 6px;
+      margin-bottom: 6px;
+      padding: 2px;
+      overflow-x: auto;
+      scrollbar-width: none;
     }
 
     .tool-btn {
       display: inline-flex;
       align-items: center;
-      gap: 3px;
+      gap: 4px;
       background: var(--surface-color);
       border: 1px solid var(--border-color);
       color: var(--text-muted);
-      font-size: 0.72rem;
+      font-size: 0.75rem;
       font-weight: 500;
-      padding: 3px 6px;
-      border-radius: 4px;
+      padding: 4px 8px;
+      border-radius: 6px;
       cursor: pointer;
+      white-space: nowrap;
       transition: all 0.2s;
+      min-height: 28px;
+      touch-action: manipulation;
     }
 
     .tool-btn:hover, .tool-btn.active {
       background: var(--chat-ai-bg);
       color: var(--primary-color);
       border-color: var(--primary-color);
+    }
+
+    /* Welcome Oracle Card / Empty State */
+    .welcome-oracle-card {
+      background: var(--surface-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 24px 20px;
+      margin: 16px auto 24px;
+      max-width: 640px;
+      box-shadow: var(--card-shadow);
+      text-align: center;
+      position: relative;
+    }
+
+    .welcome-oracle-avatar {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      border: 2px solid var(--primary-color);
+      margin: 0 auto 12px;
+      display: block;
+      box-shadow: 0 4px 12px rgba(42, 114, 143, 0.2);
+      object-fit: cover;
+    }
+
+    .welcome-oracle-title {
+      font-family: 'Cinzel', serif;
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: var(--primary-color);
+      margin: 0 0 6px;
+    }
+
+    .welcome-oracle-desc {
+      font-size: 0.92rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin: 0 0 16px;
+    }
+
+    .starter-prompts-title {
+      font-size: 0.78rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+
+    .starter-chips-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+    }
+
+    .starter-chip {
+      background: var(--surface-color);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-size: 0.82rem;
+      color: var(--text-main);
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .starter-chip:hover {
+      border-color: var(--primary-color);
+      color: var(--primary-color);
+      transform: translateY(-1px);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
     }
 
     /* Floating Windows */
@@ -2591,10 +2682,10 @@
       
       <div class="sidebar-footer">
         <button id="loginBtn" class="login-btn" aria-label="Sign in with Google">Login with Google</button>
-        <div id="userInfo" style="display: none;" class="user-profile">
-          <img id="userAvatar" src="" alt="User profile avatar" width="32" height="32" />
+        <div id="userInfo" style="display: none;" class="user-profile" data-clarity-mask="true">
+          <img id="userAvatar" src="" alt="User profile avatar" width="32" height="32" data-clarity-mask="true" />
           <div style="flex:1; overflow:hidden;">
-            <div id="userName" style="font-weight:600; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;"></div>
+            <div id="userName" style="font-weight:600; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;" data-clarity-mask="true"></div>
           </div>
           <button id="memoryBtn" class="theme-toggle-btn" style="padding:4px 8px; margin-left:4px;" title="What Pythos Remembers (Personal Memory)" aria-label="Open Personal Memory Settings">
             🧠
@@ -2605,9 +2696,9 @@
           <a href="subjects/">Subjects</a>
           <a href="validation/">Validation</a>
           <a href="about/">About</a>
-          <a href="nonprofit.html">Nonprofit</a>
+          <a href="nonprofit.html">Mission & Roadmap</a>
           <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" title="Official Facebook Page" aria-label="Official Facebook Page">Facebook</a>
-          <a href="changelog.html#pythos-1-8-7" title="View Changelog" aria-label="Version 1.8.7 Release Notes">v1.8.7</a>
+          <a href="changelog.html#pythos-1-8-8" title="View Changelog" aria-label="Version 1.8.8 Release Notes">v1.8.8</a>
         </nav>
       </div>
     </aside>
@@ -2622,7 +2713,7 @@
         <header class="header">
           <img class="header-avatar" src="assets/pythos_avatar.jpg" alt="Pythos Oracle" width="40" height="40" />
           <div class="header-info">
-            <h1>PYTHOS <a href="changelog.html#pythos-1-8-7" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.7)" aria-label="Version 1.8.7 Release Notes">v1.8.7</a></h1>
+            <h1>PYTHOS <a href="changelog.html#pythos-1-8-8" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.8)" aria-label="Version 1.8.8 Release Notes">v1.8.8</a></h1>
             <p>Mathematics & Physics Oracle</p>
           </div>
           <button id="themeToggleBtn" class="theme-toggle-btn" title="Toggle Dark/Light Mode" aria-label="Toggle Dark and Light Theme">
@@ -2640,16 +2731,17 @@
               <li><a href="algebra/">Algebra Study Guide</a>: Linear equations, quadratic formulas, polynomials, and systems.</li>
               <li><a href="calculus/">Calculus Study Guide</a>: Limits, derivatives, integration techniques, and optimization.</li>
               <li><a href="physics/">Physics Study Guide</a>: Mechanics, kinematics, rotational dynamics, and Newton's laws.</li>
+              <li><a href="validation/">Mathematical Validation</a>: Reliability record, 50,000-problem benchmark, and multi-tier verification.</li>
               <li><a href="tools/">Interactive Toolset</a>: Scientific calculators, 2D function grapher, and step verifiers.</li>
               <li><a href="about/">About Pythos</a>: Educational mission, student origin, and verification architecture.</li>
-              <li><a href="nonprofit.html">Nonprofit Mission</a>: Long-term educational vision, keeping Pythos free, and supporting young developers.</li>
+              <li><a href="nonprofit.html">Mission & Roadmap</a>: Long-term educational vision, keeping Pythos free, and supporting young developers.</li>
               <li><a href="changelog.html">Release Changelog</a>: Latest updates, verifier milestones, and version history.</li>
             </ul>
           </div>
         </noscript>
 
         <!-- CHAT CONVERSATION LOG -->
-        <div id="output" role="log" aria-live="polite" aria-relevant="additions text" aria-atomic="false" aria-label="Conversation History with Pythos Oracle" tabindex="-1"></div>
+        <div id="output" role="log" aria-live="polite" aria-relevant="additions text" aria-atomic="false" aria-label="Conversation History with Pythos Oracle" tabindex="-1" data-clarity-mask="true"></div>
 
         <div class="input-area">
           <!-- PYTHOS MATH TOOLBOX -->
@@ -2685,7 +2777,7 @@
           </div>
 
           <!-- PENDING IMAGE ATTACHMENTS STRIP -->
-          <div id="pendingImagesStrip" class="pending-images-strip" role="region" aria-label="Attached images for upcoming message">
+          <div id="pendingImagesStrip" class="pending-images-strip" role="region" aria-label="Attached images for upcoming message" data-clarity-mask="true">
             <!-- Dynamically populated thumbnails -->
           </div>
 
@@ -2698,7 +2790,7 @@
             </button>
             <button id="helpBtn" type="button" class="help-btn" title="Math Input Guide" aria-label="Open Math Input Guide" aria-haspopup="dialog" aria-expanded="false" aria-controls="mathGuideOverlay">?</button>
             <label for="userInput" class="sr-only">Ask Pythos a math or physics question, or enter an equation</label>
-            <textarea id="userInput" rows="1" placeholder="Speak to the Oracle, dictate, paste/upload a problem image..." autocomplete="off" maxlength="1500" aria-label="Math or physics problem input" autofocus></textarea>
+            <textarea id="userInput" rows="1" placeholder="Ask a math or physics question, or attach a photo..." autocomplete="off" maxlength="1500" aria-label="Math or physics problem input" autofocus data-clarity-mask="true"></textarea>
             <span id="charCounter" class="char-counter" style="display:none;" aria-live="polite">0/1500</span>
             <button id="voiceBtn" type="button" class="help-btn voice-btn" title="Voice Input (Speech-to-Text)" aria-label="Toggle Voice Speech-to-Text Input">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
@@ -2713,7 +2805,7 @@
         </div>
         
         <footer class="polyglot-footer" role="contentinfo">
-          <div class="footer-tagline">🏛️ Developed by a student for students. &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color: var(--primary-color); text-decoration: none; font-weight: 500;" title="Official Facebook Page" aria-label="Official Facebook Page">Facebook</a></div>
+          <div class="footer-tagline">🏛️ Developed by Jon Scott as part of the LANZAR initiative. &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color: var(--primary-color); text-decoration: none; font-weight: 500;" title="Official Facebook Page" aria-label="Official Facebook Page">Facebook</a></div>
           <div>Fluent in 100+ Languages. Just type in your native tongue!</div>
           <div class="lang-selector-wrap" role="region" aria-label="Language selection assistance">
             <span class="sr-only">Choose your preferred language or type in your native tongue:</span>
@@ -3179,7 +3271,7 @@
   </div>
 
   <!-- PYTHOS PROBLEM / BUG REPORT MODAL (Priority 1 & 6) -->
-  <div id="pythosReportModal" class="report-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="reportModalTitle" aria-describedby="reportModalDesc" tabindex="-1">
+  <div id="pythosReportModal" class="report-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="reportModalTitle" aria-describedby="reportModalDesc" tabindex="-1" data-clarity-mask="true">
     <div class="report-modal-card">
       <div class="report-modal-header">
         <div class="report-modal-title-group">
@@ -3195,7 +3287,7 @@
         </div>
         <div>
           <label for="reportStudentNotes" style="font-size:0.75rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:4px;">What seems incorrect or unclear? (Optional)</label>
-          <textarea id="reportStudentNotes" class="report-textarea" placeholder="e.g. 'Step 2 dropped a negative sign' or 'The final answer does not match the equation'"></textarea>
+          <textarea id="reportStudentNotes" class="report-textarea" placeholder="e.g. 'Step 2 dropped a negative sign' or 'The final answer does not match the equation'" data-clarity-mask="true"></textarea>
         </div>
         <div id="reportStatusMessage" style="font-size:0.8rem; display:none;" role="status" aria-live="polite"></div>
       </div>
@@ -3207,7 +3299,7 @@
   </div>
 
   <!-- PYTHOS PERSONAL MEMORY MODAL -->
-  <div id="pythosMemoryModal" class="report-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="memoryModalTitle" aria-describedby="memoryModalDesc" tabindex="-1">
+  <div id="pythosMemoryModal" class="report-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="memoryModalTitle" aria-describedby="memoryModalDesc" tabindex="-1" data-clarity-mask="true">
     <div class="report-modal-card" style="max-width: 580px;">
       <div class="report-modal-header">
         <div class="report-modal-title-group">
@@ -3221,7 +3313,7 @@
           Pythos remembers key aspects of who you are and how you prefer to learn to give you tailored guidance without asking you to repeat yourself. You have full control to inspect, correct, or erase your memory at any time.
         </div>
 
-        <div id="memoryItemsList" style="display: flex; flex-direction: column; gap: 10px; max-height: 320px; overflow-y: auto; padding-right: 4px;">
+        <div id="memoryItemsList" style="display: flex; flex-direction: column; gap: 10px; max-height: 320px; overflow-y: auto; padding-right: 4px;" data-clarity-mask="true">
           <div style="text-align: center; color: var(--text-muted); padding: 20px;">Loading memory...</div>
         </div>
 

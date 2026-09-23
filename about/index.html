@@ -10,12 +10,21 @@
     gtag('config', 'G-JFV7CSM9G9');
   </script>
 
+  <!-- Microsoft Clarity Tracking (Asynchronous & Privacy-Masked) -->
+  <script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+      c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+      t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+      y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "xkhxzoeiol");
+  </script>
+
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="../assets/favicon.png">
   
   <title>About Pythos | Free AI Mathematics & Physics Tutor</title>
-  <meta name="description" content="About Pythos: a free AI math and physics tutor developed by a student for students. Part of the LANZAR ecosystem for open, accessible STEM education.">
+  <meta name="description" content="About Pythos: a free AI mathematics and physics tutor created by Jon Scott within the LANZAR initiative for open, accessible STEM education.">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://pythos.lanzar.me/about/">
@@ -425,9 +434,42 @@
       margin-top: auto;
     }
 
+    .mobile-nav-toggle {
+      display: none;
+      background: var(--surface-color);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      border-radius: 8px;
+      padding: 6px 8px;
+      cursor: pointer;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+    .mobile-nav-toggle:hover {
+      color: var(--primary-color);
+      border-color: var(--primary-color);
+    }
+
     @media (max-width: 768px) {
-      .top-nav { flex-wrap: wrap; }
-      .nav-links { display: none; }
+      .top-nav { flex-wrap: wrap; position: sticky; }
+      .mobile-nav-toggle { display: inline-flex; }
+      .nav-links {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: var(--surface-card);
+        border-bottom: 1px solid var(--border-color);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        padding: 16px 20px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 14px;
+        z-index: 1000;
+      }
+      .nav-links.nav-open { display: flex; }
       .hero-card { padding: 24px 18px; }
       h1 { font-size: 1.6rem; }
     }
@@ -443,13 +485,13 @@
         <img src="../assets/pythos_avatar.jpg" alt="Pythos Oracle" class="brand-logo" width="32" height="32" />
         <span class="brand-title">PYTHOS</span>
       </a>
-      <div class="nav-links">
+      <div class="nav-links" id="navLinks">
         <a href="../subjects/" class="nav-link">Subjects</a>
         <a href="../validation/" class="nav-link">Validation</a>
         <a href="../about/" class="nav-link active" aria-current="page">About</a>
-        <a href="../nonprofit.html" class="nav-link">Nonprofit</a>
+        <a href="../nonprofit.html" class="nav-link">Mission &amp; Roadmap</a>
         <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" class="nav-link">Facebook</a>
-        <a href="../changelog.html#pythos-1-8-7" class="nav-link">v1.8.7</a>
+        <a href="../changelog.html#pythos-1-8-8" class="nav-link">v1.8.8</a>
       </div>
     </div>
 
@@ -461,6 +503,9 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
         Back to Pythos Oracle
       </a>
+      <button id="mobileNavToggleBtn" class="mobile-nav-toggle" aria-label="Toggle Navigation Menu" aria-expanded="false" aria-controls="navLinks">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+      </button>
     </div>
   </nav>
 
@@ -470,53 +515,56 @@
       <div class="hero-header-wrap">
         <img src="../assets/pythos_avatar.jpg" alt="Pythos Oracle" class="hero-avatar-large" width="72" height="72" />
         <div>
-          <h1>Meet Pythos — A Math Tutor Built to Check Its Work</h1>
-          <div class="tagline">An AI-powered math and physics study companion developed by a student for students. A LANZAR initiative.</div>
+          <h1>Meet Pythos — An AI Tutor Built to Check Its Work</h1>
+          <div class="tagline">An AI-powered math and physics study companion created by Jon Scott within the LANZAR initiative.</div>
         </div>
       </div>
 
       <p>
-        AI is here, and it is reshaping how students learn. But instead of pushing technology away or relying on chatbots that simply spit out quick answers without understanding, <strong>Pythos takes a fundamentally different approach.</strong>
+        AI is reshaping how students learn. But instead of pushing technology away or relying on chatbots that simply spit out quick unverified answers, <strong>Pythos takes a fundamentally different approach.</strong>
       </p>
       <p>
         Pythos is designed to help students deeply understand problems, develop critical thinking, and double-check their reasoning—not simply hand them a shortcut.
       </p>
+      <p>
+        <strong>The LANZAR Initiative:</strong> LANZAR is an independent initiative dedicated to education and building technology for future learners and developers. Pythos is a mathematics and physics education project developed within the LANZAR initiative.
+      </p>
 
       <h2>Built to Verify, Not Just Answer</h2>
       <p>
-        Unlike a traditional chatbot that generates a guess and moves on, Pythos is engineered with multiple safeguards designed specifically for educational rigor:
+        Unlike a traditional chatbot that generates a statistical guess and moves on, Pythos is engineered with a strict <strong>three-layer verification architecture</strong> designed specifically for educational rigor:
       </p>
-      <p style="margin-top:12px;">Pythos uses three complementary verification layers: (1) deterministic Math.js arithmetic for exact calculations, (2) a Python/SymPy symbolic fallback for advanced algebra and calculus, and (3) an independent logical‑entailment and tri‑aspect check that validates interpretation, math, and reasoning.</p>
       <div class="features-grid">
         <div class="feature-card">
-          <h3>🧮 Deterministic Math.js Verification</h3>
-          <p>Fast exact arithmetic using Math.js, handling fractions, roots, matrices, units and step‑by‑step checks.</p>
+          <h3>🧮 Layer 1: Deterministic Math.js Engine</h3>
+          <p>Evaluates exact arithmetic, roots, fractions, unit conversions, and geometric constraints in-process without relying on generative approximations.</p>
         </div>
         <div class="feature-card">
-          <h3>🐍 Python/SymPy Symbolic Fallback</h3>
-          <p>When Math.js cannot resolve a claim, a SymPy‑powered Python engine provides symbolic reasoning for calculus, differential equations, and deeper algebra.</p>
+          <h3>🐍 Layer 2: Deterministic SymPy CAS</h3>
+          <p>Provides deep symbolic computer algebra for calculus (limits, derivatives, integrals), differential equations, and algebraic equivalence.</p>
         </div>
         <div class="feature-card">
-          <h3>🧩 Logical Entailment & Tri‑Aspect Verification</h3>
-          <p>Independently checks interpretation, mathematics, and logical entailment, detecting contradictions and providing counter‑examples.</p>
+          <h3>🛡️ Layer 3: Proprietary Pythos Verifier</h3>
+          <p>Orchestrates claim extraction, prompt-to-claim fidelity, automated revision with re-verification, deterministic supremacy, vision verification of student diagrams, and the delivery decision gate.</p>
         </div>
         <div class="feature-card">
-          <h3>🧠 Verified Learning & Socratic Dialogue</h3>
-          <p>When students challenge derivations, Pythos verifies proposed corrections independently—reinforcing conceptual understanding over guesswork.</p>
+          <h3>🧠 Safe Withholding & Socratic Dialogue</h3>
+          <p>If a mathematical claim cannot be independently established, Pythos safely withholds the answer (returning UNKNOWN) rather than guessing. Students are guided with progressive Socratic hints.</p>
         </div>
       </div>
+
       <h2>Think You Can Stump Pythos?</h2>
-      <p>We want you to. If you find something Pythos gets wrong, let us know. Every mistake helps us make Pythos better.</p>
+      <p>We want you to. If you find something Pythos gets wrong, challenge it directly or submit a report. Every edge case helps refine our deterministic verifier layers.</p>
 
       <h2>Designed for Parents & Educators: Why You Can Trust It</h2>
       <p>
         We understand why parents and teachers are cautious about AI. Traditional chatbots can hallucinate numbers, encourage passive copy-pasting, and undermine real learning. Pythos is built from the ground up to solve those exact concerns:
       </p>
       <ul style="padding-left: 20px; color: var(--text-main); font-size: 0.95rem; line-height: 1.8;">
-        <li><strong>Active Socratic Guidance:</strong> If a student gets stuck, Pythos provides progressive hints rather than robbing them of the insight.</li>
+        <li><strong>Active Socratic Guidance:</strong> If a student gets stuck, Pythos provides progressive scaffolding rather than robbing them of insight.</li>
         <li><strong>Built to Be Challenged:</strong> Pythos encourages healthy critical skepticism: <em>"If you think I'm wrong, challenge me."</em></li>
-        <li><strong>No Paywalls, Ads, or Subscriptions:</strong> Free and open for all learners under the LANZAR educational ecosystem.</li>
-        <li><strong>Integrated Visual Tools:</strong> 2D function graphing, interactive equation palette, scientific calculation, and unit conversion are built right in.</li>
+        <li><strong>No Paywalls, Ads, or Subscriptions:</strong> Free and open for all learners within the LANZAR initiative.</li>
+        <li><strong>Integrated Visual Tools:</strong> 2D function graphing, interactive equation palette, scientific calculation, unit conversion, and diagram analysis are built right in.</li>
       </ul>
 
       <h2>Built by a Student Who Refused to Settle for Hallucinations</h2>
@@ -545,7 +593,9 @@
       <div class="disclaimer-box">
         <strong>💡 The Pythos Philosophy:</strong> Pythos exists to help students <em>learn</em> math — not just <em>finish</em> math. Embrace modern tools with healthy skepticism, rigorous verification, and genuine curiosity.
       </div>
-        <p style="font-size:0.85rem; text-align:center; margin-top:12px;">🔒 We don't collect personal information.</p>
+      <p style="font-size:0.85rem; text-align:center; margin-top:12px; color:var(--text-muted);">
+        🔒 <strong>User-Visible &amp; User-Controlled:</strong> Pythos does not sell student data or run third-party tracking ads. Personal learning memory is fully accessible through your user-visible Memory Ledger (accessible via the brain icon), where you can inspect, review, or erase entries at any time.
+      </p>
 
       <div style="text-align: center; margin-top: 36px;">
         <a href="../" class="btn-launch" style="padding: 12px 28px; font-size: 1rem;">
@@ -558,8 +608,8 @@
 
   <!-- Footer -->
   <footer>
-    <div>🏛️ Developed by a student for students. Built on deterministic CAS verification.</div>
-    <div style="margin-top: 6px; opacity: 0.75;">Pythos &copy; 2026 <a href="https://lanzar.me" target="_blank" rel="noopener" style="color:var(--primary-color); text-decoration:none;">LANZAR</a>. All rights reserved. &bull; <a href="../subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="../validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="../about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="../nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Nonprofit</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="../changelog.html#pythos-1-8-7" style="color:var(--primary-color); text-decoration:none;">v1.8.7</a></div>
+    <div>🏛️ Pythos — Free AI Mathematics &amp; Physics Education. Created by Jon Scott as part of the LANZAR initiative.</div>
+    <div style="margin-top: 6px; opacity: 0.75;">Pythos &copy; 2026 <a href="https://lanzar.me" target="_blank" rel="noopener" style="color:var(--primary-color); text-decoration:none;">LANZAR</a>. All rights reserved. &bull; <a href="../subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="../validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="../about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="../nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="../changelog.html#pythos-1-8-8" style="color:var(--primary-color); text-decoration:none;">v1.8.8</a></div>
   </footer>
 
   <script>
@@ -580,10 +630,22 @@
 
     applyTheme(savedTheme);
 
-    toggleBtn.addEventListener('click', () => {
-      const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
-      applyTheme(current === 'dark' ? 'light' : 'dark');
-    });
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', () => {
+        const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+        applyTheme(current === 'dark' ? 'light' : 'dark');
+      });
+    }
+
+    // Mobile Navigation Drawer Toggle
+    const mobileToggle = document.getElementById('mobileNavToggleBtn');
+    const navLinks = document.getElementById('navLinks');
+    if (mobileToggle && navLinks) {
+      mobileToggle.addEventListener('click', () => {
+        const isOpen = navLinks.classList.toggle('nav-open');
+        mobileToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      });
+    }
   </script>
 </body>
 </html>

@@ -1224,6 +1224,25 @@ function executeOllamaTextCall({ targetModel, ollamaMessages, effectiveOptions, 
  * Executes a revision request against the provider that originated the candidate solution.
  */
 async function executeRevisionCall(candidateResult, { revisionPrompt, effectiveOptions, timeoutMs = REVISION_TIMEOUT_MS, signal }) {
+  if (candidateResult.reasoningPath === 'VISION' || candidateResult.hasImages) {
+    const visionSelection = providerPolicy.selectProvider({ capability: 'vision' });
+    if (visionSelection.provider) {
+      try {
+        const revRes = await executeVisionCall(visionSelection.provider, {
+          messages: revisionPrompt,
+          visionSystemPrompt: PYTHOS_SYSTEM_PROMPT,
+          options: effectiveOptions,
+          timeoutMs,
+          signal
+        });
+        return revRes?.content || '';
+      } catch (revErr) {
+        console.warn('[VERIFIER] Vision revision call failed:', revErr.message);
+        return '';
+      }
+    }
+  }
+
   if (candidateResult.provider === 'groq-text') {
     const groqSelection = providerPolicy.selectProvider({ capability: 'text', exclude: ['ollama-text'] });
     if (groqSelection.provider && groqSelection.provider.name === 'groq-text') {
@@ -1629,18 +1648,30 @@ app.post('/api/chat', async (req, res) => {
     return cleanMsg;
   });
 
-  if (latestHasImages) {
+  const conversationNeedsVision = latestHasImages || hasImages;
+
+  if (conversationNeedsVision) {
     const visionDirective = visionExtractor.buildVisionPromptDirective();
     preparedMessages[0].content += visionDirective;
   }
 
   // Route to vision model only when the active prompt needs vision inspection
-  const targetModel = latestHasImages ? (process.env.OLLAMA_VISION_MODEL || OLLAMA_VISION_MODEL) : OLLAMA_MODEL;
+  const targetModel = conversationNeedsVision ? (process.env.OLLAMA_VISION_MODEL || OLLAMA_VISION_MODEL) : OLLAMA_MODEL;
+
+  let candidateResult = null;
+  let primaryFailureError = null;
+
+  const effectiveOptions = Object.assign(
+    { temperature: 0.3, num_ctx: contextManager.TOTAL_CONTEXT_LIMIT },
+    options || {}
+  );
+  if (!effectiveOptions.num_ctx) {
+    effectiveOptions.num_ctx = contextManager.TOTAL_CONTEXT_LIMIT;
+  }
 
   // Multimodal Hosted Vision Gateway Bridge
-  // If active user turn contains images, route via provider selection layer with backup fallback
-  if (latestHasImages) {
-    let acquiredSemaphore = false;
+  // If active user turn or conversation history contains images, route via provider selection layer with backup fallback
+  if (conversationNeedsVision) {
     try {
       await concurrencyLimiter.acquire(abortController.signal, REQUEST_TIMEOUT_MS);
       acquiredSemaphore = true;
@@ -1664,6 +1695,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
       let lastError = null;
       let successfulResult = null;
       let lastSelection = null;
+      let winningVisionProvider = null;
 
       // Provider selection and fallback loop:
       // Try primary provider (Groq). If it fails or is rate-limited, fall back to secondary (Gemini).
@@ -1687,6 +1719,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
             timeoutMs: REQUEST_TIMEOUT_MS,
             signal: abortController.signal
           });
+          winningVisionProvider = provider;
           break; // Success!
         } catch (callErr) {
           lastError = callErr;
@@ -1718,63 +1751,79 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           }
         }
 
-        const userQueryPrompt = lastUserMsg ? lastUserMsg.content : '';
-        const claims = extractClaims(finalContent, userQueryPrompt);
-        const verificationResults = [];
-        for (const claim of claims) {
-          const v = await runDeterministicVerification(claim, userQueryPrompt);
-          if (v) verificationResults.push(v);
+        // Vision candidate generation succeeded — package candidate to pass through the unified
+        // verification, revision, deterministic supremacy, and delivery gate architecture.
+        candidateResult = {
+          model: resolvedModel,
+          content: finalContent,
+          provider: winningVisionProvider?.name || 'vision',
+          reasoningPath: 'VISION',
+          hasImages: true
+        };
+      } else {
+        // No vision provider succeeded — format classified error response
+        let classified;
+        if (lastError) {
+          classified = classifyUpstreamError(lastError, 'vision');
+        } else {
+          const isCostBlocked = lastSelection?.reason === 'COST_GUARDRAIL_BLOCKED';
+          const isRateLimited = lastSelection?.reason === 'ALL_RATE_LIMITED';
+          const isUnconfigured = lastSelection?.reason === 'NO_CONFIGURED_PROVIDER';
+          const errStatus = isCostBlocked ? 403 : (isRateLimited ? 429 : 503);
+          const errCode = isRateLimited ? 'UPSTREAM_RATE_LIMITED' : 'UPSTREAM_UNAVAILABLE';
+          const errMsg = isRateLimited
+            ? 'Vision model capacity is currently exhausted across all free providers. Please wait for the timer to complete.'
+            : (isCostBlocked
+              ? 'Vision analysis requires a paid provider, but Pythos is currently locked to $0 cost guardrail (free_only mode).'
+              : (isUnconfigured
+                ? 'No vision provider is currently configured. Please verify API key configuration.'
+                : 'Vision reasoning is temporarily unavailable.'));
+          classified = {
+            status: errStatus,
+            error: errCode,
+            message: errMsg,
+            retryAfter: lastSelection?.retryAfter || 0
+          };
         }
 
         if (isStreaming) {
           res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
           res.setHeader('Transfer-Encoding', 'chunked');
           res.setHeader('Cache-Control', 'no-cache, no-transform');
-          res.write(JSON.stringify({ type: 'token', content: finalContent }) + '\n');
           res.write(JSON.stringify({
-            type: 'verified',
-            claims,
-            verification: verificationResults,
-            model: resolvedModel,
-            done: true
+            type: 'error',
+            error: classified.error,
+            message: classified.message,
+            retryAfter: classified.retryAfter || 0
           }) + '\n');
-          res.write(JSON.stringify({ type: 'done' }) + '\n');
           return res.end();
         }
 
-        return res.status(200).json({
-          model: resolvedModel,
-          message: { role: 'assistant', content: finalContent },
-          claims,
-          verification: verificationResults,
-          done: true
+        return res.status(classified.status).json({
+          error: classified.error,
+          message: classified.message,
+          retryAfter: classified.retryAfter || 0
         });
       }
-
-      // No provider succeeded — format classified error response
-      let classified;
-      if (lastError) {
-        classified = classifyUpstreamError(lastError, 'vision');
-      } else {
-        const isCostBlocked = lastSelection?.reason === 'COST_GUARDRAIL_BLOCKED';
-        const isRateLimited = lastSelection?.reason === 'ALL_RATE_LIMITED';
-        const isUnconfigured = lastSelection?.reason === 'NO_CONFIGURED_PROVIDER';
-        const errStatus = isCostBlocked ? 403 : (isRateLimited ? 429 : 503);
-        const errCode = isRateLimited ? 'UPSTREAM_RATE_LIMITED' : 'UPSTREAM_UNAVAILABLE';
-        const errMsg = isRateLimited
-          ? 'Vision model capacity is currently exhausted across all free providers. Please wait for the timer to complete.'
-          : (isCostBlocked
-            ? 'Vision analysis requires a paid provider, but Pythos is currently locked to $0 cost guardrail (free_only mode).'
-            : (isUnconfigured
-              ? 'No vision provider is currently configured. Please verify API key configuration.'
-              : 'Vision reasoning is temporarily unavailable.'));
-        classified = {
-          status: errStatus,
-          error: errCode,
-          message: errMsg,
-          retryAfter: lastSelection?.retryAfter || 0
-        };
+    } finally {
+      if (!candidateResult && acquiredSemaphore) {
+        concurrencyLimiter.release();
+        acquiredSemaphore = false;
       }
+    }
+  }
+
+  // Provider selection check for text capability (only if not already resolved by vision)
+  if (!candidateResult) {
+    const textSelection = providerPolicy.selectProvider({ capability: 'text' });
+    if (!textSelection.provider) {
+      const isCostBlocked = textSelection.reason === 'COST_GUARDRAIL_BLOCKED';
+      const isRateLimited = textSelection.reason === 'ALL_RATE_LIMITED';
+      const errStatus = isCostBlocked ? 403 : 503;
+      const errCode = isRateLimited ? 'UPSTREAM_RATE_LIMITED' : 'UPSTREAM_UNAVAILABLE';
+      const errMsg = isCostBlocked
+        ? 'Text reasoning requires a paid provider, but Pythos is currently locked to $0 cost guardrail (free_only mode).'
+        : (textSelection.message || 'Text inference is temporarily unavailable.');
 
       if (isStreaming) {
         res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
@@ -1782,80 +1831,38 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
         res.setHeader('Cache-Control', 'no-cache, no-transform');
         res.write(JSON.stringify({
           type: 'error',
-          error: classified.error,
-          message: classified.message,
-          retryAfter: classified.retryAfter || 0
+          error: errCode,
+          message: errMsg,
+          retryAfter: textSelection.retryAfter || 0
         }) + '\n');
         return res.end();
       }
-
-      return res.status(classified.status).json({
-        error: classified.error,
-        message: classified.message,
-        retryAfter: classified.retryAfter || 0
-      });
-    } finally {
-      if (acquiredSemaphore) concurrencyLimiter.release();
-    }
-  }
-
-  // Provider selection check for text capability
-  const textSelection = providerPolicy.selectProvider({ capability: 'text' });
-  if (!textSelection.provider) {
-    const isCostBlocked = textSelection.reason === 'COST_GUARDRAIL_BLOCKED';
-    const isRateLimited = textSelection.reason === 'ALL_RATE_LIMITED';
-    const errStatus = isCostBlocked ? 403 : 503;
-    const errCode = isRateLimited ? 'UPSTREAM_RATE_LIMITED' : 'UPSTREAM_UNAVAILABLE';
-    const errMsg = isCostBlocked
-      ? 'Text reasoning requires a paid provider, but Pythos is currently locked to $0 cost guardrail (free_only mode).'
-      : (textSelection.message || 'Text inference is temporarily unavailable.');
-
-    if (isStreaming) {
-      res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
-      res.setHeader('Transfer-Encoding', 'chunked');
-      res.setHeader('Cache-Control', 'no-cache, no-transform');
-      res.write(JSON.stringify({
-        type: 'error',
+      return res.status(errStatus).json({
         error: errCode,
         message: errMsg,
         retryAfter: textSelection.retryAfter || 0
-      }) + '\n');
-      return res.end();
+      });
     }
-    return res.status(errStatus).json({
-      error: errCode,
-      message: errMsg,
-      retryAfter: textSelection.retryAfter || 0
-    });
   }
 
   try {
-    // Acquire concurrency slot (cancellable by signal and bounded by timeout)
-    await concurrencyLimiter.acquire(abortController.signal, REQUEST_TIMEOUT_MS);
-    acquiredSemaphore = true;
-
-    // Phase B: Explicitly configure Ollama verified 8,192 token context length (num_ctx: 8192)
-    const effectiveOptions = Object.assign(
-      { temperature: 0.3, num_ctx: contextManager.TOTAL_CONTEXT_LIMIT },
-      options || {}
-    );
-    // Guarantee num_ctx is at least 8192 if not explicitly overridden by caller
-    if (!effectiveOptions.num_ctx) {
-      effectiveOptions.num_ctx = contextManager.TOTAL_CONTEXT_LIMIT;
-    }
-
-    // Ensure text-only models do not receive image payloads from prior turns
-    const ollamaMessages = preparedMessages.map(m => {
-      if (m.images && m.images.length > 0) {
-        const { images, ...rest } = m;
-        return rest;
+    if (!candidateResult) {
+      // Acquire concurrency slot (cancellable by signal and bounded by timeout)
+      if (!acquiredSemaphore) {
+        await concurrencyLimiter.acquire(abortController.signal, REQUEST_TIMEOUT_MS);
+        acquiredSemaphore = true;
       }
-      return m;
-    });
 
-    const triedTextProviders = new Set();
-    let candidateResult = null;
-    let primaryFailureError = null;
+      // Ensure text-only models do not receive image payloads from prior turns
+      const ollamaMessages = preparedMessages.map(m => {
+        if (m.images && m.images.length > 0) {
+          const { images, ...rest } = m;
+          return rest;
+        }
+        return m;
+      });
+
+      const triedTextProviders = new Set();
 
     // Provider Loop: Attempt primary provider (ollama-text).
     // If primary encounters an infrastructure failure (connection drop, timeout, 5xx, or empty response),
@@ -2003,6 +2010,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
         }
       }
     }
+  }
 
     // =====================================
     // Deterministic Verification & Revision Loop
@@ -2097,13 +2105,25 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
             claim.data?.is_percent ? `${(exactNum * 100).toFixed(2)}%` : exactFormatted
           );
 
-          const spanIndex = finalContent.indexOf(originalMatch);
+          let spanIndex = finalContent.indexOf(originalMatch);
+          let matchLength = originalMatch.length;
+          if (spanIndex === -1) {
+            // Flexible matching if LaTeX or degree formatting differed
+            const rawVal = claim.data?.raw_val_str ? claim.data.raw_val_str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '[-+0-9./]+%?';
+            const flexRegex = new RegExp(`(?:\\\\)?(?:csc|sec|sin|cos|tan|cot)[^=]{0,25}=\\s*${rawVal}`, 'i');
+            const m = finalContent.match(flexRegex);
+            if (m) {
+              spanIndex = m.index;
+              matchLength = m[0].length;
+            }
+          }
+
           if (spanIndex !== -1) {
             const charBefore = spanIndex > 0 ? finalContent[spanIndex - 1] : ' ';
             const isMidMath = /[+\-*/^0-9.]/.test(charBefore);
             if (!isMidMath) {
               console.warn('[VERIFIER] Enforcing deterministic arithmetic override for claim index', claimIndex, ':', originalMatch);
-              finalContent = finalContent.slice(0, spanIndex) + replacement + finalContent.slice(spanIndex + originalMatch.length);
+              finalContent = finalContent.slice(0, spanIndex) + replacement + finalContent.slice(spanIndex + matchLength);
               ollamaResponse.message.content = finalContent;
 
               if (isStreaming && !res.writableEnded) {
@@ -2113,7 +2133,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
                   originalMatch,
                   replacement,
                   startIndex: spanIndex,
-                  endIndex: spanIndex + originalMatch.length,
+                  endIndex: spanIndex + matchLength,
                   expression: claim.data?.expression || null,
                   revisedContent: finalContent
                 }) + '\n');
@@ -2121,6 +2141,56 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
             }
           }
         }
+      }
+
+      // =====================================
+      // DELIVERY GATE: Safe Withholding vs Certified Delivery
+      // =====================================
+      const uncorrectedInvalidClaims = invalidClaims.filter(({ claim, verification }) => {
+        // If the verification error was geometric contradiction, range error, or fidelity mismatch, it cannot be overridden by arithmetic CAS
+        if (verification.error_type === 'GEOMETRIC_CONTRADICTION' ||
+            verification.error_type === 'TRIGONOMETRIC_RANGE_VIOLATION' ||
+            verification.status === 'GEOMETRIC_IMPOSSIBILITY' ||
+            verification.status === 'PYTHAGOREAN_VIOLATION' ||
+            verification.status === 'FIDELITY_MISMATCH' ||
+            verification.status === 'RANGE_ERROR') {
+          return true;
+        }
+        // If exact_value was successfully substituted into finalContent, it is resolved
+        if (claim.raw_match && verification.exact_value !== undefined && verification.exact_value !== null) {
+          const exactNum = typeof verification.exact_value === 'number' ? verification.exact_value : Number(verification.exact_value);
+          const exactFormatted = Number.isFinite(exactNum) ? exactNum.toFixed(4) : String(verification.exact_value);
+          if (finalContent.includes(exactFormatted)) {
+            return false; // Successfully corrected by CAS
+          }
+        }
+        return true; // Still uncorrected
+      });
+
+      const hasUnresolvableFailure = uncorrectedInvalidClaims.length > 0 || internalContradictions.length > 0;
+
+      if (hasUnresolvableFailure) {
+        console.warn(`[DELIVERY GATE] Candidate contains ${uncorrectedInvalidClaims.length} uncorrected errors and ${internalContradictions.length} contradictions. Enforcing safe withholding gate...`);
+
+        const failureAudit = [];
+        uncorrectedInvalidClaims.forEach(({ verification }) => {
+          failureAudit.push(verification.details || verification.error_type || verification.status);
+        });
+        internalContradictions.forEach(ic => {
+          failureAudit.push(ic.details);
+        });
+
+        const safeWithholdingContent = `I have analyzed the diagram and problem, but I cannot certify the mathematical solution with deterministic certainty.
+
+**Verification Audit Findings:**
+${failureAudit.slice(0, 3).map(f => `- ${f}`).join('\n')}
+
+To maintain mathematical integrity, Pythos withholds unverified solutions rather than presenting potential diagram misinterpretations or unverified calculations as fact. Please verify the diagram labels (side lengths, angle markers) or specify the exact given values so I can guide you through the verified solution.`;
+
+        finalContent = safeWithholdingContent;
+        ollamaResponse.withheld = true;
+        ollamaResponse.message.content = finalContent;
+        ollamaResponse.withholdingReasons = failureAudit;
       }
 
       // Automatic System Error Flagging (Priority 1)
@@ -2216,6 +2286,12 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
       }
 
       if (isStreaming) {
+        if (!res.headersSent) {
+          res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+          res.setHeader('Transfer-Encoding', 'chunked');
+          res.setHeader('Cache-Control', 'no-cache, no-transform');
+          res.write(JSON.stringify({ type: 'token', content: finalContent }) + '\n');
+        }
         res.write(JSON.stringify({
           type: 'verified',
           requestId,
@@ -2230,6 +2306,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           provider: ollamaResponse.provider,
           reasoningPath: ollamaResponse.reasoningPath,
           backupTriggerReason: ollamaResponse.backupTriggerReason || null,
+          withheld: ollamaResponse.withheld || false,
           done: true
         }) + '\n');
         res.write(JSON.stringify({ type: 'done' }) + '\n');

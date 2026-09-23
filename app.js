@@ -459,6 +459,7 @@ function scrollToChatBottom(smooth = false) {
 function showThinking(userQuery = '') {
   const div = document.createElement("div");
   div.className = "message thinking";
+  div.setAttribute("data-clarity-mask", "true");
   div.setAttribute("role", "status");
   div.setAttribute("aria-live", "polite");
 
@@ -1129,14 +1130,21 @@ function sanitizeImageSrc(imgData) {
 }
 
 function appendMessage(role, text, images = null, metadata = {}) {
+  const welcomeCard = document.getElementById("welcomeOracleCard");
+  if (welcomeCard) {
+    welcomeCard.remove();
+  }
+
   const div = document.createElement("div");
   div.className = `message ${role}`;
   div.dataset.role = role;
+  div.setAttribute("data-clarity-mask", "true");
   
   // If there are attached image payloads, display them at the top of the bubble
   if (images && Array.isArray(images) && images.length > 0) {
     const imgContainer = document.createElement("div");
     imgContainer.className = "msg-image-attachment-wrap";
+    imgContainer.setAttribute("data-clarity-mask", "true");
     imgContainer.style.cssText = "margin-bottom:8px; display:flex; flex-wrap:wrap; gap:8px;";
     images.forEach(imgData => {
       const safeSrc = sanitizeImageSrc(imgData);
@@ -1701,12 +1709,62 @@ function appendMessage(role, text, images = null, metadata = {}) {
   }
 }
 
+function renderWelcomeCard() {
+  const existing = document.getElementById("welcomeOracleCard");
+  if (existing) existing.remove();
+
+  const card = document.createElement("div");
+  card.id = "welcomeOracleCard";
+  card.className = "welcome-oracle-card";
+  card.setAttribute("role", "region");
+  card.setAttribute("aria-label", "Welcome to Pythos Oracle");
+  card.innerHTML = `
+    <img src="assets/pythos_avatar.jpg" alt="Pythos Oracle" class="welcome-oracle-avatar" width="56" height="56" />
+    <h2 class="welcome-oracle-title">Welcome to Pythos</h2>
+    <p class="welcome-oracle-desc">
+      Free AI mathematics &amp; physics education backed by multi-tier deterministic verification.
+      Work through derivations, check your homework, or explore concepts step-by-step.
+      <br><a href="validation/" style="color:var(--primary-color); text-decoration:underline; font-size:0.85rem;">View our public mathematical validation record &rarr;</a>
+    </p>
+    <div class="starter-prompts-title">Try a starter problem:</div>
+    <div class="starter-chips-wrap">
+      <button type="button" class="starter-chip" data-prompt="Help me solve: x^2 - 5x + 6 = 0">
+        <span>📐 Help me solve: x² - 5x + 6 = 0</span>
+      </button>
+      <button type="button" class="starter-chip" data-prompt="Why is d/dx ln(x) = 1/x?">
+        <span>∫ Why is d/dx ln(x) = 1/x?</span>
+      </button>
+      <button type="button" class="starter-chip" data-prompt="Explain how to find projectile range.">
+        <span>🚀 Explain how to find projectile range.</span>
+      </button>
+      <button type="button" class="starter-chip" data-prompt="Graph f(x) = x^3 - 3x">
+        <span>📈 Graph f(x) = x³ - 3x</span>
+      </button>
+    </div>
+  `;
+
+  card.querySelectorAll(".starter-chip").forEach(chip => {
+    chip.addEventListener("click", () => {
+      const promptText = chip.getAttribute("data-prompt");
+      if (promptText && input) {
+        input.value = promptText;
+        autoResizeInput();
+        input.focus();
+        if (typeof askPythos === "function" && !isProcessing) {
+          addToPromptHistory(promptText);
+          askPythos(promptText);
+        }
+      }
+    });
+  });
+
+  output.appendChild(card);
+}
+
 function clearChatUI() {
   output.innerHTML = "";
   messages = [];
-  const intro = "Greetings. I am Pythos, your mathematical and physics guide. What concepts shall we explore today?";
-  messages.push({ role: "assistant", content: intro });
-  appendMessage("assistant", intro);
+  renderWelcomeCard();
   // Clear the preview
   const preview = document.getElementById("mathPreview");
   if (preview) preview.style.display = "none";
@@ -2099,6 +2157,7 @@ function fakeThinkingDelay(ms) {
 function showDeepThoughtResponse() {
   const div = document.createElement("div");
   div.className = "message assistant deep-thought";
+  div.setAttribute("data-clarity-mask", "true");
   div.innerHTML = `
     <div class="dt-header">PYTHOS // DEEP THOUGHT MODE</div>
     <div class="dt-quote">“The Answer to the Ultimate Question of Life, the Universe, and Everything.”</div>
@@ -2888,6 +2947,7 @@ async function askPythos(userText) {
       const draftBubble = document.createElement("div");
       draftBubble.className = "message assistant drafting";
       draftBubble.dataset.role = "assistant";
+      draftBubble.setAttribute("data-clarity-mask", "true");
 
       const statusBadge = document.createElement("div");
       statusBadge.className = "msg-stream-badge drafting-badge";

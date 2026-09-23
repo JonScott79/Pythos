@@ -355,10 +355,15 @@ function extractArithmeticExpressions(text) {
         continue;
       }
 
-      // Reject range expressions (e.g. ~95-96, 95-96%, ~95-96%)
-      // A hyphen between numbers followed by % or preceded by ~ is a range/estimate, NOT subtraction
+      // Reject range expressions (e.g. ~95-96, 95-96%, ~95-96%) and compound labels (e.g. 3-4-5 right triangle, 5-12-13 triangle)
+      // A hyphen between numbers followed by % or preceded by ~ is a range/estimate, NOT subtraction.
+      // Hyphens without surrounding spaces directly followed by nouns (triangle, ratio, etc.) are compound modifiers.
       if (/[-–—]/.test(matchStr)) {
-        if (/~\s*$/.test(beforeMatch) || /^\s*%/.test(afterMatch) || /^\s*-\s*\d/.test(afterMatch)) {
+        if (/~\s*$/.test(beforeMatch) || /^\s*%/.test(afterMatch) || /^\s*-\s*\d/.test(afterMatch) ||
+            /^\s*(?:right\s+)?(?:triangle|polygon|ratio|dimensional|sided|grade|year|meter|cm|km|hour|minute|sec)\b/i.test(afterMatch)) {
+          continue;
+        }
+        if (!/\s[-–—]\s/.test(matchStr) && (/\b[a-zA-Z]+\s*$/.test(beforeMatch) && /^\s*[a-zA-Z]+/.test(afterMatch))) {
           continue;
         }
       }

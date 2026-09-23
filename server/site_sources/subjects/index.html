@@ -10,12 +10,21 @@
     gtag('config', 'G-JFV7CSM9G9');
   </script>
 
+  <!-- Microsoft Clarity Tracking (Asynchronous & Privacy-Masked) -->
+  <script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+      c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+      t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+      y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "xkhxzoeiol");
+  </script>
+
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="../assets/favicon.png">
   
   <title>Subjects | Pythos</title>
-  <meta name="description" content="Explore Pythos mathematics and physics subjects, including algebra, calculus, and physics.">
+  <meta name="description" content="Explore Pythos mathematics and physics subjects, including algebra, calculus, and physics. Developed by Jon Scott within the LANZAR initiative.">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://pythos.lanzar.me/subjects/">
@@ -468,16 +477,52 @@
       text-decoration: underline;
     }
 
+    .mobile-nav-toggle {
+      display: none;
+      background: var(--surface-color);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      border-radius: 8px;
+      padding: 6px 8px;
+      cursor: pointer;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+    .mobile-nav-toggle:hover {
+      color: var(--primary-color);
+      border-color: var(--primary-color);
+    }
+
     @media (max-width: 768px) {
       .top-nav {
         padding: 10px 16px;
         flex-wrap: wrap;
+        position: sticky;
+      }
+
+      .mobile-nav-toggle {
+        display: inline-flex;
       }
 
       .nav-links {
-        gap: 12px;
-        font-size: 0.82rem;
-        flex-wrap: wrap;
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: var(--surface-card);
+        border-bottom: 1px solid var(--border-color);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        padding: 16px 20px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 14px;
+        z-index: 1000;
+      }
+
+      .nav-links.nav-open {
+        display: flex;
       }
 
       .hero-card {
@@ -509,13 +554,13 @@
         <img src="../assets/pythos_avatar.jpg" alt="Pythos Oracle" class="brand-logo" width="34" height="34" />
         <span class="brand-title">PYTHOS</span>
       </a>
-      <div class="nav-links">
+      <div class="nav-links" id="navLinks">
         <a href="./" class="nav-link active" aria-current="page">Subjects</a>
         <a href="../validation/" class="nav-link">Validation</a>
         <a href="../about/" class="nav-link">About</a>
-        <a href="../nonprofit.html" class="nav-link">Nonprofit</a>
+        <a href="../nonprofit.html" class="nav-link">Mission &amp; Roadmap</a>
         <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" class="nav-link">Facebook</a>
-        <a href="../changelog.html#pythos-1-8-7" class="nav-link">v1.8.7</a>
+        <a href="../changelog.html#pythos-1-8-8" class="nav-link">v1.8.8</a>
       </div>
     </div>
 
@@ -527,6 +572,9 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
         Try Pythos
       </a>
+      <button id="mobileNavToggleBtn" class="mobile-nav-toggle" aria-label="Toggle Navigation Menu" aria-expanded="false" aria-controls="navLinks">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+      </button>
     </div>
   </nav>
 
@@ -537,7 +585,7 @@
         <img src="../assets/pythos_avatar.jpg" alt="Pythos Oracle" class="hero-avatar-large" width="68" height="68" />
         <div>
           <h1>Subjects</h1>
-          <p class="tagline">Explore the mathematical and physics subjects Pythos is designed to help students understand, practice, and explore.</p>
+          <p class="tagline">Explore the mathematical and physics subjects Pythos is designed to help students master with verified derivations. Pythos is an educational project developed within the LANZAR initiative.</p>
         </div>
       </div>
 
@@ -594,9 +642,12 @@
 
       <!-- Verification Ground-Truth Note -->
       <div class="overview-section">
-        <h3>Deterministic Verification Across Every Subject</h3>
+        <h3>Three-Layer Deterministic Verification Across Every Subject</h3>
         <p>
-          Across algebra, calculus, and physics, Pythos pairs generative pedagogical explanations with dual-layer deterministic verification engines (Math.js and Python/SymPy CAS). Answers are strictly checked for mathematical fidelity before presentation.
+          Across algebra, calculus, and physics, Pythos pairs generative pedagogical explanations with three distinct deterministic verification layers: an in-process Math.js numerical engine, a Python/SymPy computer algebra system, and the proprietary Pythos verifier layer managing prompt fidelity, claim extraction, revision loops, and the delivery decision gate.
+        </p>
+        <p>
+          Pythos also supports visual mathematics and physics—allowing students to attach diagrams, geometry problems, and physical figures for independent geometric and trigonometric verification.
         </p>
         <p>
           Review our public engineering track record on the <a href="../validation/" style="color:var(--primary-color); font-weight:600;">Mathematical Validation page</a> to inspect our latest completed benchmarks.
@@ -607,15 +658,15 @@
 
   <!-- Simplified Unified Footer -->
   <footer role="contentinfo">
-    <div>🏛️ Pythos — Free AI Mathematics &amp; Physics Education. Developed by a student for students.</div>
+    <div>🏛️ Pythos — Free AI Mathematics &amp; Physics Education. Created by Jon Scott as part of the LANZAR initiative.</div>
     <div style="margin-top: 6px; opacity: 0.85;">
       Pythos &copy; 2026 <a href="https://lanzar.me" target="_blank" rel="noopener">LANZAR</a>. All rights reserved. &bull;
       <a href="./">Subjects</a> &bull;
       <a href="../validation/">Validation</a> &bull;
       <a href="../about/">About</a> &bull;
-      <a href="../nonprofit.html">Nonprofit</a> &bull;
+      <a href="../nonprofit.html">Mission &amp; Roadmap</a> &bull;
       <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer">Facebook</a> &bull;
-      <a href="../changelog.html#pythos-1-8-7">v1.8.7</a>
+      <a href="../changelog.html#pythos-1-8-8">v1.8.8</a>
     </div>
   </footer>
 
@@ -643,6 +694,16 @@
         const next = current === 'dark' ? 'light' : 'dark';
         localStorage.setItem('pythos_theme', next);
         applyTheme(next);
+      });
+    }
+
+    // Mobile Navigation Drawer Toggle
+    const mobileToggle = document.getElementById('mobileNavToggleBtn');
+    const navLinks = document.getElementById('navLinks');
+    if (mobileToggle && navLinks) {
+      mobileToggle.addEventListener('click', () => {
+        const isOpen = navLinks.classList.toggle('nav-open');
+        mobileToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
       });
     }
   </script>

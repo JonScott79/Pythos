@@ -178,8 +178,15 @@ function extractClaims(text, userPrompt = '') {
       continue;
     }
 
+    // Convert trigonometric degree arguments into explicit Math.js degree units e.g. csc(60 deg)
+    const lineWithTrigDeg = rawLine.replace(/(?:\\)?(sin|cos|tan|sec|csc|cot)\s*(?:\(\s*([0-9.]+)\s*(?:\^\{\s*\\?circ\s*\}|\^\\?circ|°|\s*deg)?\s*\)|\s+([0-9.]+)\s*(?:\^\{\s*\\?circ\s*\}|\^\\?circ|°|\s*deg)?)/gi, (m, fn, argParen, argBare) => {
+      const rawArg = (argParen || argBare || '').trim();
+      const isDeg = /°|circ|deg/i.test(m) || /°|circ|deg/i.test(promptStr);
+      return `${fn.toLowerCase()}(${rawArg}${isDeg ? ' deg' : ''})`;
+    });
+
     // Normalize operators across LaTeX and Unicode
-    const line = rawLine
+    const line = lineWithTrigDeg
       .replace(/\\times/g, '*')
       .replace(/\\cdot/g, '*')
       .replace(/\\div/g, '/')
@@ -247,7 +254,7 @@ function extractClaims(text, userPrompt = '') {
       if (isPct) val = val / 100.0;
 
       const beforeEq = line.slice(0, eqIndex);
-      const suffixMatch = beforeEq.match(/(?:^|[=:,;]|\b(?:is|as|to|of|because|gives|gives\s+us|equals?|we\s+have|so|then|that|therefore|thus|hence)\s+|[a-zA-Z\\]+\s*=)\s*((?:[-+]?[\s0-9.()+\-*/^]+|\bpi\b|\bsqrt\([^\)]+\)|\b(?:sin|cos|tan|sec|csc|cot)\s*\([^\)]+\))+)$/i);
+      const suffixMatch = beforeEq.match(/(?:^|[=:,;]|\b(?:is|as|to|of|because|gives|gives\s+us|equals?|we\s+have|so|then|that|therefore|thus|hence|calculate|calculating|compute|computing|find|yields?|get|got)\s+|[a-zA-Z\\]+\s*=)\s*((?:[-+]?[\s0-9.()+\-*/^]+|\bpi\b|\bsqrt\([^\)]+\)|\b(?:sin|cos|tan|sec|csc|cot)\s*\([^\)]+\))+)$/i);
       if (!suffixMatch) continue;
 
       let expr = suffixMatch[1].trim();
@@ -382,6 +389,30 @@ function extractClaims(text, userPrompt = '') {
     }
   }
 
+  // 9. Right Triangle Geometric Claims (e.g. opposite = 3, adjacent = 1, hypotenuse = 2)
+  const oppMatch = text.match(/\bopposite\s*(?:side)?\s*[:=]\s*([0-9.]+)/i);
+  const adjMatch = text.match(/\badjacent\s*(?:side)?\s*[:=]\s*([0-9.]+)/i);
+  const hypMatch = text.match(/\bhypotenuse\s*[:=]\s*([0-9.]+)/i);
+
+  if (hypMatch && (oppMatch || adjMatch)) {
+    const hyp = parseFloat(hypMatch[1]);
+    const opp = oppMatch ? parseFloat(oppMatch[1]) : null;
+    const adj = adjMatch ? parseFloat(adjMatch[1]) : null;
+
+    if (!isNaN(hyp)) {
+      claims.push({
+        domain: 'geometry',
+        claim_type: 'right_triangle_geometry',
+        raw_match: `opposite=${opp}, adjacent=${adj}, hypotenuse=${hyp}`,
+        data: {
+          opposite: opp,
+          adjacent: adj,
+          hypotenuse: hyp
+        }
+      });
+    }
+  }
+
   if (promptStr) {
     for (const c of claims) {
       c.userPrompt = promptStr;
@@ -419,6 +450,28 @@ function auditInternalConsistency(claims) {
         }
       } else {
         seenExpressions.set(normalizedExpr, { val, claim: c });
+      }
+    }
+
+    if (c.domain === 'geometry' && c.claim_type === 'right_triangle_geometry' && c.data) {
+      const { opposite: opp, adjacent: adj, hypotenuse: hyp } = c.data;
+      if (opp !== null && hyp <= opp) {
+        contradictions.push({
+          type: 'GEOMETRIC_CONTRADICTION',
+          details: `Geometric contradiction: Hypotenuse (${hyp}) cannot be smaller than or equal to opposite leg (${opp}).`
+        });
+      }
+      if (adj !== null && hyp <= adj) {
+        contradictions.push({
+          type: 'GEOMETRIC_CONTRADICTION',
+          details: `Geometric contradiction: Hypotenuse (${hyp}) cannot be smaller than or equal to adjacent leg (${adj}).`
+        });
+      }
+      if (opp !== null && adj !== null && Math.abs(opp * opp + adj * adj - hyp * hyp) > 0.1) {
+        contradictions.push({
+          type: 'GEOMETRIC_CONTRADICTION',
+          details: `Geometric contradiction: Triangle sides ${opp}, ${adj}, ${hyp} violate the Pythagorean theorem (${opp}^2 + ${adj}^2 = ${opp * opp + adj * adj} != ${hyp * hyp}).`
+        });
       }
     }
   }
@@ -510,6 +563,48 @@ function checkPromptClaimFidelity(claim, userPrompt) {
 
   if (!promptStr || !claim || !claim.data) {
     return { ok: true };
+  }
+
+  // Trigonometric Function & Angle Fidelity Check
+  const trigPromptRegex = /\b(sin|cos|tan|sec|csc|cot)\s*(?:\(\s*([0-9.]+)(?:°|\^\{\s*\\?circ\s*\}|\^\\?circ|\s*deg)?\s*\)|\s+([0-9.]+)(?:°|\^\{\s*\\?circ\s*\}|\^\\?circ|\s*deg)?)/i;
+  const promptTrigMatch = promptStr.match(trigPromptRegex);
+  if (promptTrigMatch) {
+    const reqFn = promptTrigMatch[1].toLowerCase();
+    const reqAngle = promptTrigMatch[2] || promptTrigMatch[3];
+    const claimExpr = claim.data?.expression;
+
+    if (claimExpr) {
+      const claimTrigMatch = claimExpr.match(/\b(sin|cos|tan|sec|csc|cot)\b/i);
+      if (claimTrigMatch) {
+        const solvedFn = claimTrigMatch[1].toLowerCase();
+        if (solvedFn !== reqFn) {
+          return {
+            ok: false,
+            reason: `Prompt-to-claim fidelity mismatch: Prompt requested trigonometric function '${reqFn}', but candidate claim solved '${solvedFn}'`
+          };
+        }
+        const claimAngleMatch = claimExpr.match(/\b(?:sin|cos|tan|sec|csc|cot)\s*\(\s*([0-9.]+)/i);
+        if (claimAngleMatch && reqAngle && Math.abs(parseFloat(claimAngleMatch[1]) - parseFloat(reqAngle)) > 1e-4) {
+          return {
+            ok: false,
+            reason: `Prompt-to-claim fidelity mismatch: Prompt requested angle '${reqAngle}', but candidate claim solved for angle '${claimAngleMatch[1]}'`
+          };
+        }
+      }
+    }
+  }
+
+  // Object Disambiguation Fidelity Check
+  const promptObjMatch = promptStr.match(/\b(?:triangle|figure|object|shape|circle)\s+([A-Z0-9]+)\b/i);
+  if (promptObjMatch && (claim.raw_match || claim.userPrompt)) {
+    const claimMatchText = `${claim.raw_match || ''} ${JSON.stringify(claim.data || {})}`;
+    const claimObjMatch = claimMatchText.match(/\b(?:triangle|figure|object|shape|circle)\s+([A-Z0-9]+)\b/i);
+    if (claimObjMatch && claimObjMatch[1].toUpperCase() !== promptObjMatch[1].toUpperCase()) {
+      return {
+        ok: false,
+        reason: `Prompt-to-claim fidelity mismatch: Prompt asked about ${promptObjMatch[0]}, but candidate claim solved for ${claimObjMatch[0]}`
+      };
+    }
   }
 
   // 1. Arithmetic Domain Fidelity Check
@@ -704,23 +799,22 @@ async function runDeterministicVerification(claim, userPrompt = '') {
   if (promptStr) {
     claim.userPrompt = promptStr;
     if (claim.data) claim.data.userPrompt = promptStr;
+
+    const fidelity = checkPromptClaimFidelity(claim, promptStr);
+    if (!fidelity.ok) {
+      return {
+        verified: false,
+        engine: 'fidelity',
+        status: 'FIDELITY_MISMATCH',
+        error_type: 'PROMPT_CLAIM_FIDELITY_MISMATCH',
+        details: fidelity.reason
+      };
+    }
   }
 
   // First-Line: Math.js verifier
   const mathjsResult = mathjsVerifier.verify(claim);
   if (mathjsResult.status !== 'UNKNOWN') {
-    if (mathjsResult.verified && promptStr) {
-      const fidelity = checkPromptClaimFidelity(claim, promptStr);
-      if (!fidelity.ok) {
-        return {
-          verified: false,
-          engine: 'mathjs',
-          status: 'FIDELITY_MISMATCH',
-          error_type: 'PROMPT_CLAIM_FIDELITY_MISMATCH',
-          details: fidelity.reason
-        };
-      }
-    }
     return mathjsResult;
   }
 
@@ -806,19 +900,6 @@ async function runDeterministicVerification(claim, userPrompt = '') {
       }
     }
   });
-
-  if (pythonResult && pythonResult.verified && promptStr) {
-    const fidelity = checkPromptClaimFidelity(claim, promptStr);
-    if (!fidelity.ok) {
-      return {
-        verified: false,
-        engine: 'python_cas',
-        status: 'FIDELITY_MISMATCH',
-        error_type: 'PROMPT_CLAIM_FIDELITY_MISMATCH',
-        details: fidelity.reason
-      };
-    }
-  }
 
   return pythonResult;
 }

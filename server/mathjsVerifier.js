@@ -132,6 +132,35 @@ const MathJSVerifier = {
             };
           }
 
+          // Trigonometric Range Consistency Check for real angles
+          const propNum = Number(proposed_value);
+          if (!isNaN(propNum)) {
+            if (/\b(?:csc|sec)\b/i.test(expression) && Math.abs(propNum) < 1 - 1e-6) {
+              const fnName = (expression.match(/\b(csc|sec)\b/i) || ['trig'])[0];
+              return {
+                verified: false,
+                engine: 'mathjs',
+                status: 'RANGE_ERROR',
+                error_type: 'TRIGONOMETRIC_RANGE_VIOLATION',
+                exact_value: numResult,
+                proposed_value: proposed_value,
+                details: `Trigonometric range violation: |${fnName}| must be >= 1 for real angles, but proposed value is ${proposed_value}`
+              };
+            }
+            if (/\b(?:sin|cos)\b/i.test(expression) && Math.abs(propNum) > 1 + 1e-6) {
+              const fnName = (expression.match(/\b(sin|cos)\b/i) || ['trig'])[0];
+              return {
+                verified: false,
+                engine: 'mathjs',
+                status: 'RANGE_ERROR',
+                error_type: 'TRIGONOMETRIC_RANGE_VIOLATION',
+                exact_value: numResult,
+                proposed_value: proposed_value,
+                details: `Trigonometric range violation: |${fnName}| must be <= 1 for real angles, but proposed value is ${proposed_value}`
+              };
+            }
+          }
+
           if (is_approximate) {
             const diff = Math.abs(numResult - Number(proposed_value));
             const matches = diff <= tolerance;
@@ -504,6 +533,63 @@ const MathJSVerifier = {
   },
 
   /**
+   * Level 7: Right Triangle Geometry Verification
+   */
+  verifyRightTriangle(data) {
+    const { opposite: opp, adjacent: adj, hypotenuse: hyp } = data;
+
+    if (typeof hyp !== 'number' || isNaN(hyp)) {
+      return {
+        verified: false,
+        engine: 'mathjs',
+        status: 'UNKNOWN',
+        reason: 'Hypotenuse length is missing or not a valid number'
+      };
+    }
+
+    if (opp !== null && typeof opp === 'number' && hyp <= opp) {
+      return {
+        verified: false,
+        engine: 'mathjs',
+        status: 'GEOMETRIC_IMPOSSIBILITY',
+        error_type: 'GEOMETRIC_CONTRADICTION',
+        details: `Geometric impossibility: In a right triangle, hypotenuse (${hyp}) must be strictly greater than opposite leg (${opp}).`
+      };
+    }
+
+    if (adj !== null && typeof adj === 'number' && hyp <= adj) {
+      return {
+        verified: false,
+        engine: 'mathjs',
+        status: 'GEOMETRIC_IMPOSSIBILITY',
+        error_type: 'GEOMETRIC_CONTRADICTION',
+        details: `Geometric impossibility: In a right triangle, hypotenuse (${hyp}) must be strictly greater than adjacent leg (${adj}).`
+      };
+    }
+
+    if (opp !== null && adj !== null && typeof opp === 'number' && typeof adj === 'number') {
+      const sumSq = opp * opp + adj * adj;
+      const hypSq = hyp * hyp;
+      if (Math.abs(sumSq - hypSq) > 0.1) {
+        return {
+          verified: false,
+          engine: 'mathjs',
+          status: 'PYTHAGOREAN_VIOLATION',
+          error_type: 'GEOMETRIC_CONTRADICTION',
+          details: `Pythagorean theorem contradiction: opposite^2 (${opp}^2=${opp * opp}) + adjacent^2 (${adj}^2=${adj * adj}) = ${sumSq} does not equal hypotenuse^2 (${hyp}^2=${hypSq}).`
+        };
+      }
+    }
+
+    return {
+      verified: true,
+      engine: 'mathjs',
+      status: 'VERIFIED',
+      details: `Right triangle geometry verified: opposite=${opp}, adjacent=${adj}, hypotenuse=${hyp} is geometrically consistent.`
+    };
+  },
+
+  /**
    * Dispatch Entry Point with Explicit Capability Boundaries
    */
   verify(payload) {
@@ -538,6 +624,11 @@ const MathJSVerifier = {
     // 6. Units & Dimensional Compatibility
     if (domain === 'units' || claim_type === 'units') {
       return this.verifyUnits(data);
+    }
+
+    // 7. Right Triangle Geometry
+    if (domain === 'geometry' && (claim_type === 'right_triangle_geometry' || claim_type === 'right_triangle_sides')) {
+      return this.verifyRightTriangle(data);
     }
 
     // Conservative: All other domains (Calculus, Physics vector dynamics, differential equations)

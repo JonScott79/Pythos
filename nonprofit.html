@@ -10,12 +10,21 @@
     gtag('config', 'G-JFV7CSM9G9');
   </script>
 
+  <!-- Microsoft Clarity Tracking (Asynchronous & Privacy-Masked) -->
+  <script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+      c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+      t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+      y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "xkhxzoeiol");
+  </script>
+
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="assets/favicon.png">
   
-  <title>Pythos | Our Mission — Free AI Mathematics &amp; Physics Education</title>
-  <meta name="description" content="Learn about Pythos and our long-term mission to keep AI-powered math and physics education free while creating opportunities for students and young developers.">
+  <title>Pythos | Mission &amp; Roadmap — AI Math &amp; Physics Education</title>
+  <meta name="description" content="Learn about Pythos, our mission to keep AI-powered math and physics education free, and our roadmap toward a potential 501(c)(3) nonprofit future.">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://pythos.lanzar.me/nonprofit.html">
@@ -265,6 +274,26 @@
     }
 
     .theme-toggle:hover {
+      color: var(--primary-color);
+      border-color: var(--primary-color);
+    }
+
+    .mobile-nav-toggle {
+      display: none;
+      background: var(--surface-color);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      border-radius: 8px;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: 1rem;
+      line-height: 1;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+
+    .mobile-nav-toggle:hover {
       color: var(--primary-color);
       border-color: var(--primary-color);
     }
@@ -713,8 +742,26 @@
     }
 
     @media (max-width: 768px) {
-      .top-nav { flex-wrap: wrap; }
-      .nav-links { display: none; }
+      .top-nav {
+        position: sticky;
+        top: 0;
+        flex-wrap: wrap;
+      }
+      .mobile-nav-toggle {
+        display: inline-flex;
+      }
+      .nav-links {
+        display: none;
+        width: 100%;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+        padding-top: 12px;
+        border-top: 1px solid var(--border-color);
+      }
+      .nav-links.open {
+        display: flex;
+      }
       .hero-card { padding: 26px 20px; }
       .hero-header-wrap { flex-direction: column; align-items: flex-start; gap: 14px; }
       h1 { font-size: 1.65rem; }
@@ -735,19 +782,22 @@
         <img src="assets/pythos_avatar.jpg" alt="Pythos Oracle" class="brand-logo" width="34" height="34" />
         <span class="brand-title">PYTHOS</span>
       </a>
-      <div class="nav-links">
+      <div class="nav-links" id="navLinks">
         <a href="subjects/" class="nav-link">Subjects</a>
         <a href="validation/" class="nav-link">Validation</a>
         <a href="about/" class="nav-link">About</a>
-        <a href="nonprofit.html" class="nav-link active" aria-current="page">Nonprofit</a>
+        <a href="nonprofit.html" class="nav-link active" aria-current="page">Mission & Roadmap</a>
         <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" class="nav-link">Facebook</a>
-        <a href="changelog.html#pythos-1-8-7" class="nav-link">v1.8.7</a>
+        <a href="changelog.html#pythos-1-8-8" class="nav-link">v1.8.8</a>
       </div>
     </div>
 
     <div class="nav-right">
       <button id="themeToggleBtn" class="theme-toggle" title="Toggle Dark/Light Mode" aria-label="Toggle Dark and Light Mode">
         <span id="themeIcon" aria-hidden="true">🌓</span>
+      </button>
+      <button id="mobileNavToggleBtn" class="mobile-nav-toggle" aria-label="Toggle Navigation Menu" aria-expanded="false" aria-controls="navLinks">
+        ☰
       </button>
       <a href="./" class="btn-launch">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
@@ -823,12 +873,12 @@
 
     <!-- 3. WHY NONPROFIT? -->
     <section id="why-nonprofit" class="content-section" aria-labelledby="heading-why-nonprofit">
-      <h2 id="heading-why-nonprofit">WHY NONPROFIT?</h2>
+      <h2 id="heading-why-nonprofit">OUR ROADMAP: WHY A NONPROFIT FUTURE?</h2>
       <p class="lead-text">
         Pythos isn't being built to become another subscription-based educational product.
       </p>
       <p>
-        The long-term goal is to establish Pythos as a nonprofit organization so that funding can be reinvested into the mission.
+        The long-term roadmap and vision for a dedicated nonprofit future is to establish Pythos as a recognized 501(c)(3) nonprofit entity so that all future funding and technology can be permanently dedicated to open education.
       </p>
 
       <div class="vision-grid">
@@ -936,16 +986,16 @@
       
       <div class="status-box">
         <div class="status-header">
-          <span class="status-badge">Transparent Direction</span>
+          <span class="status-badge">Current Reality vs. Future Roadmap</span>
         </div>
         <p>
-          <strong>Pythos is currently an independent educational technology project.</strong>
+          <strong>Current Reality:</strong> Pythos is an independent educational technology project and initiative currently available completely free to the public. Pythos and LANZAR are not currently a recognized charity, a registered 501(c)(3), a tax-exempt organization, or an established nonprofit entity.
         </p>
         <p>
-          The nonprofit structure is a future goal, not a claim that the organization already exists as a registered nonprofit.
+          <strong>The LANZAR Initiative:</strong> LANZAR is an independent initiative dedicated to education and building technology for future learners and developers. Pythos is a mathematics and physics education project developed within the LANZAR initiative.
         </p>
         <p>
-          Today, Pythos is free and publicly available while we work toward building the people, partnerships, and organizational structure needed to make the long-term mission sustainable.
+          <strong>Future Roadmap:</strong> Our future goal is to pursue formal 501(c)(3) tax-exempt status in the future so that Pythos and its educational tools remain free in perpetuity, supported by transparent stewardship, community collaboration, and open engineering.
         </p>
       </div>
     </section>
@@ -973,9 +1023,9 @@
 
   <!-- Footer -->
   <footer>
-    <div>🏛️ Pythos — Free AI Mathematics &amp; Physics Education. Developed by a student for students.</div>
+    <div>🏛️ Pythos — Free AI Mathematics &amp; Physics Education. Created by Jon Scott as part of the LANZAR initiative.</div>
     <div style="margin-top: 6px; opacity: 0.8;">
-      Pythos &copy; 2026 <a href="https://lanzar.me" target="_blank" rel="noopener">LANZAR</a>. All rights reserved. &bull; <a href="subjects/">Subjects</a> &bull; <a href="validation/">Validation</a> &bull; <a href="about/">About</a> &bull; <a href="nonprofit.html">Nonprofit</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer">Facebook</a> &bull; <a href="changelog.html#pythos-1-8-7">v1.8.7</a>
+      Pythos &copy; 2026 <a href="https://lanzar.me" target="_blank" rel="noopener">LANZAR</a>. All rights reserved. &bull; <a href="subjects/">Subjects</a> &bull; <a href="validation/">Validation</a> &bull; <a href="about/">About</a> &bull; <a href="nonprofit.html">Mission &amp; Roadmap</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer">Facebook</a> &bull; <a href="changelog.html#pythos-1-8-8">v1.8.8</a>
     </div>
   </footer>
 
@@ -1002,6 +1052,15 @@
       const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
       applyTheme(current === 'dark' ? 'light' : 'dark');
     });
+
+    const mobileNavToggleBtn = document.getElementById('mobileNavToggleBtn');
+    const navLinks = document.getElementById('navLinks');
+    if (mobileNavToggleBtn && navLinks) {
+      mobileNavToggleBtn.addEventListener('click', () => {
+        const isOpen = navLinks.classList.toggle('open');
+        mobileNavToggleBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      });
+    }
   </script>
 </body>
 </html>

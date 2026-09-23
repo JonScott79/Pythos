@@ -10,6 +10,15 @@
     gtag('config', 'G-JFV7CSM9G9');
   </script>
 
+  <!-- Microsoft Clarity Tracking (Asynchronous & Privacy-Masked) -->
+  <script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+      c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+      t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+      y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "xkhxzoeiol");
+  </script>
+
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="../assets/favicon.png">
@@ -220,10 +229,36 @@
       color: var(--primary-color);
     }
 
+    .nav-links {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .mobile-nav-toggle {
+      display: none;
+      background: transparent;
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      border-radius: 6px;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: 1rem;
+      line-height: 1;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+
+    .mobile-nav-toggle:hover {
+      color: var(--primary-color);
+      border-color: var(--primary-color);
+    }
+
     .nav-right {
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: 12px;
     }
 
     .nav-link {
@@ -640,6 +675,29 @@
     footer a:hover {
       text-decoration: underline;
     }
+
+    @media (max-width: 768px) {
+      .top-nav {
+        position: sticky;
+        top: 0;
+        flex-wrap: wrap;
+      }
+      .mobile-nav-toggle {
+        display: inline-flex;
+      }
+      .nav-links {
+        display: none;
+        width: 100%;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+        padding-top: 12px;
+        border-top: 1px solid var(--border-color);
+      }
+      .nav-links.open {
+        display: flex;
+      }
+    }
   </style>
 </head>
 <body>
@@ -648,29 +706,34 @@
   <a href="#mainContent" class="skip-link">Skip to main content</a>
 
   <!-- Top Navigation -->
-  <header class="top-nav" role="banner">
+  <nav class="top-nav" role="navigation" aria-label="Main Navigation">
     <div class="nav-left">
       <a href="../" class="brand-group" title="Pythos AI Home" aria-label="Return to Pythos AI Workspace">
         <img src="../assets/pythos_avatar.jpg" alt="Pythos Oracle" class="brand-avatar" width="36" height="36" />
         <span class="brand-name">PYTHOS</span>
       </a>
+      <div class="nav-links" id="navLinks">
+        <a href="../subjects/" class="nav-link">Subjects</a>
+        <a href="./" class="nav-link active" aria-current="page">Validation</a>
+        <a href="../about/" class="nav-link">About</a>
+        <a href="../nonprofit.html" class="nav-link">Mission & Roadmap</a>
+        <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" class="nav-link">Facebook</a>
+        <a href="../changelog.html#pythos-1-8-8" class="nav-link">v1.8.8</a>
+      </div>
     </div>
-    <nav class="nav-right" role="navigation" aria-label="Main Navigation">
-      <a href="../subjects/" class="nav-link">Subjects</a>
-      <a href="./" class="nav-link active" aria-current="page">Validation</a>
-      <a href="../about/" class="nav-link">About</a>
-      <a href="../nonprofit.html" class="nav-link">Nonprofit</a>
-      <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" class="nav-link">Facebook</a>
-      <a href="../changelog.html#pythos-1-8-7" class="nav-link">v1.8.7</a>
+    <div class="nav-right">
       <button id="themeToggleBtn" class="theme-toggle-btn" title="Toggle Theme" aria-label="Toggle Dark and Light Theme">
         <span id="themeIcon" aria-hidden="true">🌓</span>
+      </button>
+      <button id="mobileNavToggleBtn" class="mobile-nav-toggle" aria-label="Toggle Navigation Menu" aria-expanded="false" aria-controls="navLinks">
+        ☰
       </button>
       <a href="../" class="btn-launch" title="Launch Interactive Workspace">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
         Workspace
       </a>
-    </nav>
-  </header>
+    </div>
+  </nav>
 
   <!-- Main Content -->
   <main id="mainContent" class="container" role="main">
@@ -963,6 +1026,10 @@
         </div>
       </div>
 
+      <div class="callout" style="margin-top: 20px;">
+        <strong>Historical Scope &amp; Verification Evolution:</strong> The 50,000-problem benchmark documented above is a frozen, authoritative evaluation of the Pythos v1.8.4 deterministic text-verification engine. Subsequent Pythos releases have expanded the verification architecture beyond this milestone—incorporating <em>vision verification</em> for geometric diagrams and textbook photos, alongside <em>verified backup-brain recovery</em>. Newer capabilities build directly on the frozen benchmark foundation without altering historical evidence.
+      </div>
+
       <h3>Open Science &amp; Public Evidence</h3>
       <p>
         In accordance with our commitment to transparency, the entire benchmark harness, validation scripts, and raw execution telemetry are maintained in our public repository:
@@ -978,15 +1045,15 @@
 
   <!-- Footer -->
   <footer role="contentinfo">
-    <div>🏛️ Pythos — Free AI Mathematics &amp; Physics Education. Developed by a student for students.</div>
+    <div>🏛️ Pythos — Free AI Mathematics &amp; Physics Education. Created by Jon Scott as part of the LANZAR initiative.</div>
     <div style="margin-top: 6px; opacity: 0.8;">
       Pythos &copy; 2026 <a href="https://lanzar.me" target="_blank" rel="noopener">LANZAR</a>. All rights reserved. &bull;
       <a href="../subjects/">Subjects</a> &bull;
       <a href="./">Validation</a> &bull;
       <a href="../about/">About</a> &bull;
-      <a href="../nonprofit.html">Nonprofit</a> &bull;
+      <a href="../nonprofit.html">Mission & Roadmap</a> &bull;
       <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer">Facebook</a> &bull;
-      <a href="../changelog.html#pythos-1-8-7">v1.8.7</a>
+      <a href="../changelog.html#pythos-1-8-8">v1.8.8</a>
     </div>
   </footer>
 
@@ -1013,6 +1080,15 @@
       const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
       applyTheme(current === 'dark' ? 'light' : 'dark');
     });
+
+    const mobileNavToggleBtn = document.getElementById('mobileNavToggleBtn');
+    const navLinks = document.getElementById('navLinks');
+    if (mobileNavToggleBtn && navLinks) {
+      mobileNavToggleBtn.addEventListener('click', () => {
+        const isOpen = navLinks.classList.toggle('open');
+        mobileNavToggleBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      });
+    }
   </script>
 </body>
 </html>

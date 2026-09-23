@@ -10,12 +10,21 @@
     gtag('config', 'G-JFV7CSM9G9');
   </script>
 
+  <!-- Microsoft Clarity Tracking (Asynchronous & Privacy-Masked) -->
+  <script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+      c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+      t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+      y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "xkhxzoeiol");
+  </script>
+
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="../assets/favicon.png">
   
   <title>Free AI Physics Tutor & Mechanics Solver | Pythos</title>
-  <meta name="description" content="Explore physics principles with Pythos: Newtonian mechanics, kinematics, rotational dynamics, and projectile motion with CAS verification.">
+  <meta name="description" content="Explore physics with Pythos: Newtonian mechanics, kinematics, dynamics, and diagrams verified by Math.js, SymPy, and the proprietary Pythos Verifier.">
   <meta name="keywords" content="AI physics tutor, free AI physics solver, projectile motion calculator, kinematics equation helper, college physics help">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
@@ -263,6 +272,26 @@
       border-color: var(--primary-color);
     }
 
+    .mobile-nav-toggle {
+      display: none;
+      background: var(--surface-color);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      border-radius: 8px;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: 1rem;
+      line-height: 1;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+
+    .mobile-nav-toggle:hover {
+      color: var(--primary-color);
+      border-color: var(--primary-color);
+    }
+
     .btn-launch {
       display: inline-flex;
       align-items: center;
@@ -403,8 +432,26 @@
     }
 
     @media (max-width: 768px) {
-      .top-nav { flex-wrap: wrap; }
-      .nav-links { display: none; }
+      .top-nav {
+        position: sticky;
+        top: 0;
+        flex-wrap: wrap;
+      }
+      .mobile-nav-toggle {
+        display: inline-flex;
+      }
+      .nav-links {
+        display: none;
+        width: 100%;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+        padding-top: 12px;
+        border-top: 1px solid var(--border-color);
+      }
+      .nav-links.open {
+        display: flex;
+      }
       .hero-card { padding: 24px 18px; }
       h1 { font-size: 1.6rem; }
     }
@@ -420,19 +467,22 @@
         <img src="../assets/pythos_avatar.jpg" alt="Pythos Oracle" class="brand-logo" width="32" height="32" />
         <span class="brand-title">PYTHOS</span>
       </a>
-      <div class="nav-links">
+      <div class="nav-links" id="navLinks">
         <a href="../subjects/" class="nav-link active">Subjects</a>
         <a href="../validation/" class="nav-link">Validation</a>
         <a href="../about/" class="nav-link">About</a>
-        <a href="../nonprofit.html" class="nav-link">Nonprofit</a>
+        <a href="../nonprofit.html" class="nav-link">Mission & Roadmap</a>
         <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" class="nav-link">Facebook</a>
-        <a href="../changelog.html#pythos-1-8-7" class="nav-link">v1.8.7</a>
+        <a href="../changelog.html#pythos-1-8-8" class="nav-link">v1.8.8</a>
       </div>
     </div>
 
     <div class="nav-right">
       <button id="themeToggleBtn" class="theme-toggle" title="Toggle Dark/Light Mode" aria-label="Toggle Dark and Light Theme">
         <span id="themeIcon" aria-hidden="true">🌓</span>
+      </button>
+      <button id="mobileNavToggleBtn" class="mobile-nav-toggle" aria-label="Toggle Navigation Menu" aria-expanded="false" aria-controls="navLinks">
+        ☰
       </button>
       <a href="../" class="btn-launch">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
@@ -452,9 +502,12 @@
         </div>
       </div>
 
-      <h2>Conceptual Physics & Dimensional Analysis</h2>
+      <h2>Conceptual Physics & Three-Layer Verification</h2>
       <p>
-        Physics is more than plugging numbers into formulas—it is understanding conservation laws, vector decomposition, and dimensional relationships. Pythos helps you set up free-body diagrams, balance forces, and verify units across SI and imperial systems.
+        Physics is more than plugging numbers into formulas—it is understanding conservation laws, vector decomposition, dimensional relationships, and physical diagrams. Pythos helps you set up free-body diagrams, balance forces, verify units across SI and imperial systems, and inspect problem diagrams with multi-step deterministic checks.
+      </p>
+      <p>
+        Calculations and derivations are independently validated across three distinct verification layers: <strong>Math.js</strong> for numerical calculations and unit arithmetic, <strong>SymPy</strong> for symbolic mechanics and calculus, and the <strong>Proprietary Pythos Verifier</strong> for physical claim extraction, diagram fidelity, and automated revision.
       </p>
 
       <h2>Core Physics Disciplines</h2>
@@ -496,8 +549,8 @@
 
   <!-- Footer -->
   <footer>
-    <div>🏛️ Developed by a student for students. Built on deterministic CAS verification.</div>
-    <div style="margin-top: 6px; opacity: 0.75;">Pythos &copy; 2026 <a href="https://lanzar.me" target="_blank" rel="noopener" style="color:var(--primary-color); text-decoration:none;">LANZAR</a>. All rights reserved. &bull; <a href="../subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="../validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="../about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="../nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Nonprofit</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="../changelog.html#pythos-1-8-7" style="color:var(--primary-color); text-decoration:none;">v1.8.7</a></div>
+    <div>🏛️ Pythos — Free AI Mathematics & Physics Education. Created by Jon Scott as part of the LANZAR initiative.</div>
+    <div style="margin-top: 6px; opacity: 0.75;">Pythos &copy; 2026 <a href="https://lanzar.me" target="_blank" rel="noopener" style="color:var(--primary-color); text-decoration:none;">LANZAR</a>. All rights reserved. &bull; <a href="../subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="../validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="../about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="../nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission & Roadmap</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="../changelog.html#pythos-1-8-8" style="color:var(--primary-color); text-decoration:none;">v1.8.8</a></div>
   </footer>
 
   <script>
@@ -522,6 +575,15 @@
       const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
       applyTheme(current === 'dark' ? 'light' : 'dark');
     });
+
+    const mobileNavToggleBtn = document.getElementById('mobileNavToggleBtn');
+    const navLinks = document.getElementById('navLinks');
+    if (mobileNavToggleBtn && navLinks) {
+      mobileNavToggleBtn.addEventListener('click', () => {
+        const isOpen = navLinks.classList.toggle('open');
+        mobileNavToggleBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      });
+    }
 
     document.addEventListener('DOMContentLoaded', () => {
       if (window.renderMathInElement) {

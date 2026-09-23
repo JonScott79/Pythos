@@ -10,12 +10,21 @@
     gtag('config', 'G-JFV7CSM9G9');
   </script>
 
+  <!-- Microsoft Clarity Tracking (Asynchronous & Privacy-Masked) -->
+  <script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+      c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+      t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+      y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "xkhxzoeiol");
+  </script>
+
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="../assets/favicon.png">
   
   <title>Free AI Algebra Tutor & Problem Solver | Pythos</title>
-  <meta name="description" content="Master algebra with Pythos: step-by-step guidance on linear equations, quadratic formulas, polynomial factoring, and matrix transformations.">
+  <meta name="description" content="Master algebra with Pythos: step-by-step guidance on equations, quadratics, polynomials, and matrices. Created by Jon Scott as part of the LANZAR initiative.">
   <meta name="keywords" content="AI algebra tutor, free AI math tutor, how to solve quadratic equations, factoring quadratics, systems of equations, college algebra help">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
@@ -402,9 +411,42 @@
       margin-top: auto;
     }
 
+    .mobile-nav-toggle {
+      display: none;
+      background: var(--surface-color);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      border-radius: 8px;
+      padding: 6px 8px;
+      cursor: pointer;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+    .mobile-nav-toggle:hover {
+      color: var(--primary-color);
+      border-color: var(--primary-color);
+    }
+
     @media (max-width: 768px) {
-      .top-nav { flex-wrap: wrap; }
-      .nav-links { display: none; }
+      .top-nav { flex-wrap: wrap; position: sticky; }
+      .mobile-nav-toggle { display: inline-flex; }
+      .nav-links {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: var(--surface-card);
+        border-bottom: 1px solid var(--border-color);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        padding: 16px 20px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 14px;
+        z-index: 1000;
+      }
+      .nav-links.nav-open { display: flex; }
       .hero-card { padding: 24px 18px; }
       h1 { font-size: 1.6rem; }
     }
@@ -420,13 +462,13 @@
         <img src="../assets/pythos_avatar.jpg" alt="Pythos Oracle" class="brand-logo" width="32" height="32" />
         <span class="brand-title">PYTHOS</span>
       </a>
-      <div class="nav-links">
+      <div class="nav-links" id="navLinks">
         <a href="../subjects/" class="nav-link active">Subjects</a>
         <a href="../validation/" class="nav-link">Validation</a>
         <a href="../about/" class="nav-link">About</a>
-        <a href="../nonprofit.html" class="nav-link">Nonprofit</a>
+        <a href="../nonprofit.html" class="nav-link">Mission &amp; Roadmap</a>
         <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" class="nav-link">Facebook</a>
-        <a href="../changelog.html#pythos-1-8-7" class="nav-link">v1.8.7</a>
+        <a href="../changelog.html#pythos-1-8-8" class="nav-link">v1.8.8</a>
       </div>
     </div>
 
@@ -438,6 +480,9 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
         Back to Pythos Oracle
       </a>
+      <button id="mobileNavToggleBtn" class="mobile-nav-toggle" aria-label="Toggle Navigation Menu" aria-expanded="false" aria-controls="navLinks">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+      </button>
     </div>
   </nav>
 
@@ -454,7 +499,7 @@
 
       <h2>How Pythos Helps You Master Algebra</h2>
       <p>
-        Whether you are working through introductory algebra or college-level linear equations, Pythos guides you step-by-step with instant deterministic root checks, factor verification, and interactive parabola plots.
+        Whether you are working through introductory algebra or college-level linear systems, Pythos guides you step-by-step with instant deterministic root checks, factor verification, and interactive parabola plots. Powered by our three-layer verification architecture (Math.js, SymPy, and the proprietary Pythos verifier), all algebraic steps are rigorously verified before presentation.
       </p>
 
       <h2>Core Algebra Disciplines</h2>
@@ -496,8 +541,8 @@
 
   <!-- Footer -->
   <footer>
-    <div>🏛️ Developed by a student for students. Built on deterministic CAS verification.</div>
-    <div style="margin-top: 6px; opacity: 0.75;">Pythos &copy; 2026 <a href="https://lanzar.me" target="_blank" rel="noopener" style="color:var(--primary-color); text-decoration:none;">LANZAR</a>. All rights reserved. &bull; <a href="../subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="../validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="../about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="../nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Nonprofit</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="../changelog.html#pythos-1-8-7" style="color:var(--primary-color); text-decoration:none;">v1.8.7</a></div>
+    <div>🏛️ Pythos — Free AI Mathematics &amp; Physics Education. Created by Jon Scott as part of the LANZAR initiative.</div>
+    <div style="margin-top: 6px; opacity: 0.75;">Pythos &copy; 2026 <a href="https://lanzar.me" target="_blank" rel="noopener" style="color:var(--primary-color); text-decoration:none;">LANZAR</a>. All rights reserved. &bull; <a href="../subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="../validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="../about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="../nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="../changelog.html#pythos-1-8-8" style="color:var(--primary-color); text-decoration:none;">v1.8.8</a></div>
   </footer>
 
   <script>
@@ -522,6 +567,16 @@
       const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
       applyTheme(current === 'dark' ? 'light' : 'dark');
     });
+
+    // Mobile Navigation Drawer Toggle
+    const mobileToggle = document.getElementById('mobileNavToggleBtn');
+    const navLinks = document.getElementById('navLinks');
+    if (mobileToggle && navLinks) {
+      mobileToggle.addEventListener('click', () => {
+        const isOpen = navLinks.classList.toggle('nav-open');
+        mobileToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      });
+    }
 
     document.addEventListener('DOMContentLoaded', () => {
       if (window.renderMathInElement) {
