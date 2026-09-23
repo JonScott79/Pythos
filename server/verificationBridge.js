@@ -823,11 +823,42 @@ async function runDeterministicVerification(claim, userPrompt = '') {
   return pythonResult;
 }
 
+/**
+ * Extracts claims, checks consistency, and executes deterministic verification on content.
+ * Used for initial response audit and mandatory post-revision re-verification.
+ */
+async function verifyResponseClaims(content, userQueryText, abortSignal) {
+  const claims = extractClaims(content, userQueryText || '');
+  const internalContradictions = auditInternalConsistency(claims);
+  const verificationResults = [];
+  const invalidClaims = [];
+
+  for (let ci = 0; ci < claims.length; ci++) {
+    if (abortSignal && abortSignal.aborted) break;
+    const claim = claims[ci];
+    const verification = await runDeterministicVerification(claim, userQueryText || '');
+    if (verification) {
+      verificationResults.push(verification);
+    }
+    if (verification && verification.verified === false && verification.status !== 'UNKNOWN') {
+      invalidClaims.push({ claim, verification, claimIndex: ci });
+    }
+  }
+
+  return {
+    claims,
+    internalContradictions,
+    verificationResults,
+    invalidClaims
+  };
+}
+
 module.exports = {
   extractClaims,
   auditInternalConsistency,
   runDeterministicVerification,
   checkPromptClaimFidelity,
+  verifyResponseClaims,
   getPythonExecutable,
   getCasTelemetry
 };

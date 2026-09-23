@@ -5,6 +5,16 @@ All notable changes to the Pythos project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Pythos 1.8.7
+**Release Date:** 2026-09-23
+
+### Added & Hardened
+- **Verified Backup-Brain Recovery Gateway** (`server/server.js`, `server/providerPolicy.js`): Automated failover for primary LLM infrastructure failures (connection dropped, socket timeout, 5xx server faults, empty response) to an independent, hosted backup brain (`groq-text` / `openai/gpt-oss-20b`).
+- **Strict Verification Invariance**: Candidate solutions from the backup brain pass through the exact same verification pipeline (claims extraction, prompt-to-claim fidelity, deterministic Math.js / SymPy CAS evaluation, automated revision with re-verification, Deterministic Supremacy CAS replacement, and delivery gate). Unverified or mathematically invalid backup claims are never delivered.
+- **Strict $0 Cost Guardrail & Token Discipline**: Both primary and backup providers operate under the $0 budget mode (`free_only`, `freeEligible: true`) with automated token compaction enforcing Groq's 8,000 TPM limit. Normal successful primary requests incur zero backup calls and zero token overhead.
+- **Fail-Safe Safe Withholding**: If both primary and backup reasoning engines are unavailable, the system safely withholds and returns an explicit 503 error, adhering strictly to the safety principle: WRONG > UNKNOWN: NEVER.
+- **Comprehensive 17-Test Verification Suite** (`test-backup-brain.js`): Added an end-to-end test suite proving verification invariance, prompt fidelity, deterministic supremacy overrides on backup math errors, multi-turn context retention, and zero overhead on primary success.
+
 ## Pythos 1.8.6
 **Release Date:** 2026-09-19
 

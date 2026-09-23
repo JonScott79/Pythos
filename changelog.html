@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="assets/favicon.png">
-  <title>Pythos Release History & Changelog | v1.8.6</title>
+  <title>Pythos Release History & Changelog | v1.8.7</title>
   <meta name="description" content="Pythos release notes & changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://pythos.lanzar.me/changelog.html">
 
   <!-- OPEN GRAPH -->
-  <meta property="og:title" content="Pythos Release History & Changelog | v1.8.6">
+  <meta property="og:title" content="Pythos Release History & Changelog | v1.8.7">
   <meta property="og:description" content="Pythos release notes & changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta property="og:url" content="https://pythos.lanzar.me/changelog.html">
   <meta property="og:type" content="article">
@@ -23,7 +23,7 @@
 
   <!-- TWITTER CARD -->
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Pythos Release History & Changelog | v1.8.6">
+  <meta name="twitter:title" content="Pythos Release History & Changelog | v1.8.7">
   <meta name="twitter:description" content="Pythos release notes & changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="twitter:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
 
@@ -32,10 +32,10 @@
   {
     "@context": "https://schema.org",
     "@type": "TechArticle",
-    "headline": "Pythos 1.8.6 Release Notes and Changelog",
+    "headline": "Pythos 1.8.7 Release Notes and Changelog",
     "description": "Authoritative release history for Pythos: specialized problem routing, two-stage reasoning, and CAS ground-truth verification.",
     "datePublished": "2026-08-26",
-    "dateModified": "2026-09-19",
+    "dateModified": "2026-09-23",
     "author": {
       "@type": "Person",
       "name": "Jon Scott",
@@ -432,12 +432,32 @@
       <p>Authoritative release notes, verification engine milestones, and mathematical system updates.</p>
     </header>
 
+    <!-- RELEASE v1.8.7 -->
+    <article class="release-card" id="pythos-1-8-7">
+      <div class="release-header">
+        <div class="release-title-wrap">
+          <h2 class="release-version">Pythos 1.8.7</h2>
+          <span class="release-badge">Latest Release</span>
+        </div>
+        <time class="release-date" datetime="2026-09-23">September 23, 2026</time>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header added">✦ WHAT'S NEW</div>
+        <ul class="feature-list">
+          <li><strong>Verified Backup-Brain Recovery Gateway</strong>: Automated failover for primary LLM infrastructure failures (connection drops, socket timeouts, 5xx server errors, blank responses) to an independent, hosted backup brain (<code>groq-text</code> / <code>openai/gpt-oss-20b</code>).</li>
+          <li><strong>Strict Verification Invariance</strong>: Candidate solutions from the backup brain pass through the exact same verification pipeline (atomic claims extraction, prompt-to-claim fidelity, deterministic Math.js / SymPy CAS evaluation, automated revision with re-verification, Deterministic Supremacy CAS replacement, and delivery gate). Unverified or mathematically invalid backup claims are never delivered.</li>
+          <li><strong>Strict $0 Cost Guardrail &amp; Token Discipline</strong>: Both primary and backup providers operate in <code>free_only</code> mode (<code>freeEligible: true</code>) with automated prompt compaction enforcing Groq's 8,000 TPM limit. Normal successful primary requests incur zero backup calls and zero token overhead.</li>
+          <li><strong>Fail-Safe Safe Withholding</strong>: If both primary and backup reasoning engines are unavailable, the system safely withholds and returns an explicit 503 error, adhering strictly to the safety principle: WRONG &gt; UNKNOWN: NEVER.</li>
+        </ul>
+      </div>
+    </article>
+
     <!-- RELEASE v1.8.6 -->
     <article class="release-card" id="pythos-1-8-6">
       <div class="release-header">
         <div class="release-title-wrap">
           <h2 class="release-version">Pythos 1.8.6</h2>
-          <span class="release-badge">Latest Release</span>
         </div>
         <time class="release-date" datetime="2026-09-19">September 19, 2026</time>
       </div>

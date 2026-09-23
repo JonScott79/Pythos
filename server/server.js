@@ -468,7 +468,7 @@ app.get('/health/ready', async (req, res) => {
 });
 
 const learningStore = require('./learningStore');
-const { runDeterministicVerification, extractClaims, auditInternalConsistency } = require('./verificationBridge');
+const { runDeterministicVerification, extractClaims, auditInternalConsistency, verifyResponseClaims } = require('./verificationBridge');
 const {
   analyzeDeterministicIntent,
   extractPreflightDeterministicFacts,
@@ -557,7 +557,7 @@ async function executeGroqVisionCall(provider, { messages, visionSystemPrompt, o
       headers: {
         'Authorization': `Bearer ${groqApiKey}`,
         'Content-Type': 'application/json',
-        'User-Agent': 'Pythos-Vision/1.8.6',
+        'User-Agent': 'Pythos-Vision/1.8.7',
         'Content-Length': Buffer.byteLength(groqPayload)
       },
       timeout: timeoutMs
@@ -720,7 +720,7 @@ async function executeGeminiVisionCall(provider, { messages, visionSystemPrompt,
       headers: {
         'x-goog-api-key': geminiApiKey,
         'Content-Type': 'application/json',
-        'User-Agent': 'Pythos-Vision/1.8.6',
+        'User-Agent': 'Pythos-Vision/1.8.7',
         'Content-Length': Buffer.byteLength(geminiPayload)
       },
       timeout: timeoutMs
@@ -870,34 +870,478 @@ async function executeVisionCall(provider, context) {
 }
 
 /**
- * Extracts claims, checks consistency, and executes deterministic verification on content.
- * Used for initial response audit and mandatory post-revision re-verification.
+ * Executes a text reasoning call against Groq models (Backup Provider).
  */
-async function verifyResponseClaims(content, userQueryText, abortSignal) {
-  const claims = extractClaims(content, userQueryText || '');
-  const internalContradictions = auditInternalConsistency(claims);
-  const verificationResults = [];
-  const invalidClaims = [];
+async function executeGroqTextCall(provider, { messages, options, timeoutMs = 20000, signal }) {
+  const groqApiKey = providerPolicy.getGroqApiKey();
+  if (!groqApiKey) {
+    const err = new Error('Groq API key is not configured');
+    err.statusCode = 401;
+    throw err;
+  }
 
-  for (let ci = 0; ci < claims.length; ci++) {
-    if (abortSignal && abortSignal.aborted) break;
-    const claim = claims[ci];
-    const verification = await runDeterministicVerification(claim, userQueryText || '');
-    if (verification) {
-      verificationResults.push(verification);
+  const targetModel = provider.model || process.env.GROQ_TEXT_MODEL || 'openai/gpt-oss-20b';
+  const textMessages = messages.map(m => {
+    if (m.images && m.images.length > 0) {
+      const { images, ...rest } = m;
+      return rest;
     }
-    if (verification && verification.verified === false && verification.status !== 'UNKNOWN') {
-      invalidClaims.push({ claim, verification, claimIndex: ci });
+    // When routing to Groq text backup, compact the massive system prompt to maintain token discipline
+    if (m.role === 'system' && m.content && m.content.length > 3000) {
+      // Retain identity, context, child-safety, and essential Socratic tutoring directives while fitting TPM limits
+      const compactSystemPrompt = `You are Pythos, a wise, warm mathematics and physics tutor inspired by Ancient Greek scholarship and Socratic pedagogy.
+Created by Jon Scott (a LANZAR initiative). Maintain clean, encouraging, child-safe language with zero profanity.
+Ground all reasoning in deterministic mathematical accuracy. Explain step-by-step with clean LaTeX.
+If deterministic facts or preflight calculations are provided below, treat them as authoritative mathematical truth.
+${m.content.slice(PYTHOS_SYSTEM_PROMPT.length).trim()}`;
+      return { role: 'system', content: compactSystemPrompt };
+    }
+    return { role: m.role, content: m.content || '' };
+  });
+
+  const groqPayload = JSON.stringify({
+    model: targetModel,
+    messages: textMessages,
+    temperature: options?.temperature || 0.2,
+    max_tokens: Math.min(options?.num_predict || 2048, 2048),
+    stream: false
+  });
+
+  const groqHttps = require('https');
+  const executeCall = () => new Promise((resolveGroq, rejectGroq) => {
+    const groqReq = groqHttps.request({
+      hostname: 'api.groq.com',
+      port: 443,
+      path: '/openai/v1/chat/completions',
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${groqApiKey}`,
+        'Content-Type': 'application/json',
+        'User-Agent': 'Pythos-Backup/1.8.7',
+        'Content-Length': Buffer.byteLength(groqPayload)
+      },
+      timeout: timeoutMs
+    }, (gRes) => {
+      let gBody = '';
+      gRes.on('data', chunk => gBody += chunk);
+      gRes.on('end', () => {
+        if (gRes.statusCode === 429) {
+          const err = new Error(`RATE_LIMIT: ${gBody}`);
+          err.statusCode = 429;
+          err.status = 429;
+          err.body = gBody;
+          if (gRes.headers['retry-after']) {
+            err.retryAfter = parseInt(gRes.headers['retry-after'], 10);
+          }
+          return rejectGroq(err);
+        }
+        if (gRes.statusCode >= 400) {
+          const err = new Error(`Groq Text returned ${gRes.statusCode}: ${gBody}`);
+          err.statusCode = gRes.statusCode;
+          err.status = gRes.statusCode;
+          err.body = gBody;
+          return rejectGroq(err);
+        }
+        try {
+          const parsed = JSON.parse(gBody);
+          const text = parsed.choices?.[0]?.message?.content || '';
+          resolveGroq({
+            model: targetModel,
+            content: text,
+            provider: provider.name
+          });
+        } catch (err) {
+          rejectGroq(err);
+        }
+      });
+    });
+
+    if (signal) {
+      if (signal.aborted) {
+        groqReq.destroy();
+        return rejectGroq(new Error('AbortError'));
+      }
+      signal.addEventListener('abort', () => {
+        groqReq.destroy();
+        rejectGroq(new Error('AbortError'));
+      }, { once: true });
+    }
+
+    groqReq.on('timeout', () => {
+      groqReq.destroy();
+      rejectGroq(new Error('ETIMEDOUT'));
+    });
+    groqReq.on('error', rejectGroq);
+    groqReq.write(groqPayload);
+    groqReq.end();
+  });
+
+  return await executeCall();
+}
+
+/**
+ * Executes a text reasoning call against Google Gemini models (Backup Provider).
+ */
+async function executeGeminiTextCall(provider, { messages, options, timeoutMs = 20000, signal }) {
+  const geminiApiKey = providerPolicy.getGeminiApiKey();
+  if (!geminiApiKey) {
+    const err = new Error('Gemini API key is not configured');
+    err.statusCode = 401;
+    throw err;
+  }
+
+  const targetModel = provider.model || process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash';
+  const sysMsg = messages.find(m => m.role === 'system');
+  const chatMessages = messages.filter(m => m.role !== 'system');
+
+  const contents = [];
+  for (const m of chatMessages) {
+    const role = m.role === 'assistant' ? 'model' : 'user';
+    const text = m.content || '';
+    if (!text.trim()) continue;
+    if (contents.length > 0 && contents[contents.length - 1].role === role) {
+      contents[contents.length - 1].parts.push({ text });
+    } else {
+      contents.push({ role, parts: [{ text }] });
     }
   }
 
-  return {
-    claims,
-    internalContradictions,
-    verificationResults,
-    invalidClaims
+  const payloadObj = {
+    contents,
+    generationConfig: {
+      temperature: options?.temperature || 0.2,
+      maxOutputTokens: 2048
+    }
   };
+  if (sysMsg && sysMsg.content) {
+    payloadObj.systemInstruction = {
+      parts: [{ text: sysMsg.content }]
+    };
+  }
+
+  const geminiPayload = JSON.stringify(payloadObj);
+  const geminiHttps = require('https');
+  const executeCall = () => new Promise((resolveGemini, rejectGemini) => {
+    const geminiReq = geminiHttps.request({
+      hostname: 'generativelanguage.googleapis.com',
+      port: 443,
+      path: `/v1beta/models/${encodeURIComponent(targetModel)}:generateContent?key=${encodeURIComponent(geminiApiKey)}`,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'Pythos-Backup/1.8.7',
+        'Content-Length': Buffer.byteLength(geminiPayload)
+      },
+      timeout: timeoutMs
+    }, (gmRes) => {
+      let gmBody = '';
+      gmRes.on('data', chunk => gmBody += chunk);
+      gmRes.on('end', () => {
+        if (gmRes.statusCode === 429) {
+          const err = new Error(`RATE_LIMIT: ${gmBody}`);
+          err.statusCode = 429;
+          err.status = 429;
+          err.body = gmBody;
+          if (gmRes.headers['retry-after']) {
+            err.retryAfter = parseInt(gmRes.headers['retry-after'], 10);
+          }
+          return rejectGemini(err);
+        }
+        if (gmRes.statusCode >= 400) {
+          const err = new Error(`Gemini Text returned ${gmRes.statusCode}: ${gmBody}`);
+          err.statusCode = gmRes.statusCode;
+          err.status = gmRes.statusCode;
+          err.body = gmBody;
+          return rejectGemini(err);
+        }
+        try {
+          const parsed = JSON.parse(gmBody);
+          if (parsed.error) {
+            const err = new Error(`Gemini error: ${parsed.error.message || JSON.stringify(parsed.error)}`);
+            err.statusCode = parsed.error.code || gmRes.statusCode;
+            err.status = err.statusCode;
+            err.body = gmBody;
+            return rejectGemini(err);
+          }
+          const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          resolveGemini({
+            model: targetModel,
+            content: text,
+            provider: provider.name
+          });
+        } catch (err) {
+          rejectGemini(err);
+        }
+      });
+    });
+
+    if (signal) {
+      if (signal.aborted) {
+        geminiReq.destroy();
+        return rejectGemini(new Error('AbortError'));
+      }
+      signal.addEventListener('abort', () => {
+        geminiReq.destroy();
+        rejectGemini(new Error('AbortError'));
+      }, { once: true });
+    }
+
+    geminiReq.on('timeout', () => {
+      geminiReq.destroy();
+      rejectGemini(new Error('ETIMEDOUT'));
+    });
+    geminiReq.on('error', rejectGemini);
+    geminiReq.write(geminiPayload);
+    geminiReq.end();
+  });
+
+  return await executeCall();
 }
+
+/**
+ * Executes a text reasoning call against local or upstream Ollama.
+ */
+function executeOllamaTextCall({ targetModel, ollamaMessages, effectiveOptions, isStreaming, res, abortController, timeoutMs }) {
+  const payload = JSON.stringify({
+    model: targetModel,
+    messages: ollamaMessages,
+    stream: true,
+    options: effectiveOptions
+  });
+
+  const isHttps = OLLAMA_HOST.startsWith('https://');
+  const httpLib = isHttps ? require('https') : require('http');
+  const parsedUrl = new URL(`${OLLAMA_HOST}/api/chat`);
+
+  const ollamaHeaders = getOllamaHeaders();
+  ollamaHeaders['Content-Type'] = 'application/json';
+  ollamaHeaders['Content-Length'] = Buffer.byteLength(payload);
+
+  return new Promise((resolve, reject) => {
+    let isFirstChunk = true;
+
+    const ollamaReq = httpLib.request({
+      hostname: parsedUrl.hostname,
+      port: parsedUrl.port || (isHttps ? 443 : 80),
+      path: parsedUrl.pathname,
+      method: 'POST',
+      headers: ollamaHeaders,
+      timeout: timeoutMs
+    }, (resUpstream) => {
+      let fullText = '';
+      let streamBuffer = '';
+      let upstreamErrorBody = '';
+
+      resUpstream.on('data', (chunk) => {
+        if (resUpstream.statusCode >= 400) {
+          upstreamErrorBody += chunk.toString();
+          return;
+        }
+
+        if (isStreaming && isFirstChunk && !res.headersSent && !res.writableEnded) {
+          isFirstChunk = false;
+          res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+          res.setHeader('Transfer-Encoding', 'chunked');
+          res.setHeader('Cache-Control', 'no-cache, no-transform');
+        }
+
+        streamBuffer += chunk.toString();
+        const lines = streamBuffer.split('\n');
+        streamBuffer = lines.pop();
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          try {
+            const data = JSON.parse(trimmed);
+            if (data.message && data.message.content) {
+              fullText += data.message.content;
+              if (isStreaming && !res.writableEnded) {
+                res.write(JSON.stringify({
+                  type: 'token',
+                  content: data.message.content
+                }) + '\n');
+              }
+            }
+          } catch (e) {}
+        }
+      });
+
+      resUpstream.on('end', () => {
+        if (resUpstream.statusCode >= 400) {
+          console.error(`[PYTHOS API] Upstream Ollama error: status=${resUpstream.statusCode}, model=${targetModel}, body=${sanitizeErrorDetail(upstreamErrorBody || streamBuffer || fullText)}`);
+          const upErr = new Error(`Upstream provider returned status ${resUpstream.statusCode}: ${upstreamErrorBody || streamBuffer || fullText || 'No error details'}`);
+          upErr.statusCode = resUpstream.statusCode;
+          upErr.status = resUpstream.statusCode;
+          upErr.body = upstreamErrorBody || streamBuffer || fullText;
+          return reject(upErr);
+        }
+        if (streamBuffer && streamBuffer.trim()) {
+          try {
+            const data = JSON.parse(streamBuffer.trim());
+            if (data.message && data.message.content) {
+              fullText += data.message.content;
+              if (isStreaming && !res.writableEnded) {
+                res.write(JSON.stringify({
+                  type: 'token',
+                  content: data.message.content
+                }) + '\n');
+              }
+            }
+          } catch (e) {}
+        }
+        resolve({
+          model: targetModel,
+          content: fullText,
+          provider: 'ollama-text'
+        });
+      });
+    });
+
+    const onAbort = () => {
+      ollamaReq.destroy();
+      const abortErr = new Error('Request aborted');
+      abortErr.name = 'AbortError';
+      reject(abortErr);
+    };
+    abortController.signal.addEventListener('abort', onAbort, { once: true });
+
+    ollamaReq.on('timeout', () => {
+      ollamaReq.destroy();
+      reject(new Error('ETIMEDOUT'));
+    });
+
+    ollamaReq.on('error', (err) => {
+      reject(err);
+    });
+
+    ollamaReq.write(payload);
+    ollamaReq.end();
+  });
+}
+
+/**
+ * Executes a revision request against the provider that originated the candidate solution.
+ */
+async function executeRevisionCall(candidateResult, { revisionPrompt, effectiveOptions, timeoutMs = REVISION_TIMEOUT_MS, signal }) {
+  if (candidateResult.provider === 'groq-text') {
+    const groqSelection = providerPolicy.selectProvider({ capability: 'text', exclude: ['ollama-text'] });
+    if (groqSelection.provider && groqSelection.provider.name === 'groq-text') {
+      try {
+        const revRes = await executeGroqTextCall(groqSelection.provider, {
+          messages: revisionPrompt,
+          options: effectiveOptions,
+          timeoutMs,
+          signal
+        });
+        return revRes?.content || '';
+      } catch (revErr) {
+        console.warn('[VERIFIER] Groq revision call failed:', revErr.message);
+        return '';
+      }
+    }
+  }
+
+  if (candidateResult.provider === 'gemini-text') {
+    const geminiSelection = providerPolicy.selectProvider({ capability: 'text', exclude: ['ollama-text', 'groq-text'] });
+    if (geminiSelection.provider && geminiSelection.provider.name === 'gemini-text') {
+      try {
+        const revRes = await executeGeminiTextCall(geminiSelection.provider, {
+          messages: revisionPrompt,
+          options: effectiveOptions,
+          timeoutMs,
+          signal
+        });
+        return revRes?.content || '';
+      } catch (revErr) {
+        console.warn('[VERIFIER] Gemini revision call failed:', revErr.message);
+        return '';
+      }
+    }
+  }
+
+  // Default: Ollama revision call
+  const revPayload = JSON.stringify({
+    model: candidateResult.model || OLLAMA_MODEL,
+    messages: revisionPrompt,
+    stream: true,
+    options: effectiveOptions
+  });
+
+  const isHttps = OLLAMA_HOST.startsWith('https://');
+  const httpLib = isHttps ? require('https') : require('http');
+  const parsedUrl = new URL(`${OLLAMA_HOST}/api/chat`);
+  const revHeaders = {
+    ...getOllamaHeaders(),
+    'Content-Length': Buffer.byteLength(revPayload)
+  };
+
+  return new Promise((resolveRev) => {
+    const revReq = httpLib.request({
+      hostname: parsedUrl.hostname,
+      port: parsedUrl.port || (isHttps ? 443 : 80),
+      path: parsedUrl.pathname,
+      method: 'POST',
+      headers: revHeaders,
+      timeout: timeoutMs
+    }, (revRes) => {
+      if (revRes.statusCode >= 400) {
+        revRes.resume();
+        return resolveRev('');
+      }
+      let revText = '';
+      let revBuffer = '';
+
+      revRes.on('data', (chunk) => {
+        revBuffer += chunk.toString();
+        const lines = revBuffer.split('\n');
+        revBuffer = lines.pop();
+
+        for (const l of lines) {
+          const trimmed = l.trim();
+          if (!trimmed) continue;
+          try {
+            const d = JSON.parse(trimmed);
+            if (d.message && d.message.content) revText += d.message.content;
+          } catch (e) {}
+        }
+      });
+      revRes.on('end', () => {
+        if (revBuffer && revBuffer.trim()) {
+          try {
+            const d = JSON.parse(revBuffer.trim());
+            if (d.message && d.message.content) revText += d.message.content;
+          } catch (e) {}
+        }
+        resolveRev(revText);
+      });
+    });
+
+    if (signal) {
+      if (signal.aborted) {
+        revReq.destroy();
+        return resolveRev('');
+      }
+      signal.addEventListener('abort', () => {
+        revReq.destroy();
+        resolveRev('');
+      }, { once: true });
+    }
+
+    revReq.on('timeout', () => {
+      console.warn(`[VERIFIER] Revision call timed out after ${timeoutMs}ms. Proceeding to deterministic overrides.`);
+      revReq.destroy();
+      resolveRev('');
+    });
+    revReq.on('error', (e) => {
+      console.warn('[VERIFIER] Revision call network error:', e.message);
+      resolveRev('');
+    });
+    revReq.write(revPayload);
+    revReq.end();
+  });
+}
+
 
 // =====================================
 // Public Chat / Inference Route
@@ -1400,7 +1844,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
       effectiveOptions.num_ctx = contextManager.TOTAL_CONTEXT_LIMIT;
     }
 
-    // Ensure text-only models (like OLLAMA_MODEL gpt-oss:20b) do not receive image payloads from prior turns
+    // Ensure text-only models do not receive image payloads from prior turns
     const ollamaMessages = preparedMessages.map(m => {
       if (m.images && m.images.length > 0) {
         const { images, ...rest } = m;
@@ -1409,140 +1853,173 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
       return m;
     });
 
-    const payload = JSON.stringify({
-      model: targetModel,
-      messages: ollamaMessages,
-      stream: true,
-      options: effectiveOptions
-    });
+    const triedTextProviders = new Set();
+    let candidateResult = null;
+    let primaryFailureError = null;
 
-    const isHttps = OLLAMA_HOST.startsWith('https://');
-    const httpLib = isHttps ? require('https') : require('http');
-    const parsedUrl = new URL(`${OLLAMA_HOST}/api/chat`);
+    // Provider Loop: Attempt primary provider (ollama-text).
+    // If primary encounters an infrastructure failure (connection drop, timeout, 5xx, or empty response),
+    // automatically invoke an eligible backup provider (groq-text or gemini-text) under the $0 cost guardrail.
+    while (true) {
+      if (abortController.signal.aborted) {
+        const abErr = new Error('Request aborted');
+        abErr.name = 'AbortError';
+        throw abErr;
+      }
 
-    const ollamaHeaders = getOllamaHeaders();
-    ollamaHeaders['Content-Type'] = 'application/json';
-    ollamaHeaders['Content-Length'] = Buffer.byteLength(payload);
+      const textSelection = providerPolicy.selectProvider({
+        capability: 'text',
+        exclude: Array.from(triedTextProviders)
+      });
+      const selectedProvider = textSelection.provider;
 
-    const ollamaResponse = await new Promise((resolve, reject) => {
-      let isFirstChunk = true;
+      if (!selectedProvider) {
+        if (candidateResult) break;
 
-      const ollamaReq = httpLib.request({
-        hostname: parsedUrl.hostname,
-        port: parsedUrl.port || (isHttps ? 443 : 80),
-        path: parsedUrl.pathname,
-        method: 'POST',
-        headers: ollamaHeaders,
-        timeout: REQUEST_TIMEOUT_MS
-      }, (resUpstream) => {
-        let fullText = '';
-        let lastMsg = null;
-        let streamBuffer = '';
+        if (primaryFailureError) {
+          throw primaryFailureError;
+        }
 
-        let upstreamErrorBody = '';
+        const isCostBlocked = textSelection.reason === 'COST_GUARDRAIL_BLOCKED';
+        const isRateLimited = textSelection.reason === 'ALL_RATE_LIMITED';
+        const errStatus = isCostBlocked ? 403 : 503;
+        const errCode = isRateLimited ? 'UPSTREAM_RATE_LIMITED' : 'UPSTREAM_UNAVAILABLE';
+        const errMsg = isCostBlocked
+          ? 'Text reasoning requires a paid provider, but Pythos is currently locked to $0 cost guardrail (free_only mode).'
+          : (textSelection.message || 'Text inference is temporarily unavailable.');
 
-        resUpstream.on('data', (chunk) => {
-          if (resUpstream.statusCode >= 400) {
-            upstreamErrorBody += chunk.toString();
-            return;
+        const upErr = new Error(errMsg);
+        upErr.statusCode = errStatus;
+        upErr.status = errStatus;
+        upErr.code = errCode;
+        upErr.retryAfter = textSelection.retryAfter || 0;
+        throw upErr;
+      }
+
+      triedTextProviders.add(selectedProvider.name);
+      const isPrimary = (selectedProvider.name === 'ollama-text');
+
+      try {
+        if (selectedProvider.name === 'ollama-text') {
+          const resOllama = await executeOllamaTextCall({
+            targetModel,
+            ollamaMessages,
+            effectiveOptions,
+            isStreaming,
+            res,
+            abortController,
+            timeoutMs: REQUEST_TIMEOUT_MS
+          });
+
+          if (!resOllama.content || !resOllama.content.trim()) {
+            const emptyErr = new Error('PRIMARY_EMPTY_RESPONSE: Primary LLM returned empty candidate response');
+            emptyErr.code = 'PRIMARY_EMPTY_RESPONSE';
+            throw emptyErr;
           }
 
-          if (isStreaming && isFirstChunk && !res.headersSent && !res.writableEnded) {
-            isFirstChunk = false;
+          candidateResult = {
+            model: targetModel,
+            content: resOllama.content,
+            provider: selectedProvider.name,
+            reasoningPath: 'PRIMARY'
+          };
+          break;
+        } else if (selectedProvider.name === 'groq-text') {
+          console.warn(`[BACKUP BRAIN] Primary reasoning failed. Invoking backup reasoning provider 'groq-text' (model: ${selectedProvider.model})...`);
+          const resGroq = await executeGroqTextCall(selectedProvider, {
+            messages: ollamaMessages,
+            options: effectiveOptions,
+            timeoutMs: Math.min(REQUEST_TIMEOUT_MS, 20000),
+            signal: abortController.signal
+          });
+
+          if (!resGroq.content || !resGroq.content.trim()) {
+            const emptyErr = new Error('BACKUP_EMPTY_RESPONSE: Backup LLM returned empty candidate response');
+            emptyErr.code = 'BACKUP_EMPTY_RESPONSE';
+            throw emptyErr;
+          }
+
+          console.log(`[BACKUP BRAIN] Backup candidate generated by 'groq-text' (${resGroq.content.length} chars). Forwarding to Verification Bridge.`);
+          if (isStreaming && !res.headersSent && !res.writableEnded) {
             res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
             res.setHeader('Transfer-Encoding', 'chunked');
             res.setHeader('Cache-Control', 'no-cache, no-transform');
+            res.write(JSON.stringify({ type: 'token', content: resGroq.content }) + '\n');
           }
-
-          streamBuffer += chunk.toString();
-          const lines = streamBuffer.split('\n');
-          // Keep the incomplete remainder for the next chunk
-          streamBuffer = lines.pop();
-
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed) continue;
-            try {
-              const data = JSON.parse(trimmed);
-              if (data.message && data.message.content) {
-                fullText += data.message.content;
-                if (isStreaming && !res.writableEnded) {
-                  res.write(JSON.stringify({
-                    type: 'token',
-                    content: data.message.content
-                  }) + '\n');
-                }
-              }
-              lastMsg = data;
-            } catch (e) {}
-          }
-        });
-
-        resUpstream.on('end', () => {
-          if (resUpstream.statusCode >= 400) {
-            console.error(`[PYTHOS API] Upstream error: status=${resUpstream.statusCode}, model=${targetModel}, body=${sanitizeErrorDetail(upstreamErrorBody || streamBuffer || fullText)}`);
-            const upErr = new Error(`Upstream provider returned status ${resUpstream.statusCode}: ${upstreamErrorBody || streamBuffer || fullText || 'No error details'}`);
-            upErr.statusCode = resUpstream.statusCode;
-            upErr.status = resUpstream.statusCode;
-            upErr.body = upstreamErrorBody || streamBuffer || fullText;
-            return reject(upErr);
-          }
-          // Process any remaining buffered content on stream completion
-          if (streamBuffer && streamBuffer.trim()) {
-            try {
-              const data = JSON.parse(streamBuffer.trim());
-              if (data.message && data.message.content) {
-                fullText += data.message.content;
-                if (isStreaming && !res.writableEnded) {
-                  res.write(JSON.stringify({
-                    type: 'token',
-                    content: data.message.content
-                  }) + '\n');
-                }
-              }
-              lastMsg = data;
-            } catch (e) {}
-          }
-          resolve({
-            model: targetModel,
-            message: {
-              role: 'assistant',
-              content: fullText
-            },
-            done: true
+          candidateResult = {
+            model: resGroq.model,
+            content: resGroq.content,
+            provider: selectedProvider.name,
+            reasoningPath: 'BACKUP',
+            backupTriggerReason: primaryFailureError ? (primaryFailureError.code || primaryFailureError.message) : 'PRIMARY_UNAVAILABLE'
+          };
+          break;
+        } else if (selectedProvider.name === 'gemini-text') {
+          console.warn(`[BACKUP BRAIN] Primary reasoning failed. Invoking backup reasoning provider 'gemini-text' (model: ${selectedProvider.model})...`);
+          const resGemini = await executeGeminiTextCall(selectedProvider, {
+            messages: ollamaMessages,
+            options: effectiveOptions,
+            timeoutMs: Math.min(REQUEST_TIMEOUT_MS, 20000),
+            signal: abortController.signal
           });
-        });
-      });
 
-      const onAbort = () => {
-        ollamaReq.destroy();
-        const abortErr = new Error('Request aborted');
-        abortErr.name = 'AbortError';
-        reject(abortErr);
-      };
-      abortController.signal.addEventListener('abort', onAbort, { once: true });
+          if (!resGemini.content || !resGemini.content.trim()) {
+            const emptyErr = new Error('BACKUP_EMPTY_RESPONSE: Backup LLM returned empty candidate response');
+            emptyErr.code = 'BACKUP_EMPTY_RESPONSE';
+            throw emptyErr;
+          }
 
-      ollamaReq.on('timeout', () => {
-        ollamaReq.destroy();
-        reject(new Error('ETIMEDOUT'));
-      });
+          console.log(`[BACKUP BRAIN] Backup candidate generated by 'gemini-text' (${resGemini.content.length} chars). Forwarding to Verification Bridge.`);
+          if (isStreaming && !res.headersSent && !res.writableEnded) {
+            res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+            res.setHeader('Transfer-Encoding', 'chunked');
+            res.setHeader('Cache-Control', 'no-cache, no-transform');
+            res.write(JSON.stringify({ type: 'token', content: resGemini.content }) + '\n');
+          }
+          candidateResult = {
+            model: resGemini.model,
+            content: resGemini.content,
+            provider: selectedProvider.name,
+            reasoningPath: 'BACKUP',
+            backupTriggerReason: primaryFailureError ? (primaryFailureError.code || primaryFailureError.message) : 'PRIMARY_UNAVAILABLE'
+          };
+          break;
+        }
+      } catch (callErr) {
+        if (abortController.signal.aborted) throw callErr;
 
-      ollamaReq.on('error', (err) => {
-        reject(err);
-      });
-
-      ollamaReq.write(payload);
-      ollamaReq.end();
-    });
+        if (isPrimary) {
+          primaryFailureError = callErr;
+          console.warn(`[BACKUP BRAIN] Primary text reasoning failed (${selectedProvider.name}): ${callErr.message}. Checking backup recovery...`);
+          providerPolicy.recordRateLimit(selectedProvider.name, 30);
+          if (res.headersSent) {
+            console.error('[BACKUP BRAIN] Primary failed after HTTP stream headers already sent; cannot recover across stream boundary.');
+            throw callErr;
+          }
+        } else {
+          console.error(`[BACKUP BRAIN] Backup provider '${selectedProvider.name}' also failed:`, callErr.message);
+          const retrySec = callErr.retryAfter || 60;
+          providerPolicy.recordRateLimit(selectedProvider.name, retrySec);
+        }
+      }
+    }
 
     // =====================================
     // Deterministic Verification & Revision Loop
     // =====================================
-    if (isStreaming && !res.writableEnded) {
+    if (isStreaming && !res.writableEnded && res.headersSent) {
       res.write(JSON.stringify({ type: 'status', stage: 'verifying' }) + '\n');
     }
 
-    let finalContent = ollamaResponse.message ? ollamaResponse.message.content : '';
+    let finalContent = candidateResult ? candidateResult.content : '';
+    let ollamaResponse = {
+      model: candidateResult?.model || targetModel,
+      provider: candidateResult?.provider || 'ollama-text',
+      reasoningPath: candidateResult?.reasoningPath || 'PRIMARY',
+      backupTriggerReason: candidateResult?.backupTriggerReason || null,
+      message: { role: 'assistant', content: finalContent },
+      done: true
+    };
     let { claims, internalContradictions, verificationResults, invalidClaims } = await verifyResponseClaims(
       finalContent,
       lastUserMsg ? lastUserMsg.content : '',
@@ -1570,84 +2047,19 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           }
         ];
 
-        const revPayload = JSON.stringify({
-          model: targetModel,
-          messages: revisionPrompt,
-          stream: true,
-          options: effectiveOptions
-        });
-
-        const revHeaders = {
-          ...getOllamaHeaders(),
-          'Content-Length': Buffer.byteLength(revPayload)
-        };
-
-        const revisedResponse = await new Promise((resolveRev) => {
-          const revReq = httpLib.request({
-            hostname: parsedUrl.hostname,
-            port: parsedUrl.port || (isHttps ? 443 : 80),
-            path: parsedUrl.pathname,
-            method: 'POST',
-            headers: revHeaders,
-            timeout: REVISION_TIMEOUT_MS
-          }, (revRes) => {
-            if (revRes.statusCode >= 400) {
-              revRes.resume();
-              return resolveRev('');
-            }
-            let revText = '';
-            let revBuffer = '';
-
-            revRes.on('data', (chunk) => {
-              revBuffer += chunk.toString();
-              const lines = revBuffer.split('\n');
-              revBuffer = lines.pop();
-
-              for (const l of lines) {
-                const trimmed = l.trim();
-                if (!trimmed) continue;
-                try {
-                  const d = JSON.parse(trimmed);
-                  if (d.message && d.message.content) revText += d.message.content;
-                } catch (e) {}
-              }
-            });
-            revRes.on('end', () => {
-              if (revBuffer && revBuffer.trim()) {
-                try {
-                  const d = JSON.parse(revBuffer.trim());
-                  if (d.message && d.message.content) revText += d.message.content;
-                } catch (e) {}
-              }
-              resolveRev(revText);
-            });
-          });
-
-          const onRevAbort = () => {
-            revReq.destroy();
-            resolveRev('');
-          };
-          abortController.signal.addEventListener('abort', onRevAbort, { once: true });
-
-          revReq.on('timeout', () => {
-            console.warn(`[VERIFIER] Revision call timed out after ${REVISION_TIMEOUT_MS}ms. Proceeding to deterministic overrides.`);
-            revReq.destroy();
-            resolveRev('');
-          });
-          revReq.on('error', (e) => {
-            console.warn('[VERIFIER] Revision call network error:', e.message);
-            resolveRev('');
-          });
-          revReq.write(revPayload);
-          revReq.end();
+        const revisedResponse = await executeRevisionCall(candidateResult, {
+          revisionPrompt,
+          effectiveOptions,
+          timeoutMs: REVISION_TIMEOUT_MS,
+          signal: abortController.signal
         });
 
         if (revisedResponse && revisedResponse.trim()) {
           console.log('[VERIFIER] Solution revised by Pythos. Performing full re-verification of revision...');
           finalContent = revisedResponse.trim();
-          ollamaResponse.message.content = finalContent;
+          candidateResult.content = finalContent;
 
-          if (isStreaming && !res.writableEnded) {
+          if (isStreaming && !res.writableEnded && res.headersSent) {
             res.write(JSON.stringify({
               type: 'revision',
               revisedContent: finalContent
@@ -1814,7 +2226,10 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           intent: studentIntent?.type || null,
           claims: claims || [],
           verification: verificationResults,
-          model: targetModel,
+          model: ollamaResponse.model,
+          provider: ollamaResponse.provider,
+          reasoningPath: ollamaResponse.reasoningPath,
+          backupTriggerReason: ollamaResponse.backupTriggerReason || null,
           done: true
         }) + '\n');
         res.write(JSON.stringify({ type: 'done' }) + '\n');

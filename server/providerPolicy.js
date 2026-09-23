@@ -117,9 +117,31 @@ function getProviderRegistry() {
       capability: 'text',
       model: process.env.OLLAMA_MODEL || 'pythos:latest',
       freeEligible: true, // Self-hosted / local / internal zero-API-cost
-      enabled: true,
+      enabled: () => process.env.OLLAMA_ENABLED !== 'false',
       isConfigured: () => {
         return Boolean(process.env.OLLAMA_HOST || 'http://localhost:11434');
+      }
+    },
+    {
+      name: 'groq-text',
+      capability: 'text',
+      model: process.env.GROQ_TEXT_MODEL || 'openai/gpt-oss-20b',
+      freeEligible: true, // Groq free tier zero API cost
+      enabled: () => process.env.GROQ_TEXT_ENABLED !== 'false',
+      isConfigured: () => {
+        const key = getGroqApiKey();
+        return Boolean(key && key.length > 0);
+      }
+    },
+    {
+      name: 'gemini-text',
+      capability: 'text',
+      model: process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash',
+      freeEligible: process.env.GEMINI_FREE_TIER === 'true',
+      enabled: () => process.env.GEMINI_ENABLED !== 'false',
+      isConfigured: () => {
+        const key = getGeminiApiKey();
+        return Boolean(key && key.length > 0);
       }
     }
   ];
@@ -194,7 +216,8 @@ function selectProvider(options = {}, registryOverride = null) {
   const {
     capability = 'text',
     budgetMode = getBudgetMode(),
-    aiEnabled = getAiEnabled()
+    aiEnabled = getAiEnabled(),
+    exclude = []
   } = options;
 
   // 1. Emergency Kill Switch check
@@ -220,8 +243,10 @@ function selectProvider(options = {}, registryOverride = null) {
     };
   }
 
-  // 3. Filter by configured & enabled
+  // 3. Filter by configured & enabled & excluded
+  const excludeSet = new Set(Array.isArray(exclude) ? exclude : (exclude ? [exclude] : []));
   const configured = matchingCapability.filter(p => {
+    if (excludeSet.has(p.name)) return false;
     const isEn = typeof p.enabled === 'function' ? p.enabled() : p.enabled !== false;
     const isCfg = typeof p.isConfigured === 'function' ? p.isConfigured() : true;
     return isEn && isCfg;
