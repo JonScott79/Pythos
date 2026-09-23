@@ -33,6 +33,7 @@ const REVISION_TIMEOUT_MS = parseInt(process.env.REVISION_TIMEOUT_MS, 10) || 250
 
 // Pythos Socratic System Instructions (Passed at runtime for cloud models)
 const PYTHOS_SYSTEM_PROMPT = `You are Pythos, a wise, warm, and sharp mathematics and physics tutor inspired by Ancient Greek scholarship and Socratic pedagogy.
+You were created and developed by Jon Scott (a LANZAR initiative) as an independent educational tutor. You were NOT created by OpenAI, Google, Anthropic, or Meta.
 
 # CORE TUTORING PRINCIPLE: GIVE THE STUDENT THE NEXT STEP
 - Pythos behaves like an expert human tutor.
@@ -556,7 +557,7 @@ async function executeGroqVisionCall(provider, { messages, visionSystemPrompt, o
       headers: {
         'Authorization': `Bearer ${groqApiKey}`,
         'Content-Type': 'application/json',
-        'User-Agent': 'Pythos-Vision/1.8.5',
+        'User-Agent': 'Pythos-Vision/1.8.6',
         'Content-Length': Buffer.byteLength(groqPayload)
       },
       timeout: timeoutMs
@@ -719,7 +720,7 @@ async function executeGeminiVisionCall(provider, { messages, visionSystemPrompt,
       headers: {
         'x-goog-api-key': geminiApiKey,
         'Content-Type': 'application/json',
-        'User-Agent': 'Pythos-Vision/1.8.5',
+        'User-Agent': 'Pythos-Vision/1.8.6',
         'Content-Length': Buffer.byteLength(geminiPayload)
       },
       timeout: timeoutMs
@@ -1159,6 +1160,9 @@ app.post('/api/chat', async (req, res) => {
   const projectKnowledgeContext = lastUserMsg
     ? projectKnowledgeService.buildProjectKnowledgeContext(lastUserMsg.content, messages)
     : '';
+  if (projectKnowledgeContext) {
+    console.log(`[PROJECT KNOWLEDGE] Injected ${projectKnowledgeContext.length} chars of authoritative source context into system prompt`);
+  }
 
   // Ensure system instructions are always present, up-to-date, and enriched with deterministic ground truth
   let preparedMessages = [...boundedContext.messagesForModel];

@@ -5,6 +5,16 @@ All notable changes to the Pythos project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Pythos 1.8.6
+**Release Date:** 2026-09-19
+
+### Added & Hardened
+- **Authoritative Self-Knowledge & Site Grounding Subsystem (LARRY)** (`server/projectKnowledgeService.js`, `server/server.js`): Integrated dynamic site-source grounding for conversational inquiries regarding Pythos accuracy, creator attribution, educational mission, curriculum guides, and changelog history. Seamlessly injects authoritative, up-to-date site facts without prompt overhead on mathematical tasks.
+- **Docker Container Build Source Parity & Multi-Path Resolution** (`server/site_sources/`, `server/projectKnowledgeService.js`): Solved Railway container build isolation where `/server` builds could not access root-level HTML site pages. Mirrored canonical site sources into `server/site_sources/` and implemented dual-path fallback resolution (`..` parent lookup with `site_sources/` container fallback).
+- **Pretraining Bias Mitigation & Identity Authority Directives** (`server/projectKnowledgeService.js`, `server/server.js`): Formulated strict system prompt directives prioritizing authoritative site records over base LLM pretraining priors. Ensures Pythos always correctly identifies its independent creation by Jon Scott (LANZAR initiative), rejects third-party claims (e.g. OpenAI), and accurately cites the 95.81% verified math accuracy rate across 50,000 blind problems (with 0 incorrect delivered answers) rather than generic claims.
+- **Token-Efficient Source Extraction**: Optimized HTML extraction for validation and site pages to strip redundant benchmark tables while preserving hero statistics, current validation panels, and 3-state verification methodology (< 350 tokens).
+- **Comprehensive Live Conversational & Unit Acceptance Suites** (`test-project-knowledge.js`, `test-live-acceptance.js`): Added a 56-case regression suite and a live 4-turn conversational acceptance suite validating accuracy citation, creator attribution, nonprofit mission understanding, and deterministic mathematical execution.
+
 ## Pythos 1.8.5
 **Release Date:** 2026-09-19
 
