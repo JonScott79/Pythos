@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <!-- Microsoft Clarity Tracking (Asynchronous & Privacy-Masked) -->
@@ -7,20 +7,20 @@
       c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
       t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
       y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
-    })(window, document, "clarity", "script", "xkhxzoeiol");
+    })(window, document, "clarity", "script", "ynbuaomkmw");
   </script>
 
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="assets/favicon.png">
-  <title>Pythos Release History &amp; Changelog | v1.8.8</title>
+  <title>Pythos Release History &amp; Changelog | v1.8.9</title>
   <meta name="description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://pythos.lanzar.me/changelog.html">
 
   <!-- OPEN GRAPH -->
-  <meta property="og:title" content="Pythos Release History &amp; Changelog | v1.8.8">
+  <meta property="og:title" content="Pythos Release History &amp; Changelog | v1.8.9">
   <meta property="og:description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta property="og:url" content="https://pythos.lanzar.me/changelog.html">
   <meta property="og:type" content="article">
@@ -32,7 +32,7 @@
 
   <!-- TWITTER CARD -->
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Pythos Release History &amp; Changelog | v1.8.8">
+  <meta name="twitter:title" content="Pythos Release History &amp; Changelog | v1.8.9">
   <meta name="twitter:description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="twitter:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
 
@@ -41,7 +41,7 @@
   {
     "@context": "https://schema.org",
     "@type": "TechArticle",
-    "headline": "Pythos 1.8.8 Release Notes and Changelog",
+    "headline": "Pythos 1.8.9 Release Notes and Changelog",
     "description": "Authoritative release history for Pythos: specialized problem routing, two-stage reasoning, and CAS ground-truth verification.",
     "datePublished": "2026-08-26",
     "dateModified": "2026-09-23",
@@ -522,7 +522,7 @@
         <a href="about/" class="nav-link">About</a>
         <a href="nonprofit.html" class="nav-link">Mission &amp; Roadmap</a>
         <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" class="nav-link">Facebook</a>
-        <a href="changelog.html#pythos-1-8-8" class="nav-link active" aria-current="page">v1.8.8</a>
+        <a href="changelog.html#pythos-1-8-9" class="nav-link active" aria-current="page">v1.8.9</a>
       </div>
     </div>
 
@@ -547,12 +547,34 @@
       <p>Authoritative release notes, verification engine milestones, and mathematical system updates.</p>
     </header>
 
+        <!-- RELEASE v1.8.9 -->
+    <article class="release-card" id="pythos-1-8-9">
+      <div class="release-header">
+        <div class="release-title-wrap">
+          <h2 class="release-version">Pythos 1.8.9</h2>
+          <span class="release-badge">Latest Release</span>
+        </div>
+        <time class="release-date" datetime="2026-09-24">September 24, 2026</time>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header added">⭐ WHAT'S NEW</div>
+        <ul class="feature-list">
+          <li><strong>110K Blind Online Validation Campaign</strong>: Completed 110,000-problem campaign (<code>v1.8.9-online-validation</code>, seed <code>2718281828</code>) with 100% remote Groq Cloud model (<code>openai/gpt-oss-20b</code>) and deterministic CAS verification.</li>
+          <li><strong>110,000 / 110,000 Verified Correct (100.00%)</strong>: 110,000 verified correct, 0 incorrect delivered, 0 safely withheld, 0 verification escapes, 0 false-positive rejections.</li>
+          <li><strong>All 11 Domains at 100%</strong>: 10,000 problems each in Arithmetic, Fractions, Linear Equations, Systems, Quadratics, Functions, Geometry, Trigonometry, Calculus, Probability, and Physics.</li>
+          <li><strong>Repaired Linear Router Confirmed</strong>: Fixed linear equation parsing, delivering 10,000/10,000 verified solutions with zero safe-withholding fallout.</li>
+          <li><strong>Remote Candidate Architecture &amp; Checkpointing</strong>: Shifted LLM inference to Groq Cloud (132.1 MB peak heap, 0 provider faults); survived sleep/wake events without state loss.</li>
+          <li><strong>Dedicated Suites Passed &amp; Honest Bounds</strong>: All 9 dedicated suites passed (Vision, Kid Safety, Multi-Turn, Backup-Brain, etc.). Finite benchmark; universal correctness not claimed.</li>
+        </ul>
+      </div>
+    </article>
+
     <!-- RELEASE v1.8.8 -->
     <article class="release-card" id="pythos-1-8-8">
       <div class="release-header">
         <div class="release-title-wrap">
           <h2 class="release-version">Pythos 1.8.8</h2>
-          <span class="release-badge">Latest Release</span>
         </div>
         <time class="release-date" datetime="2026-09-23">September 23, 2026</time>
       </div>
@@ -1202,7 +1224,7 @@
 
   <footer>
     <div>🏛️ Pythos — Free AI Mathematics &amp; Physics Education. Created by Jon Scott as part of the LANZAR initiative.</div>
-    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-8-8" style="color:var(--primary-color); text-decoration:none;">v1.8.8</a></div>
+    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-8-9" style="color:var(--primary-color); text-decoration:none;">v1.8.9</a></div>
   </footer>
 
   <script>

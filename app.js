@@ -1129,6 +1129,50 @@ function sanitizeImageSrc(imgData) {
   return '';
 }
 
+// Student-safe withholding explanations for the secondary "Why do I need more information?" control
+const CLIENT_WITHHOLDING_EXPLANATIONS = {
+  MISSING_INFORMATION: {
+    cause: "The problem statement is missing an essential value, variable relationship, or equation needed for an exact solution.",
+    help: "Providing the missing number, boundary condition, or formula mentioned in the problem.",
+    nextStep: "Add the missing details to your question and submit it again."
+  },
+  AMBIGUOUS_PROBLEM: {
+    cause: "The question could be interpreted in more than one mathematical way, and guessing would risk giving you an incorrect derivation.",
+    help: "Specifying which variable to solve for or which interpretation of the problem you want to explore.",
+    nextStep: "Tell me what specific quantity or result you're looking for, and I'll solve it."
+  },
+  IMAGE_UNVERIFIABLE: {
+    cause: "One or more measurements, angle markers, or labels in the diagram or photo could not be reliably confirmed.",
+    help: "A clearer photo, closer crop, or typing the given side lengths and angle values directly into the chat.",
+    nextStep: "Double-check the diagram labels or type the numbers into your message, and I'll work through the solution with you."
+  },
+  CLAIM_NOT_VERIFIED: {
+    cause: "The mathematical derivation could not be certified with complete accuracy by our verification checks.",
+    help: "Breaking the problem into smaller steps or stating any assumptions (such as the domain or formula to apply).",
+    nextStep: "Try asking about the specific step you're stuck on, or share your work so far and we'll check it together."
+  },
+  PROMPT_CLAIM_MISMATCH: {
+    cause: "The generated steps addressed a different expression or variable than the one in your question.",
+    help: "Rephrasing the question or confirming the exact equation you want solved.",
+    nextStep: "Check the equation or question text and try sending it once more."
+  },
+  INFRASTRUCTURE_FAILURE: {
+    cause: "A temporary connection or computational service delay interrupted the verification process.",
+    help: "Resending the question in a few moments.",
+    nextStep: "Please click Send again to retry."
+  },
+  DUAL_PROVIDER_FAILURE: {
+    cause: "Our primary and backup reasoning services were temporarily unable to complete processing.",
+    help: "Trying your question again in a moment.",
+    nextStep: "Please send your question again."
+  },
+  UNSUPPORTED_PROBLEM: {
+    cause: "This problem involves topics or formats that fall outside our deterministic verification coverage.",
+    help: "Asking about algebra, calculus, geometry, trigonometry, physics, or probability problems.",
+    nextStep: "Feel free to ask a question in one of Pythos's supported math or physics subjects."
+  }
+};
+
 function appendMessage(role, text, images = null, metadata = {}) {
   const welcomeCard = document.getElementById("welcomeOracleCard");
   if (welcomeCard) {
@@ -1646,6 +1690,47 @@ function appendMessage(role, text, images = null, metadata = {}) {
         renderTruthfulFailure(`Malformed JSON specification: ${err.message}`);
       }
     });
+  }
+
+  // Safe Withholding Secondary Control: "Why do I need more information?"
+  const isWithheld = metadata.withheld || (role === "assistant" && typeof text === "string" && text.includes("I need a little more information to solve this problem"));
+  if (role === "assistant" && isWithheld) {
+    const detailsEl = document.createElement("details");
+    detailsEl.className = "pythos-withholding-details";
+    detailsEl.setAttribute("aria-label", "Why do I need more information?");
+
+    const summaryEl = document.createElement("summary");
+    summaryEl.className = "pythos-withholding-summary";
+    summaryEl.innerHTML = `<span style="font-size: 0.95em;">🔍</span> <span>Why do I need more information?</span>`;
+
+    const bodyEl = document.createElement("div");
+    bodyEl.className = "pythos-withholding-body";
+
+    const reasonKey = metadata.withholdingReason || "CLAIM_NOT_VERIFIED";
+    const fallbackConfig = (typeof CLIENT_WITHHOLDING_EXPLANATIONS !== "undefined" && CLIENT_WITHHOLDING_EXPLANATIONS[reasonKey])
+      ? CLIENT_WITHHOLDING_EXPLANATIONS[reasonKey]
+      : CLIENT_WITHHOLDING_EXPLANATIONS.CLAIM_NOT_VERIFIED;
+
+    const details = metadata.withholdingDetails || fallbackConfig;
+
+    bodyEl.innerHTML = `
+      <div class="pythos-withholding-section">
+        <span class="pythos-withholding-label">What prevented a verified answer</span>
+        <span class="pythos-withholding-text">${escapeHtml(details.cause || fallbackConfig.cause)}</span>
+      </div>
+      <div class="pythos-withholding-section">
+        <span class="pythos-withholding-label">What information would help</span>
+        <span class="pythos-withholding-text">${escapeHtml(details.help || fallbackConfig.help)}</span>
+      </div>
+      <div class="pythos-withholding-section">
+        <span class="pythos-withholding-label">What you can do next</span>
+        <span class="pythos-withholding-text">${escapeHtml(details.nextStep || fallbackConfig.nextStep)}</span>
+      </div>
+    `;
+
+    detailsEl.appendChild(summaryEl);
+    detailsEl.appendChild(bodyEl);
+    contentDiv.appendChild(detailsEl);
   }
 
   div.appendChild(contentDiv);
@@ -2976,6 +3061,10 @@ async function askPythos(userText) {
       let metaClaims = [];
       let metaVerification = [];
       let metaModel = "pythos:latest";
+      let metaWithheld = false;
+      let metaWithholdingReason = null;
+      let metaWithholdingExplanation = null;
+      let metaWithholdingDetails = null;
 
       let isStreamDone = false;
       let verificationTimer = null;
@@ -3047,8 +3136,17 @@ async function askPythos(userText) {
             if (ev.claims) metaClaims = ev.claims;
             if (ev.verification) metaVerification = ev.verification;
             if (ev.model) metaModel = ev.model;
-            statusBadge.style.color = "#16a34a";
-            statusBadge.innerHTML = `<span style="color:#16a34a; font-weight:500;">✓ Verified</span>`;
+            if (ev.withheld) metaWithheld = true;
+            if (ev.withholdingReason) metaWithholdingReason = ev.withholdingReason;
+            if (ev.withholdingExplanation) metaWithholdingExplanation = ev.withholdingExplanation;
+            if (ev.withholdingDetails) metaWithholdingDetails = ev.withholdingDetails;
+            if (ev.withheld) {
+              statusBadge.style.color = "#d97706";
+              statusBadge.innerHTML = `<span style="color:#d97706; font-weight:500;">Clarification Needed</span>`;
+            } else {
+              statusBadge.style.color = "#16a34a";
+              statusBadge.innerHTML = `<span style="color:#16a34a; font-weight:500;">✓ Verified</span>`;
+            }
           } else if (ev.type === "done") {
             if (verificationTimer) { clearTimeout(verificationTimer); verificationTimer = null; }
             isStreamDone = true;
@@ -3098,7 +3196,11 @@ async function askPythos(userText) {
         question: cleanText,
         claims: metaClaims,
         verification: metaVerification,
-        model: metaModel
+        model: metaModel,
+        withheld: metaWithheld,
+        withholdingReason: metaWithholdingReason,
+        withholdingExplanation: metaWithholdingExplanation,
+        withholdingDetails: metaWithholdingDetails
       });
 
       // If user was reading scrolled up during streaming, preserve their exact reading position
@@ -3146,7 +3248,11 @@ async function askPythos(userText) {
           question: cleanText,
           claims: data.claims || [],
           verification: data.verification || [],
-          model: data.model || "pythos:latest"
+          model: data.model || "pythos:latest",
+          withheld: data.withheld || false,
+          withholdingReason: data.withholdingReason || null,
+          withholdingExplanation: data.withholdingExplanation || null,
+          withholdingDetails: data.withholdingDetails || null
         });
 
         // Save to Firebase

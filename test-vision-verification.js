@@ -254,7 +254,7 @@ async function runAllTests() {
       assert.strictEqual(resp.body.reasoningPath, 'VISION');
       assert.strictEqual(resp.body.withheld, true, 'Delivery gate MUST flag response as withheld');
       assert(!resp.body.message.content.includes('Therefore, we have csc(60°) = 2/3'), 'False answer MUST NOT reach the student');
-      assert(resp.body.message.content.includes('withhold') || resp.body.message.content.includes('cannot certify'), 'Must explain safe withholding');
+      assert(resp.body.message.content.includes('I need a little more information') || resp.body.message.content.includes('withhold') || resp.body.message.content.includes('cannot certify'), 'Must explain safe withholding');
       console.log(`     Delivery gate protection verified: withheld=${resp.body.withheld}`);
     });
 

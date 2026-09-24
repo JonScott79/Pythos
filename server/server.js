@@ -492,6 +492,7 @@ const visionExtractor = require('./visionExtractor');
 const { classifyUpstreamError, sanitizeErrorDetail, extractRetrySeconds } = require('./errorHandler');
 const { classifyStudentIntent } = require('./studentIntentClassifier');
 const { evaluateStudentWork, formatStudentWorkContext } = require('./studentWorkEvaluator');
+const { getSafeWithholding, WITHHOLDING_REASONS } = require('./withholdingTaxonomy');
 
 // Mount Admin Routes
 app.use('/admin', adminRoutes);
@@ -2180,17 +2181,38 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           failureAudit.push(ic.details);
         });
 
-        const safeWithholdingContent = `I have analyzed the diagram and problem, but I cannot certify the mathematical solution with deterministic certainty.
+        // Determine structured reason code from context & failures
+        let resolvedReason = WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED;
+        const hasImages = candidateResult?.hasImages || (req.body.messages && req.body.messages.some(m => m.images && m.images.length > 0)) || (req.body.image);
+        const auditText = failureAudit.join(' ').toLowerCase();
 
-**Verification Audit Findings:**
-${failureAudit.slice(0, 3).map(f => `- ${f}`).join('\n')}
+        if (hasImages) {
+          resolvedReason = WITHHOLDING_REASONS.IMAGE_UNVERIFIABLE;
+        } else if (auditText.includes('missing') || auditText.includes('insufficient') || auditText.includes('undefined variable') || auditText.includes('not enough info')) {
+          resolvedReason = WITHHOLDING_REASONS.MISSING_INFORMATION;
+        } else if (auditText.includes('ambiguous') || auditText.includes('multiple interpretation')) {
+          resolvedReason = WITHHOLDING_REASONS.AMBIGUOUS_PROBLEM;
+        } else if (auditText.includes('fidelity') || auditText.includes('mismatch') || auditText.includes('different equation')) {
+          resolvedReason = WITHHOLDING_REASONS.PROMPT_CLAIM_MISMATCH;
+        } else {
+          resolvedReason = WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED;
+        }
 
-To maintain mathematical integrity, Pythos withholds unverified solutions rather than presenting potential diagram misinterpretations or unverified calculations as fact. Please verify the diagram labels (side lengths, angle markers) or specify the exact given values so I can guide you through the verified solution.`;
+        const safeWithholding = getSafeWithholding(resolvedReason);
 
-        finalContent = safeWithholdingContent;
+        finalContent = safeWithholding.formattedContent;
         ollamaResponse.withheld = true;
+        ollamaResponse.withholdingReason = resolvedReason;
+        ollamaResponse.withholdingExplanation = safeWithholding.explanation;
+        ollamaResponse.withholdingDetails = {
+          headline: safeWithholding.headline,
+          explanation: safeWithholding.explanation,
+          cause: safeWithholding.cause,
+          help: safeWithholding.help,
+          nextStep: safeWithholding.nextStep
+        };
         ollamaResponse.message.content = finalContent;
-        ollamaResponse.withholdingReasons = failureAudit;
+        ollamaResponse.withholdingReasons = failureAudit; // Preserved internally for auditing
       }
 
       // Automatic System Error Flagging (Priority 1)
@@ -2307,6 +2329,9 @@ To maintain mathematical integrity, Pythos withholds unverified solutions rather
           reasoningPath: ollamaResponse.reasoningPath,
           backupTriggerReason: ollamaResponse.backupTriggerReason || null,
           withheld: ollamaResponse.withheld || false,
+          withholdingReason: ollamaResponse.withholdingReason || null,
+          withholdingExplanation: ollamaResponse.withholdingExplanation || null,
+          withholdingDetails: ollamaResponse.withholdingDetails || null,
           done: true
         }) + '\n');
         res.write(JSON.stringify({ type: 'done' }) + '\n');

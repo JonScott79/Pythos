@@ -170,6 +170,37 @@ function extractClaims(text, userPrompt = '') {
     }
   }
 
+  // Pattern 5c: Solved equation from prompt/context where candidate states solution (e.g. "x = -5", "\boxed{x = -5}", or "\boxed{-5}")
+  if (promptStr) {
+    const promptEqMatch = promptStr.match(/([a-zA-Z0-9^+\-*/().\s]+=[a-zA-Z0-9^+\-*/().\s]+)/);
+    if (promptEqMatch) {
+      const cleaned = cleanAndNormalizeEquation(promptEqMatch[1]);
+      if (cleaned) {
+        const v = cleaned.variable;
+        const solRegex = new RegExp(`(?:\\b${v}\\s*=\\s*|\\\\boxed\\{\\s*(?:${v}\\s*=\\s*)?)([-+]?\\d+(?:\\.\\d+)?)`, 'i');
+        const solMatch = text.match(solRegex);
+        if (solMatch) {
+          const val = parseFloat(solMatch[1]);
+          const alreadyClaimed = claims.some(c => c.data?.equation === cleaned.equation && c.claim_type === 'equation_solution');
+          if (!alreadyClaimed && !isNaN(val)) {
+            claims.push({
+              domain: 'algebra',
+              claim_type: 'equation_solution',
+              raw_match: solMatch[0],
+              data: {
+                equation: cleaned.equation,
+                variable: cleaned.variable,
+                proposed_solutions: [val],
+                userPrompt: promptStr
+              },
+              userPrompt: promptStr
+            });
+          }
+        }
+      }
+    }
+  }
+
   // 6. Comprehensive Arithmetic, Fraction, Percentage & Intermediate Step Extraction
   const lines = text.split(/\r?\n/);
   for (const rawLine of lines) {

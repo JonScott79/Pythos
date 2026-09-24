@@ -248,7 +248,7 @@ function extractArithmeticExpressions(text) {
   const isQuestionOrProse = /[?]$/.test(text.trim()) ||
     /\b(?:is\s+(?:that|this|it)|same\s+thing|same\s+as|the\s+same|equivalent|what\s+about|why|how|explain|does\s+(?:this|that))\b/i.test(text) ||
     /\b(?:accuracy|accurate|validation|validated|benchmark|withheld|incorrect\s+answers?|correct\s+answers?|answers?\s+returned|error\s+rate|pythos|tutor|model)\b/i.test(text);
-  const isExplicitStandaloneCalc = /^(?:pythos[,\s]+)?(?:(?:please|kindly)\s+)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?)?(?:help\s+(?:me\s+)?(?:to\s+)?)?(?:calculate|compute|evaluate|determine|solve(?:\s+for)?|find|simplify|work\s+out|give\s+me|what\s+is|what\s+would\s+be|how\s+much\s+is|is)(?:\s+(?:the\s+)?(?:result|value|answer|evaluation|solution|sum|difference|product|quotient)(?:\s+(?:of|to|for))?)?[:\s]/i.test(text.trim());
+  const isExplicitStandaloneCalc = /^(?:(?:just\s+(?:give\s+me|tell\s+me)\s+(?:the\s+answer)?|(?:don't|do not|without)\s+(?:check(?:ing)?|verify(?:ing)?)(?:\s+(?:it|this|anything))?)[,\s:]*)*(?:pythos[,\s]+)?(?:(?:please|kindly)\s+)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?)?(?:help\s+(?:me\s+)?(?:to\s+)?)?(?:calculate|compute|evaluate|determine|solve(?:\s+for)?|find|simplify|work\s+out|give\s+me|what\s+is|what\s+would\s+be|how\s+much\s+is|is)(?:\s+(?:the\s+)?(?:result|value|answer|evaluation|solution|sum|difference|product|quotient)(?:\s+(?:of|to|for))?)?[:\s]/i.test(text.trim());
   if (isQuestionOrProse && !isExplicitStandaloneCalc) {
     return expressions;
   }
@@ -277,7 +277,7 @@ function extractArithmeticExpressions(text) {
 
     // General conversational prefix normalization
     const cleanExprLine = cleanLine
-      .replace(/^(?:pythos[,\s]+)?(?:(?:please|kindly)\s+)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?)?(?:help\s+(?:me\s+)?(?:to\s+)?)?(?:what\s+(?:is|would\s+be)|calculate|compute|evaluate|determine|solve(?:\s+for)?|find|simplify|work\s+out|give\s+me|how\s+much\s+is|is)(?:\s+(?:the\s+)?(?:result|value|answer|evaluation|solution|sum|difference|product|quotient)(?:\s+(?:of|to|for))?)?[:\s]+/i, '')
+      .replace(/^(?:(?:just\s+(?:give\s+me|tell\s+me)\s+(?:the\s+answer)?|(?:don't|do not|without)\s+(?:check(?:ing)?|verify(?:ing)?)(?:\s+(?:it|this|anything))?)[,\s:]*)*(?:pythos[,\s]+)?(?:(?:please|kindly)\s+)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?)?(?:help\s+(?:me\s+)?(?:to\s+)?)?(?:what\s+(?:is|would\s+be)|calculate|compute|evaluate|determine|solve(?:\s+for)?|find|simplify|work\s+out|give\s+me|how\s+much\s+is|is)(?:\s+(?:the\s+)?(?:result|value|answer|evaluation|solution|sum|difference|product|quotient)(?:\s+(?:of|to|for))?)?[:\s]+/i, '')
       .replace(/[?!.]+$/, '')
       .trim();
 
@@ -1512,14 +1512,14 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
     }
   }
 
-  // 3. Linear & Quadratic Equation Solving (e.g. "solve 3x + 5 = 20", "solve for x: x^2 - 5x + 6 = 0", "Pythos, solve this equation: 2x + 7 = 15", "Okay, now solve x^2 - 5x + 6 = 0")
-  const eqMatch = clean.match(/^(?:(?:(?:okay|ok|now|pythos|please|kindly)[,\s]+)*(?:solve|find)(?:\s+(?:this|the)?\s*equation)?(?:\s+for\s+[a-zA-Z])?[:\s]+)?([a-zA-Z0-9.\s*+^/()-]+=[a-zA-Z0-9.\s*+^/()-]+)$/i) ||
-                  clean.match(/^(?:(?:(?:okay|ok|now|pythos|please|kindly)[,\s]+)*(?:solve|find)(?:\s+(?:this|the)?\s*equation)?(?:\s+for\s+[a-zA-Z])?[:\s]+)?(sqrt\([a-zA-Z0-9.\s*+^/()-]+\)\s*=\s*[a-zA-Z0-9.\s*+^/()-]+)$/i);
+  // 3. Linear & Quadratic Equation Solving (e.g. "solve 3x + 5 = 20", "solve for x: x^2 - 5x + 6 = 0", "Pythos, solve this equation: 2x + 7 = 15", "Okay, now solve x^2 - 5x + 6 = 0", "Find root for x: 7x + 44 = 9")
+  const eqMatch = clean.match(/^(?:(?:(?:okay|ok|now|pythos|please|kindly)[,\s]+)*(?:solve|find|determine|calculate)(?:\s+[a-zA-Z]\s+in\b)?(?:\s+(?:the\s+)?(?:root|roots|solution|solutions|value(?:\s+of)?))?(?:\s+(?:this|the)?\s*equation)?(?:\s+(?:for|in|of|to)(?:\s+[a-zA-Z])?)?[:\s]+)?([a-zA-Z0-9.\s*+^/()\-]+=[a-zA-Z0-9.\s*+^/()\-]+)$/i) ||
+                  clean.match(/^(?:(?:(?:okay|ok|now|pythos|please|kindly)[,\s]+)*(?:solve|find|determine|calculate)(?:\s+[a-zA-Z]\s+in\b)?(?:\s+(?:the\s+)?(?:root|roots|solution|solutions|value(?:\s+of)?))?(?:\s+(?:this|the)?\s*equation)?(?:\s+(?:for|in|of|to)(?:\s+[a-zA-Z])?)?[:\s]+)?(sqrt\([a-zA-Z0-9.\s*+^/()\-]+\)\s*=\s*[a-zA-Z0-9.\s*+^/()\-]+)$/i);
   if (eqMatch) {
     const rawEq = eqMatch[1].trim().replace(/\+\s*-/g, '- ');
 
     // If an active problem exists and student did not explicitly command "solve...", defer to contextual student work evaluation
-    const hasExplicitSolveDirective = /^(?:solve|find\s+(?:the\s+)?root|calculate)\b/i.test(clean);
+    const hasExplicitSolveDirective = /^(?:solve|find\s+(?:the\s+)?(?:root|roots|solution)|calculate|determine)\b/i.test(clean);
     if (!hasExplicitSolveDirective && conversationHistory && conversationHistory.length > 0) {
       try {
         const { extractActiveProblemState } = require('./contextManager');
@@ -1627,29 +1627,115 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
       }
     }
 
-    // E. Check if linear equation: a*x + b = c
-    const linearMatch = rawEq.match(/^([-+]?\d*(?:\.\d+)?)\s*\*?\s*([a-zA-Z])\s*([-+])\s*(\d+(?:\.\d+)?)\s*=\s*([-+]?\d+(?:\.\d+)?)$/i) ||
-                        rawEq.match(/^([-+]?\d*(?:\.\d+)?)\s*\*?\s*([a-zA-Z])\s*=\s*([-+]?\d+(?:\.\d+)?)$/i);
-    if (linearMatch) {
-      const varName = linearMatch[2];
-      let coeff = linearMatch[1] === '' || linearMatch[1] === '+' ? 1 : (linearMatch[1] === '-' ? -1 : parseFloat(linearMatch[1]));
-      let sign = linearMatch[3] || '+';
-      let constVal = linearMatch[4] ? (sign === '-' ? -parseFloat(linearMatch[4]) : parseFloat(linearMatch[4])) : 0;
-      let rhsVal = parseFloat(linearMatch[5] || linearMatch[3]);
+    // E. Check if linear equation: generalized solver supporting positive/negative coefficients,
+    // negative constants, double negatives, fractions, decimals, parentheses, variables on both sides,
+    // equivalent flipped forms, and zero coefficients.
+    const fastLinearMatch = rawEq.match(/^([-+]?\d*(?:\.\d+)?)\s*\*?\s*([a-zA-Z])\s*([-+])\s*(\d+(?:\.\d+)?)\s*=\s*([-+]?\d+(?:\.\d+)?)$/i) ||
+                            rawEq.match(/^([-+]?\d*(?:\.\d+)?)\s*\*?\s*([a-zA-Z])\s*=\s*([-+]?\d+(?:\.\d+)?)$/i);
+    if (fastLinearMatch) {
+      const varName = fastLinearMatch[2];
+      let coeff = fastLinearMatch[1] === '' || fastLinearMatch[1] === '+' ? 1 : (fastLinearMatch[1] === '-' ? -1 : parseFloat(fastLinearMatch[1]));
+      let sign = fastLinearMatch[3] || '+';
+      let constVal = fastLinearMatch[4] ? (sign === '-' ? -parseFloat(fastLinearMatch[4]) : parseFloat(fastLinearMatch[4])) : 0;
+      let rhsVal = parseFloat(fastLinearMatch[5] || fastLinearMatch[3]);
 
       if (coeff !== 0 && !isNaN(rhsVal)) {
         const root = (rhsVal - constVal) / coeff;
+        const cleanRoot = root % 1 === 0 ? root : parseFloat(root.toFixed(6));
         return {
           type: 'ALGEBRA_LINEAR_SOLVE',
           equation: rawEq,
           variable: varName,
-          solution: root,
-          formatted: `${varName} = ${root % 1 === 0 ? root : parseFloat(root.toFixed(6))}`,
+          solution: cleanRoot,
+          result: cleanRoot,
+          formatted: `${varName} = ${cleanRoot}`,
           steps: [
-            constVal !== 0 ? `Subtract ${constVal > 0 ? constVal : `(${constVal})`} from both sides: $${coeff === 1 ? varName : `${coeff}${varName}`} = ${rhsVal - constVal}$` : null,
-            coeff !== 1 ? `Divide both sides by ${coeff}: $${varName} = ${root}$` : null
+            constVal !== 0 ? `Subtract ${constVal > 0 ? constVal : `(${constVal})`} from both sides: $${coeff === 1 ? varName : (coeff === -1 ? `-${varName}` : `${coeff}${varName}`)} = ${rhsVal - constVal}$` : null,
+            coeff !== 1 ? `Divide both sides by ${coeff}: $${varName} = ${cleanRoot}$` : null
           ].filter(Boolean)
         };
+      }
+    }
+
+    // Generalized linear equation solver via algebraic evaluation
+    const eqParts = rawEq.split('=');
+    if (eqParts.length === 2) {
+      const lhsRaw = eqParts[0].trim();
+      const rhsRaw = eqParts[1].trim();
+
+      // Extract single variable symbol
+      const cleanEqStr = rawEq.replace(/\b(sin|cos|tan|sec|csc|cot|log|ln|exp|sqrt|abs)\b/gi, '');
+      const varMatches = cleanEqStr.match(/(?:^|[^a-zA-Z])([a-zA-Z])(?![a-zA-Z])/g) || [];
+      const distinctVars = Array.from(new Set(varMatches.map(m => m.match(/[a-zA-Z]/)[0])));
+
+      if (distinctVars.length === 1) {
+        const v = distinctVars[0];
+        const normalizeSide = (s) => s
+          .replace(/\b0([a-zA-Z])\b/g, (m, l) => '0*' + l)
+          .replace(/--/g, '+')
+          .replace(/\+\+/g, '+');
+
+        const normLhs = normalizeSide(lhsRaw);
+        const normRhs = normalizeSide(rhsRaw);
+        const expr = `(${normLhs}) - (${normRhs})`;
+
+        try {
+          const f0 = math.evaluate(expr, { [v]: 0 });
+          const f1 = math.evaluate(expr, { [v]: 1 });
+          const f2 = math.evaluate(expr, { [v]: 2 });
+          const f3 = math.evaluate(expr, { [v]: 3 });
+
+          const diff1 = f1 - f0;
+          const diff2 = f2 - f1;
+          const diff3 = f3 - f2;
+
+          // Rigorous linearity check: constant first difference, zero second difference
+          if (Math.abs(diff1 - diff2) <= 1e-5 && Math.abs(diff2 - diff3) <= 1e-5) {
+            const A = diff1;
+            const B = f0;
+
+            if (Math.abs(A) < 1e-9) {
+              if (Math.abs(B) < 1e-9) {
+                return {
+                  type: 'ALGEBRA_LINEAR_SOLVE',
+                  equation: rawEq,
+                  variable: v,
+                  solution: 'All real numbers',
+                  result: 'All real numbers',
+                  formatted: `${v} \\in \\mathbb{R}\\text{ (Infinitely many solutions)}`,
+                  steps: [`Simplifying both sides yields an identity: $0 = 0$`, `All real numbers are solutions.`]
+                };
+              } else {
+                return {
+                  type: 'ALGEBRA_LINEAR_SOLVE',
+                  equation: rawEq,
+                  variable: v,
+                  solution: 'No solution',
+                  result: 'No solution',
+                  formatted: `\\text{No solution}`,
+                  steps: [`Simplifying both sides yields a contradiction: $0 = ${B.toFixed(4)}$`, `There is no solution.`]
+                };
+              }
+            }
+
+            const rawRoot = -B / A;
+            const root = Math.abs(rawRoot - Math.round(rawRoot)) < 1e-9 ? Math.round(rawRoot) : parseFloat(rawRoot.toFixed(6));
+
+            return {
+              type: 'ALGEBRA_LINEAR_SOLVE',
+              equation: rawEq,
+              variable: v,
+              solution: root,
+              result: root,
+              formatted: `${v} = ${root}`,
+              steps: [
+                `Express in standard form: $${A === 1 ? v : (A === -1 ? `-${v}` : `${parseFloat(A.toFixed(6))}${v}`)}${B > 0 ? ` + ${parseFloat(B.toFixed(6))}` : (B < 0 ? ` - ${parseFloat(Math.abs(B).toFixed(6))}` : '')} = 0$`,
+                B !== 0 ? `Isolate the variable term: $${A === 1 ? v : (A === -1 ? `-${v}` : `${parseFloat(A.toFixed(6))}${v}`)} = ${parseFloat((-B).toFixed(6))}$` : null,
+                A !== 1 ? `Divide both sides by ${parseFloat(A.toFixed(6))}: $${v} = ${root}$` : null
+              ].filter(Boolean)
+            };
+          }
+        } catch (_) {}
       }
     }
   }
@@ -2054,7 +2140,7 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
         // If an active problem exists in the conversation (equation like 42pi/18 = 2pi, or expression like 23pi/7),
         // terse arithmetic like 7/3 or (7/3)pi or candidate values are student work/inquiry, not standalone calculation
         if (state.active.activeExpression) {
-          const isExplicitStandalone = /^(?:calculate|compute|what\s+is|evaluate|how\s+much\s+is|find\s+the\s+value\s+of|new\s+problem)[:\s]/i.test(clean);
+          const isExplicitStandalone = isExplicitStandaloneCalc || /^(?:calculate|compute|what\s+is|evaluate|how\s+much\s+is|find\s+the\s+value\s+of|new\s+problem)[:\s]/i.test(clean);
           if (!isExplicitStandalone) {
             return null;
           }
@@ -2327,7 +2413,7 @@ Adjust the controls above to explore how launch angle $\\theta$ and velocity $v_
     intent.steps.forEach((s, idx) => {
       out += `${idx + 1}. ${s}\n`;
     });
-    out += `\n$$\n${intent.formatted}\n$$\n\nWould you like to verify this root by substitution or solve another equation?`;
+    out += `\n$$\n${intent.formatted}\n$$\n\n\\boxed{${intent.solution !== undefined ? intent.solution : intent.formatted}}\n\nWould you like to verify this root by substitution or solve another equation?`;
     return out;
   }
 

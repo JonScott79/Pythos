@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <!-- Google tag (gtag.js) -->
@@ -17,7 +17,7 @@
       c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
       t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
       y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
-    })(window, document, "clarity", "script", "xkhxzoeiol");
+    })(window, document, "clarity", "script", "ynbuaomkmw");
   </script>
 
   <meta charset="UTF-8">
@@ -775,6 +775,67 @@
 
     .msg-report-btn svg {
       flex-shrink: 0;
+    }
+
+    /* Safe Withholding UX & Secondary Clarification Control */
+    .pythos-withholding-details {
+      margin-top: 12px;
+      padding: 10px 14px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      background: var(--chat-ai-bg);
+      font-size: 0.88rem;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+
+    .pythos-withholding-details[open] {
+      background: var(--surface-color);
+      border-color: var(--primary-color);
+    }
+
+    .pythos-withholding-summary {
+      cursor: pointer;
+      font-weight: 600;
+      color: var(--primary-color);
+      outline: none;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .pythos-withholding-summary:hover {
+      text-decoration: underline;
+    }
+
+    .pythos-withholding-body {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px dashed var(--border-color);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      color: var(--text-main);
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+
+    .pythos-withholding-section {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .pythos-withholding-label {
+      font-weight: 600;
+      color: var(--text-muted);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .pythos-withholding-text {
+      color: var(--text-main);
     }
 
     /* Report Modal Styles */
@@ -2699,7 +2760,7 @@
           <a href="about/">About</a>
           <a href="nonprofit.html">Mission & Roadmap</a>
           <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" title="Official Facebook Page" aria-label="Official Facebook Page">Facebook</a>
-          <a href="changelog.html#pythos-1-8-8" title="View Changelog" aria-label="Version 1.8.8 Release Notes">v1.8.8</a>
+          <a href="changelog.html#pythos-1-8-9" title="View Changelog" aria-label="Version 1.8.9 Release Notes">v1.8.9</a>
         </nav>
       </div>
     </aside>
@@ -2714,7 +2775,7 @@
         <header class="header">
           <img class="header-avatar" src="assets/pythos_avatar.jpg" alt="Pythos Oracle" width="40" height="40" />
           <div class="header-info">
-            <h1>PYTHOS <a href="changelog.html#pythos-1-8-8" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.8)" aria-label="Version 1.8.8 Release Notes">v1.8.8</a></h1>
+            <h1>PYTHOS <a href="changelog.html#pythos-1-8-9" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.9)" aria-label="Version 1.8.9 Release Notes">v1.8.9</a></h1>
             <p>Mathematics & Physics Oracle</p>
           </div>
           <button id="themeToggleBtn" class="theme-toggle-btn" title="Toggle Dark/Light Mode" aria-label="Toggle Dark and Light Theme">
@@ -2732,7 +2793,7 @@
               <li><a href="algebra/">Algebra Study Guide</a>: Linear equations, quadratic formulas, polynomials, and systems.</li>
               <li><a href="calculus/">Calculus Study Guide</a>: Limits, derivatives, integration techniques, and optimization.</li>
               <li><a href="physics/">Physics Study Guide</a>: Mechanics, kinematics, rotational dynamics, and Newton's laws.</li>
-              <li><a href="validation/">Mathematical Validation</a>: Reliability record, 50,000-problem benchmark, and multi-tier verification.</li>
+              <li><a href="validation/">Mathematical Validation</a>: Reliability record, 110,000-problem benchmark, and multi-tier verification.</li>
               <li><a href="tools/">Interactive Toolset</a>: Scientific calculators, 2D function grapher, and step verifiers.</li>
               <li><a href="about/">About Pythos</a>: Educational mission, student origin, and verification architecture.</li>
               <li><a href="nonprofit.html">Mission & Roadmap</a>: Long-term educational vision, keeping Pythos free, and supporting young developers.</li>

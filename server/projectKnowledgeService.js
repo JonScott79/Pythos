@@ -235,7 +235,7 @@ function isMathExecutionIntent(text) {
   // Explicit calculation commands: "Calculate 95 - 96", "Compute 47,907 / 50,000", "What is 95 - 96?"
   if (/^(?:(?:pythos[,\s]+)?(?:please\s+)?(?:calculate|compute|evaluate|determine|solve(?:\s+for)?|find|simplify|work\s+out|give\s+me|what\s+is|what\s+would\s+be|how\s+much\s+is)(?:\s+(?:the\s+)?(?:result|value|answer|evaluation|solution|sum|difference|product|quotient)(?:\s+(?:of|to|for))?)?[:\s])/i.test(clean)) {
     // Exception: "What is your accuracy?", "What is Pythos?", "What is your mission?", "What is the nonprofit"
-    if (/\b(?:accuracy|pythos|mission|nonprofit|version|purpose|difference)\b/i.test(clean)) {
+    if (/\b(?:accuracy|pythos|mission|nonprofit|version|purpose|difference|validation|benchmark)\b/i.test(clean)) {
       return false;
     }
     return true;

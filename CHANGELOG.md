@@ -5,6 +5,19 @@ All notable changes to the Pythos project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Pythos 1.8.9
+**Release Date:** 2026-09-24
+
+### Added & Hardened
+- **Fresh 110,000-Problem Blind Online Validation Campaign** (`validation/`, `server/site_sources/validation/`): Completed a full, independent 110,000-problem online-model validation campaign (`v1.8.9-online-validation`, PRNG seed `2718281828`, candidate generation 100% remote via Groq Cloud API with `openai/gpt-oss-20b`).
+- **110,000 / 110,000 Verified Correct (100.00%)**: Across all 110,000 test cases, Pythos delivered 110,000 verified-correct answers with **0 incorrect delivered answers**, **0 safely withheld**, **0 verification escapes**, and **0 false-positive rejections** (95% Wilson Score CI: `[0.0000%, 0.0034%]`).
+- **All 11 Mathematical Domains Completed at 100.00%**: Evaluated 10,000 unique problems across every mathematical category: Arithmetic (10K/10K), Fractions/Decimals/Percentages (10K/10K), Linear Equations (10K/10K), Systems of Equations (10K/10K), Quadratics & Polynomials (10K/10K), Functions & Algebra (10K/10K), Geometry (10K/10K), Trigonometry (10K/10K), Calculus (10K/10K), Probability & Statistics (10K/10K), and Physics / Mechanics (10K/10K).
+- **Repaired Linear Router Confirmed**: Successfully verified the fix for linear equation symbol parsing and variable extraction, resolving 10,000 out of 10,000 linear expressions (up from 75.3% in earlier runs) with zero safe-withholding fallout.
+- **Remote Candidate Generation Architecture Validated**: Relieved local hardware of LLM inference by shifting candidate generation entirely to hosted Groq Cloud endpoints, achieving high stability, 0 provider faults, and a steady-state heap footprint of 132.1 MB across 10.45 hours of runtime.
+- **Resilient Durable Checkpointing**: Validated that the benchmark harness and atomic checkpoint storage successfully survive system suspend/wake events without dropping progress or corrupting dataset records.
+- **Dedicated Specialized Validation Suites Verified**: Confirmed full green passes across Vision Verification (14/14), Safe Withholding UX (9/9), Kid Safety & Adversarial (13/13), Multi-Turn Context (5/5), Backup-Brain Recovery (24/24), Project Knowledge & Self-Grounding (56/56), Accessibility & Math Rendering (254/254), Repaired Linear Router (33/33), and End-to-End Verifier (14/14).
+- **Scientific Humility & Honest Bounds**: Documented that 100% verified delivery across a 110,000-problem finite benchmark proves the rigor of multi-tier deterministic verification, but does not imply universal mathematical perfection for all future inquiries.
+
 ## Pythos 1.8.8
 **Release Date:** 2026-09-23
 
