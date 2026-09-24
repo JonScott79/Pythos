@@ -1722,7 +1722,7 @@ function renderWelcomeCard() {
     <img src="assets/pythos_avatar.jpg" alt="Pythos Oracle" class="welcome-oracle-avatar" width="56" height="56" />
     <h2 class="welcome-oracle-title">Welcome to Pythos</h2>
     <p class="welcome-oracle-desc">
-      Free AI mathematics &amp; physics education backed by multi-tier deterministic verification.
+      Free AI mathematics &amp; physics education backed by multiple checks for accuracy.
       Work through derivations, check your homework, or explore concepts step-by-step.
       <br><a href="validation/" style="color:var(--primary-color); text-decoration:underline; font-size:0.85rem;">View our public mathematical validation record &rarr;</a>
     </p>
