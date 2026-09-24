@@ -48,6 +48,12 @@ class MockElement {
     this.innerHTML = '';
     this.attributes = {};
     this.disabled = false;
+    this.classList = {
+      classes: new Set(),
+      add: (c) => this.classList.classes.add(c),
+      remove: (c) => this.classList.classes.delete(c),
+      contains: (c) => this.classList.classes.has(c)
+    };
   }
 
   setAttribute(name, val) {
@@ -63,12 +69,8 @@ class MockElement {
   }
 }
 
-const toolImageBtn = new MockElement('toolImageBtn');
-toolImageBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg><span>Image / Photo</span>';
-toolImageBtn.setAttribute('title', 'Upload or Photograph Math/Physics Problem');
-toolImageBtn.setAttribute('aria-label', 'Upload or take a picture of a problem or handwritten work');
-
 const attachImgBtn = new MockElement('attachImgBtn');
+attachImgBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>';
 attachImgBtn.setAttribute('title', 'Attach picture of math/physics problem or handwritten work');
 attachImgBtn.setAttribute('aria-label', 'Attach picture of problem or notes');
 
@@ -79,7 +81,6 @@ const sandbox = {
   Math,
   setInterval,
   clearInterval,
-  toolImageBtn,
   attachImgBtn,
   console
 };
@@ -134,7 +135,7 @@ assert.strictEqual(isVisionCooldownActive(), false, 'Initially inactive');
 // 0 seconds -> no timer
 startVisionCooldown(0);
 assert.strictEqual(isVisionCooldownActive(), false, 'retryAfter = 0 must not start timer');
-assert.strictEqual(toolImageBtn.disabled, false, 'Button remains enabled');
+assert.strictEqual(attachImgBtn.disabled, false, 'Button remains enabled');
 
 // Negative -> no timer
 startVisionCooldown(-10);
@@ -166,22 +167,20 @@ console.log('  [PASS] missing / non-finite -> no timer');
 // -------------------------------------------------------------
 console.log('\n--- PART 3: Activation & Countdown Display ---');
 
-const origHTML = toolImageBtn.innerHTML;
-const origTitle = toolImageBtn.getAttribute('title');
-const origAriaLabel = toolImageBtn.getAttribute('aria-label');
+const origHTML = attachImgBtn.innerHTML;
+const origTitle = attachImgBtn.getAttribute('title');
+const origAriaLabel = attachImgBtn.getAttribute('aria-label');
 
 startVisionCooldown(1094);
 assert.strictEqual(isVisionCooldownActive(), true, 'Vision cooldown active');
-assert.strictEqual(toolImageBtn.disabled, true, 'toolImageBtn disabled');
-assert.strictEqual(toolImageBtn.getAttribute('aria-disabled'), 'true', 'aria-disabled is true');
-assert(toolImageBtn.innerHTML.includes('⏳ 18:14'), 'toolImageBtn innerHTML includes "⏳ 18:14"');
-assert(toolImageBtn.getAttribute('title').includes('18:14'), 'Accessible title includes remaining time');
-assert(toolImageBtn.getAttribute('aria-label').includes('18:14'), 'aria-label includes remaining time');
-assert.strictEqual(attachImgBtn.disabled, true, 'attachImgBtn disabled to prevent bypass');
+assert.strictEqual(attachImgBtn.disabled, true, 'attachImgBtn disabled');
+assert.strictEqual(attachImgBtn.getAttribute('aria-disabled'), 'true', 'aria-disabled is true');
+assert(attachImgBtn.innerHTML.includes('⏳ 18:14'), 'attachImgBtn innerHTML includes "⏳ 18:14"');
+assert(attachImgBtn.getAttribute('title').includes('18:14'), 'Accessible title includes remaining time');
+assert(attachImgBtn.getAttribute('aria-label').includes('18:14'), 'aria-label includes remaining time');
 
 console.log('  [PASS] Button disabled with countdown "⏳ 18:14"');
 console.log('  [PASS] Accessible title & aria-label announce remaining duration');
-console.log('  [PASS] Secondary attach button disabled');
 
 // -------------------------------------------------------------
 // PART 4: Replacement When New 429 Arrives
@@ -191,8 +190,8 @@ console.log('\n--- PART 4: Replacing Existing Timer With New 429 ---');
 // Replace active 1094s with 65s
 startVisionCooldown(65);
 assert.strictEqual(isVisionCooldownActive(), true, 'Vision cooldown still active');
-assert(toolImageBtn.innerHTML.includes('⏳ 01:05'), 'toolImageBtn updated to "⏳ 01:05"');
-assert(toolImageBtn.getAttribute('title').includes('01:05'), 'title updated to "01:05"');
+assert(attachImgBtn.innerHTML.includes('⏳ 01:05'), 'attachImgBtn updated to "⏳ 01:05"');
+assert(attachImgBtn.getAttribute('title').includes('01:05'), 'title updated to "01:05"');
 
 console.log('  [PASS] New 429 replaces active timer cleanly');
 
@@ -203,14 +202,13 @@ console.log('\n--- PART 5: Expiration & Button Restoration ---');
 
 clearVisionCooldown();
 assert.strictEqual(isVisionCooldownActive(), false, 'Cooldown inactive');
-assert.strictEqual(toolImageBtn.disabled, false, 'toolImageBtn re-enabled');
-assert.strictEqual(toolImageBtn.getAttribute('aria-disabled'), null, 'aria-disabled removed');
-assert.strictEqual(toolImageBtn.innerHTML, origHTML, 'Original HTML with SVG icon and "Image / Photo" restored');
-assert.strictEqual(toolImageBtn.getAttribute('title'), origTitle, 'Original title restored');
-assert.strictEqual(toolImageBtn.getAttribute('aria-label'), origAriaLabel, 'Original aria-label restored');
 assert.strictEqual(attachImgBtn.disabled, false, 'attachImgBtn re-enabled');
+assert.strictEqual(attachImgBtn.getAttribute('aria-disabled'), null, 'aria-disabled removed');
+assert.strictEqual(attachImgBtn.innerHTML, origHTML, 'Original HTML with camera SVG icon restored');
+assert.strictEqual(attachImgBtn.getAttribute('title'), origTitle, 'Original title restored');
+assert.strictEqual(attachImgBtn.getAttribute('aria-label'), origAriaLabel, 'Original aria-label restored');
 
-console.log('  [PASS] Button cleanly restored to [ Image / Photo ]');
+console.log('  [PASS] Button cleanly restored to camera icon');
 console.log('  [PASS] Original SVG icon, title, and aria-label fully intact');
 
 // -------------------------------------------------------------
@@ -258,11 +256,6 @@ assert(
 console.log('  [PASS] Text requests remain available during cooldown');
 
 // 6. Direct click handlers block during cooldown
-assert(
-  appJs.includes('toolImageBtn.addEventListener("click"') &&
-  appJs.includes('isVisionCooldownActive()'),
-  'toolImageBtn click listener checks isVisionCooldownActive'
-);
 assert(
   appJs.includes('attachImgBtn.addEventListener("click"') &&
   appJs.includes('isVisionCooldownActive()'),

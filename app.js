@@ -2231,7 +2231,6 @@ window.DeterministicMath = {
 const pendingImagesStrip = document.getElementById("pendingImagesStrip");
 const imageFileInput = document.getElementById("imageFileInput");
 const attachImgBtn = document.getElementById("attachImgBtn");
-const toolImageBtn = document.getElementById("toolImageBtn");
 const inputWrapper = document.querySelector(".input-wrapper");
 
 // ============================================================
@@ -2239,9 +2238,34 @@ const inputWrapper = document.querySelector(".input-wrapper");
 // ============================================================
 let visionCooldownEndTime = 0;
 let visionCooldownTimer = null;
-let toolImageBtnOriginalHTML = null;
-let toolImageBtnOriginalTitle = null;
-let toolImageBtnOriginalAriaLabel = null;
+let attachImgBtnOriginalHTML = null;
+let attachImgBtnOriginalTitle = null;
+let attachImgBtnOriginalAriaLabel = null;
+
+if (attachImgBtn) {
+  attachImgBtnOriginalHTML = attachImgBtn.innerHTML;
+  attachImgBtnOriginalTitle = attachImgBtn.getAttribute("title") || "Attach picture of math/physics problem or handwritten work";
+  attachImgBtnOriginalAriaLabel = attachImgBtn.getAttribute("aria-label") || "Attach picture of problem or notes";
+}
+
+/**
+ * Restores the surviving image button to its normal camera state.
+ */
+function restoreCameraState() {
+  if (!attachImgBtn) return;
+  attachImgBtn.disabled = false;
+  attachImgBtn.removeAttribute("aria-disabled");
+  attachImgBtn.classList.remove("countdown-active");
+  if (attachImgBtnOriginalHTML !== null) {
+    attachImgBtn.innerHTML = attachImgBtnOriginalHTML;
+  }
+  if (attachImgBtnOriginalTitle !== null) {
+    attachImgBtn.setAttribute("title", attachImgBtnOriginalTitle);
+  }
+  if (attachImgBtnOriginalAriaLabel !== null) {
+    attachImgBtn.setAttribute("aria-label", attachImgBtnOriginalAriaLabel);
+  }
+}
 
 /**
  * Formats seconds into MM:SS or H:MM:SS countdown format.
@@ -2267,7 +2291,7 @@ function isVisionCooldownActive() {
 }
 
 function updateVisionTimerUI() {
-  if (!toolImageBtn) return;
+  if (!attachImgBtn) return;
   const remainingMs = visionCooldownEndTime - Date.now();
   const remainingSecs = Math.ceil(remainingMs / 1000);
 
@@ -2278,21 +2302,15 @@ function updateVisionTimerUI() {
 
   const formattedTime = formatTimerCountdown(remainingSecs);
 
-  // Disable buttons while preserving accessibility semantics
-  toolImageBtn.disabled = true;
-  toolImageBtn.setAttribute("aria-disabled", "true");
-  toolImageBtn.setAttribute("title", `Image reasoning temporarily busy. Available in ${formattedTime}`);
-  toolImageBtn.setAttribute("aria-label", `Image reasoning temporarily busy. Available in ${formattedTime}`);
+  // Disable button while preserving accessibility semantics
+  attachImgBtn.disabled = true;
+  attachImgBtn.setAttribute("aria-disabled", "true");
+  attachImgBtn.setAttribute("title", `Image reasoning temporarily busy. Available in ${formattedTime}`);
+  attachImgBtn.setAttribute("aria-label", `Image reasoning temporarily busy. Available in ${formattedTime}`);
 
-  // Transform existing Image / Photo button into countdown timer: [ ⏳ MM:SS ]
-  toolImageBtn.innerHTML = `<span>⏳ ${formattedTime}</span>`;
-
-  if (attachImgBtn) {
-    attachImgBtn.disabled = true;
-    attachImgBtn.setAttribute("aria-disabled", "true");
-    attachImgBtn.setAttribute("title", `Image reasoning temporarily busy (${formattedTime})`);
-    attachImgBtn.setAttribute("aria-label", `Image reasoning temporarily busy (${formattedTime})`);
-  }
+  // Transform camera button into countdown indicator: [ ⏳ MM:SS ]
+  attachImgBtn.classList.add("countdown-active");
+  attachImgBtn.innerHTML = `<span>⏳ ${formattedTime}</span>`;
 }
 
 function startVisionCooldown(retryAfterSeconds) {
@@ -2305,10 +2323,10 @@ function startVisionCooldown(retryAfterSeconds) {
   }
 
   // Cache original button presentation and accessible labels on first activation
-  if (toolImageBtn && toolImageBtnOriginalHTML === null) {
-    toolImageBtnOriginalHTML = toolImageBtn.innerHTML;
-    toolImageBtnOriginalTitle = toolImageBtn.getAttribute("title") || "Upload or Photograph Math/Physics Problem";
-    toolImageBtnOriginalAriaLabel = toolImageBtn.getAttribute("aria-label") || "Upload or take a picture of a problem or handwritten work";
+  if (attachImgBtn && attachImgBtnOriginalHTML === null) {
+    attachImgBtnOriginalHTML = attachImgBtn.innerHTML;
+    attachImgBtnOriginalTitle = attachImgBtn.getAttribute("title") || "Attach picture of math/physics problem or handwritten work";
+    attachImgBtnOriginalAriaLabel = attachImgBtn.getAttribute("aria-label") || "Attach picture of problem or notes";
   }
 
   // Clear any existing countdown interval if replacing existing timer
@@ -2331,27 +2349,7 @@ function clearVisionCooldown() {
     visionCooldownTimer = null;
   }
   visionCooldownEndTime = 0;
-
-  if (toolImageBtn) {
-    toolImageBtn.disabled = false;
-    toolImageBtn.removeAttribute("aria-disabled");
-    if (toolImageBtnOriginalHTML !== null) {
-      toolImageBtn.innerHTML = toolImageBtnOriginalHTML;
-    }
-    if (toolImageBtnOriginalTitle !== null) {
-      toolImageBtn.setAttribute("title", toolImageBtnOriginalTitle);
-    }
-    if (toolImageBtnOriginalAriaLabel !== null) {
-      toolImageBtn.setAttribute("aria-label", toolImageBtnOriginalAriaLabel);
-    }
-  }
-
-  if (attachImgBtn) {
-    attachImgBtn.disabled = false;
-    attachImgBtn.removeAttribute("aria-disabled");
-    attachImgBtn.setAttribute("title", "Attach picture of math/physics problem or handwritten work");
-    attachImgBtn.setAttribute("aria-label", "Attach picture of problem or notes");
-  }
+  restoreCameraState();
 }
 
 /**
@@ -2688,25 +2686,21 @@ async function handleImageFiles(files) {
     } catch (err) {
       console.warn("[IMAGE PROCESSING ERROR]:", err.message);
       alert(`⚠️ Could not process "${file.name || 'image'}": ${err.message}`);
+      if (!isVisionCooldownActive()) {
+        restoreCameraState();
+      }
     }
   }
 
   updatePendingImagesUI();
+  if (!isVisionCooldownActive()) {
+    restoreCameraState();
+  }
   if (input) input.focus();
 }
 
 if (attachImgBtn && imageFileInput) {
   attachImgBtn.addEventListener("click", () => {
-    if (isVisionCooldownActive()) {
-      const remainingSecs = Math.ceil((visionCooldownEndTime - Date.now()) / 1000);
-      alert(`⏳ Image reasoning is temporarily busy with high demand. Available in ${formatTimerCountdown(remainingSecs)}.`);
-      return;
-    }
-    imageFileInput.click();
-  });
-}
-if (toolImageBtn && imageFileInput) {
-  toolImageBtn.addEventListener("click", () => {
     if (isVisionCooldownActive()) {
       const remainingSecs = Math.ceil((visionCooldownEndTime - Date.now()) / 1000);
       alert(`⏳ Image reasoning is temporarily busy with high demand. Available in ${formatTimerCountdown(remainingSecs)}.`);
@@ -2725,6 +2719,16 @@ if (imageFileInput) {
     }
     handleImageFiles(e.target.files);
     imageFileInput.value = "";
+    if (!isVisionCooldownActive()) {
+      restoreCameraState();
+    }
+  });
+
+  imageFileInput.addEventListener("cancel", () => {
+    imageFileInput.value = "";
+    if (!isVisionCooldownActive()) {
+      restoreCameraState();
+    }
   });
 }
 
