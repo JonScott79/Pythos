@@ -192,7 +192,7 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
     // Extract algebraic equation or mathematical equality proposition (LHS = RHS)
     let extractedEq = null;
     const cleanPrompt = msg.content
-      .replace(/^(?:please\s+)?(?:solve(?:\s+for\s+[a-zA-Z])?|(?:check|verify|test|see)(?:\s+(?:if|whether|that))?|does|is|now\s+solve)[:\s]*/i, '')
+      .replace(/^(?:please\s+)?(?:solve(?:\s+for\s+[a-zA-Z])?|(?:check|verify|test|see)(?:\s+(?:if|whether|that))?|\bdoes\b|\bis\b|now\s+solve)[:\s]*/i, '')
       .replace(/[?!.]+$/, '')
       .trim();
 

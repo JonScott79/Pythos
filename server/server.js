@@ -2259,7 +2259,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
       }
     }
 
-    const wantsTextViz = lastUserMsg && /\b(?:visualize|draw|plot|show|sketch)\b/i.test(lastUserMsg.content);
+    const wantsTextViz = lastUserMsg && /\b(?:visualize|draw|plot|show|sketch|diagram|illustration)\b/i.test(lastUserMsg.content);
     if (wantsTextViz && finalContent && !finalContent.includes('[VIZ:') && !finalContent.includes('[GEOMETRY:') && !finalContent.includes('[GRAPH:')) {
       const angleData = parseAngleFromText(finalContent) || (activeProblemState?.active && parseAngleFromText(activeProblemState.active.activeExpression || activeProblemState.active.transcription || activeProblemState.active.initialUserPrompt || ''));
       if (angleData) {
@@ -2267,6 +2267,22 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           type: 'CLASSICAL_MODEL_VIZ',
           model: 'trigonometry',
           customAngle: Math.round(angleData.normalizedDeg)
+        });
+        if (vizResp) {
+          finalContent += '\n\n' + vizResp;
+        }
+      } else if (/(?:triangle|trig|ratio|tangent|sine|cosine|tan|sin|cos|opposite|adjacent|hypotenuse)/i.test(lastUserMsg.content) || (activeProblemState?.active && /(?:triangle|trig|ratio|tangent|sine|cosine|tan|sin|cos)/i.test(activeProblemState.active.activeExpression || activeProblemState.active.initialUserPrompt || ''))) {
+        const vizResp = buildDeterministicResponse({
+          type: 'GEOMETRY_VIZ',
+          figType: 'triangle',
+          a: 3,
+          b: 4,
+          c: 5,
+          right_angle: 'C',
+          isTrigExplanation: true,
+          opp: 3,
+          adj: 4,
+          hyp: 5
         });
         if (vizResp) {
           finalContent += '\n\n' + vizResp;

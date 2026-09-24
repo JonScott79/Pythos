@@ -5,6 +5,18 @@ All notable changes to the Pythos project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Pythos 1.8.10
+**Release Date:** 2026-09-24
+
+### Fixed & Hardened
+- **Right-Triangle Visual Intent Routing** (`server/deterministicRouter.js`, `server/server.js`): Enhanced intent detection to recognize qualitative right-triangle visualization requests without numbers (e.g. *"can you show me on a triangle?"*, *"i want to see the actual triangle and how this works"*). Fulfills the request using a canonical 3-4-5 right triangle (`[GEOMETRY: triangle, a=3, b=4, c=5, right_angle=C, opp=3, adj=4, hyp=5, theta=true]`) with labeled opposite ($3$), adjacent ($4$), and hypotenuse ($5$) sides, verified trigonometric ratios ($\sin\theta=3/5$, $\cos\theta=4/5$, $\tan\theta=3/4$), and proof that $\tan\theta = \sin\theta/\cos\theta$ because the hypotenuse cancels out.
+- **Robust JSON Parsing & Multi-Quote Support** (`vizEngine/vizExtractor.js`, `app.js`): Hardened `extractBalancedVizBlocks` and `repairJsonEscapes` to reliably parse Python/LLM single-quoted JSON specs (`{'type': 'MATH'}`), unquoted object keys, and trailing commas without throwing syntax errors.
+- **Shielded Student-Facing Fallback UX** (`app.js`): Sanitized visualization failure handling (`renderTruthfulFailure`) to ensure zero raw JSON errors, parser tokens, stack traces, or technical error strings (e.g. *"Malformed JSON specification: Expected property name or '}' at position 1"*) are ever exposed to students. Displays a clean, respectful fallback message (*"The interactive triangle isn't available right now, but I can still walk you through the triangle step by step."*).
+- **Context Contamination Elimination** (`server/problemClassifier.js`, `server/contextManager.js`): Expanded `isTrigProblem` to accurately classify conversational trigonometric ratio questions (e.g. *"isnt tan sin/cos"*, *"i thought tan was opposite/hypo"*) under `DOMAINS.TRIGONOMETRY` rather than misclassifying as `ALGEBRA`. Fixed prompt cleaning to preserve contractions like `isnt`, completely eliminating irrelevant algebra protocol injections (such as "extraneous roots" checks).
+- **Internal Placeholder Leak Prevention** (`app.js`): Switched visualization placeholder injection to `.replaceAll()` and added safety cleanup passes to scrub any orphan internal placeholder tokens (`%%%INLINE_VIZ_INSTRUMENT_PLACEHOLDER%%%`) before rendering.
+- **Enhanced Canvas Geometry Rendering** (`app.js`): Enhanced `renderInlineGeometry` to draw acute angle $\theta$ arcs at vertex $B$ and clearly annotate legs with `opposite = 3`, `adjacent = 4`, and `hypotenuse = 5` along with informative card captions.
+- **Dedicated Multi-Turn Regression Suite** (`test-trig-viz-conversation.js`): Added a comprehensive automated test covering the full 5-turn conversational sequence, intent routing, verified mathematical content, failure fallback shielding, and leak prevention.
+
 ## Pythos 1.8.9
 **Release Date:** 2026-09-24
 

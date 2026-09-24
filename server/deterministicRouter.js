@@ -1310,19 +1310,33 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
     }
   }
 
-  // 0c. Geometric Figure Visualization Requests (e.g. "show a right triangle with legs 3 and 4", "triangle with sides 3, 4, 5")
+  // 0c. Geometric Figure Visualization Requests
+  // Numerical: e.g. "show a right triangle with legs 3 and 4", "triangle with sides 3, 4, 5"
+  // Qualitative: e.g. "can you show me on a triangle?", "show me on a right triangle", "i want to see the actual triangle and how this works", "draw a triangle"
   const triangleMatch = clean.match(/(?:right\s+triangle|triangle).*?(?:legs|sides)?\s*(\d+(?:\.\d+)?)\s*(?:and|,)\s*(\d+(?:\.\d+)?)(?:\s*(?:and|,)\s*(\d+(?:\.\d+)?))?/i);
-  if (triangleMatch) {
-    const a = parseFloat(triangleMatch[1]);
-    const b = parseFloat(triangleMatch[2]);
-    const c = triangleMatch[3] ? parseFloat(triangleMatch[3]) : Math.round(Math.hypot(a, b) * 100) / 100;
+  const isQualitativeTriangle = !triangleMatch && (
+    /(?:show|draw|illustrate|see|view|display|plot)(?:.*?)(?:on\s+a\s+|a\s+|the\s+)?(?:right\s+)?triangle/i.test(clean) ||
+    /(?:right\s+)?triangle.*?(?:how\s+this\s+works|opposite|adjacent|hypotenuse|ratio|trig|work)/i.test(clean) ||
+    (/(?:show|see|view|draw)\s+(?:me\s+)?(?:how\s+this\s+works|how\s+it\s+works)/i.test(clean) && Array.isArray(messages) && messages.some(m => /(?:triangle|tan|sin|cos|trig|opposite|hypo)/i.test(m.content || '')))
+  );
+
+  if (triangleMatch || isQualitativeTriangle) {
+    const a = triangleMatch ? parseFloat(triangleMatch[1]) : 3;
+    const b = triangleMatch ? parseFloat(triangleMatch[2]) : 4;
+    const c = (triangleMatch && triangleMatch[3]) ? parseFloat(triangleMatch[3]) : (triangleMatch ? Math.round(Math.hypot(a, b) * 100) / 100 : 5);
+    const hasTrigContext = isQualitativeTriangle || /(?:trig|ratio|opposite|adjacent|hypotenuse|sin|cos|tan)/i.test(clean) || (Array.isArray(messages) && messages.some(m => /(?:tan|sin|cos|trig|opposite|adjacent|hypo)/i.test(m.content || '')));
+
     return {
       type: 'GEOMETRY_VIZ',
       figType: 'triangle',
       a,
       b,
       c,
-      right_angle: 'C'
+      right_angle: 'C',
+      isTrigExplanation: hasTrigContext,
+      opp: a,
+      adj: b,
+      hyp: c
     };
   }
 
@@ -2263,6 +2277,33 @@ Points within the highlighted segment satisfy the condition. Would you like to s
   }
 
   if (intent.type === 'GEOMETRY_VIZ') {
+    if (intent.isTrigExplanation || intent.opp !== undefined) {
+      const opp = intent.opp || intent.a;
+      const adj = intent.adj || intent.b;
+      const hyp = intent.hyp || intent.c;
+      return `📐 **Right-Triangle Trigonometric Model**
+
+Here is the right triangle illustrating the opposite, adjacent, and hypotenuse sides with angle $\\theta$:
+
+[GEOMETRY: triangle, a=${intent.a}, b=${intent.b}, c=${intent.c}, right_angle=C, opp=${opp}, adj=${adj}, hyp=${hyp}, theta=true]
+
+### 1. Side Identification Relative to $\\theta$:
+- **Opposite side** = $${opp}$ (vertical leg opposite to angle $\\theta$)
+- **Adjacent side** = $${adj}$ (horizontal leg adjacent to angle $\\theta$)
+- **Hypotenuse** = $${hyp}$ (longest side opposite the $90^\\circ$ right angle $C$)
+
+### 2. Trigonometric Ratios for $\\theta$:
+- $\\sin(\\theta) = \\frac{\\text{opposite}}{\\text{hypotenuse}} = \\frac{${opp}}{${hyp}}$
+- $\\cos(\\theta) = \\frac{\\text{adjacent}}{\\text{hypotenuse}} = \\frac{${adj}}{${hyp}}$
+- $\\tan(\\theta) = \\frac{\\text{opposite}}{\\text{adjacent}} = \\frac{${opp}}{${adj}}$
+
+### 3. Connecting $\\tan(\\theta) = \\frac{\\sin(\\theta)}{\\cos(\\theta)}$:
+Dividing the sine ratio by the cosine ratio:
+$$\\frac{\\sin(\\theta)}{\\cos(\\theta)} = \\frac{\\frac{${opp}}{${hyp}}}{\\frac{${adj}}{${hyp}}} = \\frac{${opp}}{${hyp}} \\times \\frac{${hyp}}{${adj}} = \\frac{${opp}}{${adj}} = \\tan(\\theta)$$
+
+The hypotenuse ($${hyp}$) cancels out directly, confirming why tangent is identically $\\frac{\\text{opposite}}{\\text{adjacent}}$ and $\\frac{\\sin(\\theta)}{\\cos(\\theta)}$.`;
+    }
+
     return `📐 **Geometric Construction**
 
 Here is the requested geometric figure:

@@ -494,7 +494,10 @@ function classifyProblem(userText) {
   }
 
   // Check for general equations or mathematical equality propositions (e.g. 42*pi*/18 = 2*pi*, 2x + 4 = 12, etc.)
-  if (cleanAlg.includes('=')) {
+  const hasTrigRatioTokens = /\b(?:sin|cos|tan|sec|csc|cot|sine|cosine|tangent|secant|cosecant|cotangent|sohcahtoa)\b/i.test(text);
+  const hasTrigContextTokens = /\b(?:sin|cos|tan|sec|csc|cot|sine|cosine|tangent|ratio|ratios|opposite|adjacent|hypotenuse|hypo|angle|theta|\/)\b/i.test(text) ||
+                               /[θ\u03B8]/.test(text) || lower.includes('sin/cos');
+  if (cleanAlg.includes('=') && !(hasTrigRatioTokens && hasTrigContextTokens)) {
     const eqParts = cleanAlg.split('=');
     if (eqParts.length === 2 && eqParts[0].trim() && eqParts[1].trim()) {
       const lhs = eqParts[0].trim();
@@ -608,8 +611,12 @@ function classifyProblem(userText) {
   // -------------------------------------------------------------
   // 10. Trigonometry
   // -------------------------------------------------------------
-  const isTrigProblem = lower.includes('trigonometry') || lower.includes('sin^2') || lower.includes('unit circle') ||
-    (lower.includes('triangle') && (lower.includes('hypotenuse') || lower.includes('sine') || lower.includes('cosine'))) ||
+  const hasTrigRatioKeywords = /\b(?:sin|cos|tan|sec|csc|cot|sine|cosine|tangent|secant|cosecant|cotangent|sohcahtoa)\b/i.test(text);
+  const hasTrigContext = /\b(?:sin|cos|tan|sec|csc|cot|sine|cosine|tangent|ratio|ratios|opposite|adjacent|hypotenuse|hypo|angle|theta|\/)\b/i.test(text) ||
+                         /[θ\u03B8]/.test(text) || lower.includes('sin/cos');
+  const isTrigProblem = lower.includes('trigonometry') || lower.includes('sin^2') || lower.includes('cos^2') || lower.includes('tan^2') || lower.includes('unit circle') ||
+    (hasTrigRatioKeywords && (hasTrigContext || lower.includes('triangle') || lower.includes('hypo') || lower.includes('opp') || lower.includes('adj'))) ||
+    (lower.includes('triangle') && (lower.includes('hypotenuse') || lower.includes('hypo') || lower.includes('sine') || lower.includes('cosine') || lower.includes('tangent') || lower.includes('opposite') || lower.includes('adjacent'))) ||
     ((lower.includes('arc') || lower.includes('central angle') || lower.includes('radian')) && (lower.includes('circle') || lower.includes('radius') || lower.includes('intercepts'))) ||
     (lower.includes('standard position') || (lower.includes('quadrant') && (lower.includes('angle') || lower.includes('terminal side') || lower.includes('π') || lower.includes('pi') || lower.includes('degrees'))));
 

@@ -53,6 +53,7 @@
 
       let depth = 0;
       let inString = false;
+      let stringQuote = null;
       let isEscaped = false;
       let endBraceIdx = -1;
 
@@ -64,12 +65,14 @@
             isEscaped = false;
           } else if (char === '\\') {
             isEscaped = true;
-          } else if (char === '"') {
+          } else if (char === stringQuote) {
             inString = false;
+            stringQuote = null;
           }
         } else {
-          if (char === '"') {
+          if (char === '"' || char === "'") {
             inString = true;
+            stringQuote = char;
           } else if (char === '{') {
             depth++;
           } else if (char === '}') {
@@ -121,42 +124,80 @@
   function repairJsonEscapes(jsonStr) {
     if (!jsonStr || typeof jsonStr !== 'string') return jsonStr;
 
-    let inString = false;
-    let isEscaped = false;
+    let str = jsonStr.trim();
+
+    // 1. Remove trailing commas before closing braces/brackets
+    str = str.replace(/,\s*([}\]])/g, '$1');
+
+    // 2. Convert unquoted keys: { type: '...' } -> { "type": '...' }
+    str = str.replace(/([{,]\s*)([a-zA-Z0-9_]+)\s*:/g, '$1"$2":');
+
+    // 3. Normalize single quotes to double quotes while preserving apostrophes inside double quotes
+    let inDouble = false;
+    let inSingle = false;
+    let escaped = false;
+    let normalized = '';
+
+    for (let i = 0; i < str.length; i++) {
+      const ch = str[i];
+      if (escaped) {
+        normalized += ch;
+        escaped = false;
+        continue;
+      }
+      if (ch === '\\') {
+        escaped = true;
+        normalized += ch;
+        continue;
+      }
+      if (ch === '"' && !inSingle) {
+        inDouble = !inDouble;
+        normalized += ch;
+      } else if (ch === "'" && !inDouble) {
+        normalized += '"';
+        inSingle = !inSingle;
+      } else {
+        normalized += ch;
+      }
+    }
+    str = normalized;
+
+    // 4. Repair illegal JSON escape characters inside string literals (e.g. \theta, \pi, \frac)
+    inDouble = false;
+    escaped = false;
     let result = '';
 
-    for (let i = 0; i < jsonStr.length; i++) {
-      const char = jsonStr[i];
+    for (let i = 0; i < str.length; i++) {
+      const char = str[i];
 
-      if (!inString) {
+      if (!inDouble) {
         if (char === '"') {
-          inString = true;
+          inDouble = true;
         }
         result += char;
       } else {
-        // Inside string literal
         if (char === '\\') {
-          const nextChar = i + 1 < jsonStr.length ? jsonStr[i + 1] : '';
-          // Valid JSON escape targets: " \ / b f n r t u
+          const nextChar = i + 1 < str.length ? str[i + 1] : '';
           if (/^["\\/bfnrt]/.test(nextChar)) {
             result += char + nextChar;
-            i++; // skip nextChar
-          } else if (nextChar === 'u' && /^[0-9a-fA-F]{4}/.test(jsonStr.slice(i + 2, i + 6))) {
-            result += char + jsonStr.slice(i + 1, i + 6);
-            i += 5; // skip uXXXX
+            i++;
+          } else if (nextChar === 'u' && /^[0-9a-fA-F]{4}/.test(str.slice(i + 2, i + 6))) {
+            result += char + str.slice(i + 1, i + 6);
+            i += 5;
           } else {
-            // Invalid escape (e.g. \p, \t followed by non-escape, \s, etc.)
-            // Escape the backslash so it becomes valid JSON
             result += '\\\\';
           }
         } else if (char === '"') {
-          inString = false;
+          inDouble = false;
           result += char;
         } else {
           result += char;
         }
       }
     }
+
+    // 5. Final pass for trailing commas
+    result = result.replace(/,\s*([}\]])/g, '$1');
 
     return result;
   }

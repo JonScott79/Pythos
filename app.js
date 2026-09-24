@@ -534,6 +534,7 @@ function extractBalancedVizBlocks(text) {
 
     let depth = 0;
     let inString = false;
+    let stringQuote = null;
     let isEscaped = false;
     let endBraceIdx = -1;
 
@@ -545,12 +546,14 @@ function extractBalancedVizBlocks(text) {
           isEscaped = false;
         } else if (char === '\\') {
           isEscaped = true;
-        } else if (char === '"') {
+        } else if (char === stringQuote) {
           inString = false;
+          stringQuote = null;
         }
       } else {
-        if (char === '"') {
+        if (char === '"' || char === "'") {
           inString = true;
+          stringQuote = char;
         } else if (char === '{') {
           depth++;
         } else if (char === '}') {
@@ -992,6 +995,24 @@ function renderInlineGeometry(canvas, config) {
       ctx.stroke();
     }
 
+    const isTrigMode = !!(config.opp || config.adj || config.hyp || config.theta || config.isTrigExplanation);
+
+    // Acute angle theta arc and label at vertex B
+    if (isTrigMode) {
+      const arcRadius = 22;
+      const angleAtB = Math.atan2(a * scale, b * scale);
+      ctx.strokeStyle = isDark ? '#fb923c' : '#ea580c';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(B.x, B.y, arcRadius, Math.PI, Math.PI + angleAtB, false);
+      ctx.stroke();
+
+      ctx.font = "bold 13px system-ui, sans-serif";
+      ctx.fillStyle = isDark ? '#fb923c' : '#ea580c';
+      ctx.textAlign = "right";
+      ctx.fillText("θ", B.x - arcRadius - 4, B.y - 6);
+    }
+
     // Side length and vertex labels
     ctx.font = "bold 12px system-ui, sans-serif";
     ctx.fillStyle = textCol;
@@ -1004,14 +1025,20 @@ function renderInlineGeometry(canvas, config) {
     ctx.textAlign = "right";
     ctx.fillText("C", C.x - 6, C.y + 4);
 
-    // Side measurements
+    // Side measurements with trigonometric annotations if applicable
     ctx.font = "11px system-ui, sans-serif";
+    ctx.fillStyle = textCol;
     ctx.textAlign = "right";
-    ctx.fillText(`a = ${a}`, C.x - 8, (A.y + C.y) / 2);
+    const oppLabel = isTrigMode ? `opposite = ${a}` : `a = ${a}`;
+    ctx.fillText(oppLabel, C.x - 8, (A.y + C.y) / 2);
+
     ctx.textAlign = "center";
-    ctx.fillText(`b = ${b}`, (C.x + B.x) / 2, C.y + 16);
+    const adjLabel = isTrigMode ? `adjacent = ${b}` : `b = ${b}`;
+    ctx.fillText(adjLabel, (C.x + B.x) / 2, C.y + 16);
+
     ctx.textAlign = "left";
-    ctx.fillText(`c = ${c}`, (A.x + B.x) / 2 + 10, (A.y + B.y) / 2 - 4);
+    const hypLabel = isTrigMode ? `hypotenuse = ${c}` : `c = ${c}`;
+    ctx.fillText(hypLabel, (A.x + B.x) / 2 + 10, (A.y + B.y) / 2 - 4);
 
     return true;
   } catch (err) {
@@ -1388,11 +1415,14 @@ function appendMessage(role, text, images = null, metadata = {}) {
 
     // Insert legitimate graph & visualization placeholder containers into HTML after escaping is complete
     protectedText = protectedText
-      .replace("%%%INLINE_GRAPH_PLACEHOLDER%%%", '<div class="msg-inline-graph-card"></div>')
-      .replace("%%%INLINE_NUMBERLINE_PLACEHOLDER%%%", '<div class="msg-inline-viz-card" data-viz-type="numberline"></div>')
-      .replace("%%%INLINE_GEOMETRY_PLACEHOLDER%%%", '<div class="msg-inline-viz-card" data-viz-type="geometry"></div>')
-      .replace("%%%INLINE_CHART_PLACEHOLDER%%%", '<div class="msg-inline-viz-card" data-viz-type="chart"></div>')
+      .replaceAll("%%%INLINE_GRAPH_PLACEHOLDER%%%", '<div class="msg-inline-graph-card"></div>')
+      .replaceAll("%%%INLINE_NUMBERLINE_PLACEHOLDER%%%", '<div class="msg-inline-viz-card" data-viz-type="numberline"></div>')
+      .replaceAll("%%%INLINE_GEOMETRY_PLACEHOLDER%%%", '<div class="msg-inline-viz-card" data-viz-type="geometry"></div>')
+      .replaceAll("%%%INLINE_CHART_PLACEHOLDER%%%", '<div class="msg-inline-viz-card" data-viz-type="chart"></div>')
       .replaceAll("%%%INLINE_VIZ_INSTRUMENT_PLACEHOLDER%%%", '<div class="pythos-viz-instrument-container"></div>');
+
+    // Scrub any orphan internal placeholders so placeholders NEVER leak to the student
+    protectedText = protectedText.replace(/%%%INLINE_[A-Z_]+_PLACEHOLDER%%%/g, '');
 
     // 7. Restore code blocks
     protectedText = protectedText.replace(/%%%CODE_BLOCK_(\d+)%%%/g, (_, idx) => {
@@ -1575,7 +1605,10 @@ function appendMessage(role, text, images = null, metadata = {}) {
         infoRow.className = "msg-viz-footer";
         const caption = document.createElement("div");
         caption.className = "msg-viz-caption";
-        caption.innerHTML = `<strong>📐 Geometry:</strong> <code>${escapeHtml(String(config.type || "Triangle"))} (a=${escapeHtml(String(config.a !== undefined ? config.a : 3))}, b=${escapeHtml(String(config.b !== undefined ? config.b : 4))}, c=${escapeHtml(String(config.c !== undefined ? config.c : 5))})</code>`;
+        const isTrigMode = !!(config.opp || config.adj || config.hyp || config.theta);
+        caption.innerHTML = isTrigMode
+          ? `<strong>📐 Right Triangle:</strong> <code>opposite=${escapeHtml(String(config.opp || config.a || 3))}, adjacent=${escapeHtml(String(config.adj || config.b || 4))}, hypotenuse=${escapeHtml(String(config.hyp || config.c || 5))} (angle θ at B)</code>`
+          : `<strong>📐 Geometry:</strong> <code>${escapeHtml(String(config.type || "Triangle"))} (a=${escapeHtml(String(config.a !== undefined ? config.a : 3))}, b=${escapeHtml(String(config.b !== undefined ? config.b : 4))}, c=${escapeHtml(String(config.c !== undefined ? config.c : 5))})</code>`;
         const badge = document.createElement("span");
         badge.className = "msg-viz-badge";
         badge.textContent = "Geometric Model";
@@ -1627,10 +1660,16 @@ function appendMessage(role, text, images = null, metadata = {}) {
       if (!vizContainer) return;
 
       const renderTruthfulFailure = (reason) => {
+        const isTriangle = rawJson && /(?:triangle|trigonometry|theta|sin|cos|tan)/i.test(rawJson);
+        const titleMsg = isTriangle ? '📐 Interactive Triangle Unavailable' : '⚠️ Interactive Visualization Unavailable';
+        const bodyMsg = isTriangle
+          ? "The interactive triangle isn't available right now, but I can still walk you through the triangle step by step. The verified mathematical solution below remains valid and accurate."
+          : "The interactive visualization isn't available right now, but I can still walk you through the problem step by step. The verified mathematical solution below remains valid and accurate.";
+
         vizContainer.innerHTML = `
           <div class="viz-render-fail" role="alert">
-            <div style="font-weight: 600; margin-bottom: 4px;">⚠️ Interactive Visualization Unavailable</div>
-            <div style="font-size: 0.85em; opacity: 0.95;">The requested visual instrument could not be rendered (${escapeHtml(String(reason))}). The verified mathematical solution below remains valid and accurate.</div>
+            <div style="font-weight: 600; margin-bottom: 4px;">${titleMsg}</div>
+            <div style="font-size: 0.85em; opacity: 0.95;">${bodyMsg}</div>
           </div>
         `;
       };
