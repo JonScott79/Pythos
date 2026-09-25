@@ -45,19 +45,24 @@ function extractClaims(text, userPrompt = '') {
   // 2. Derivatives (e.g. \frac{d}{dx}[x^2] = 2x)
   const derivRegex = /\\frac\{d\}\{d([a-zA-Z])\}\s*\[([^\]]+)\]\s*=\s*([^$\n]+)/g;
   while ((match = derivRegex.exec(text)) !== null) {
+    let cleanExpr = match[2].trim();
+    cleanExpr = cleanExpr.replace(/^(?:differentiate|find\s+the\s+derivative\s+of|calculate\s+the\s+derivative\s+of|what\s+is\s+the\s+derivative\s+of|compute\s+the\s+derivative\s+of)\s+/i, '').trim();
+    const propVal = match[3].trim();
+
     claims.push({
       domain: 'calculus',
       claim_type: 'derivative',
       raw_match: match[0],
       data: {
-        expression: match[2].trim(),
+        expression: cleanExpr,
         variable: match[1].trim(),
-        proposed_value: match[3].trim()
+        proposed_value: propVal,
+        proposed_derivative: propVal
       }
     });
   }
 
-  // 3. Limits (e.g. \lim_{x \to 0} \frac{\sin x}{x} = 1)
+// 3. Limits (e.g. \lim_{x \to 0} \frac{\sin x}{x} = 1)
   const limitRegex = /\\lim_\{?([a-zA-Z])\s*\\to\s*([^}]+)\}?\s*([^=]+)\s*=\s*([^$\n]+)/g;
   while ((match = limitRegex.exec(text)) !== null) {
     claims.push({
@@ -969,6 +974,44 @@ function checkPromptClaimFidelity(claim, userPrompt) {
  * Uses Math.js first-line engine and falls back to Python verifiers when appropriate.
  * Enforces prompt-to-claim fidelity when prompt context is present.
  */
+/**
+ * Bounded Concurrency Queue for Host-Safe CAS Subprocess Execution
+ */
+class BoundedCASQueue {
+  constructor(maxConcurrency = 2) {
+    this.max = maxConcurrency;
+    this.active = 0;
+    this.waitQueue = [];
+  }
+
+  async acquire() {
+    if (this.active < this.max) {
+      this.active++;
+      return;
+    }
+    return new Promise(resolve => this.waitQueue.push(resolve));
+  }
+
+  release() {
+    this.active--;
+    if (this.waitQueue.length > 0) {
+      const next = this.waitQueue.shift();
+      this.active++;
+      next();
+    }
+  }
+
+  async run(fn) {
+    await this.acquire();
+    try {
+      return await fn();
+    } finally {
+      this.release();
+    }
+  }
+}
+
+const casQueue = new BoundedCASQueue(process.env.PYTHOS_CAS_CONCURRENCY ? parseInt(process.env.PYTHOS_CAS_CONCURRENCY, 10) : 2);
 async function runDeterministicVerification(claim, userPrompt = '') {
   if (!claim || !claim.data) {
     return { verified: false, status: 'UNKNOWN', reason: 'Invalid claim structure' };
@@ -1001,89 +1044,136 @@ async function runDeterministicVerification(claim, userPrompt = '') {
     return mathjsResult;
   }
 
-  // Second-Line: Python Symbolic Verifiers (SymPy / SciPy)
-  const pythonResult = await new Promise((resolve) => {
-    const pythonBin = getPythonExecutable();
-    const pythonScript = path.join(__dirname, 'verifier', 'verifier.py');
-    const proc = child_process.spawn(pythonBin, [pythonScript], { stdio: ['pipe', 'pipe', 'pipe'] });
+  // Second-Line: Python Symbolic Verifiers (SymPy / SciPy) under Bounded Host Queue
+  const pythonResult = await casQueue.run(async () => {
+    return new Promise((resolve) => {
+      const pythonBin = getPythonExecutable();
+      const pythonScript = path.join(__dirname, 'verifier', 'verifier.py');
+      const proc = child_process.spawn(pythonBin, [pythonScript], { stdio: ['pipe', 'pipe', 'pipe'] });
 
-    let stdout = '';
-    let stderr = '';
-    let settled = false;
+      let stdout = '';
+      let stderr = '';
+      let settled = false;
 
-    const timer = setTimeout(() => {
-      if (!settled) {
-        settled = true;
-        try { proc.kill('SIGKILL'); } catch (_) {}
-        resolve({
-          verified: false,
-          status: 'ERROR',
-          error_type: 'CAS_TIMEOUT',
-          reason: 'Verifier timeout after 5000ms'
-        });
-      }
-    }, 5000);
-
-    proc.stdout.on('data', (d) => { stdout += d.toString(); });
-    proc.stderr.on('data', (d) => { stderr += d.toString(); });
-
-    proc.on('close', (code) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      if (code === 0 && stdout.trim()) {
+      function cleanupProcess(terminate = false) {
         try {
-          const parsed = JSON.parse(stdout);
-          resolve(parsed);
-        } catch (_) {
+          if (proc.stdin && !proc.stdin.destroyed) proc.stdin.destroy();
+        } catch (_) {}
+        try {
+          if (proc.stdout && !proc.stdout.destroyed) proc.stdout.destroy();
+        } catch (_) {}
+        try {
+          if (proc.stderr && !proc.stderr.destroyed) proc.stderr.destroy();
+        } catch (_) {}
+
+        if (terminate) {
+          try {
+            if (process.platform === 'win32') {
+              proc.kill();
+            } else {
+              proc.kill('SIGKILL');
+            }
+          } catch (_) {}
+        }
+      }
+
+      const timer = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          cleanupProcess(true);
+
+          // Wait for process close or timeout before resolving so concurrency slot is not released while process is alive
+          let exited = false;
+          const waitTimer = setTimeout(() => {
+            if (!exited) {
+              try { proc.kill(); } catch (_) {}
+              resolve({
+                verified: false,
+                status: 'ERROR',
+                error_type: 'CAS_TIMEOUT',
+                reason: 'Verifier timeout after 5000ms'
+              });
+            }
+          }, 500);
+
+          proc.once('close', () => {
+            exited = true;
+            clearTimeout(waitTimer);
+            resolve({
+              verified: false,
+              status: 'ERROR',
+              error_type: 'CAS_TIMEOUT',
+              reason: 'Verifier timeout after 5000ms'
+            });
+          });
+        }
+      }, 5000);
+
+      proc.stdout.on('data', (d) => { stdout += d.toString(); });
+      proc.stderr.on('data', (d) => { stderr += d.toString(); });
+
+      proc.on('close', (code) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        cleanupProcess(false);
+
+        if (code === 0 && stdout.trim()) {
+          try {
+            const parsed = JSON.parse(stdout);
+            resolve(parsed);
+          } catch (_) {
+            resolve({
+              verified: false,
+              status: 'ERROR',
+              error_type: 'CAS_MALFORMED_OUTPUT',
+              reason: 'Failed to parse verifier output'
+            });
+          }
+        } else {
           resolve({
             verified: false,
             status: 'ERROR',
-            error_type: 'CAS_MALFORMED_OUTPUT',
-            reason: 'Failed to parse verifier output'
+            error_type: 'CAS_PROCESS_EXIT_ERROR',
+            reason: stderr.trim() || `Python verifier exited with code ${code}`
           });
         }
-      } else {
-        resolve({
-          verified: false,
-          status: 'ERROR',
-          error_type: 'CAS_PROCESS_EXIT_ERROR',
-          reason: stderr.trim() || `Python verifier exited with code ${code}`
-        });
-      }
-    });
+      });
 
-    proc.on('error', (err) => {
-      if (!settled) {
+      proc.on('error', (err) => {
+        if (settled) return;
         settled = true;
         clearTimeout(timer);
+        cleanupProcess(true);
         const isSpawnError = err.code === 'ENOENT';
         resolve({
           verified: false,
-          status: isSpawnError ? 'ERROR' : 'UNKNOWN',
-          error_type: isSpawnError ? 'CAS_INFRASTRUCTURE_UNAVAILABLE' : 'VERIFICATION_PROCESS_ERROR',
-          reason: `Python CAS verifier failed to execute (${pythonBin}): ${err.message}`
+          status: 'ERROR',
+          error_type: isSpawnError ? 'CAS_SPAWN_ERROR' : 'CAS_EXECUTION_ERROR',
+          reason: isSpawnError
+            ? `Python CAS interpreter not found on system PATH (${pythonBin}). Install Python 3.10+ or set PYTHON_BIN.`
+            : `Python verifier failed to execute (${pythonBin}): ${err.message}`
         });
+      });
+
+      try {
+        proc.stdin.write(JSON.stringify(claim));
+        proc.stdin.end();
+      } catch (writeErr) {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          cleanupProcess(true);
+          resolve({
+            verified: false,
+            status: 'ERROR',
+            error_type: 'CAS_PIPE_ERROR',
+            reason: writeErr.message
+          });
+        }
       }
     });
-
-    try {
-      proc.stdin.write(JSON.stringify(claim));
-      proc.stdin.end();
-    } catch (writeErr) {
-      if (!settled) {
-        settled = true;
-        clearTimeout(timer);
-        resolve({
-          verified: false,
-          status: 'ERROR',
-          error_type: 'CAS_PIPE_ERROR',
-          reason: writeErr.message
-        });
-      }
-    }
   });
-
   return pythonResult;
 }
 

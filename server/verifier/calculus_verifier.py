@@ -9,11 +9,22 @@ def verify_derivative(claim: dict) -> dict:
     Verifies claimed derivative: d/dx [ expression ] = proposed_derivative
     """
     expr_str = claim.get("expression")
-    proposed_str = claim.get("proposed_derivative")
+    proposed_str = claim.get("proposed_derivative") or claim.get("proposed_value")
     var_str = claim.get("variable", "x")
 
     if not expr_str or not proposed_str:
         return {"verified": False, "status": "UNKNOWN", "reason": "Missing expression or proposed derivative"}
+
+    if isinstance(expr_str, str):
+        import re
+        expr_str = re.sub(r'^(?:differentiate|find\s+the\s+derivative\s+of|calculate\s+the\s+derivative\s+of|what\s+is\s+the\s+derivative\s+of|compute\s+the\s+derivative\s+of)\s+', '', expr_str, flags=re.IGNORECASE).strip()
+        expr_str = expr_str.replace('^', '**')
+        expr_str = re.sub(r'(\d+)\s*([a-zA-Z])', r'\1*\2', expr_str)
+
+    if isinstance(proposed_str, str):
+        import re
+        proposed_str = proposed_str.replace('^', '**')
+        proposed_str = re.sub(r'(\d+)\s*([a-zA-Z])', r'\1*\2', proposed_str)
 
     try:
         x = sp.Symbol(var_str)

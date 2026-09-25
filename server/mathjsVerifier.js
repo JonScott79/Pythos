@@ -762,6 +762,112 @@ const MathJSVerifier = {
   },
 
   /**
+   * Level 8: Calculus Polynomial & Rational Derivatives
+   * Deterministic symbolic differentiation and equivalence verification in Math.js
+   */
+  verifyCalculusDerivative(claim) {
+    const {
+      expression,
+      variable = "x",
+      proposed_derivative,
+      proposed_value
+    } = claim || {};
+
+    const proposed = proposed_derivative !== undefined && proposed_derivative !== null
+      ? proposed_derivative
+      : proposed_value;
+
+    if (!expression || proposed === undefined || proposed === null || String(proposed).trim() === "") {
+      return {
+        verified: false,
+        engine: "mathjs",
+        status: "UNKNOWN",
+        reason: "Missing expression or proposed derivative"
+      };
+    }
+
+    const varStr = typeof variable === "string" && variable.trim() ? variable.trim() : "x";
+
+    // Strip leading conversational/prompt prefixes if present
+    let cleanExpr = String(expression).trim();
+    cleanExpr = cleanExpr.replace(/^(?:differentiate|find\s+the\s+derivative\s+of|calculate\s+the\s+derivative\s+of|what\s+is\s+the\s+derivative\s+of|compute\s+the\s+derivative\s+of)\s+/i, "").trim();
+
+    let cleanProposed = String(proposed).trim();
+
+    // Normalize polynomial expressions for Math.js parsing (e.g. 10x^2 -> 10*x^2, -5x -> -5*x)
+    function normalizePoly(str) {
+      return str
+        .replace(/\\(?:frac|text|boxed|cdot)/g, "")
+        .replace(/\{([^{}]+)\}/g, "($1)")
+        .replace(/(\d+)\s*([a-zA-Z])/g, "$1*$2")
+        .replace(/\s+/g, "");
+    }
+
+    const normExpr = normalizePoly(cleanExpr);
+    const normProposed = normalizePoly(cleanProposed);
+
+    try {
+      const computed = math.derivative(normExpr, varStr);
+
+      // 1. Check exact structural equivalence via algebraic simplification
+      const diffNode = math.simplify(`(${computed.toString()}) - (${normProposed})`);
+      if (diffNode.toString() === "0") {
+        return {
+          verified: true,
+          engine: "mathjs",
+          status: "VERIFIED",
+          actual_derivative: computed.toString(),
+          details: `d/d${varStr}[${cleanExpr}] = ${computed.toString()} algebraically verified`
+        };
+      }
+
+      // 2. Multi-point deterministic numerical equivalence check
+      const testPoints = [1, 2, 3, -1, -2, 0.5, 2.5];
+      let allPointsMatch = true;
+      let evaluatedCount = 0;
+
+      for (const pt of testPoints) {
+        try {
+          const val = diffNode.evaluate({ [varStr]: pt });
+          if (typeof val === "number" && !isNaN(val)) {
+            evaluatedCount++;
+            if (Math.abs(val) > 1e-9) {
+              allPointsMatch = false;
+              break;
+            }
+          }
+        } catch (_) {}
+      }
+
+      if (allPointsMatch && evaluatedCount >= 3) {
+        return {
+          verified: true,
+          engine: "mathjs",
+          status: "VERIFIED",
+          actual_derivative: computed.toString(),
+          details: `d/d${varStr}[${cleanExpr}] = ${computed.toString()} verified across sample points`
+        };
+      }
+
+      return {
+        verified: false,
+        engine: "mathjs",
+        status: "INCORRECT_DERIVATIVE",
+        error_type: "INCORRECT_DERIVATIVE",
+        actual_derivative: computed.toString(),
+        proposed_derivative: cleanProposed,
+        details: `Actual derivative d/d${varStr}[${cleanExpr}] is ${computed.toString()}, not ${cleanProposed}`
+      };
+    } catch (err) {
+      return {
+        verified: false,
+        engine: "mathjs",
+        status: "UNKNOWN",
+        reason: `Math.js derivative fallback: ${err.message}`
+      };
+    }
+  },
+  /**
    * Dispatch Entry Point with Explicit Capability Boundaries
    */
   verify(payload) {
@@ -810,6 +916,10 @@ const MathJSVerifier = {
     // 7. Right Triangle Geometry
     if (domain === 'geometry' && (claim_type === 'right_triangle_geometry' || claim_type === 'right_triangle_sides')) {
       return this.verifyRightTriangle(data);
+    }
+    // 8. Calculus: Polynomial & Rational Derivatives
+    if ((domain === "calculus" || domain === "calculus_derivative") && (claim_type === "derivative" || claim_type === "polynomial_derivative")) {
+      return this.verifyCalculusDerivative(data);
     }
 
     // Conservative: All other domains (Calculus, Physics vector dynamics, differential equations)
