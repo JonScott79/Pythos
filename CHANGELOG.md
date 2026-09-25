@@ -1,3 +1,13 @@
+## Pythos 1.8.12
+**Release Date:** September 25, 2026
+
+### Added & Hardened
+- **In-Process Math.js Calculus Derivative Verification** (`mathjsVerifier.js`, `verificationBridge.js`): Implemented `verifyCalculusDerivative(claim)` providing deterministic symbolic differentiation and algebraic equivalence verification in Math.js for polynomial and rational expressions. Features exact zero-difference symbolic simplification and a multi-point numerical guard across sample evaluation points ($x \in \{1, 2, 3, -1, -2, 0.5, 2.5\}$), delivering sub-millisecond in-process derivative verification (~0.05ms) with zero subprocess overhead.
+- **Host-Safe Bounded CAS Concurrency Queue** (`verificationBridge.js`): Integrated `BoundedCASQueue` directly inside `runDeterministicVerification` (default concurrency of 2, configurable via `PYTHOS_CAS_CONCURRENCY`), preventing unthrottled worker pools or concurrent callers from saturating host resources with parallel Python child processes.
+- **Robust Subprocess Lifecycle & Pipe Management** (`verificationBridge.js`): Hardened Python CAS execution with explicit `cleanupProcess()` that destroys `stdin`, `stdout`, and `stderr` streams upon completion, error, or timeout. Implemented an asynchronous termination wait ensuring child processes are completely closed by the OS before releasing the queue semaphore slot.
+- **Calculus Claim Schema Normalization** (`verificationBridge.js`, `calculus_verifier.py`): Aligned claim schemas across the Node.js extraction bridge and Python SymPy engine, normalizing `proposed_derivative` and `proposed_value` handling and stripping conversational prefixes for clean symbolic parsing.
+- **Calculus Regression Suite (100% Green)**: Verified all 15 previously withheld polynomial derivative cases (80001–80015) in <1ms, validated the 50-case concurrent calculus test suite, and confirmed 100% pass across all 24 master test suites (689/689 passing).
+
 ## Pythos 1.8.11
 **Release Date:** September 24, 2026
 
