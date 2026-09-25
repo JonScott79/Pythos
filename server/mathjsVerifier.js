@@ -535,6 +535,40 @@ const MathJSVerifier = {
   /**
    * Level 7: Right Triangle Geometry Verification
    */
+  /**
+   * Level 7.5: Functional Evaluation Claims (e.g. f(k) = proposed_value for expression)
+   */
+  verifyFunctionEvaluation(claim) {
+    const { expression, variable = 'x', input, proposed_value, tolerance = 1e-4 } = claim;
+    if (expression === undefined || input === undefined || proposed_value === undefined) {
+      return { verified: false, engine: 'mathjs', status: 'UNKNOWN', reason: 'Missing function evaluation parameters' };
+    }
+    let computed;
+    try {
+      const normExpr = expression.replace(/(\d)\s*([a-zA-Z])(?![a-zA-Z])/g, '$1*$2');
+      computed = math.evaluate(normExpr, { [variable]: input });
+    } catch (e) {
+      return { verified: false, engine: 'mathjs', status: 'UNKNOWN', reason: 'MathJS eval error: ' + e.message };
+    }
+    const diff = Math.abs(computed - proposed_value);
+    if (diff <= tolerance) {
+      return {
+        verified: true,
+        engine: 'mathjs',
+        status: 'VERIFIED',
+        details: `Function evaluation verified: f(${input}) = ${proposed_value} (computed: ${computed})`
+      };
+    } else {
+      return {
+        verified: false,
+        engine: 'mathjs',
+        status: 'EXTRANEOUS_ROOT',
+        error_type: 'FUNCTION_EVALUATION_MISMATCH',
+        details: `Function evaluation mismatch: f(${input}) = ${proposed_value} does not equal computed value ${computed}`
+      };
+    }
+  },
+
   verifyRightTriangle(data) {
     const { opposite: opp, adjacent: adj, hypotenuse: hyp } = data;
 
@@ -590,6 +624,144 @@ const MathJSVerifier = {
   },
 
   /**
+   * Level 8: Systems of Linear Equations (Simultaneous Verification)
+   */
+  verifySystemSolution(claim) {
+    const { equations = [], solution = null, solution_type = 'unique', userPrompt = '' } = claim;
+    if (!Array.isArray(equations) || equations.length < 2) {
+      return { verified: false, engine: 'mathjs', status: 'UNKNOWN', reason: 'Insufficient equations for system' };
+    }
+
+    const parseLineCoeffs = (eq, vx = 'x', vy = 'y') => {
+      const parts = eq.split('=');
+      if (parts.length !== 2) return null;
+      const lhs = parts[0].trim();
+      let rhs;
+      try {
+        rhs = math.evaluate(parts[1].trim());
+      } catch (_) {
+        return null;
+      }
+      try {
+        const c0 = math.evaluate(lhs, { [vx]: 0, [vy]: 0 });
+        const cx = math.evaluate(lhs, { [vx]: 1, [vy]: 0 });
+        const cy = math.evaluate(lhs, { [vx]: 0, [vy]: 1 });
+        const a = cx - c0;
+        const b = cy - c0;
+        const c = rhs - c0;
+        return { a, b, c };
+      } catch (_) {
+        return null;
+      }
+    };
+
+    if (solution_type === 'unique') {
+      if (!solution || typeof solution !== 'object' || Object.keys(solution).length === 0) {
+        return { verified: false, engine: 'mathjs', status: 'UNKNOWN', reason: 'Missing solution assignments' };
+      }
+
+      // Simultaneous substitution into each equation
+      const invalidEquations = [];
+      for (const eqStr of equations) {
+        const parts = eqStr.split('=');
+        if (parts.length !== 2) {
+          return { verified: false, engine: 'mathjs', status: 'UNKNOWN', reason: 'Invalid equation format' };
+        }
+        const lhs = parts[0].trim();
+        const rhs = parts[1].trim();
+
+        let lhsVal, rhsVal;
+        try {
+          lhsVal = math.evaluate(lhs, solution);
+          rhsVal = math.evaluate(rhs, solution);
+        } catch (e) {
+          return { verified: false, engine: 'mathjs', status: 'UNKNOWN', reason: 'Evaluation error: ' + e.message };
+        }
+
+        const diff = Math.abs(lhsVal - rhsVal);
+        if (isNaN(diff) || diff > 1e-4) {
+          invalidEquations.push({ eq: eqStr, lhs: lhsVal, rhs: rhsVal, diff });
+        }
+      }
+
+      if (invalidEquations.length > 0) {
+        return {
+          verified: false,
+          engine: 'mathjs',
+          status: 'EXTRANEOUS_ROOT',
+          error_type: 'EXTRANEOUS_ROOT',
+          details: `Solution does not satisfy: ${invalidEquations[0].eq} (LHS=${invalidEquations[0].lhs}, RHS=${invalidEquations[0].rhs})`
+        };
+      }
+
+      // 2x2 determinant check for uniqueness
+      const solKeys = Object.keys(solution);
+      const var1 = solKeys[0] || 'x';
+      const var2 = solKeys[1] || 'y';
+      const l1 = parseLineCoeffs(equations[0], var1, var2);
+      const l2 = parseLineCoeffs(equations[1], var1, var2);
+      if (l1 && l2) {
+        const D = l1.a * l2.b - l2.a * l1.b;
+        if (Math.abs(D) < 1e-6) {
+          return {
+            verified: false,
+            engine: 'mathjs',
+            status: 'MULTIPLE_SOLUTIONS',
+            details: 'System determinant is zero; unique solution does not exist.'
+          };
+        }
+      }
+
+      return {
+        verified: true,
+        engine: 'mathjs',
+        status: 'VERIFIED',
+        details: `Simultaneous substitution verified on all ${equations.length} equations.`
+      };
+    }
+
+    if (solution_type === 'no_solution') {
+      const l1 = parseLineCoeffs(equations[0]);
+      const l2 = parseLineCoeffs(equations[1]);
+      if (l1 && l2) {
+        const D = l1.a * l2.b - l2.a * l1.b;
+        const Dx = l1.c * l2.b - l2.c * l1.b;
+        const Dy = l1.a * l2.c - l2.a * l1.c;
+        if (Math.abs(D) < 1e-6 && (Math.abs(Dx) > 1e-6 || Math.abs(Dy) > 1e-6)) {
+          return {
+            verified: true,
+            engine: 'mathjs',
+            status: 'VERIFIED',
+            details: 'System determinant D=0 and Dx!=0; proved inconsistent (no solution).'
+          };
+        }
+      }
+      return { verified: false, engine: 'mathjs', status: 'UNKNOWN', reason: 'Could not prove inconsistent system' };
+    }
+
+    if (solution_type === 'infinite') {
+      const l1 = parseLineCoeffs(equations[0]);
+      const l2 = parseLineCoeffs(equations[1]);
+      if (l1 && l2) {
+        const D = l1.a * l2.b - l2.a * l1.b;
+        const Dx = l1.c * l2.b - l2.c * l1.b;
+        const Dy = l1.a * l2.c - l2.a * l1.c;
+        if (Math.abs(D) < 1e-6 && Math.abs(Dx) < 1e-6 && Math.abs(Dy) < 1e-6) {
+          return {
+            verified: true,
+            engine: 'mathjs',
+            status: 'VERIFIED',
+            details: 'System determinant D=0 and Dx=0, Dy=0; proved dependent (infinitely many solutions).'
+          };
+        }
+      }
+      return { verified: false, engine: 'mathjs', status: 'UNKNOWN', reason: 'Could not prove dependent system' };
+    }
+
+    return { verified: false, engine: 'mathjs', status: 'UNKNOWN', reason: 'Unhandled system solution type' };
+  },
+
+  /**
    * Dispatch Entry Point with Explicit Capability Boundaries
    */
   verify(payload) {
@@ -610,7 +782,11 @@ const MathJSVerifier = {
       return this.verifyStepReasoning(data);
     }
 
-    // 4. Equation Root Substitution
+    // 4. Systems of Linear Equations
+    if (domain === 'algebra' && (claim_type === 'system_solution' || claim_type === 'system_of_equations')) {
+      return this.verifySystemSolution(data);
+    }
+
     // Pure substitution checks stay in Math.js; full algebraic solving / lost-root checks defer to Python SymPy
     if (domain === 'algebra' && (claim_type === 'substitution' || claim_type === 'equation_solution' || (!claim_type && data && data.equation))) {
       return this.verifyEquationSolution(data);
@@ -624,6 +800,11 @@ const MathJSVerifier = {
     // 6. Units & Dimensional Compatibility
     if (domain === 'units' || claim_type === 'units') {
       return this.verifyUnits(data);
+    }
+
+    // Functional Evaluation Claims (e.g. f(x) = expr, find f(k))
+    if ((domain === 'algebra' || domain === 'functions') && (claim_type === 'function_evaluation' || claim_type === 'function_claim')) {
+      return this.verifyFunctionEvaluation(data);
     }
 
     // 7. Right Triangle Geometry

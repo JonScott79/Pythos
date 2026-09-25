@@ -1317,14 +1317,14 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   const isQualitativeTriangle = !triangleMatch && (
     /(?:show|draw|illustrate|see|view|display|plot)(?:.*?)(?:on\s+a\s+|a\s+|the\s+)?(?:right\s+)?triangle/i.test(clean) ||
     /(?:right\s+)?triangle.*?(?:how\s+this\s+works|opposite|adjacent|hypotenuse|ratio|trig|work)/i.test(clean) ||
-    (/(?:show|see|view|draw)\s+(?:me\s+)?(?:how\s+this\s+works|how\s+it\s+works)/i.test(clean) && Array.isArray(messages) && messages.some(m => /(?:triangle|tan|sin|cos|trig|opposite|hypo)/i.test(m.content || '')))
+    (/(?:show|see|view|draw)\s+(?:me\s+)?(?:how\s+this\s+works|how\s+it\s+works)/i.test(clean) && Array.isArray(conversationHistory) && conversationHistory.some(m => /(?:triangle|tan|sin|cos|trig|opposite|hypo)/i.test(m.content || '')))
   );
 
   if (triangleMatch || isQualitativeTriangle) {
     const a = triangleMatch ? parseFloat(triangleMatch[1]) : 3;
     const b = triangleMatch ? parseFloat(triangleMatch[2]) : 4;
     const c = (triangleMatch && triangleMatch[3]) ? parseFloat(triangleMatch[3]) : (triangleMatch ? Math.round(Math.hypot(a, b) * 100) / 100 : 5);
-    const hasTrigContext = isQualitativeTriangle || /(?:trig|ratio|opposite|adjacent|hypotenuse|sin|cos|tan)/i.test(clean) || (Array.isArray(messages) && messages.some(m => /(?:tan|sin|cos|trig|opposite|adjacent|hypo)/i.test(m.content || '')));
+    const hasTrigContext = isQualitativeTriangle || /(?:trig|ratio|opposite|adjacent|hypotenuse|sin|cos|tan)/i.test(clean) || (Array.isArray(conversationHistory) && conversationHistory.some(m => /(?:tan|sin|cos|trig|opposite|adjacent|hypo)/i.test(m.content || '')));
 
     return {
       type: 'GEOMETRY_VIZ',
@@ -1336,7 +1336,10 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
       isTrigExplanation: hasTrigContext,
       opp: a,
       adj: b,
-      hyp: c
+      hyp: c,
+      result: c,
+      solution: c,
+      formatted: `c = ${c}`
     };
   }
 

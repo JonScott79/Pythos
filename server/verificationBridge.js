@@ -96,6 +96,15 @@ function extractClaims(text, userPrompt = '') {
     } catch (_) {}
   }
 
+  // Helper to identify bare variable assignments (e.g. "x = 11" or "y = 3")
+  // Helper to identify bare variable assignments (e.g. "x = 11" or "The solution is x = 11")
+  function isBareAssignment(eqStr) {
+    if (!eqStr || typeof eqStr !== 'string') return false;
+    const cleaned = cleanAndNormalizeEquation(eqStr);
+    if (!cleaned) return false;
+    return /^\s*[a-zA-Z]\s*=\s*[-+]?\d+(?:\.\d+)?\s*$/.test(cleaned.equation);
+  }
+
   // Helper to isolate pure mathematical equation from surrounding conversational prose
   function cleanAndNormalizeEquation(rawEqStr) {
     if (!rawEqStr || typeof rawEqStr !== 'string' || !rawEqStr.includes('=')) return null;
@@ -108,6 +117,8 @@ function extractClaims(text, userPrompt = '') {
     const tokens = rawLhs.split(/\s+/);
     const mathIdx = tokens.findIndex(t => /[\d^+\-*/()]/.test(t) || /^[a-zA-Z]$/.test(t));
     const lhs = mathIdx !== -1 ? tokens.slice(mathIdx).join(' ') : rawLhs;
+    // Guard against function notation e.g. f(x) = expr or g(t) = expr
+    if (/(?:^|\s|\bwhere\s+|\bfor\s+)[a-zA-Z]\s*\([a-zA-Z0-9,\s]+\)\s*$/i.test(lhs.trim()) || /\b[a-zA-Z]\s*\([a-zA-Z]\)\s*$/i.test(lhs.trim())) return null;
 
     const normLhs = lhs.replace(/(\d)\s*([a-zA-Z])(?![a-zA-Z])/g, (m, g1, g2) => g1 + '*' + g2);
     const normRhs = rawRhs.replace(/(\d)\s*([a-zA-Z])(?![a-zA-Z])/g, (m, g1, g2) => g1 + '*' + g2);
@@ -149,6 +160,7 @@ function extractClaims(text, userPrompt = '') {
   let eqVarMatch;
   while ((eqVarMatch = eqVarRegex.exec(text)) !== null) {
     const rawEq = eqVarMatch[1].trim();
+    if (isBareAssignment(rawEq)) continue;
     const variable = eqVarMatch[2];
     const sols = [parseFloat(eqVarMatch[3])];
     if (eqVarMatch[4]) sols.push(parseFloat(eqVarMatch[4]));
@@ -171,7 +183,8 @@ function extractClaims(text, userPrompt = '') {
   }
 
   // Pattern 5c: Solved equation from prompt/context where candidate states solution (e.g. "x = -5", "\boxed{x = -5}", or "\boxed{-5}")
-  if (promptStr) {
+  const isSystemPrompt = ((promptStr.match(/=/g) || []).length >= 2) || /\bsystem\b/i.test(promptStr);
+  if (promptStr && !isSystemPrompt) {
     const promptEqMatch = promptStr.match(/([a-zA-Z0-9^+\-*/().\s]+=[a-zA-Z0-9^+\-*/().\s]+)/);
     if (promptEqMatch) {
       const cleaned = cleanAndNormalizeEquation(promptEqMatch[1]);
@@ -196,6 +209,93 @@ function extractClaims(text, userPrompt = '') {
               userPrompt: promptStr
             });
           }
+        }
+      }
+    }
+  }
+
+  // Pattern 5e: Function Evaluation Claims (e.g. "If f(x) = expr, find f(k)" or "Find f(k) where f(x) = expr" -> "f(k) = val" or "\boxed{val}")
+  const { analyzeDeterministicIntent } = require('./deterministicRouter');
+  let fnIntent = null;
+  if (promptStr) {
+    try {
+      const candidateIntent = analyzeDeterministicIntent(promptStr);
+      if (candidateIntent && candidateIntent.type === 'FUNCTION_EVALUATION') {
+        fnIntent = candidateIntent;
+      }
+    } catch (_) {}
+  }
+
+  if (fnIntent) {
+    const fnVar = fnIntent.variable || 'x';
+    const fnExpr = fnIntent.expression;
+    const fnInput = fnIntent.input;
+
+    // Look for proposed evaluation in text e.g. "f(k) = val", "f(k) = \boxed{val}", or "\boxed{val}"
+    const escapedInput = String(fnInput).replace('-', '\\-');
+    const valRegex = new RegExp(`(?:[a-zA-Z]\\s*\\(\\s*${escapedInput}\\s*\\)\\s*=\\s*|\\boxed\\{\\s*)([-+]?\\d+(?:\\.\\d+)?)`, 'i');
+    const valMatch = text.match(valRegex);
+    if (valMatch) {
+      const proposedVal = parseFloat(valMatch[1]);
+      if (!isNaN(proposedVal)) {
+        claims.push({
+          domain: 'algebra',
+          claim_type: 'function_evaluation',
+          raw_match: valMatch[0],
+          data: {
+            variable: fnVar,
+            expression: fnExpr,
+            input: fnInput,
+            proposed_value: proposedVal,
+            userPrompt: promptStr
+          },
+          userPrompt: promptStr
+        });
+      }
+    }
+  }
+
+  // Pattern 5d: Systems of Linear Equations (Simultaneous Solution Sets)
+  // Extracts multi-variable solution sets e.g. "x = 11, y = 3" or "\boxed{x = 11, y = 3}"
+  const multiVarRegex = /(?:\b([a-zA-Z])\s*=\s*([-+]?\d+(?:\.\d+)?)\s*(?:,|and|;)\s*([a-zA-Z])\s*=\s*([-+]?\d+(?:\.\d+)?)|\\boxed\{\s*([a-zA-Z])\s*=\s*([-+]?\d+(?:\.\d+)?)\s*(?:,|and|;)\s*([a-zA-Z])\s*=\s*([-+]?\d+(?:\.\d+)?)\s*\})/gi;
+  let multiVarMatch;
+  while ((multiVarMatch = multiVarRegex.exec(text)) !== null) {
+    const v1 = multiVarMatch[1] || multiVarMatch[5];
+    const val1 = parseFloat(multiVarMatch[2] || multiVarMatch[6]);
+    const v2 = multiVarMatch[3] || multiVarMatch[7];
+    const val2 = parseFloat(multiVarMatch[4] || multiVarMatch[8]);
+    if (v1 && v2 && !isNaN(val1) && !isNaN(val2)) {
+      let systemEquations = [];
+      if (promptStr) {
+        const { analyzeDeterministicIntent } = require('./deterministicRouter');
+        try {
+          const intent = analyzeDeterministicIntent(promptStr);
+          if (intent && intent.type === 'ALGEBRA_SYSTEM_SOLVE' && intent.eq1 && intent.eq2) {
+            systemEquations = [intent.eq1, intent.eq2];
+          }
+        } catch (_) {}
+      }
+      if (systemEquations.length === 0) {
+        const casesMatch = text.match(/\\begin\{cases\}\s*([^&\\}]+)\\?\\\s*([^&\\}]+)\s*\\end\{cases\}/i);
+        if (casesMatch) {
+          systemEquations = [casesMatch[1].trim(), casesMatch[2].trim()];
+        }
+      }
+      if (systemEquations.length >= 2) {
+        const already = claims.some(c => c.claim_type === 'system_solution');
+        if (!already) {
+          claims.push({
+            domain: 'algebra',
+            claim_type: 'system_solution',
+            raw_match: multiVarMatch[0],
+            data: {
+              equations: systemEquations,
+              solution: { [v1]: val1, [v2]: val2 },
+              solution_type: 'unique',
+              userPrompt: promptStr
+            },
+            userPrompt: promptStr
+          });
         }
       }
     }
@@ -420,10 +520,10 @@ function extractClaims(text, userPrompt = '') {
     }
   }
 
-  // 9. Right Triangle Geometric Claims (e.g. opposite = 3, adjacent = 1, hypotenuse = 2)
-  const oppMatch = text.match(/\bopposite\s*(?:side)?\s*[:=]\s*([0-9.]+)/i);
-  const adjMatch = text.match(/\badjacent\s*(?:side)?\s*[:=]\s*([0-9.]+)/i);
-  const hypMatch = text.match(/\bhypotenuse\s*[:=]\s*([0-9.]+)/i);
+  // 9. Right Triangle Geometric Claims (e.g. opposite = 10, adjacent = 24, hypotenuse = 26)
+  const oppMatch = text.match(/opposite[^*:]*[*]*\s*[:=]\s*[$]?\s*([0-9.]+)/i);
+  const adjMatch = text.match(/adjacent[^*:]*[*]*\s*[:=]\s*[$]?\s*([0-9.]+)/i);
+  const hypMatch = text.match(/hypotenuse[^*:]*[*]*\s*[:=]\s*[$]?\s*([0-9.]+)/i);
 
   if (hypMatch && (oppMatch || adjMatch)) {
     const hyp = parseFloat(hypMatch[1]);
@@ -439,6 +539,26 @@ function extractClaims(text, userPrompt = '') {
           opposite: opp,
           adjacent: adj,
           hypotenuse: hyp
+        }
+      });
+    }
+  }
+
+  // Fallback to geometric tag construction if present: [GEOMETRY: triangle, a=..., b=..., c=...]
+  const geomTagMatch = text.match(/\[GEOMETRY:\s*triangle[^\ signal]*\ba=([0-9.]+)[^\ signal]*\bb=([0-9.]+)[^\ signal]*\bc=([0-9.]+)/i);
+  if (geomTagMatch) {
+    const a = parseFloat(geomTagMatch[1]);
+    const b = parseFloat(geomTagMatch[2]);
+    const c = parseFloat(geomTagMatch[3]);
+    if (!claims.some(cl => cl.claim_type === 'right_triangle_geometry') && !isNaN(a) && !isNaN(b) && !isNaN(c)) {
+      claims.push({
+        domain: 'geometry',
+        claim_type: 'right_triangle_geometry',
+        raw_match: `a=${a}, b=${b}, c=${c}`,
+        data: {
+          opposite: a,
+          adjacent: b,
+          hypotenuse: c
         }
       });
     }
@@ -777,7 +897,39 @@ function checkPromptClaimFidelity(claim, userPrompt) {
   }
 
   // 2. Algebraic Domain Fidelity Check
-  if (claim.domain === 'algebra' || claim.claim_type === 'equation_solution') {
+  if (claim.claim_type === 'function_evaluation') {
+    const { analyzeDeterministicIntent } = require('./deterministicRouter');
+    try {
+      const intent = analyzeDeterministicIntent(promptStr);
+      if (intent && intent.type === 'FUNCTION_EVALUATION') {
+        const proposed = claim.data?.proposed_value;
+        if (Math.abs(proposed - intent.result) > 1e-4) {
+          return {
+            ok: false,
+            reason: `Prompt-to-claim fidelity mismatch: Claim asserts f(${intent.input}) = ${proposed}, but expected ${intent.result}`
+          };
+        }
+      }
+    } catch (_) {}
+  }
+
+  if (claim.claim_type === 'system_solution') {
+    const { analyzeDeterministicIntent } = require('./deterministicRouter');
+    try {
+      const intent = analyzeDeterministicIntent(promptStr);
+      if (intent && intent.type === 'ALGEBRA_SYSTEM_SOLVE') {
+        const sol = claim.data?.solution || {};
+        if (Math.abs(sol[intent.varX] - intent.x) > 1e-4 || Math.abs(sol[intent.varY] - intent.y) > 1e-4) {
+          return {
+            ok: false,
+            reason: `Prompt-to-claim fidelity mismatch: Claim asserts ${intent.varX}=${sol[intent.varX]}, ${intent.varY}=${sol[intent.varY]}, but expected ${intent.varX}=${intent.x}, ${intent.varY}=${intent.y}`
+          };
+        }
+      }
+    } catch (_) {}
+  }
+
+  if (claim.claim_type === 'equation_solution') {
     const claimEq = claim.data.equation;
     const claimSols = claim.data.proposed_solutions;
     if (claimEq && Array.isArray(claimSols) && claimSols.length > 0) {

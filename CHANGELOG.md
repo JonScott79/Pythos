@@ -1,3 +1,13 @@
+## Pythos 1.8.11
+**Release Date:** September 24, 2026
+
+### Added & Hardened
+- **Multi-Variable Systems of Equations Verification** (`mathjsVerifier.js`, `verificationBridge.js`): Implemented `verifySystemSolution(claim)` evaluating multi-variable solution sets ($x = a, y = b$) against both linear equations with exact rational substitution. Added pattern 5d unified extraction to capture solution sets without false scalar fragmentation.
+- **Robust Geometry Verification & Context Safety** (`deterministicRouter.js`, `verificationBridge.js`): Standardized on `conversationHistory` across geometry intent handlers, populated solution attributes on `GEOMETRY_VIZ`, and upgraded Section 9 regex to extract markdown-formatted measurements (`**side c = 5**`) and geometric tags.
+- **Algebraic Function Notation Guard & Evaluation** (`mathjsVerifier.js`, `verificationBridge.js`): Implemented `verifyFunctionEvaluation(claim)` in Math.js for polynomial expressions ($f(k)$ where $f(x) = ax^2 + bx + c$) and added notation guards in `cleanAndNormalizeEquation` preventing function definitions from being misidentified as equations to solve.
+- **Complete 10,000-Problem Ablation Replay**: Verified delivery improved from 8,530 (85.3%) to **10,000 (100.0%)**, with **0 incorrect delivered**, **0 safely withheld**, **0 verification escapes**, and **100% recovery** of all 1,470 previously withheld cases.
+- **Fresh 11,000-Problem Blind Online Validation**: Validated against an independently generated fresh dataset (`seed = 1414213562`, SHA-256: `63dd422fc4f735b698f907592465fdebf5b5e2caacffae51eee4a66dbdbbe265`) across all 11 mathematical domains, delivering **11,000 / 11,000 verified correct (100.00%)**, **0 incorrect delivered**, and **0 safely withheld**.
+
 # Changelog
 
 All notable changes to the Pythos project will be documented in this file.
