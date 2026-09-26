@@ -306,12 +306,26 @@ const MathJSVerifier = {
       return { verified: false, engine: 'mathjs', status: 'UNKNOWN', reason: 'Missing equation' };
     }
 
-    const solutions = Array.isArray(proposed_solutions)
+    const rawSolutions = Array.isArray(proposed_solutions)
       ? proposed_solutions
       : (typeof proposed_solution !== 'undefined' ? [proposed_solution] : []);
 
-    if (solutions.length === 0) {
+    if (rawSolutions.length === 0) {
       return { verified: false, engine: 'mathjs', status: 'UNKNOWN', reason: 'Missing proposed solution(s)' };
+    }
+
+    const solutions = rawSolutions.map(s => {
+      if (typeof s === 'number') return s;
+      const str = String(s).trim();
+      if (str.includes('/')) {
+        const parts = str.split('/');
+        return parseFloat(parts[0]) / parseFloat(parts[1]);
+      }
+      return parseFloat(str);
+    }).filter(n => !isNaN(n));
+
+    if (solutions.length === 0) {
+      return { verified: false, engine: 'mathjs', status: 'UNKNOWN', reason: 'Proposed solution(s) could not be parsed to numeric values' };
     }
 
     try {
@@ -322,18 +336,47 @@ const MathJSVerifier = {
 
       const lhsStr = parts[0].trim();
       const rhsStr = parts[1].trim();
+      const normLhs = lhsStr.replace(/(\d)\s*([a-zA-Z])(?![a-zA-Z])/g, '$1*$2');
+      const normRhs = rhsStr.replace(/(\d)\s*([a-zA-Z])(?![a-zA-Z])/g, '$1*$2');
 
+      // 1. Analyze polynomial degree and expected roots
+      const exprStr = `(${normLhs}) - (${normRhs})`;
+      const f = x => math.evaluate(exprStr, { [variable]: x });
+      let polyInfo = null;
+
+      try {
+        const c = f(0);
+        const p1 = f(1);
+        const pm1 = f(-1);
+        const a = (p1 + pm1 - 2 * c) / 2;
+        const b = (p1 - pm1) / 2;
+        const p2 = f(2);
+        const expectedP2 = a * 4 + b * 2 + c;
+        const pm2 = f(-2);
+        const expectedPm2 = a * 4 - b * 2 + c;
+
+        if (Math.abs(p2 - expectedP2) < 1e-4 && Math.abs(pm2 - expectedPm2) < 1e-4) {
+          if (Math.abs(a) > 1e-6) {
+            const disc = b * b - 4 * a * c;
+            polyInfo = { degree: 2, a, b, c, disc };
+          } else if (Math.abs(b) > 1e-6) {
+            polyInfo = { degree: 1, a: 0, b, c, root: -c / b };
+          } else {
+            polyInfo = { degree: 0, c };
+          }
+        }
+      } catch (_) {}
+
+      // 2. Perform substitution verification
       const invalidRoots = [];
       const validRoots = [];
 
       for (const sol of solutions) {
         const scope = { [variable]: sol };
-        const lhsVal = math.evaluate(lhsStr, scope);
-        const rhsVal = math.evaluate(rhsStr, scope);
-
-        // Strict rational / precision check
+        const lhsVal = math.evaluate(normLhs, scope);
+        const rhsVal = math.evaluate(normRhs, scope);
         const diff = Math.abs(lhsVal - rhsVal);
-        if (diff < 1e-6) {
+        if (diff < 1e-5) {
           validRoots.push(sol);
         } else {
           invalidRoots.push({ solution: sol, lhs: lhsVal, rhs: rhsVal });
@@ -349,6 +392,77 @@ const MathJSVerifier = {
           invalid_roots: invalidRoots,
           details: `Substitution failure: ${variable} = ${invalidRoots[0].solution} yields LHS=${invalidRoots[0].lhs}, RHS=${invalidRoots[0].rhs} (Mismatch).`
         };
+      }
+
+      // 3. Completeness check for degree 2 (Quadratic)
+      if (polyInfo && polyInfo.degree === 2) {
+        const disc = polyInfo.disc;
+        if (disc < -1e-6) {
+          return {
+            verified: false,
+            engine: 'mathjs',
+            status: 'EXTRANEOUS_ROOT',
+            error_type: 'NO_REAL_ROOTS',
+            details: `Quadratic equation has discriminant < 0 (${disc.toFixed(4)}), hence no real roots exist.`
+          };
+        }
+
+        // Deduplicate unique valid roots
+        const uniqueValid = [];
+        for (const r of validRoots) {
+          if (!uniqueValid.some(u => Math.abs(u - r) < 1e-4)) {
+            uniqueValid.push(r);
+          }
+        }
+
+        if (Math.abs(disc) < 1e-6) {
+          // Single repeated root
+          const expectedRoot = -polyInfo.b / (2 * polyInfo.a);
+          if (uniqueValid.length >= 1 && Math.abs(uniqueValid[0] - expectedRoot) < 1e-4) {
+            return {
+              verified: true,
+              engine: 'mathjs',
+              status: 'VERIFIED',
+              valid_roots: uniqueValid,
+              details: `Repeated root ${uniqueValid[0]} satisfies ${equation} completely.`
+            };
+          }
+        } else {
+          // Two distinct roots
+          if (uniqueValid.length < 2) {
+            return {
+              verified: false,
+              engine: 'mathjs',
+              status: 'INCOMPLETE_ROOT_SET',
+              error_type: 'INCOMPLETE_ROOT_SET',
+              valid_roots: uniqueValid,
+              details: `Incomplete root set: Quadratic equation requires 2 distinct roots, but only ${uniqueValid.length} was provided [${uniqueValid.join(', ')}].`
+            };
+          }
+          if (uniqueValid.length > 2) {
+            return {
+              verified: false,
+              engine: 'mathjs',
+              status: 'EXTRANEOUS_ROOT',
+              error_type: 'EXTRANEOUS_ROOT',
+              details: `Extraneous roots: Quadratic equation can have at most 2 roots, but ${uniqueValid.length} were provided.`
+            };
+          }
+        }
+      }
+
+      // 4. Completeness check for degree 1 (Linear)
+      if (polyInfo && polyInfo.degree === 1) {
+        const uniqueValid = [...new Set(validRoots)];
+        if (uniqueValid.length > 1) {
+          return {
+            verified: false,
+            engine: 'mathjs',
+            status: 'EXTRANEOUS_ROOT',
+            error_type: 'EXTRANEOUS_ROOT',
+            details: `Linear equation can have only 1 root, but ${uniqueValid.length} were provided.`
+          };
+        }
       }
 
       return {
@@ -569,6 +683,94 @@ const MathJSVerifier = {
     }
   },
 
+  verifyCoterminalAngle(data) {
+    const { original_angle, proposed_angle, tolerance = 1e-4 } = data || {};
+    if (original_angle === undefined || proposed_angle === undefined) {
+      return { verified: false, engine: 'mathjs', status: 'UNKNOWN', reason: 'Missing angles' };
+    }
+    const prop = typeof proposed_angle === 'number' ? proposed_angle : parseFloat(String(proposed_angle).replace(/[^-\d.]/g, ''));
+    if (isNaN(prop)) {
+      return { verified: false, engine: 'mathjs', status: 'UNKNOWN', reason: 'Unparseable proposed angle' };
+    }
+
+    const principal = ((original_angle % 360) + 360) % 360;
+    const isMatch = Math.abs(principal - prop) < tolerance || (principal === 0 && Math.abs(360 - prop) < tolerance && original_angle === 360);
+
+    if (isMatch) {
+      return {
+        verified: true,
+        engine: 'mathjs',
+        status: 'VERIFIED',
+        exact_value: principal,
+        proposed_value: prop,
+        details: `Coterminal angle for ${original_angle}deg verified: ${prop}deg (principal: ${principal}deg)`
+      };
+    } else {
+      const diff = prop - original_angle;
+      const isCoterminalNonPrincipal = Math.abs(diff % 360) < tolerance && Math.abs(diff) > 0;
+      return {
+        verified: false,
+        engine: 'mathjs',
+        status: 'INCORRECT_RESULT',
+        error_type: isCoterminalNonPrincipal ? 'NON_PRINCIPAL_COTERMINAL_ANGLE' : 'INCORRECT_RESULT',
+        exact_value: principal,
+        proposed_value: prop,
+        details: isCoterminalNonPrincipal
+          ? `Proposed angle ${prop}deg is coterminal with ${original_angle}deg, but not the principal angle ${principal}deg in [0, 360).`
+          : `Proposed angle ${prop}deg is not coterminal with ${original_angle}deg (expected ${principal}deg).`
+      };
+    }
+  },
+
+  verifyGeometryArea(data) {
+    const { figure = 'triangle', base, height, length, width, radius, proposed_value, tolerance = 1e-4 } = data || {};
+    if (proposed_value === undefined || proposed_value === null || isNaN(proposed_value)) {
+      return { verified: false, engine: 'mathjs', status: 'UNKNOWN', reason: 'Missing proposed area value' };
+    }
+    let expectedArea;
+    if (figure === 'triangle') {
+      if (typeof base !== 'number' || typeof height !== 'number' || base <= 0 || height <= 0) {
+        return { verified: false, engine: 'mathjs', status: 'UNKNOWN', reason: 'Triangle base and height must be positive numbers' };
+      }
+      expectedArea = 0.5 * base * height;
+    } else if (figure === 'rectangle') {
+      if (typeof length !== 'number' || typeof width !== 'number' || length <= 0 || width <= 0) {
+        return { verified: false, engine: 'mathjs', status: 'UNKNOWN', reason: 'Rectangle dimensions must be positive numbers' };
+      }
+      expectedArea = length * width;
+    } else if (figure === 'circle') {
+      if (typeof radius !== 'number' || radius <= 0) {
+        return { verified: false, engine: 'mathjs', status: 'UNKNOWN', reason: 'Circle radius must be positive number' };
+      }
+      expectedArea = Math.PI * radius * radius;
+    } else {
+      return { verified: false, engine: 'mathjs', status: 'UNKNOWN', reason: `Unsupported geometry figure: ${figure}` };
+    }
+
+    const diff = Math.abs(expectedArea - proposed_value);
+    const relDiff = expectedArea !== 0 ? diff / expectedArea : diff;
+    if (diff <= tolerance || relDiff <= 0.005) {
+      return {
+        verified: true,
+        engine: 'mathjs',
+        status: 'VERIFIED',
+        exact_value: expectedArea,
+        proposed_value,
+        details: `Geometry area for ${figure} verified: ${expectedArea} (proposed: ${proposed_value})`
+      };
+    } else {
+      return {
+        verified: false,
+        engine: 'mathjs',
+        status: 'INCORRECT_RESULT',
+        error_type: 'INCORRECT_RESULT',
+        exact_value: expectedArea,
+        proposed_value,
+        details: `Geometry area mismatch: computed ${expectedArea}, but proposed was ${proposed_value}`
+      };
+    }
+  },
+
   verifyRightTriangle(data) {
     const { opposite: opp, adjacent: adj, hypotenuse: hyp } = data;
 
@@ -765,6 +967,31 @@ const MathJSVerifier = {
    * Level 8: Calculus Polynomial & Rational Derivatives
    * Deterministic symbolic differentiation and equivalence verification in Math.js
    */
+
+  verifyKinematics(data) {
+    const { acceleration, time, initial_velocity = 0, proposed_value, unit } = data;
+    if (typeof acceleration !== 'number' || typeof time !== 'number' || typeof proposed_value !== 'number') {
+      return {
+        verified: false,
+        engine: 'mathjs',
+        status: 'MALFORMED_CLAIM',
+        details: 'Missing numeric acceleration, time, or proposed value'
+      };
+    }
+    const expected = initial_velocity + (acceleration * time);
+    const matches = Math.abs(expected - proposed_value) < 1e-4;
+    return {
+      verified: matches,
+      engine: 'mathjs',
+      status: matches ? 'VERIFIED' : 'INCORRECT_RESULT',
+      error_type: matches ? undefined : 'INCORRECT_RESULT',
+      expected_value: expected,
+      proposed_value,
+      details: matches
+        ? `v = ${initial_velocity} + (${acceleration})(${time}) = ${proposed_value}${unit ? ' ' + unit : ''}`
+        : `Kinematics calculation error: expected ${expected}, got ${proposed_value}`
+    };
+  },
   verifyCalculusDerivative(claim) {
     const {
       expression,
@@ -914,9 +1141,22 @@ const MathJSVerifier = {
     }
 
     // 7. Right Triangle Geometry
-    if (domain === 'geometry' && (claim_type === 'right_triangle_geometry' || claim_type === 'right_triangle_sides')) {
+        if (domain === 'geometry' && (claim_type === 'geometry_area' || claim_type === 'area')) {
+      return this.verifyGeometryArea(data);
+    }
+if (domain === 'geometry' && (claim_type === 'right_triangle_geometry' || claim_type === 'right_triangle_sides')) {
       return this.verifyRightTriangle(data);
     }
+    // Physics: Kinematics
+    if (domain === 'physics' && (claim_type === 'kinematics_velocity' || claim_type === 'kinematics')) {
+      return this.verifyKinematics(data);
+    }
+
+    // Trigonometry: Coterminal angles
+    if (domain === 'trigonometry' && (claim_type === 'coterminal_angle' || claim_type === 'coterminal')) {
+      return this.verifyCoterminalAngle(data);
+    }
+
     // 8. Calculus: Polynomial & Rational Derivatives
     if ((domain === "calculus" || domain === "calculus_derivative") && (claim_type === "derivative" || claim_type === "polynomial_derivative")) {
       return this.verifyCalculusDerivative(data);

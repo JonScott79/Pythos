@@ -12,6 +12,139 @@ const math = require('mathjs');
 const mathjsVerifier = require('./mathjsVerifier');
 
 /**
+ * Robust balanced-brace extractor for \boxed{...} containing nested braces (e.g. \text{...}, fractions, units)
+ */
+function extractBoxedMatches(text) {
+  if (!text || typeof text !== 'string') return [];
+  const matches = [];
+  let idx = 0;
+  while ((idx = text.indexOf('\\boxed{', idx)) !== -1) {
+    let depth = 0;
+    let start = idx + 7;
+    let end = -1;
+    for (let i = start; i < text.length; i++) {
+      if (text[i] === '{') depth++;
+      else if (text[i] === '}') {
+        if (depth === 0) {
+          end = i;
+          break;
+        }
+        depth--;
+      }
+    }
+    if (end !== -1) {
+      matches.push({
+        raw: text.slice(idx, end + 1),
+        content: text.slice(start, end).trim()
+      });
+      idx = end + 1;
+    } else {
+      idx = start;
+    }
+  }
+  return matches;
+}
+
+/**
+ * Normalizes LaTeX unit notations and nested styling blocks
+ */
+function cleanLatexUnits(str) {
+  if (!str || typeof str !== 'string') return '';
+  return str
+    .replace(/\\(?:text|mathrm|mathbf)\s*\{([^{}]*)\}/g, ' $1 ')
+    .replace(/\\quad/g, ' ')
+    .replace(/\\;/g, ' ')
+    .replace(/\\,/g, ' ')
+    .replace(/[\$\s]+/g, ' ')
+    .trim();
+}
+
+/**
+ * Extracts final candidate answer from response text.
+ * Returns null if no valid non-empty candidate answer can be extracted (fail-closed).
+ */
+function extractCandidateAnswer(text) {
+  if (!text || typeof text !== 'string') return null;
+  const boxedMatches = extractBoxedMatches(text);
+  if (boxedMatches.length > 0) {
+    let raw = cleanLatexUnits(boxedMatches[boxedMatches.length - 1].content);
+    if (!raw.includes(',') && !raw.includes(';')) {
+      const eqMatch = raw.match(/^[a-zA-Z]\s*=\s*(.+)$/);
+      if (eqMatch) raw = eqMatch[1].trim();
+    }
+    if (raw.length > 0) return raw;
+  }
+  
+  const dispEqMatch = text.match(/\$\$\s*[\s\S]*?=\s*([-\d./]+(?:\s*[a-zA-Z/^2]+)?)\s*\$\$/);
+  if (dispEqMatch) return dispEqMatch[1].trim();
+  
+  const inlineMatch = text.match(/(?:x|y|z|result|answer|v|velocity|force|energy)\s*=\s*([-\d./]+(?:\s*[a-zA-Z/^2]+)?)/i);
+  if (inlineMatch) return inlineMatch[1].trim();
+  
+  return null;
+}
+
+/**
+ * Enforces the strict delivery gate architecture:
+ * - A null/empty candidate answer MUST NEVER be delivered.
+ * - Claims must be fully verified with no invalid claims or contradictions.
+ * - Prompt-to-claim fidelity must be satisfied.
+ */
+function evaluateCandidateDelivery({ candidateAnswer, verifications = [], contradictions = [], claims = [], prompt = '' }) {
+  if (candidateAnswer === null || candidateAnswer === undefined || String(candidateAnswer).trim() === '') {
+    return {
+      status: 'NO_CANDIDATE_ANSWER',
+      delivered: false,
+      withheld: true,
+      answer: null,
+      reason: 'No non-empty candidate answer could be extracted (fail-closed).'
+    };
+  }
+
+  const hasInvalid = verifications.some(v => v.verified === false && v.status !== 'UNKNOWN') || (contradictions && contradictions.length > 0);
+  if (hasInvalid) {
+    return {
+      status: 'INVALID_CLAIMS_DETECTED',
+      delivered: false,
+      withheld: true,
+      answer: null,
+      reason: 'Candidate output contained contradictory or disproven mathematical claims.'
+    };
+  }
+
+  const fidelity = auditPromptClaimFidelity(claims, prompt);
+  if (!fidelity.valid) {
+    return {
+      status: 'INSUFFICIENT_PROMPT_FIDELITY',
+      delivered: false,
+      withheld: true,
+      answer: null,
+      reason: fidelity.reason
+    };
+  }
+
+  const allVerified = verifications.length > 0 && verifications.every(v => v.verified === true);
+  if (allVerified) {
+    return {
+      status: 'VERIFIED',
+      delivered: true,
+      withheld: false,
+      answer: candidateAnswer,
+      reason: 'All extracted claims verified successfully with prompt fidelity.'
+    };
+  }
+
+  return {
+    status: 'UNKNOWN',
+    delivered: false,
+    withheld: true,
+    answer: null,
+    reason: 'One or more claims could not be deterministically verified.'
+  };
+}
+
+
+/**
  * Extracts verifiable mathematical claims from text.
  */
 function extractClaims(text, userPrompt = '') {
@@ -42,12 +175,12 @@ function extractClaims(text, userPrompt = '') {
     });
   }
 
-  // 2. Derivatives (e.g. \frac{d}{dx}[x^2] = 2x)
-  const derivRegex = /\\frac\{d\}\{d([a-zA-Z])\}\s*\[([^\]]+)\]\s*=\s*([^$\n]+)/g;
+  // 2. Derivatives (e.g. \frac{d}{dx}[x^2] = 2x or \frac{d}{dx}\,x^3 = 3x^2)
+  const derivRegex = /\\frac\{d\}\{d([a-zA-Z])\}\s*(?:\\,|\\;|\\s)*(?:\[([^\]]+)\]|\\left\(([^)]+)\\right\)|\(([^)]+)\)|([a-zA-Z0-9^+\-*/.{}\s]+?))\s*=\s*([^$\n\\]+?)(?:\\quad|\$|\\\\|\n|\\end|\]|$)/g;
   while ((match = derivRegex.exec(text)) !== null) {
-    let cleanExpr = match[2].trim();
+    let cleanExpr = (match[2] || match[3] || match[4] || match[5] || '').trim().replace(/[{}]/g, '');
     cleanExpr = cleanExpr.replace(/^(?:differentiate|find\s+the\s+derivative\s+of|calculate\s+the\s+derivative\s+of|what\s+is\s+the\s+derivative\s+of|compute\s+the\s+derivative\s+of)\s+/i, '').trim();
-    const propVal = match[3].trim();
+    const propVal = match[6].trim().replace(/[{}]/g, '');
 
     claims.push({
       domain: 'calculus',
@@ -187,7 +320,7 @@ function extractClaims(text, userPrompt = '') {
     }
   }
 
-  // Pattern 5c: Solved equation from prompt/context where candidate states solution (e.g. "x = -5", "\boxed{x = -5}", or "\boxed{-5}")
+  // Pattern 5c: Solved equation from prompt/context where candidate states solution (e.g. "x = -5", "\boxed{x = -5}", "\boxed{3, 9}", or "\boxed{\,x=3,\;9\,}")
   const isSystemPrompt = ((promptStr.match(/=/g) || []).length >= 2) || /\bsystem\b/i.test(promptStr);
   if (promptStr && !isSystemPrompt) {
     const promptEqMatch = promptStr.match(/([a-zA-Z0-9^+\-*/().\s]+=[a-zA-Z0-9^+\-*/().\s]+)/);
@@ -195,20 +328,42 @@ function extractClaims(text, userPrompt = '') {
       const cleaned = cleanAndNormalizeEquation(promptEqMatch[1]);
       if (cleaned) {
         const v = cleaned.variable;
-        const solRegex = new RegExp(`(?:\\b${v}\\s*=\\s*|\\\\boxed\\{\\s*(?:${v}\\s*=\\s*)?)([-+]?\\d+(?:\\.\\d+)?)`, 'i');
-        const solMatch = text.match(solRegex);
-        if (solMatch) {
-          const val = parseFloat(solMatch[1]);
+        let sols = [];
+        let rawMatchStr = null;
+
+        // Check boxed matches first for full root set
+        const boxedMatches = extractBoxedMatches(text);
+        if (boxedMatches.length > 0) {
+          const rawBoxed = cleanLatexUnits(boxedMatches[boxedMatches.length - 1].content);
+          const nums = rawBoxed.match(/[-+]?\d+(?:\.\d+)?/g);
+          if (nums && nums.length > 0) {
+            sols = nums.map(Number);
+            rawMatchStr = boxedMatches[boxedMatches.length - 1].raw;
+          }
+        }
+
+        // If not in boxed, check explicit assignments like x = 3 or x = 9, or x = 3, 9
+        if (sols.length === 0) {
+          const assignRegex = new RegExp(`(?:\\b${v}\\s*=\\s*|solutions?:?\\s*|roots?:?\\s*)([-+]?\\d+(?:\\.\\d+)?)(?:\\s*(?:,|and|or|;)?\\s*(?:${v}\\s*=\\s*)?([-+]?\\d+(?:\\.\\d+)?))?`, 'i');
+          const assignMatch = text.match(assignRegex);
+          if (assignMatch) {
+            sols = [parseFloat(assignMatch[1])];
+            if (assignMatch[2]) sols.push(parseFloat(assignMatch[2]));
+            rawMatchStr = assignMatch[0];
+          }
+        }
+
+        if (sols.length > 0) {
           const alreadyClaimed = claims.some(c => c.data?.equation === cleaned.equation && c.claim_type === 'equation_solution');
-          if (!alreadyClaimed && !isNaN(val)) {
+          if (!alreadyClaimed) {
             claims.push({
               domain: 'algebra',
               claim_type: 'equation_solution',
-              raw_match: solMatch[0],
+              raw_match: rawMatchStr || `solutions: ${sols.join(', ')}`,
               data: {
                 equation: cleaned.equation,
                 variable: cleaned.variable,
-                proposed_solutions: [val],
+                proposed_solutions: sols,
                 userPrompt: promptStr
               },
               userPrompt: promptStr
@@ -236,27 +391,36 @@ function extractClaims(text, userPrompt = '') {
     const fnExpr = fnIntent.expression;
     const fnInput = fnIntent.input;
 
-    // Look for proposed evaluation in text e.g. "f(k) = val", "f(k) = \boxed{val}", or "\boxed{val}"
-    const escapedInput = String(fnInput).replace('-', '\\-');
-    const valRegex = new RegExp(`(?:[a-zA-Z]\\s*\\(\\s*${escapedInput}\\s*\\)\\s*=\\s*|\\boxed\\{\\s*)([-+]?\\d+(?:\\.\\d+)?)`, 'i');
-    const valMatch = text.match(valRegex);
-    if (valMatch) {
-      const proposedVal = parseFloat(valMatch[1]);
-      if (!isNaN(proposedVal)) {
-        claims.push({
-          domain: 'algebra',
-          claim_type: 'function_evaluation',
-          raw_match: valMatch[0],
-          data: {
-            variable: fnVar,
-            expression: fnExpr,
-            input: fnInput,
-            proposed_value: proposedVal,
-            userPrompt: promptStr
-          },
-          userPrompt: promptStr
-        });
+    // Look for proposed evaluation in text e.g. "\boxed{val}", or final evaluated value in "f(k) = ... = val"
+    let proposedVal = null;
+    let rawMatch = null;
+    const boxed = text.match(/\\boxed\{\s*([-+]?\d+(?:\.\d+)?)\s*\}/);
+    if (boxed) {
+      proposedVal = parseFloat(boxed[1]);
+      rawMatch = boxed[0];
+    } else {
+      const escapedInput = String(fnInput).replace('-', '\\-');
+      const chainRegex = new RegExp(`[a-zA-Z]\\s*\\(\\s*${escapedInput}\\s*\\)\\s*=(?:[^=\\n]+?=)*\\s*([-+]?\\d+(?:\\.\\d+)?)`, 'i');
+      const chainMatch = text.match(chainRegex);
+      if (chainMatch) {
+        proposedVal = parseFloat(chainMatch[1]);
+        rawMatch = chainMatch[0];
       }
+    }
+    if (proposedVal !== null && !isNaN(proposedVal)) {
+      claims.push({
+        domain: 'algebra',
+        claim_type: 'function_evaluation',
+        raw_match: rawMatch,
+        data: {
+          variable: fnVar,
+          expression: fnExpr,
+          input: fnInput,
+          proposed_value: proposedVal,
+          userPrompt: promptStr
+        },
+        userPrompt: promptStr
+      });
     }
   }
 
@@ -342,13 +506,14 @@ function extractClaims(text, userPrompt = '') {
       .replace(/\\(?:left|right)/g, '')
       .replace(/\\(sin|cos|tan|sec|csc|cot)\b/gi, '$1');
 
-    // 6a. LaTeX Fraction: \frac{A}{B} \approx C or = C
-    const fracMatches = line.matchAll(/\\frac\{([\d.]+|\bpi\b)\}\{([\d.]+|\bpi\b)\}\s*(?:\\approx|\\thickapprox|≈|~|=)\s*([-+]?[\d.]+)\s*(%)?/gi);
+    // 6a. LaTeX Fraction: \frac{A}{B} \approx C or = C (including leading sign -\frac{A}{B})
+    const fracMatches = line.matchAll(/([-+]?)\s*\\frac\{([\d.]+|\bpi\b)\}\{([\d.]+|\bpi\b)\}\s*(?:\\approx|\\thickapprox|~|=)\s*([-+]?[\d.]+)\s*(%)?/gi);
     for (const m of fracMatches) {
-      const num = m[1];
-      const den = m[2];
-      const rawVal = m[3];
-      const isPct = m[4] === '%';
+      const sign = m[1].trim() === '-' ? '-' : '';
+      const num = m[2];
+      const den = m[3];
+      const rawVal = m[4];
+      const isPct = m[5] === '%';
       let val = parseFloat(rawVal);
       if (isNaN(val)) continue;
       if (isPct) val = val / 100.0;
@@ -358,9 +523,9 @@ function extractClaims(text, userPrompt = '') {
         claim_type: 'arithmetic',
         raw_match: m[0],
         data: {
-          expression: `(${num}) / (${den})`,
+          expression: `${sign}(${num}) / (${den})`,
           proposed_value: val,
-          is_approximate: m[0].includes('approx') || m[0].includes('≈') || m[0].includes('~'),
+          is_approximate: m[0].includes('approx') || m[0].includes('~'),
           tolerance: 0.005,
           is_percent: isPct,
           raw_val_str: rawVal
@@ -374,6 +539,17 @@ function extractClaims(text, userPrompt = '') {
     let match;
     while ((match = eqRegex.exec(line)) !== null) {
       const eqIndex = match.index;
+
+      // Guard against intermediate numbers in chained equality (e.g. "= 2 - 8 = -6" or "= 2(1)^2..."):
+      // If the characters following match[0] continue an arithmetic expression before the next '=' or end-of-line,
+      // this matched number was only a leading operand, NOT the RHS result.
+      const afterMatch = line.slice(eqIndex + match[0].length);
+      const nextEq = afterMatch.search(/(?:\\approx|\\thickapprox|%^|~|=)/);
+      const segmentAfter = nextEq !== -1 ? afterMatch.slice(0, nextEq) : afterMatch;
+      if (/^\s*(?:[-+*/^()\[\]]|(?:\d|\bpi\b|[a-zA-Z]))/.test(segmentAfter)) {
+        continue;
+      }
+
       const rawVal = match[1].replace(/\s+/g, '');
       const isPct = match[2] === '%';
       let val;
@@ -566,6 +742,191 @@ function extractClaims(text, userPrompt = '') {
           hypotenuse: c
         }
       });
+    }
+  }
+
+  // 10. Prompt-Grounded Terse / Boxed Answer Extraction
+  // When candidate states a final answer in \boxed{...} or bare value and surrounding prompt provides mathematical intent
+  if (promptStr) {
+    const cleanPrompt = promptStr.trim().replace(/[?!.]+$/, '').trim();
+
+    // Extract proposed final answer from \boxed{...}
+    let candidateBoxed = null;
+    const boxedMatches = extractBoxedMatches(text);
+    if (boxedMatches.length > 0) {
+      candidateBoxed = cleanLatexUnits(boxedMatches[boxedMatches.length - 1].content);
+      if (!candidateBoxed.includes(',') && !candidateBoxed.includes(';')) {
+        const eqMatch = candidateBoxed.match(/^[a-zA-Z]\s*=\s*(.+)$/);
+        if (eqMatch) candidateBoxed = eqMatch[1].trim();
+      }
+    }
+
+    if (candidateBoxed) {
+      // 10a. Combinatorics: nCr(n, r) or nPr(n, r)
+      const ncrMatch = cleanPrompt.match(/\bnCr\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)/i);
+      const nprMatch = cleanPrompt.match(/\bnPr\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)/i);
+      if (ncrMatch || nprMatch) {
+        const expr = ncrMatch
+          ? `combinations(${ncrMatch[1]}, ${ncrMatch[2]})`
+          : `permutations(${nprMatch[1]}, ${nprMatch[2]})`;
+        const val = parseFloat(candidateBoxed);
+        if (!isNaN(val) && !claims.some(c => c.data?.expression === expr)) {
+          claims.push({
+            domain: 'arithmetic',
+            claim_type: 'arithmetic',
+            raw_match: `${expr} = ${candidateBoxed}`,
+            data: {
+              expression: expr,
+              proposed_value: val,
+              is_approximate: false,
+              tolerance: 1e-4,
+              raw_val_str: candidateBoxed,
+              userPrompt: promptStr
+            },
+            userPrompt: promptStr
+          });
+        }
+      }
+
+      // 10b. Geometry Area: Area of triangle with base B and height H
+      const triMatch = cleanPrompt.match(/\barea\s+of\s+(?:a\s+)?triangle\s*(?:with)?\s*(?:base\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:and)?\s*height\s*[:=]?\s*(\d+(?:\.\d+)?)|height\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:and)?\s*base\s*[:=]?\s*(\d+(?:\.\d+)?))/i);
+      if (triMatch) {
+        const b = parseFloat(triMatch[1] || triMatch[4]);
+        const h = parseFloat(triMatch[2] || triMatch[3]);
+        const val = parseFloat(candidateBoxed);
+        if (!isNaN(val) && !claims.some(c => c.claim_type === 'geometry_area')) {
+          claims.push({
+            domain: 'geometry',
+            claim_type: 'geometry_area',
+            raw_match: `Area of triangle(base=${b}, height=${h}) = ${val}`,
+            data: {
+              figure: 'triangle',
+              base: b,
+              height: h,
+              proposed_value: val,
+              userPrompt: promptStr
+            },
+            userPrompt: promptStr
+          });
+        }
+      }
+
+      // 10c. Calculus Derivatives: Find the derivative of <expr>
+      const derivPromptMatch = cleanPrompt.match(/^(?:find\s+the\s+derivative\s+of|calculate\s+the\s+derivative\s+of|what\s+is\s+the\s+derivative\s+of|compute\s+the\s+derivative\s+of|differentiate)\s+([a-zA-Z0-9^+\-*/().\s]+)$/i);
+      if (derivPromptMatch) {
+        const expr = derivPromptMatch[1].trim();
+        if (/^[a-zA-Z0-9^+\-*/().\s]+$/.test(expr) && /[a-zA-Z]/.test(expr)) {
+          const vMatch = expr.match(/[a-zA-Z]/);
+          const v = vMatch ? vMatch[0] : 'x';
+          if (!claims.some(c => c.claim_type === 'derivative')) {
+            claims.push({
+              domain: 'calculus',
+              claim_type: 'derivative',
+              raw_match: `d/d${v}[${expr}] = ${candidateBoxed}`,
+              data: {
+                expression: expr,
+                variable: v,
+                proposed_value: candidateBoxed,
+                proposed_derivative: candidateBoxed,
+                userPrompt: promptStr
+              },
+              userPrompt: promptStr
+            });
+          }
+        }
+      }
+
+      // 10e. Coterminal Angle Claims: e.g. "What is the coterminal angle for 840 degrees?"
+      if (/coterminal/i.test(cleanPrompt)) {
+        const angleMatch = cleanPrompt.match(/coterminal\s+(?:angle\s+)?(?:for|with|to|of)?\s*([-+]?\d+(?:\.\d+)?)/i) ||
+                           cleanPrompt.match(/([-+]?\d+(?:\.\d+)?)\s*(?:deg|degrees?|A)?\s*(?:is\s+)?coterminal/i) ||
+                           cleanPrompt.match(/([-+]?\d+(?:\.\d+)?)\s*(?:degrees|deg|circ)/i);
+        if (angleMatch) {
+          const origAngle = parseFloat(angleMatch[1]);
+          let propAngle = null;
+          if (candidateBoxed) {
+            propAngle = parseFloat(candidateBoxed.replace(/[^-\d.]/g, ''));
+          }
+          if (propAngle === null || isNaN(propAngle)) {
+            const textAngleMatch = text.match(/(?:coterminal\s+(?:angle\s+)?(?:is\s+)?|\\boxed\{\s*)([-+]?\d+(?:\.\d+)?)/i);
+            if (textAngleMatch) propAngle = parseFloat(textAngleMatch[1]);
+          }
+
+          if (propAngle !== null && !isNaN(propAngle) && !claims.some(c => c.claim_type === 'coterminal_angle')) {
+            claims.push({
+              domain: 'trigonometry',
+              claim_type: 'coterminal_angle',
+              raw_match: `coterminal(${origAngle}) = ${propAngle}`,
+              data: {
+                original_angle: origAngle,
+                proposed_angle: propAngle,
+                userPrompt: promptStr
+              },
+              userPrompt: promptStr
+            });
+          }
+        }
+      }
+
+      // 10d. Arithmetic & Fractions: Compute/Determine/Evaluate/What is <expr>
+      const pfxStrip = cleanPrompt.replace(/^(?:compute|calculate|determine|evaluate|what\s+is|find|simplify|work\s+out)\s+/i, '').trim();
+      const sanitized = pfxStrip
+        .replace(/\\times/g, '*')
+        .replace(/\\cdot/g, '*')
+        .replace(/\\div/g, '/')
+        .replace(/\s+/g, ' ');
+      if (/^[-+*/^0-9.()\s]+$/.test(sanitized) && /[-+*/^]/.test(sanitized)) {
+        const withoutLeadingSign = sanitized.replace(/^[-+]\s*\d+(?:\.\d+)?/, '');
+        if (/[-+*/^]/.test(withoutLeadingSign)) {
+          let val;
+          if (candidateBoxed.includes('/')) {
+            const parts = candidateBoxed.split('/');
+            val = parseFloat(parts[0]) / parseFloat(parts[1]);
+          } else {
+            val = parseFloat(candidateBoxed);
+          }
+          if (!isNaN(val) && !claims.some(c => c.domain === 'arithmetic' && c.data?.expression === sanitized)) {
+            claims.push({
+              domain: 'arithmetic',
+              claim_type: 'arithmetic',
+              raw_match: `${sanitized} = ${candidateBoxed}`,
+              data: {
+                expression: sanitized,
+                proposed_value: val,
+                is_approximate: false,
+                tolerance: 0.005,
+                raw_val_str: candidateBoxed,
+                userPrompt: promptStr
+              },
+              userPrompt: promptStr
+            });
+          }
+        }
+      }
+
+      // 10e. Physics Kinematics: Final velocity from acceleration and time from rest
+      const kinMatch = cleanPrompt.match(/final\s+velocity\s+for\s+an\s+object\s+accelerating\s+at\s+([\d.]+)\s*m\/s\^?2\s+for\s+([\d.]+)\s*seconds?(?:\s+from\s+rest)?/i);
+      if (kinMatch) {
+        const a = parseFloat(kinMatch[1]);
+        const t = parseFloat(kinMatch[2]);
+        const propVal = parseFloat(candidateBoxed);
+        if (!isNaN(a) && !isNaN(t) && !isNaN(propVal) && !claims.some(c => c.domain === 'physics' && c.claim_type === 'kinematics_velocity')) {
+          claims.push({
+            domain: 'physics',
+            claim_type: 'kinematics_velocity',
+            raw_match: `v = ${a} * ${t} = ${candidateBoxed}`,
+            data: {
+              acceleration: a,
+              time: t,
+              initial_velocity: 0,
+              proposed_value: propVal,
+              unit: 'm/s',
+              userPrompt: promptStr
+            },
+            userPrompt: promptStr
+          });
+        }
+      }
     }
   }
 
@@ -1207,7 +1568,91 @@ async function verifyResponseClaims(content, userQueryText, abortSignal) {
   };
 }
 
+
+/**
+ * Ensures that the set of verified claims satisfies the semantic object/question
+ * requested by the user's prompt (prompt-to-claim fidelity).
+ * Prevents intermediate arithmetic (e.g. 60 + 360 = 420) from certifying answers
+ * to queries that asked for coterminal angles, equation roots, function values, etc.
+ */
+function auditPromptClaimFidelity(claims, prompt) {
+  if (!prompt || typeof prompt !== 'string') return { valid: true };
+
+  // 1. Coterminal Angle Queries
+  if (/coterminal/i.test(prompt)) {
+    const hasCoterminal = claims.some(c => c.claim_type === 'coterminal_angle');
+    if (!hasCoterminal) {
+      return {
+        valid: false,
+        reason: 'Prompt requested a coterminal angle, but no verified coterminal_angle claim was established (intermediate arithmetic alone cannot certify answer).'
+      };
+    }
+  }
+
+  // 2. Algebraic Equation Solving Queries
+  if (/\bsolve\b/i.test(prompt) && prompt.includes('=')) {
+    const hasEquationSol = claims.some(c => c.claim_type === 'equation_solution' || c.claim_type === 'system_solution');
+    if (!hasEquationSol) {
+      return {
+        valid: false,
+        reason: 'Prompt requested solving an equation, but no verified equation_solution claim was established.'
+      };
+    }
+  }
+
+  // 3. Function Evaluation Queries
+  if (/\bf\s*\([-\d.]+\)/i.test(prompt) && /\bf\(x\)\s*=/i.test(prompt)) {
+    const hasFnEval = claims.some(c => c.claim_type === 'function_evaluation');
+    if (!hasFnEval) {
+      return {
+        valid: false,
+        reason: 'Prompt requested function evaluation, but no verified function_evaluation claim was established.'
+      };
+    }
+  }
+
+  // 4. Geometry Area Queries
+  if (/\barea\b/i.test(prompt) && /\btriangle\b/i.test(prompt)) {
+    const hasGeomArea = claims.some(c => c.claim_type === 'geometry_area');
+    if (!hasGeomArea) {
+      return {
+        valid: false,
+        reason: 'Prompt requested geometry area, but no verified geometry_area claim was established.'
+      };
+    }
+  }
+
+  // 6. Physics Kinematics Queries
+  if (/final\s+velocity/i.test(prompt) || (/\bvelocity\b/i.test(prompt) && /\baccelerat/i.test(prompt))) {
+    const hasKinematics = claims.some(c => c.claim_type === 'kinematics_velocity' || c.claim_type === 'kinematics');
+    if (!hasKinematics) {
+      return {
+        valid: false,
+        reason: 'Prompt requested final velocity calculation, but no verified kinematics claim was established (intermediate arithmetic alone cannot certify physics answer).'
+      };
+    }
+  }
+
+  // 5. Calculus Derivative Queries
+  if (/\bderivative\b/i.test(prompt) || /\bdifferentiate\b/i.test(prompt)) {
+    const hasDeriv = claims.some(c => c.claim_type === 'derivative');
+    if (!hasDeriv) {
+      return {
+        valid: false,
+        reason: 'Prompt requested a derivative, but no verified derivative claim was established.'
+      };
+    }
+  }
+
+  return { valid: true };
+}
+
 module.exports = {
+  extractBoxedMatches,
+  cleanLatexUnits,
+  extractCandidateAnswer,
+  evaluateCandidateDelivery,
+  auditPromptClaimFidelity,
   extractClaims,
   auditInternalConsistency,
   runDeterministicVerification,
