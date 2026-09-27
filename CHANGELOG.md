@@ -1,3 +1,27 @@
+## Pythos 1.8.14
+**Release Date:** September 27, 2026
+
+### Added & Hardened
+- **Multi-Turn Context Revision & Error Recovery Engine** (`contextManager.js`, `server.js`, `verificationBridge.js`):
+  - Synthesized dynamic effective prompts (`buildEffectivePrompt`) reconciling full conversational turn history into unambiguous current problem state.
+  - Automatically invalidated superseded mathematical state, stale verified solutions, active equation steps, and completion markers upon detected user correction or problem mutations.
+  - Built correction intent detection (`CORRECTION` topic transition) and extracted parameter updates across dimensions, signs, units, and target questions.
+  - Enforced multi-turn parameter consistency guards in verification (e.g. geometric dimensions, circle radius) and prevented unverified user assertions (`(User claims: ...)`) from bypassing independent mathematical verification.
+  - Zero stale-context leaks (0.0%), zero false-positive rejections (0.0%), and 100% precision across 27 multi-turn error recovery scenarios (`test-multiturn-error-recovery.js`).
+- **Input & Diagram Fidelity Ambiguity Gate** (`inputAmbiguityDetector.js`, `visionExtractor.js`, `deterministicRouter.js`):
+  - Detected and handled notation ambiguities in geometric diagrams and OCR transcriptions (e.g. $x^2$ labeled on hypotenuse vs variable $x$).
+  - Guarded deterministic fast-path routers against premature simplification of ambiguous diagram labels.
+  - Blocked silent reinterpretation and normalization: enforced safe withholding or bifurcation of ambiguous inputs across 23 test scenarios (`test-diagram-fidelity-ambiguity.js`).
+- **Prompt-to-Claim Fidelity Expansion** (`verificationBridge.js`):
+  - Expanded prompt-to-claim fidelity gating to defend against variable/value substitutions (prompt asks for $y$, model solves for $x$), arithmetic operator/sign mutations, and target entity mismatches.
+  - Added explanation decomposition support in verification: intermediate arithmetic steps in step-by-step proofs are permitted when explanation directives are present.
+  - 29/29 passing tests across all targeted fidelity expansion scenarios (`test-prompt-claim-fidelity-expansion.js`).
+- **Adversarial & Trick-Question Benchmark Hardening** (`deterministicRouter.js`, `mathjsVerifier.js`, `algebra_verifier.py`, `verificationBridge.js`):
+  - Enforced premise consistency validation, geometric triangle inequality checks, impossible condition withholding, and adversarial distractor filtering.
+  - Achieved 48/48 (100%) passing across contradictory premises, impossible problems, underspecified requests, and trick questions (`test-adversarial-trick-benchmark.js`).
+- **Master Regression Integrity (100% Green)**:
+  - Re-verified all 24 master regression suites (100% passing), maintaining zero false-positive deliveries across algebra, geometry, calculus, physics, and contextual intent.
+
 ## Pythos 1.8.13
 **Release Date:** September 26, 2026
 

@@ -2029,9 +2029,12 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
       message: { role: 'assistant', content: finalContent },
       done: true
     };
+    const effectiveVerificationPrompt = (contextManager.buildEffectivePrompt && Array.isArray(messages))
+      ? contextManager.buildEffectivePrompt(messages)
+      : (lastUserMsg ? lastUserMsg.content : '');
     let { claims, internalContradictions, verificationResults, invalidClaims } = await verifyResponseClaims(
       finalContent,
-      lastUserMsg ? lastUserMsg.content : '',
+      effectiveVerificationPrompt,
       abortController.signal
     );
 
@@ -2078,7 +2081,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           // RE-VERIFICATION OF REVISED CONTENT (Task 6)
           const revAudit = await verifyResponseClaims(
             finalContent,
-            lastUserMsg ? lastUserMsg.content : '',
+            effectiveVerificationPrompt,
             abortController.signal
           );
           claims = revAudit.claims;

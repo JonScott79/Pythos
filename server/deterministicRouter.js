@@ -1113,6 +1113,38 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   const clean = userText.trim().replace(/^\$+|\$+$/g, '').replace(/[?!.]+$/, '').replace(/(\d),(\d{3})\b/g, '$1$2').trim();
   const lower = clean.toLowerCase();
 
+  // Error diagnosis requests (e.g. "What is wrong with this step...", "Find the error in...")
+  if (/\b(?:what\s+is\s+wrong|find\s+(?:the\s+)?error|find\s+(?:the\s+)?mistake|where\s+is\s+the\s+(?:error|mistake)|is\s+this\s+(?:solution\s+)?valid|check\s+(?:my|this)\s+(?:work|solution))\b/i.test(clean)) {
+    return null; // Defer to pedagogical analysis, do NOT fast-path solve equation!
+  }
+
+  // Indeterminate form and notation ambiguity guards
+  if (/\b0\s*\^\s*0\b/.test(clean)) {
+    return null; // 0^0 is indeterminate in calculus/analysis, do not fast-path to 1
+  }
+  if (/\bexact\s+fraction(?:al)?\b/i.test(clean) && /\bround\b/i.test(clean)) {
+    return null; // Contradictory instructions
+  }
+  if (/\b\d+\s*\/\s*\d+\s*\(/.test(clean)) {
+    return null; // Ambiguous division notation (e.g. 6 / 2(1+2))
+  }
+
+  // Contradictory Circle Dimensions Check: radius and diameter must satisfy d = 2r
+  const circleContradictionMatch = clean.match(/circle.*?(?:radius\s*[:=]?\s*(\d+(?:\.\d+)?).*?diameter\s*[:=]?\s*(\d+(?:\.\d+)?)|diameter\s*[:=]?\s*(\d+(?:\.\d+)?).*?radius\s*[:=]?\s*(\d+(?:\.\d+)?))/i);
+  if (circleContradictionMatch) {
+    const r = parseFloat(circleContradictionMatch[1] || circleContradictionMatch[4]);
+    const d = parseFloat(circleContradictionMatch[2] || circleContradictionMatch[3]);
+    if (Math.abs(d - 2 * r) > 1e-4) {
+      return {
+        type: 'GEOMETRIC_CONTRADICTION',
+        result: 'IMPOSSIBLE',
+        solution: 'IMPOSSIBLE',
+        formatted: 'Geometric Contradiction: Circle radius and diameter are contradictory (diameter must equal twice the radius).',
+        reason: `Circle with radius ${r} must have diameter ${2 * r}, not ${d}.`
+      };
+    }
+  }
+
   // Simpson's Paradox Conceptual Query (e.g. "Explain Simpson's paradox with hospital treatment success rates")
   if (/simpson(?:'s)?\s+paradox/i.test(clean)) {
     return {
@@ -1313,7 +1345,7 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   // 0c. Geometric Figure Visualization Requests
   // Numerical: e.g. "show a right triangle with legs 3 and 4", "triangle with sides 3, 4, 5"
   // Qualitative: e.g. "can you show me on a triangle?", "show me on a right triangle", "i want to see the actual triangle and how this works", "draw a triangle"
-  const triangleMatch = clean.match(/(?:right\s+triangle|triangle).*?(?:legs|sides)?\s*(\d+(?:\.\d+)?)\s*(?:and|,)\s*(\d+(?:\.\d+)?)(?:\s*(?:and|,)\s*(\d+(?:\.\d+)?))?/i);
+  const triangleMatch = clean.match(/(?:right\s+triangle|triangle).*?(?:legs|sides)?\s*(\d+(?:\.\d+)?)\s*(?:and|,)\s*(\d+(?:\.\d+)?)(?:\s*(?:,|and|\s+)+\s*(\d+(?:\.\d+)?))?/i);
   const isQualitativeTriangle = !triangleMatch && (
     /(?:show|draw|illustrate|see|view|display|plot)(?:.*?)(?:on\s+a\s+|a\s+|the\s+)?(?:right\s+)?triangle/i.test(clean) ||
     /(?:right\s+)?triangle.*?(?:how\s+this\s+works|opposite|adjacent|hypotenuse|ratio|trig|work)/i.test(clean) ||
@@ -1321,10 +1353,41 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   );
 
   if (triangleMatch || isQualitativeTriangle) {
+    const { detectInputAmbiguity } = require('./inputAmbiguityDetector');
+    const ambiguityCheck = detectInputAmbiguity(clean);
+    if (ambiguityCheck && ambiguityCheck.hasAmbiguity) {
+      return {
+        type: 'INPUT_AMBIGUITY_CLARIFICATION',
+        ambiguityType: ambiguityCheck.ambiguityType,
+        result: 'AMBIGUOUS',
+        solution: 'AMBIGUOUS',
+        formatted: 'Ambiguity Detected',
+        clarificationMessage: ambiguityCheck.clarificationMessage
+      };
+    }
     const a = triangleMatch ? parseFloat(triangleMatch[1]) : 3;
     const b = triangleMatch ? parseFloat(triangleMatch[2]) : 4;
-    const c = (triangleMatch && triangleMatch[3]) ? parseFloat(triangleMatch[3]) : (triangleMatch ? Math.round(Math.hypot(a, b) * 100) / 100 : 5);
+    const hasThirdSide = !!(triangleMatch && triangleMatch[3]);
+    const c = hasThirdSide ? parseFloat(triangleMatch[3]) : (triangleMatch ? Math.round(Math.hypot(a, b) * 100) / 100 : 5);
+
+    // Contradictory Premise Check: Triangle Inequality Theorem
+    if (hasThirdSide) {
+      if (a + b <= c || a + c <= b || b + c <= a) {
+        return {
+          type: 'GEOMETRIC_CONTRADICTION',
+          result: 'IMPOSSIBLE',
+          solution: 'IMPOSSIBLE',
+          formatted: 'Geometric Contradiction: Stated side lengths violate the Triangle Inequality (sum of any two sides must exceed third side).',
+          reason: `Triangle with sides ${a}, ${b}, ${c} is impossible because sum of any two sides must exceed third side.`
+        };
+      }
+    }
     const hasTrigContext = isQualitativeTriangle || /(?:trig|ratio|opposite|adjacent|hypotenuse|sin|cos|tan)/i.test(clean) || (Array.isArray(conversationHistory) && conversationHistory.some(m => /(?:tan|sin|cos|trig|opposite|adjacent|hypo)/i.test(m.content || '')));
+
+    const isPerimeter = /\bperimeter\b/i.test(clean);
+    const isArea = /\barea\b/i.test(clean);
+    const expectedVal = isPerimeter ? (a + b + c) : (isArea ? (0.5 * a * b) : c);
+    const formattedVal = isPerimeter ? `perimeter = ${expectedVal}` : (isArea ? `area = ${expectedVal}` : `c = ${c}`);
 
     return {
       type: 'GEOMETRY_VIZ',
@@ -1337,9 +1400,9 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
       opp: a,
       adj: b,
       hyp: c,
-      result: c,
-      solution: c,
-      formatted: `c = ${c}`
+      result: expectedVal,
+      solution: expectedVal,
+      formatted: formattedVal
     };
   }
 
@@ -2277,6 +2340,10 @@ Here is the representation of the interval $${intent.interval}$ on the real numb
 [NUMBER_LINE: min=${intent.min}, max=${intent.max}, interval=${intent.interval}, points=[${intent.points.join(', ')}]]
 
 Points within the highlighted segment satisfy the condition. Would you like to solve an inequality corresponding to this interval?`;
+  }
+
+  if (intent.type === 'INPUT_AMBIGUITY_CLARIFICATION') {
+    return intent.clarificationMessage;
   }
 
   if (intent.type === 'GEOMETRY_VIZ') {

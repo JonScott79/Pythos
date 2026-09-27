@@ -66,6 +66,16 @@ function detectTopicTransitionIntent(userText) {
     };
   }
 
+  // 3. Explicit correction / modification of previous problem
+  const isCorrection = /\b(?:wait|sorry|actually|correction|oops|no\s*wait|typo)\b.*?\b(?:is\s+actually|i\s+meant|i\s+mean|i\s+said|instead\s+of|actually\s+shows|actually\s+find)\b/i.test(lower) ||
+                       /\b(?:i\s+meant|meant\s+to\s+say|my\s+bad,?\s+i\s+meant|typo,?\s+meant|actually\s+the\s+third\s+side\s+is|actually\s+i\s+need|actually,?\s+solve\s+for)\b/i.test(lower);
+  if (isCorrection) {
+    return {
+      type: 'CORRECTION',
+      text
+    };
+  }
+
   return { type: 'NONE' };
 }
 
@@ -184,6 +194,18 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
         currentActive.status = 'ACTIVE';
       }
       continue;
+    }
+
+    // Extract parameter corrections from user turn
+    const valCorrection = msg.content.match(/(?:(?:the\s+)?([a-zA-Z]+)\s+is\s+actually\s+(\d+(?:\.\d+)?)|(?:actually|meant)\s+(?:the\s+)?([a-zA-Z]+)\s*(?:as|is)?\s*(\d+(?:\.\d+)?))/i);
+    if (valCorrection && currentActive) {
+      const pName = (valCorrection[1] || valCorrection[3]).toLowerCase();
+      const pVal = parseFloat(valCorrection[2] || valCorrection[4]);
+      if (!currentActive.knownVariables) currentActive.knownVariables = {};
+      currentActive.knownVariables[pName] = pVal;
+      currentActive.verifiedSolution = null;
+      currentActive.isCompleted = false;
+      currentActive.currentStepEquation = null;
     }
 
     const isHighConfidence = classification &&
@@ -316,7 +338,17 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
 
   // Track intermediate equation steps and problem completion across conversation dialogue
   if (currentActive) {
-    for (let j = 0; j < messages.length; j++) {
+    let activeTurnStartIndex = 0;
+    for (let idx = 0; idx < messages.length; idx++) {
+      const m = messages[idx];
+      if (m && m.role === 'user') {
+        const trans = detectTopicTransitionIntent(m.content);
+        if (trans.type === 'CORRECTION' || trans.type === 'NEW_TOPIC_EXPLICIT') {
+          activeTurnStartIndex = idx;
+        }
+      }
+    }
+    for (let j = activeTurnStartIndex; j < messages.length; j++) {
       const m = messages[j];
       if (!m || !m.content) continue;
       const text = m.content;
@@ -507,7 +539,177 @@ function buildBoundedConversationContext(rawMessages = [], options = {}) {
   };
 }
 
+
+/**
+ * Synthesizes the Authoritative Effective Problem Context from a multi-turn conversation.
+ * Replaces superseded values/equations while preserving unchanging problem context.
+ */
+function buildEffectivePrompt(messages = []) {
+  if (!messages || !Array.isArray(messages) || messages.length === 0) return '';
+  const userMsgs = messages.filter(m => m && m.role === 'user');
+  if (userMsgs.length === 0) return '';
+  if (userMsgs.length === 1) return userMsgs[0].content;
+
+  const latestUser = userMsgs[userMsgs.length - 1].content.trim();
+  const firstUser = userMsgs[0].content.trim();
+
+  // 1. Explicit new problem reset
+  const newProblemMatch = latestUser.match(/^(?:never\s+mind[.,]?\s*|(?:let'?s\s+do\s+a\s+)?new\s+problem[:\s]+|different\s+question[:\s]+)(.*)/i);
+  if (newProblemMatch && newProblemMatch[1].trim()) {
+    let np = newProblemMatch[1].trim();
+    if (!/^(?:solve|calculate|what|find)\b/i.test(np)) np = 'Solve ' + np;
+    return np;
+  }
+
+  // 2. Identify base problem
+  let basePrompt = firstUser;
+  for (let i = 0; i < userMsgs.length - 1; i++) {
+    const um = userMsgs[i].content.trim();
+    const npm = um.match(/^(?:never\s+mind[.,]?\s*|new\s+problem[:\s]+)(.*)/i);
+    if (npm && npm[1].trim()) {
+      let np = npm[1].trim();
+      if (!/^(?:solve|calculate|what|find)\b/i.test(np)) np = 'Solve ' + np;
+      basePrompt = np;
+    }
+  }
+
+  let effective = basePrompt;
+
+  for (let i = 1; i < userMsgs.length; i++) {
+    const turnText = userMsgs[i].content.trim();
+
+    // Equation correction
+    const eqMatch = turnText.match(/(?:i\s+meant|solve|typo,?\s+meant)\s+([a-zA-Z0-9+\-*/^().\s=]+=[a-zA-Z0-9+\-*/^().\s=]+)/i);
+    if (eqMatch) {
+      const newEq = eqMatch[1].trim();
+      if (/[-+*/^0-9a-zA-Z().\s]+=[-+\-*/^0-9a-zA-Z().\s]+/.test(effective)) {
+        effective = effective.replace(/[-+*/^0-9a-zA-Z().\s]+=[-+\-*/^0-9a-zA-Z().\s]+/g, newEq);
+      } else {
+        effective = 'Solve ' + newEq + '.';
+      }
+      continue;
+    }
+
+    // Parameter value update: width, height, radius
+    const valMatch = turnText.match(/(?:(?:the\s+)?([a-zA-Z]+)\s+is\s+actually\s+(\d+(?:\.\d+)?)|(?:actually|meant)\s+(?:the\s+)?([a-zA-Z]+)\s*(?:as|is)?\s*(\d+(?:\.\d+)?))/i);
+    if (valMatch) {
+      const pName = (valMatch[1] || valMatch[3]).toLowerCase();
+      const newVal = valMatch[2] || valMatch[4];
+      const pRegex = new RegExp(pName + '\\s+(?:is\\s+)?\\d+(?:\\.\\d+)?', 'i');
+      effective = effective.replace(pRegex, pName + ' ' + newVal);
+      continue;
+    }
+
+    // Third side update: Actually, the third side is 10
+    const thirdSideMatch = turnText.match(/(?:third\s+side\s+is\s+(\d+(?:\.\d+)?)|hypotenuse\s+is\s+(\d+(?:\.\d+)?))/i);
+    if (thirdSideMatch) {
+      const s3 = thirdSideMatch[1] || thirdSideMatch[2];
+      effective = effective.replace(/(?:sides|legs)?\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)(?:,\s*and|\s*,|\s*and)\s*(\d+(?:\.\d+)?)/i, 'sides $1, $2, and ' + s3);
+      continue;
+    }
+
+    // Missing height added
+    const heightMatch = turnText.match(/height\s+(?:as|is)\s+(\d+(?:\.\d+)?)/i);
+    if (heightMatch && !effective.includes('height')) {
+      effective = effective.replace(/base\s+(\d+(?:\.\d+)?)/i, 'base $1 and height ' + heightMatch[1]);
+      continue;
+    }
+
+    // Target question update: area -> perimeter
+    if (/\b(?:actually|need|want|find)\b.*?\bperimeter\b/i.test(turnText)) {
+      effective = effective.replace(/\barea\b/ig, 'perimeter');
+      continue;
+    }
+
+    // Target question update: perimeter -> area
+    if (/\b(?:what\s+is\s+(?:its\s+)?area|find\s+(?:the\s+)?area|calculate\s+(?:the\s+)?area)\b/i.test(turnText)) {
+      effective = effective.replace(/\bperimeter\b/ig, 'area');
+      continue;
+    }
+
+    // Target variable update: solve for y
+    if (/\b(?:actually,?\s+)?solve\s+for\s+([a-zA-Z])\b/i.test(turnText)) {
+      const targetVar = turnText.match(/solve\s+for\s+([a-zA-Z])\b/i)[1];
+      effective = effective.replace(/for\s+[a-zA-Z]\b/ig, 'for ' + targetVar);
+      continue;
+    }
+
+    // Condition added: positive solution only
+    if (/\bpositive\s+(?:root|solution|solutions)\b/i.test(turnText)) {
+      effective += ' Find only the positive solution.';
+      continue;
+    }
+
+    // Condition removed: find all real roots
+    if (/\ball\s+real\s+roots\b/i.test(turnText)) {
+      effective = effective.replace(/\bpositive\s+(?:root|solution)\b/ig, 'all real roots');
+      continue;
+    }
+
+    // Domain changed to complex numbers
+    if (/\bcomplex\s+numbers?\b/i.test(turnText)) {
+      effective = effective.replace(/\breal\s+roots\b/ig, 'complex roots');
+      if (!effective.includes('complex')) effective += ' in complex numbers.';
+      continue;
+    }
+
+    // Ambiguous notation clarified: x2 means x^2
+    if (/\b(?:x\s+squared|x\^2)\b/i.test(turnText)) {
+      effective = effective.replace(/\bx2\b/g, 'x^2');
+      continue;
+    }
+
+    // Unit update: meters -> centimeters
+    const unitMatch = turnText.match(/(?:meant|is)\s+(\d+(?:\.\d+)?)\s*(centimeters?|cm|meters?|m|seconds?|s)\b/i);
+    if (unitMatch) {
+      const uNum = unitMatch[1];
+      const uUnit = unitMatch[2];
+      effective = effective.replace(/\d+(?:\.\d+)?\s*(?:meters?|m|centimeters?|cm)/i, uNum + ' ' + uUnit);
+      continue;
+    }
+
+    // Clarify ambiguous phrase: rate -> average speed
+    if (/\baverage\s+speed\b/i.test(turnText)) {
+      effective = effective.replace(/\brate\b/ig, 'average speed');
+      continue;
+    }
+
+    // Discount percentage update: 20% -> 30%
+    const discMatch = turnText.match(/(?:discount\s+was\s+(?:actually\s+)?|actually\s+)(\d+)%\s*off/i);
+    if (discMatch) {
+      const newD = discMatch[1];
+      effective = effective.replace(/\d+%\s*off/i, newD + '% off');
+      continue;
+    }
+    if (/\bhow\s+much\s+(?:money\s+)?do\s+i\s+save\b/i.test(turnText)) {
+      effective += ' How much money do you save?';
+      continue;
+    }
+
+    // User assertion claim: Actually x = 7
+    const userClaimMatch = turnText.match(/^(?:actually,?\s+)?([a-zA-Z]\s*=\s*[-+]?\d+(?:\.\d+)?)[.?!]?$/i);
+    if (userClaimMatch) {
+      effective += ' (User claims: ' + userClaimMatch[1] + ')';
+      continue;
+    }
+    if (/\bi\s+got\s+(\d+(?:\.\d+)?)\b/i.test(turnText)) {
+      const pAns = turnText.match(/\bi\s+got\s+(\d+(?:\.\d+)?)\b/i)[1];
+      effective += ' (Student proposes answer: ' + pAns + ')';
+      continue;
+    }
+
+    // Conversational follow-ups
+    if (/\b(?:what\s+was\s+the\s+answer|explain|what\s+about\s+at\s+x\s*=\s*\d+)\b/i.test(turnText)) {
+      effective += ' (' + turnText + ')';
+      continue;
+    }
+  }
+
+  return effective;
+}
+
 module.exports = {
+  buildEffectivePrompt,
   TOTAL_CONTEXT_LIMIT,
   MAX_INPUT_TOKEN_TARGET,
   RECENT_VERBATIM_TURNS,

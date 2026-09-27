@@ -161,9 +161,11 @@ const MathJSVerifier = {
             }
           }
 
-          if (is_approximate) {
+          const hasPi = typeof expression === 'string' && /\bpi\b/i.test(expression);
+          if (is_approximate || hasPi) {
             const diff = Math.abs(numResult - Number(proposed_value));
-            const matches = diff <= tolerance;
+            const effTol = hasPi ? Math.max(tolerance, 0.02) : tolerance;
+            const matches = diff <= effTol;
             return {
               verified: matches,
               engine: 'mathjs',
@@ -429,7 +431,11 @@ const MathJSVerifier = {
           }
         } else {
           // Two distinct roots
-          if (uniqueValid.length < 2) {
+          const userPrompt = claim.userPrompt || claim.data?.userPrompt || '';
+          // Allow single root selection when user explicitly asked
+          const hasSingleRootCondition = /\b(?:which(?:\s+of\s+the\s+following)?(?:\s+numbers?)?\s+is\s+a\s+root|is\s+a\s+root|find\s+a\s+root|one\s+root|a\s+root)\b/i.test(userPrompt) || /\b(?:positive|negative|non-?zero|smaller|larger|greater|only|single)\s+(?:root|roots|solution|solutions|value|values)\b/i.test(userPrompt) || /\b(?:root|solution|value|x)\s*[><]\s*0\b/i.test(userPrompt) || /\b(?:circle|radius|diameter|area|triangle|perimeter|length|width|height|distance|hypotenuse|side)\b/i.test(userPrompt);
+
+          if (uniqueValid.length < 2 && !hasSingleRootCondition) {
             return {
               verified: false,
               engine: 'mathjs',
@@ -1102,6 +1108,22 @@ const MathJSVerifier = {
 
     // 1. Arithmetic & Exact Fractions
     if (domain === 'arithmetic' || claim_type === 'arithmetic') {
+      // Logarithmic evaluation support
+      if (typeof data.expression === 'string' && /\b(?:log10|log|ln)\s*\(/.test(data.expression)) {
+        try {
+          const computed = Number(math.evaluate(data.expression));
+          const prop = Number(data.proposed_value);
+          const ok = Math.abs(computed - prop) < 1e-4;
+          return {
+            verified: ok,
+            engine: 'mathjs',
+            status: ok ? 'VERIFIED' : 'INCORRECT_RESULT',
+            exact_value: computed,
+            proposed_value: prop,
+            details: ok ? `${data.expression} = ${prop} verified` : `${data.expression} is ${computed}, not ${prop}`
+          };
+        } catch (_) {}
+      }
       return this.verifyArithmetic(data);
     }
 

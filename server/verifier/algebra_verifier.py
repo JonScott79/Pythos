@@ -76,7 +76,11 @@ def verify_algebra(claim: dict) -> dict:
         extraneous_found = []
         for prop in proposed_solutions:
             try:
-                val = float(prop)
+                # Support complex roots like i, -i
+                if isinstance(prop, str) and prop.strip().lower() in ('i', '-i'):
+                    val = sp.I if prop.strip().lower() == 'i' else -sp.I
+                else:
+                    val = float(prop)
                 # Domain restriction: reject values that zero a denominator
                 # in the original (pre-simplified) expression
                 if any(abs(val - excl) < 1e-9 for excl in domain_excluded_vals):
@@ -110,7 +114,7 @@ def verify_algebra(claim: dict) -> dict:
 
         # 2. Lost root check
         if proposed_solutions and true_sol_vals:
-            proposed_nums = [float(p) for p in proposed_solutions]
+            proposed_nums = [float(p) for p in proposed_solutions if not (isinstance(p, str) and 'i' in p.lower())]
             lost_roots = []
             for t in true_sol_vals:
                 if not any(abs(t - p) < 1e-4 for p in proposed_nums):

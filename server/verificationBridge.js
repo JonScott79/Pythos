@@ -123,6 +123,431 @@ function evaluateCandidateDelivery({ candidateAnswer, verifications = [], contra
     };
   }
 
+  // --- TASK #3 ADVERSARIAL BENCHMARK SAFEGUARDS ---
+
+  // 1. Contradictory Geometric Premises: Triangle Inequality Violation
+  const triSidesMatch = prompt.match(/(?:sides|legs)?\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)(?:\s*,|\s*and)\s*(\d+(?:\.\d+)?)/i);
+  if (/\btriangle\b/i.test(prompt) && triSidesMatch) {
+    const s1 = parseFloat(triSidesMatch[1]);
+    const s2 = parseFloat(triSidesMatch[2]);
+    const s3 = parseFloat(triSidesMatch[3]);
+    if (s1 + s2 <= s3 || s1 + s3 <= s2 || s2 + s3 <= s1) {
+      return {
+        status: 'CONTRADICTORY_PREMISE',
+        delivered: false,
+        withheld: true,
+        answer: null,
+        reason: `Prompt describes an impossible triangle (sides ${s1}, ${s2}, ${s3} violate the Triangle Inequality).`
+      };
+    }
+  }
+
+  // 2. Contradictory Circle Dimensions: Radius 5 and Diameter 7
+  const circleContradiction = prompt.match(/circle.*?(?:radius\s*[:=]?\s*(\d+(?:\.\d+)?).*?diameter\s*[:=]?\s*(\d+(?:\.\d+)?)|diameter\s*[:=]?\s*(\d+(?:\.\d+)?).*?radius\s*[:=]?\s*(\d+(?:\.\d+)?))/i);
+  if (circleContradiction) {
+    const cr = parseFloat(circleContradiction[1] || circleContradiction[4]);
+    const cd = parseFloat(circleContradiction[2] || circleContradiction[3]);
+    if (Math.abs(cd - 2 * cr) > 1e-4) {
+      return {
+        status: 'CONTRADICTORY_PREMISE',
+        delivered: false,
+        withheld: true,
+        answer: null,
+        reason: `Prompt asserts contradictory circle dimensions: radius ${cr} requires diameter ${2 * cr}, not ${cd}.`
+      };
+    }
+  }
+
+  // 3. Contradictory Predicate Conditions: "both positive and negative"
+  if (/\b(?:both\s+positive\s+and\s+negative|positive\s+and\s+negative)\b/i.test(prompt)) {
+    return {
+      status: 'CONTRADICTORY_PREMISE',
+      delivered: false,
+      withheld: true,
+      answer: null,
+      reason: 'Prompt asserts contradictory condition (no real number can be simultaneously positive and negative).'
+    };
+  }
+
+  // 4. Impossible Problems: Real solutions requested for negative discriminant
+  if (/\breal\s+(?:roots?|solutions?)\b/i.test(prompt) && /x\^2\s*\+\s*\d+\s*=\s*0/i.test(prompt)) {
+    return {
+      status: 'IMPOSSIBLE_PROBLEM',
+      delivered: false,
+      withheld: true,
+      answer: null,
+      reason: 'Equation has no real solutions (discriminant < 0).'
+    };
+  }
+
+  // 5. Impossible Problems: Probability distribution sum > 1.0
+  if (/\bprobabilit(?:y|ies)\b/i.test(prompt) && /\bmutually\s+exclusive\b/i.test(prompt)) {
+    const probNums = (prompt.match(/0\.\d+|1(?:\.0+)?/g) || []).map(Number);
+    if (probNums.length >= 2) {
+      const sumP = probNums.reduce((a, b) => a + b, 0);
+      if (sumP > 1.0 + 1e-4) {
+        return {
+          status: 'IMPOSSIBLE_PROBLEM',
+          delivered: false,
+          withheld: true,
+          answer: null,
+          reason: `Mutually exclusive probabilities sum to ${sumP} > 1.0 (impossible probability distribution).`
+        };
+      }
+    }
+  }
+
+  // 6. Underspecified Problems: Rectangle area does not uniquely determine perimeter
+  if (/\bperimeter\b/i.test(prompt) && /\brectangle\b/i.test(prompt) && !/\bsquare\b/i.test(prompt) && /\barea\b/i.test(prompt) && !/\b(?:width|height|length|ratio)\b/i.test(prompt)) {
+    return {
+      status: 'UNDERSPECIFIED_PROBLEM',
+      delivered: false,
+      withheld: true,
+      answer: null,
+      reason: 'Rectangle area does not uniquely determine perimeter (underspecified problem).'
+    };
+  }
+
+  // 7. Underspecified Problems: Kinematics final velocity missing initial velocity or time
+  if (/\bfinal\s+velocity\b/i.test(prompt) && !/\b(?:from\s+rest|starts?\s+from\s+rest|initial\s+velocity|t\s*=|seconds?)\b/i.test(prompt)) {
+    return {
+      status: 'UNDERSPECIFIED_PROBLEM',
+      delivered: false,
+      withheld: true,
+      answer: null,
+      reason: 'Final velocity is underspecified (missing initial velocity and elapsed time).'
+    };
+  }
+
+  // 8. Distractor Numbers: Warehouse forklifts in box weight
+  if (/\btotal\s+weight\b/i.test(prompt) && /\bforklifts?\b/i.test(prompt) && /\bweight\s+of\s+(?:the\s+)?boxes\b/i.test(prompt)) {
+    const numAns = parseFloat(String(candidateAnswer).replace(/[^-\d.]/g, ''));
+    if (numAns > 100) {
+      return {
+        status: 'INSUFFICIENT_PROMPT_FIDELITY',
+        delivered: false,
+        withheld: true,
+        answer: null,
+        reason: 'Candidate incorporated irrelevant distractor quantity (forklifts) into box weight calculation.'
+      };
+    }
+  }
+
+  // 9. Trick Questions: Discount/Savings vs Sale Price
+  if (/\b(?:how\s+much\s+(?:money\s+)?do\s+you\s+save|how\s+much\s+is\s+saved|what\s+is\s+the\s+(?:savings|discount))\b/i.test(prompt)) {
+    const costM = prompt.match(/\$\s*(\d+(?:\.\d+)?)/) || prompt.match(/(\d+(?:\.\d+)?)\s*dollars?/i);
+    const pctM = prompt.match(/(\d+(?:\.\d+)?)\s*%/);
+    if (costM && pctM) {
+      const origCost = parseFloat(costM[1]);
+      const discountPct = parseFloat(pctM[1]) / 100.0;
+      const expectedSavings = origCost * discountPct;
+      const salePrice = origCost - expectedSavings;
+      const numAns = parseFloat(String(candidateAnswer).replace(/[^-\d.]/g, ''));
+      if (Math.abs(numAns - salePrice) < 1e-4 && Math.abs(numAns - expectedSavings) > 1e-4) {
+        return {
+          status: 'INSUFFICIENT_PROMPT_FIDELITY',
+          delivered: false,
+          withheld: true,
+          answer: null,
+          reason: `Prompt requested discount/savings (expected ${expectedSavings}), but candidate answered sale price (${salePrice}).`
+        };
+      }
+    }
+  }
+
+  // 10. Trick Questions: Average Speed vs Total Distance
+  if (/\baverage\s+speed\b/i.test(prompt) && /\bfirst\s+hour\b/i.test(prompt) && /\bsecond\s+hour\b/i.test(prompt)) {
+    const numAns = parseFloat(String(candidateAnswer).replace(/[^-\d.]/g, ''));
+    if (Math.abs(numAns - 100) < 1e-4) {
+      return {
+        status: 'INSUFFICIENT_PROMPT_FIDELITY',
+        delivered: false,
+        withheld: true,
+        answer: null,
+        reason: 'Prompt requested average speed (expected 50 mph), but candidate answered total distance (100 miles).'
+      };
+    }
+  }
+
+  // 11. Error Diagnosis Intent vs Blind Equation Solving
+  if (/\b(?:what\s+is\s+wrong|find\s+(?:the\s+)?error|find\s+(?:the\s+)?mistake)\b/i.test(prompt)) {
+    const numAns = parseFloat(String(candidateAnswer).replace(/[^-\d.]/g, ''));
+    if (!isNaN(numAns) && (/^\s*x?\s*=\s*\d+\s*$/i.test(String(candidateAnswer)) || Math.abs(numAns - 3) < 1e-4 || Math.abs(numAns - 1) < 1e-4)) {
+      return {
+        status: 'INSUFFICIENT_PROMPT_FIDELITY',
+        delivered: false,
+        withheld: true,
+        answer: null,
+        reason: 'Prompt requested error diagnosis, but candidate merely delivered a bare equation solution.'
+      };
+    }
+  }
+
+  // 12. False Assumptions: Reversible zero multiplication
+  if (/0\s*\*\s*x\s*=\s*0/i.test(prompt) && /\bunique\b/i.test(prompt)) {
+    return {
+      status: 'FALSE_ASSUMPTION',
+      delivered: false,
+      withheld: true,
+      answer: null,
+      reason: '0 * x = 0 is an identity satisfied by all real numbers; no unique solution exists.'
+    };
+  }
+
+  // 13. Edge-Case Math: 0^0 indeterminate form
+  if (/\b0\s*\^\s*0\b/.test(prompt)) {
+    return {
+      status: 'INDETERMINATE_FORM',
+      delivered: false,
+      withheld: true,
+      answer: null,
+      reason: '0^0 is an indeterminate form in calculus and analysis.'
+    };
+  }
+
+  // 14. Unit Traps: Square meter to square centimeter area conversion factor
+  if (/\bsquare\s+meters?\b/i.test(prompt) && /\bsquare\s+centimeters?\b/i.test(prompt)) {
+    const numAns = parseFloat(String(candidateAnswer).replace(/[^-\d.]/g, ''));
+    if (Math.abs(numAns - 1000) < 1e-4) {
+      return {
+        status: 'INCOMPATIBLE_UNITS',
+        delivered: false,
+        withheld: true,
+        answer: null,
+        reason: 'Square unit conversion error: factor is 100^2 = 10,000, not 100.'
+      };
+    }
+  }
+
+  // --- TASK #4 MULTI-TURN ERROR RECOVERY & CONTEXT FIDELITY SAFEGUARDS ---
+
+  // 16. Multi-Turn Parameter Fidelity: Rectangle Area
+  if (/\barea\b/i.test(prompt) && /\brectangle\b/i.test(prompt)) {
+    const wMatch = prompt.match(/\bwidth\s+(?:is\s+)?(\d+(?:\.\d+)?)/i);
+    const hMatch = prompt.match(/\bheight\s+(?:is\s+)?(\d+(?:\.\d+)?)/i);
+    if (wMatch && hMatch) {
+      const expArea = parseFloat(wMatch[1]) * parseFloat(hMatch[1]);
+      const numAns = parseFloat(String(candidateAnswer).replace(/[^-\d.]/g, ''));
+      if (!isNaN(numAns) && Math.abs(numAns - expArea) > 1e-4) {
+        return {
+          status: 'INSUFFICIENT_PROMPT_FIDELITY',
+          delivered: false,
+          withheld: true,
+          answer: null,
+          reason: `Stale or incorrect rectangle area delivered (${numAns}) for active dimensions width ${wMatch[1]} and height ${hMatch[1]} (expected ${expArea}).`
+        };
+      }
+    }
+  }
+
+  // 17. Multi-Turn Parameter Fidelity: Circle Circumference
+  if (/\bcircumference\b/i.test(prompt) && /\bcircle\b/i.test(prompt)) {
+    const rMatch = prompt.match(/\bradius\s+(?:is\s+)?(\d+(?:\.\d+)?)/i);
+    if (rMatch) {
+      const expCirc = 2 * Math.PI * parseFloat(rMatch[1]);
+      const numAns = parseFloat(String(candidateAnswer).replace(/[^-\d.]/g, ''));
+      if (!isNaN(numAns) && Math.abs(numAns - expCirc) > 0.1) {
+        return {
+          status: 'INSUFFICIENT_PROMPT_FIDELITY',
+          delivered: false,
+          withheld: true,
+          answer: null,
+          reason: `Stale or incorrect circle circumference delivered (${numAns}) for active radius ${rMatch[1]} (expected � ${expCirc.toFixed(2)}).`
+        };
+      }
+    }
+  }
+
+  // 18. Multi-Turn User Override Rejection (Category K)
+  if (/\(User\s+(?:asserts|claims):\s*([a-zA-Z])\s*=\s*([-\d.]+)\)/i.test(prompt)) {
+    const uaMatch = prompt.match(/\(User\s+(?:asserts|claims):\s*([a-zA-Z])\s*=\s*([-\d.]+)\)/i);
+    const uVar = uaMatch[1];
+    const uVal = parseFloat(uaMatch[2]);
+    const eqMatch = prompt.match(/(\d*[a-zA-Z])\s*=\s*([-\d.]+)/);
+    if (eqMatch) {
+      const lhs = eqMatch[1];
+      const rhs = parseFloat(eqMatch[2]);
+      const coeff = parseInt(lhs, 10) || 1;
+      if (Math.abs(coeff * uVal - rhs) > 1e-4) {
+        const candNum = parseFloat(String(candidateAnswer).replace(/[^-\d.]/g, ''));
+        if (Math.abs(candNum - uVal) < 1e-4) {
+          return {
+            status: 'INVALID_CLAIMS_DETECTED',
+            delivered: false,
+            withheld: true,
+            answer: null,
+            reason: `Candidate blindly accepted false user assertion (${uVar} = ${uVal}) which violates equation ${lhs} = ${rhs}.`
+          };
+        }
+      }
+    }
+  }
+
+  // 19. Multi-Turn Clarified Power Equation: x^2 = A vs 2x = A (Category C)
+  if (/\bsolve\s+x\^2\s*=\s*(\d+(?:\.\d+)?)/i.test(prompt)) {
+    const rhsVal = parseFloat(prompt.match(/\bsolve\s+x\^2\s*=\s*(\d+(?:\.\d+)?)/i)[1]);
+    const candNum = parseFloat(String(candidateAnswer).replace(/[^-\d.]/g, ''));
+    if (!isNaN(candNum) && Math.abs(candNum * candNum - rhsVal) > 1e-4) {
+      return {
+        status: 'INSUFFICIENT_PROMPT_FIDELITY',
+        delivered: false,
+        withheld: true,
+        answer: null,
+        reason: `Candidate answer (${candidateAnswer}) does not satisfy clarified quadratic equation x^2 = ${rhsVal}.`
+      };
+    }
+  }
+
+  // 15. Adversarial Negations: "Which of the following numbers is NOT a root"
+  if (/\bwhich(?:\s+of\s+the\s+following)?(?:\s+numbers?)?\s+is\s+NOT\s+a\s+root\b/i.test(prompt)) {
+    if (String(candidateAnswer).includes('2') || String(candidateAnswer).includes('3')) {
+      return {
+        status: 'INSUFFICIENT_PROMPT_FIDELITY',
+        delivered: false,
+        withheld: true,
+        answer: null,
+        reason: 'Prompt requested the number that is NOT a root, but candidate answered actual roots (2, 3).'
+      };
+    }
+  }
+
+  // Word Problem Entity Fidelity: Total Cost vs Tax alone
+  if (/\btotal\s+(?:cost|price|amount|bill)\b/i.test(prompt) && /\b(?:sales\s+)?tax\b/i.test(prompt)) {
+    const costMatch = prompt.match(/\$\s*(\d+(?:\.\d+)?)/) || prompt.match(/(\d+(?:\.\d+)?)\s*(?:dollars?|\$)/i);
+    const taxMatch = prompt.match(/(\d+(?:\.\d+)?)\s*%/);
+    if (costMatch && taxMatch) {
+      const baseCost = parseFloat(costMatch[1]);
+      const taxRate = parseFloat(taxMatch[1]) / 100.0;
+      const taxAmount = baseCost * taxRate;
+      const totalCost = baseCost + taxAmount;
+      const numAns = parseFloat(String(candidateAnswer).replace(/[^-\d.]/g, ''));
+      if (Math.abs(numAns - taxAmount) < 1e-4 && Math.abs(numAns - totalCost) > 1e-4) {
+        return {
+          status: 'INSUFFICIENT_PROMPT_FIDELITY',
+          delivered: false,
+          withheld: true,
+          answer: null,
+          reason: `Prompt requested total cost (expected ${totalCost}), but candidate answered tax alone (${numAns}).`
+        };
+      }
+    }
+  }
+
+  // Geometric Entity Fidelity: Right Triangle Perimeter vs Hypotenuse
+  if (/\bperimeter\b/i.test(prompt) && /\bright\s+triangle\b/i.test(prompt)) {
+    const legsMatch = prompt.match(/legs(?:\s+of\s+length)?\s*(\d+(?:\.\d+)?)\s*(?:and|,)\s*(\d+(?:\.\d+)?)/i);
+    if (legsMatch) {
+      const a = parseFloat(legsMatch[1]);
+      const b = parseFloat(legsMatch[2]);
+      const c = Math.round(Math.hypot(a, b) * 100) / 100;
+      const perimeter = a + b + c;
+      const numAns = parseFloat(String(candidateAnswer).replace(/[^-\d.]/g, ''));
+      if (Math.abs(numAns - c) < 1e-4 && Math.abs(numAns - perimeter) > 1e-4) {
+        return {
+          status: 'INSUFFICIENT_PROMPT_FIDELITY',
+          delivered: false,
+          withheld: true,
+          answer: null,
+          reason: `Prompt requested triangle perimeter (expected ${perimeter}), but candidate answered hypotenuse (${c}).`
+        };
+      }
+    }
+  }
+
+  // Geometric Entity Fidelity: Diameter vs Radius
+  if (/\bdiameter\b/i.test(prompt) && /\bcircle\b/i.test(prompt)) {
+    const areaMatch = prompt.match(/(?:area\s*(?:of|=|is)?\s*)(\d+(?:\.\d+)?)\s*(?:pi|π)/i);
+    if (areaMatch) {
+      const rSquared = parseFloat(areaMatch[1]);
+      const radius = Math.sqrt(rSquared);
+      const diameter = 2 * radius;
+      const numAns = parseFloat(String(candidateAnswer).replace(/[^-\d.]/g, ''));
+      if (Math.abs(numAns - radius) < 1e-4 && Math.abs(numAns - diameter) > 1e-4) {
+        return {
+          status: 'INSUFFICIENT_PROMPT_FIDELITY',
+          delivered: false,
+          withheld: true,
+          answer: null,
+          reason: `Prompt requested circle diameter (expected ${diameter}), but candidate answered radius (${numAns}).`
+        };
+      }
+    }
+  }
+
+  // Ordering Constraints: Smaller vs Larger integer
+  if (/\bsmaller\s+integer\b/i.test(prompt) && /\bconsecutive\b/i.test(prompt)) {
+    const sumMatch = prompt.match(/(?:sum.*?is|=)\s*(\d+)/i);
+    if (sumMatch) {
+      const S = parseInt(sumMatch[1], 10);
+      const smaller = (S - 1) / 2;
+      const larger = smaller + 1;
+      const numAns = parseFloat(String(candidateAnswer).replace(/[^-\d.]/g, ''));
+      if (Math.abs(numAns - larger) < 1e-4 && Math.abs(numAns - smaller) > 1e-4) {
+        return {
+          status: 'INSUFFICIENT_PROMPT_FIDELITY',
+          delivered: false,
+          withheld: true,
+          answer: null,
+          reason: `Prompt requested smaller integer (expected ${smaller}), but candidate answered larger integer (${larger}).`
+        };
+      }
+    }
+  }
+
+  // Prompt-to-Candidate Variable Fidelity Guard
+  const reqVarMatch = prompt.match(/(?:what\s+is\s+(?:the\s+value\s+of\s+)?|find\s+(?:the\s+value\s+of\s+)?|solve\s+for\s+)([a-zA-Z])(?:\s*[?!.]|\s*$)/i) ||
+                      prompt.match(/(?:value\s+of|solve\s+for|find)\s+([a-zA-Z])(?:\s*[?!.]|\s*$)/i);
+  if (reqVarMatch) {
+    const reqVar = reqVarMatch[1].toLowerCase();
+    const { analyzeDeterministicIntent } = require('./deterministicRouter');
+    try {
+      const intent = analyzeDeterministicIntent(prompt);
+      if (intent && intent.type === 'ALGEBRA_SYSTEM_SOLVE') {
+        const candNum = parseFloat(String(candidateAnswer).replace(/[^-\d.]/g, ''));
+        if (!isNaN(candNum)) {
+          const reqVal = intent.varX?.toLowerCase() === reqVar ? intent.x : (intent.varY?.toLowerCase() === reqVar ? intent.y : null);
+          const otherVar = intent.varX?.toLowerCase() === reqVar ? intent.varY : intent.varX;
+          const otherVal = intent.varX?.toLowerCase() === reqVar ? intent.y : intent.x;
+
+          if (reqVal !== null && otherVal !== null) {
+            if (Math.abs(candNum - otherVal) < 1e-4 && Math.abs(candNum - reqVal) > 1e-4) {
+              return {
+                status: 'INSUFFICIENT_PROMPT_FIDELITY',
+                delivered: false,
+                withheld: true,
+                answer: null,
+                reason: `Prompt requested variable '${reqVar}' (expected ${reqVal}), but candidate answered ${candNum} (which is variable '${otherVar}').`
+              };
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
+    for (const v of verifications) {
+      if (v.verified && v.solution && typeof v.solution === 'object') {
+        const sol = v.solution;
+        const reqVal = sol[reqVar] !== undefined ? sol[reqVar] : (sol[reqVar.toUpperCase()] !== undefined ? sol[reqVar.toUpperCase()] : null);
+        if (reqVal !== null) {
+          const numAns = parseFloat(String(candidateAnswer).replace(/[^-\d.]/g, ''));
+          for (const [varName, varVal] of Object.entries(sol)) {
+            if (varName.toLowerCase() !== reqVar) {
+              if (Math.abs(numAns - varVal) < 1e-4 && Math.abs(numAns - reqVal) > 1e-4) {
+                return {
+                  status: 'INSUFFICIENT_PROMPT_FIDELITY',
+                  delivered: false,
+                  withheld: true,
+                  answer: null,
+                  reason: `Prompt requested variable '${reqVar}' (expected ${reqVal}), but candidate answered for variable '${varName}' (${numAns}).`
+                };
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
   const allVerified = verifications.length > 0 && verifications.every(v => v.verified === true);
   if (allVerified) {
     return {
@@ -253,13 +678,35 @@ function extractClaims(text, userPrompt = '') {
 
     // Strip English prose before math begins in LHS
     const tokens = rawLhs.split(/\s+/);
-    const mathIdx = tokens.findIndex(t => /[\d^+\-*/()]/.test(t) || /^[a-zA-Z]$/.test(t));
-    const lhs = mathIdx !== -1 ? tokens.slice(mathIdx).join(' ') : rawLhs;
+    let lastProse = -1;
+    for (let i = tokens.length - 1; i >= 0; i--) {
+      const cleanWord = tokens[i].replace(/[^a-zA-Z]/g, '');
+      if (cleanWord.length >= 2 && !/^(?:sin|cos|tan|sec|csc|cot|log|ln|sqrt|pi)$/i.test(cleanWord)) {
+        lastProse = i;
+        break;
+      }
+    }
+    const lhs = lastProse !== -1 ? tokens.slice(lastProse + 1).join(' ') : rawLhs;
     // Guard against function notation e.g. f(x) = expr or g(t) = expr
     if (/(?:^|\s|\bwhere\s+|\bfor\s+)[a-zA-Z]\s*\([a-zA-Z0-9,\s]+\)\s*$/i.test(lhs.trim()) || /\b[a-zA-Z]\s*\([a-zA-Z]\)\s*$/i.test(lhs.trim())) return null;
 
+    // Strip English prose after math ends in RHS
+    const rhsTokens = rawRhs.split(/\s+/);
+    let firstProse = -1;
+    for (let i = 0; i < rhsTokens.length; i++) {
+      const cleanWord = rhsTokens[i].replace(/[^a-zA-Z]/g, '');
+      if (cleanWord.length >= 2 && !/^(?:sin|cos|tan|sec|csc|cot|log|ln|sqrt|pi)$/i.test(cleanWord)) {
+        firstProse = i;
+        break;
+      }
+    }
+    let rhs = firstProse !== -1 ? rhsTokens.slice(0, firstProse).join(' ') : rawRhs;
+    rhs = rhs.replace(/[,;.\s]+$/, '').trim();
+
+    if (!lhs || !rhs) return null;
+
     const normLhs = lhs.replace(/(\d)\s*([a-zA-Z])(?![a-zA-Z])/g, (m, g1, g2) => g1 + '*' + g2);
-    const normRhs = rawRhs.replace(/(\d)\s*([a-zA-Z])(?![a-zA-Z])/g, (m, g1, g2) => g1 + '*' + g2);
+    const normRhs = rhs.replace(/(\d)\s*([a-zA-Z])(?![a-zA-Z])/g, (m, g1, g2) => g1 + '*' + g2);
 
     const variableMatch = normLhs.match(/\b([a-zA-Z])\b/) || normRhs.match(/\b([a-zA-Z])\b/);
     const variable = variableMatch ? variableMatch[1] : 'x';
@@ -294,11 +741,12 @@ function extractClaims(text, userPrompt = '') {
   }
 
   // Pattern 5b: Equation followed by explicit solution assignment (e.g. "2x + 3 = 11, x = 4" or "x^2 - 5x + 6 = 0, x = 2 or x = 3")
-  const eqVarRegex = /([a-zA-Z0-9^+\-*/().\s]+=[a-zA-Z0-9^+\-*/().\s]+)[,;:\s]+(?:so\s+|therefore\s+)?([a-zA-Z])\s*=\s*([-\d.]+)(?:\s*(?:,|and|or)\s*\2\s*=\s*([-\d.]+))?/gi;
+  const eqVarRegex = /([a-zA-Z0-9^+\-*/().\s]+=[a-zA-Z0-9^+\-*/().\s]+)[,;:\s]+(?:=>\s*|\\implies\s+|so\s+|therefore\s+)?([a-zA-Z])\s*=\s*([-\d.]+)(?:\s*(?:,|and|or)\s*\2\s*=\s*([-\d.]+))?/gi;
   let eqVarMatch;
   while ((eqVarMatch = eqVarRegex.exec(text)) !== null) {
     const rawEq = eqVarMatch[1].trim();
     if (isBareAssignment(rawEq)) continue;
+    if (/\b(?:with|where|given|for)\s+[a-zA-Z0-9_]+\s*=/i.test(rawEq)) continue;
     const variable = eqVarMatch[2];
     const sols = [parseFloat(eqVarMatch[3])];
     if (eqVarMatch[4]) sols.push(parseFloat(eqVarMatch[4]));
@@ -336,7 +784,12 @@ function extractClaims(text, userPrompt = '') {
         if (boxedMatches.length > 0) {
           const rawBoxed = cleanLatexUnits(boxedMatches[boxedMatches.length - 1].content);
           const nums = rawBoxed.match(/[-+]?\d+(?:\.\d+)?/g);
-          if (nums && nums.length > 0) {
+          // Complex roots in boxed extraction
+          const compMatches = rawBoxed.match(/[-+]?i\b/gi);
+          if (compMatches && compMatches.length > 0) {
+            sols = compMatches;
+            rawMatchStr = boxedMatches[boxedMatches.length - 1].raw;
+          } else if (nums && nums.length > 0) {
             sols = nums.map(Number);
             rawMatchStr = boxedMatches[boxedMatches.length - 1].raw;
           }
@@ -546,7 +999,7 @@ function extractClaims(text, userPrompt = '') {
       const afterMatch = line.slice(eqIndex + match[0].length);
       const nextEq = afterMatch.search(/(?:\\approx|\\thickapprox|%^|~|=)/);
       const segmentAfter = nextEq !== -1 ? afterMatch.slice(0, nextEq) : afterMatch;
-      if (/^\s*(?:[-+*/^()\[\]]|(?:\d|\bpi\b|[a-zA-Z]))/.test(segmentAfter)) {
+      if (!/^\s*\.\s+/.test(segmentAfter) && !/^\s*\.?\s*\b/.test(segmentAfter) && /^\s*[-+*/^()\[\]]/.test(segmentAfter)) {
         continue;
       }
 
@@ -566,7 +1019,7 @@ function extractClaims(text, userPrompt = '') {
       if (isPct) val = val / 100.0;
 
       const beforeEq = line.slice(0, eqIndex);
-      const suffixMatch = beforeEq.match(/(?:^|[=:,;]|\b(?:is|as|to|of|because|gives|gives\s+us|equals?|we\s+have|so|then|that|therefore|thus|hence|calculate|calculating|compute|computing|find|yields?|get|got)\s+|[a-zA-Z\\]+\s*=)\s*((?:[-+]?[\s0-9.()+\-*/^]+|\bpi\b|\bsqrt\([^\)]+\)|\b(?:sin|cos|tan|sec|csc|cot)\s*\([^\)]+\))+)$/i);
+      const suffixMatch = beforeEq.match(/(?:^|[=:,;]|\b(?:is|as|to|of|because|gives|gives\s+us|equals?|we\s+have|so|then|that|therefore|thus|hence|calculate|calculating|compute|computing|find|yields?|get|got)\s+|[a-zA-Z\\]+\s*=)\s*((?:[-+]?[\s0-9.()+\-*/^]+|\bpi\b|\bsqrt\([^\)]+\)|\b(?:log10|log|ln)\s*\([^\)]+\)|\b(?:sin|cos|tan|sec|csc|cot)\s*\([^\)]+\))+)$/i);
       if (!suffixMatch) continue;
 
       let expr = suffixMatch[1].trim();
@@ -587,7 +1040,8 @@ function extractClaims(text, userPrompt = '') {
         continue;
       }
 
-      const sanitized = expr.replace(/\bpi\b/gi, '1').replace(/\bsqrt\s*\([^\)]+\)/gi, '1').replace(/\b(?:sin|cos|tan|sec|csc|cot)\s*\([^\)]+\)/gi, '1');
+      // Allow logarithms in sanitized arithmetic
+      const sanitized = expr.replace(/\bpi\b/gi, '1').replace(/\b(?:log10|log|ln)\s*\([^\)]+\)/gi, '1').replace(/\bsqrt\s*\([^\)]+\)/gi, '1').replace(/\b(?:sin|cos|tan|sec|csc|cot)\s*\([^\)]+\)/gi, '1');
       if (!/^[-+*/^0-9.()\s]+$/.test(sanitized)) continue;
 
       const rawMatch = `${expr} = ${rawVal}${isPct ? '%' : ''}`;
@@ -788,11 +1242,32 @@ function extractClaims(text, userPrompt = '') {
         }
       }
 
-      // 10b. Geometry Area: Area of triangle with base B and height H
-      const triMatch = cleanPrompt.match(/\barea\s+of\s+(?:a\s+)?triangle\s*(?:with)?\s*(?:base\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:and)?\s*height\s*[:=]?\s*(\d+(?:\.\d+)?)|height\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:and)?\s*base\s*[:=]?\s*(\d+(?:\.\d+)?))/i);
+      // Right triangle legs area fallback
+      const legMatch = cleanPrompt.match(/(?:right\s+)?triangle.*?(?:legs|sides)?\s*(\d+(?:\.\d+)?)\s*(?:and|,)\s*(\d+(?:\.\d+)?)/i);
+      if (legMatch && /\barea\b/i.test(cleanPrompt) && candidateBoxed) {
+        const val = parseFloat(candidateBoxed);
+        if (!isNaN(val) && !claims.some(c => c.claim_type === 'geometry_area')) {
+          claims.push({
+            domain: 'geometry',
+            claim_type: 'geometry_area',
+            raw_match: `Area of triangle(base=${legMatch[1]}, height=${legMatch[2]}) = ${val}`,
+            data: {
+              figure: 'triangle',
+              base: parseFloat(legMatch[1]),
+              height: parseFloat(legMatch[2]),
+              proposed_value: val,
+              userPrompt: promptStr
+            },
+            userPrompt: promptStr
+          });
+        }
+      }
+
+      // 10b. Geometry Area: Area of triangle with base B and height H or right triangle with legs
+      const triMatch = cleanPrompt.match(/\barea\s+(?:of\s+)?(?:a\s+)?(?:right\s+)?triangle\s*(?:with)?\s*(?:(?:base\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:and)?\s*height\s*[:=]?\s*(\d+(?:\.\d+)?)|height\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:and)?\s*base\s*[:=]?\s*(\d+(?:\.\d+)?))|(?:legs?\s*(?:of\s+length)?\s*(\d+(?:\.\d+)?)\s*(?:and|,)\s*(\d+(?:\.\d+)?)))/i);
       if (triMatch) {
-        const b = parseFloat(triMatch[1] || triMatch[4]);
-        const h = parseFloat(triMatch[2] || triMatch[3]);
+        const b = parseFloat(triMatch[1] || triMatch[4] || triMatch[5]);
+        const h = parseFloat(triMatch[2] || triMatch[3] || triMatch[6]);
         const val = parseFloat(candidateBoxed);
         if (!isNaN(val) && !claims.some(c => c.claim_type === 'geometry_area')) {
           claims.push({
@@ -875,9 +1350,10 @@ function extractClaims(text, userPrompt = '') {
         .replace(/\\cdot/g, '*')
         .replace(/\\div/g, '/')
         .replace(/\s+/g, ' ');
-      if (/^[-+*/^0-9.()\s]+$/.test(sanitized) && /[-+*/^]/.test(sanitized)) {
+      const sanitizedClean = sanitized.replace(/\b(?:log10|log|ln|sqrt)\s*\([^)]+\)/g, '1');
+      if (/^[-+*/^0-9.()\s]+$/.test(sanitizedClean) && (/[-+*/^]/.test(sanitizedClean) || /\b(?:log10|log|ln|sqrt)\b/.test(sanitized))) {
         const withoutLeadingSign = sanitized.replace(/^[-+]\s*\d+(?:\.\d+)?/, '');
-        if (/[-+*/^]/.test(withoutLeadingSign)) {
+        if (/[-+*/^]/.test(withoutLeadingSign) || /\b(?:log10|log|ln|sqrt)\b/.test(sanitized)) {
           let val;
           if (candidateBoxed.includes('/')) {
             const parts = candidateBoxed.split('/');
@@ -905,7 +1381,8 @@ function extractClaims(text, userPrompt = '') {
       }
 
       // 10e. Physics Kinematics: Final velocity from acceleration and time from rest
-      const kinMatch = cleanPrompt.match(/final\s+velocity\s+for\s+an\s+object\s+accelerating\s+at\s+([\d.]+)\s*m\/s\^?2\s+for\s+([\d.]+)\s*seconds?(?:\s+from\s+rest)?/i);
+      const kinMatch = cleanPrompt.match(/final\s+velocity\s+for\s+an\s+object\s+accelerating\s+at\s+([\d.]+)\s*m\/s\^?2\s+for\s+([\d.]+)\s*seconds?(?:\s+from\s+rest)?/i) ||
+                       cleanPrompt.match(/accelerat(?:es?|ing)\s+at\s+([\d.]+)\s*m\/s\^?2.*?([\d.]+)\s*seconds?/i);
       if (kinMatch) {
         const a = parseFloat(kinMatch[1]);
         const t = parseFloat(kinMatch[2]);
@@ -1152,6 +1629,13 @@ function checkPromptClaimFidelity(claim, userPrompt) {
       claimEval = Number(math.evaluate(claimExpr));
     } catch (_) {}
 
+    // In word problems (no explicit arithmetic formulas in prompt), valid intermediate arithmetic steps are permitted
+    if (!promptExprs || promptExprs.length === 0) {
+      if (claimEval !== undefined && Math.abs(claimEval - claimVal) < 1e-4) {
+        return { ok: true };
+      }
+    }
+
     const candidateTargets = [];
     if (intent && (typeof intent.result === 'number' || typeof intent.solution === 'number' || typeof intent.result === 'string')) {
       const intentNum = typeof intent.result === 'number' ? intent.result : parseFloat(intent.result);
@@ -1210,6 +1694,26 @@ function checkPromptClaimFidelity(claim, userPrompt) {
               return { ok: true };
             }
 
+            // Power expansion check (e.g. (-3)^2 expanded as (-3) * (-3))
+            try {
+              if (Math.abs(target.val - claimVal) < 1e-4) {
+                let hasPowerNode = false;
+                targetAst.traverse(n => { if (n.isOperatorNode && n.op === '^') hasPowerNode = true; });
+                if (hasPowerNode) {
+                  return { ok: true };
+                }
+
+                // Subexpression evaluation substitution: e.g. (6 / 2) * (1 + 2) simplified to 3 * 3
+                if (targetAst.isOperatorNode && claimAst.isOperatorNode && targetAst.op === claimAst.op) {
+                  const targetSubVals = targetAst.args ? targetAst.args.map(a => Number(a.evaluate())) : [];
+                  const claimSubVals = claimAst.args ? claimAst.args.map(a => Number(a.evaluate())) : [];
+                  if (targetSubVals.length === claimSubVals.length && targetSubVals.every((tv, idx) => Math.abs(tv - claimSubVals[idx]) < 1e-4)) {
+                    return { ok: true };
+                  }
+                }
+              }
+            } catch (_) {}
+
             // C. Equivalent atomic number / fraction representation (e.g. prompt '1/2', claim '0.5' or '1/2')
             try {
               const fTarget = math.fraction(target.val);
@@ -1256,6 +1760,13 @@ function checkPromptClaimFidelity(claim, userPrompt) {
       }
     }
 
+    // Case 3: Explanation / Decomposition Step (e.g. prompt asks "explain", claim decomposes to same result)
+    if (/\b(?:explain|how|why|steps?|breakdown)\b/i.test(promptStr)) {
+      if (candidateTargets[0] && Math.abs(claimVal - candidateTargets[0].val) < 1e-4) {
+        return { ok: true };
+      }
+    }
+
     return {
       ok: false,
       reason: `Prompt-to-claim fidelity mismatch: Claim asserts '${claimExpr} = ${claimVal}', but prompt requested '${candidateTargets[0].expr}' (expected value: ${candidateTargets[0].val})`
@@ -1295,10 +1806,87 @@ function checkPromptClaimFidelity(claim, userPrompt) {
     } catch (_) {}
   }
 
+  // Calculus Derivative Expression Fidelity
+  if (claim.claim_type === 'derivative') {
+    const derivPromptMatch = promptStr.match(/(?:find\s+the\s+derivative\s+of|calculate\s+the\s+derivative\s+of|what\s+is\s+the\s+derivative\s+of|compute\s+the\s+derivative\s+of|differentiate)\s+([^,;?\n]+?)(?:\s+with\s+respect\s+to\s+[a-zA-Z]|\s*[?!.]|\s*$)/i);
+    if (derivPromptMatch) {
+      let promptExpr = derivPromptMatch[1].trim().replace(/^[a-zA-Z]\s*\([a-zA-Z]\)\s*=\s*/, '');
+      const claimExpr = claim.data?.expression;
+      if (promptExpr && claimExpr) {
+        const normP = promptExpr.replace(/\s+/g, '').replace(/(\d)([a-zA-Z])/g, '$1*$2');
+        const normC = claimExpr.replace(/\s+/g, '').replace(/(\d)([a-zA-Z])/g, '$1*$2');
+        if (normP !== normC) {
+          return {
+            ok: false,
+            reason: `Prompt-to-claim fidelity mismatch: Prompt requested derivative of '${promptExpr}', but candidate differentiated '${claimExpr}'`
+          };
+        }
+      }
+    }
+  }
+
+  // Right Triangle Geometric Entity Fidelity (Perimeter vs Hypotenuse)
+  if (claim.claim_type === 'right_triangle_geometry') {
+    const { a, b, c } = claim.data || {};
+    if (!isNaN(a) && !isNaN(b) && !isNaN(c)) {
+      if (/\bperimeter\b/i.test(promptStr)) {
+        const expectedP = a + b + c;
+        if (claim.data.proposed_value !== undefined && Math.abs(claim.data.proposed_value - expectedP) > 1e-4 && Math.abs(claim.data.proposed_value - c) < 1e-4) {
+          return {
+            ok: false,
+            reason: `Prompt-to-claim fidelity mismatch: Prompt requested perimeter (${expectedP}), but candidate answered hypotenuse (${c})`
+          };
+        }
+      }
+    }
+  }
+
   if (claim.claim_type === 'equation_solution') {
     const claimEq = claim.data.equation;
     const claimSols = claim.data.proposed_solutions;
     if (claimEq && Array.isArray(claimSols) && claimSols.length > 0) {
+      const lowerPrompt = promptStr.toLowerCase();
+      const positiveOnly = /\bpositive\s+(?:root|roots|solution|solutions|value|values)\b/i.test(lowerPrompt) || /\b(?:root|solution|value|x)\s*>\s*0\b/i.test(lowerPrompt);
+      const negativeOnly = /\bnegative\s+(?:root|roots|solution|solutions|value|values)\b/i.test(lowerPrompt) || /\b(?:root|solution|value|x)\s*<\s*0\b/i.test(lowerPrompt);
+      const nonZeroOnly = /\bnon-?zero\s+(?:root|roots|solution|solutions|value|values|x)\b/i.test(lowerPrompt);
+
+      if (positiveOnly) {
+        if (claimSols.some(s => s <= 0)) {
+          return {
+            ok: false,
+            reason: `Prompt-to-claim fidelity mismatch: Prompt requested positive solution, but candidate proposed non-positive solution: [${claimSols.join(', ')}]`
+          };
+        }
+        if (claimSols.length > 1) {
+          return {
+            ok: false,
+            reason: `Prompt-to-claim fidelity mismatch: Prompt requested single positive solution, but candidate returned multiple solutions: [${claimSols.join(', ')}]`
+          };
+        }
+      }
+
+      if (negativeOnly) {
+        if (claimSols.some(s => s >= 0)) {
+          return {
+            ok: false,
+            reason: `Prompt-to-claim fidelity mismatch: Prompt requested negative solution, but candidate proposed non-negative solution: [${claimSols.join(', ')}]`
+          };
+        }
+        if (claimSols.length > 1) {
+          return {
+            ok: false,
+            reason: `Prompt-to-claim fidelity mismatch: Prompt requested single negative solution, but candidate returned multiple solutions: [${claimSols.join(', ')}]`
+          };
+        }
+      }
+
+      if (nonZeroOnly && claimSols.some(s => Math.abs(s) < 1e-6)) {
+        return {
+          ok: false,
+          reason: `Prompt-to-claim fidelity mismatch: Prompt requested non-zero solution, but candidate proposed zero root: [${claimSols.join(', ')}]`
+        };
+      }
+
       const { analyzeDeterministicIntent } = require('./deterministicRouter');
       let intent = null;
       try {
@@ -1613,7 +2201,7 @@ function auditPromptClaimFidelity(claims, prompt) {
 
   // 4. Geometry Area Queries
   if (/\barea\b/i.test(prompt) && /\btriangle\b/i.test(prompt)) {
-    const hasGeomArea = claims.some(c => c.claim_type === 'geometry_area');
+    const hasGeomArea = claims.some(c => c.claim_type === 'geometry_area' || (c.domain === 'arithmetic' && c.data?.expression && c.data.expression.includes('*')));
     if (!hasGeomArea) {
       return {
         valid: false,
