@@ -1,0 +1,1174 @@
+{
+  "campaign": {
+    "seed": 3141592653,
+    "llmModel": "openai/gpt-oss-20b",
+    "provider": "groq-text",
+    "pipelineVersion": "1.8.14",
+    "commit": "92eb591",
+    "date": "2026-09-27T19:19:33.562Z",
+    "durationSeconds": 10085.9,
+    "totalProblems": 50000
+  },
+  "totals": {
+    "totalTested": 50000,
+    "correctlyDelivered": 20267,
+    "safelyWithheld": 16122,
+    "incorrectDelivered": 13611,
+    "verificationCatches": 17,
+    "verificationEscapes": 13611,
+    "falsePositiveRejections": 23,
+    "deterministicCount": 33861,
+    "llmBackedCount": 120,
+    "verifiedCorrectDeliveryRate": 40.53,
+    "safeWithholdRate": 32.24,
+    "incorrectDeliveryRate": 27.222,
+    "verificationEscapeRate": 27.222
+  },
+  "domainStats": {
+    "ARITHMETIC": {
+      "tested": 4200,
+      "correct": 4192,
+      "withheld": 8,
+      "wrong": 0,
+      "catches": 1,
+      "escapes": 0,
+      "falsePositives": 2,
+      "llmTested": 10,
+      "deterministicTested": 4190
+    },
+    "FRACTIONS": {
+      "tested": 4200,
+      "correct": 4190,
+      "withheld": 10,
+      "wrong": 0,
+      "catches": 0,
+      "escapes": 0,
+      "falsePositives": 3,
+      "llmTested": 10,
+      "deterministicTested": 4190
+    },
+    "LINEAR_EQUATIONS": {
+      "tested": 4200,
+      "correct": 4194,
+      "withheld": 6,
+      "wrong": 0,
+      "catches": 0,
+      "escapes": 0,
+      "falsePositives": 0,
+      "llmTested": 10,
+      "deterministicTested": 4190
+    },
+    "SYSTEMS_OF_EQUATIONS": {
+      "tested": 4200,
+      "correct": 4190,
+      "withheld": 10,
+      "wrong": 0,
+      "catches": 2,
+      "escapes": 0,
+      "falsePositives": 0,
+      "llmTested": 10,
+      "deterministicTested": 4190
+    },
+    "QUADRATICS": {
+      "tested": 4200,
+      "correct": 3,
+      "withheld": 4197,
+      "wrong": 0,
+      "catches": 0,
+      "escapes": 0,
+      "falsePositives": 0,
+      "llmTested": 10,
+      "deterministicTested": 4190
+    },
+    "FUNCTIONS": {
+      "tested": 4200,
+      "correct": 533,
+      "withheld": 10,
+      "wrong": 3657,
+      "catches": 0,
+      "escapes": 3657,
+      "falsePositives": 4,
+      "llmTested": 10,
+      "deterministicTested": 4190
+    },
+    "GEOMETRY_TRIG": {
+      "tested": 4200,
+      "correct": 1348,
+      "withheld": 2852,
+      "wrong": 0,
+      "catches": 0,
+      "escapes": 0,
+      "falsePositives": 2,
+      "llmTested": 10,
+      "deterministicTested": 4190
+    },
+    "CALCULUS": {
+      "tested": 4200,
+      "correct": 222,
+      "withheld": 7,
+      "wrong": 3971,
+      "catches": 0,
+      "escapes": 3971,
+      "falsePositives": 0,
+      "llmTested": 10,
+      "deterministicTested": 4190
+    },
+    "PROBABILITY_STATS": {
+      "tested": 4200,
+      "correct": 2,
+      "withheld": 4198,
+      "wrong": 0,
+      "catches": 0,
+      "escapes": 0,
+      "falsePositives": 1,
+      "llmTested": 10,
+      "deterministicTested": 4190
+    },
+    "PHYSICS": {
+      "tested": 4200,
+      "correct": 1393,
+      "withheld": 2807,
+      "wrong": 0,
+      "catches": 0,
+      "escapes": 0,
+      "falsePositives": 6,
+      "llmTested": 10,
+      "deterministicTested": 4190
+    },
+    "ADVERSARIAL_TRICK": {
+      "tested": 4000,
+      "correct": 0,
+      "withheld": 2007,
+      "wrong": 1993,
+      "catches": 9,
+      "escapes": 1993,
+      "falsePositives": 0,
+      "llmTested": 10,
+      "deterministicTested": 3990
+    },
+    "MULTI_TURN": {
+      "tested": 4000,
+      "correct": 0,
+      "withheld": 10,
+      "wrong": 3990,
+      "catches": 5,
+      "escapes": 3990,
+      "falsePositives": 5,
+      "llmTested": 10,
+      "deterministicTested": 3990
+    }
+  },
+  "providerTelemetry": {
+    "totalRequests": 281,
+    "successfulResponses": 57,
+    "providerFailures": 63,
+    "rateLimit429Events": 224,
+    "retries": 224,
+    "modelName": "openai/gpt-oss-20b",
+    "providerName": "groq-text",
+    "durationSec": 10085.9,
+    "peakHeapMB": 59.3
+  },
+  "forensics": [
+    {
+      "id": "FUNC_2",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 3x^2 + 8x - 3, evaluate f(1)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 8 = 10\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "10",
+      "groundTruth": "8",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_3",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 1x^2 - 8x + 8, evaluate f(6)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 8 = -6\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "-6",
+      "groundTruth": "-4",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_4",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -4x^2 + 1x + 7, evaluate f(-5)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 1 = 3\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "3",
+      "groundTruth": "-98",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_5",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 3x^2 + 6x + 9, evaluate f(6)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 6 = 8\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "8",
+      "groundTruth": "153",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_6",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -5x^2 + 5x - 4, evaluate f(0)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 5 = 7\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "7",
+      "groundTruth": "-4",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_8",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 2x^2 - 6x - 7, evaluate f(0)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 6 = -4\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "-4",
+      "groundTruth": "-7",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_10",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 1x^2 - 10x + 9, evaluate f(5)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 10 = -8\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "-8",
+      "groundTruth": "-16",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_12",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -5x^2 - 5x - 5, evaluate f(-2)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 5 = -3\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "-3",
+      "groundTruth": "-15",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_13",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -1x^2 + 6x + 3, evaluate f(-6)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 6 = 8\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "8",
+      "groundTruth": "-69",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_14",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -2x^2 + 2x + 5, evaluate f(-6)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 2 = 4\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "4",
+      "groundTruth": "-79",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_15",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -3x^2 + 1x - 8, evaluate f(4)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 1 = 3\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "3",
+      "groundTruth": "-52",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_16",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 2x^2 + 5x + 8, evaluate f(-1)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 5 = 7\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "7",
+      "groundTruth": "5",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_17",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 5x^2 - 8x + 8, evaluate f(-1)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 8 = -6\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "-6",
+      "groundTruth": "21",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_18",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 4x^2 + 0x - 6, evaluate f(-4)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 0 = 2\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "2",
+      "groundTruth": "58",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_19",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 3x^2 + 6x + 10, evaluate f(0)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 6 = 8\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "8",
+      "groundTruth": "10",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_21",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -5x^2 + 1x + 8, evaluate f(0)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 1 = 3\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "3",
+      "groundTruth": "8",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_22",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 5x^2 + 2x - 5, evaluate f(-6)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 2 = 4\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "4",
+      "groundTruth": "163",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_23",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 5x^2 - 7x - 3, evaluate f(5)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 7 = -5\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "-5",
+      "groundTruth": "87",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_24",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -5x^2 - 1x - 5, evaluate f(3)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 1 = 1\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "1",
+      "groundTruth": "-53",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_26",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 1x^2 - 8x - 8, evaluate f(4)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 8 = -6\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "-6",
+      "groundTruth": "-24",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_27",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -4x^2 + 6x + 0, evaluate f(4)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 6 = 8\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "8",
+      "groundTruth": "-40",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_28",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 2x^2 - 10x + 7, evaluate f(3)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 10 = -8\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "-8",
+      "groundTruth": "-5",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_29",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 1x^2 - 4x + 6, evaluate f(-3)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 4 = -2\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "-2",
+      "groundTruth": "27",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_30",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 1x^2 - 9x - 7, evaluate f(4)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 9 = -7\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "-7",
+      "groundTruth": "-27",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_32",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 5x^2 + 2x - 7, evaluate f(-3)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 2 = 4\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "4",
+      "groundTruth": "32",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_33",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 3x^2 - 4x + 9, evaluate f(0)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 4 = -2\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "-2",
+      "groundTruth": "9",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_34",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 5x^2 - 2x - 2, evaluate f(6)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 2 = 0\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "0",
+      "groundTruth": "166",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_35",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -5x^2 + 4x + 3, evaluate f(-2)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 4 = 6\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "6",
+      "groundTruth": "-25",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_36",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 4x^2 - 8x + 0, evaluate f(-1)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 8 = -6\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "-6",
+      "groundTruth": "12",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_37",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 1x^2 - 4x - 3, evaluate f(-5)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 4 = -2\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "-2",
+      "groundTruth": "42",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_38",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -2x^2 + 8x - 7, evaluate f(0)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 8 = 10\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "10",
+      "groundTruth": "-7",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_39",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 1x^2 - 3x + 10, evaluate f(-4)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 3 = -1\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "-1",
+      "groundTruth": "38",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_40",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -2x^2 + 9x - 2, evaluate f(0)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 9 = 11\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "11",
+      "groundTruth": "-2",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_41",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -5x^2 + 0x - 10, evaluate f(-2)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 0 = 2\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "2",
+      "groundTruth": "-30",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_42",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 2x^2 + 0x + 1, evaluate f(0)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 0 = 2\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "2",
+      "groundTruth": "1",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_43",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -5x^2 + 0x + 6, evaluate f(-6)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 0 = 2\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "2",
+      "groundTruth": "-174",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_44",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -4x^2 + 8x - 4, evaluate f(-5)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 8 = 10\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "10",
+      "groundTruth": "-144",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_45",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 5x^2 + 2x + 4, evaluate f(-1)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 2 = 4\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "4",
+      "groundTruth": "7",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_47",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -5x^2 + 3x + 2, evaluate f(3)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 3 = 5\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "5",
+      "groundTruth": "-34",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_48",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 3x^2 - 8x - 7, evaluate f(-6)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 8 = -6\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "-6",
+      "groundTruth": "149",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_49",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 1x^2 + 6x - 1, evaluate f(-3)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 6 = 8\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "8",
+      "groundTruth": "-10",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_50",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 4x^2 + 6x - 9, evaluate f(-5)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 6 = 8\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "8",
+      "groundTruth": "61",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_51",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -1x^2 + 7x - 8, evaluate f(0)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 7 = 9\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "9",
+      "groundTruth": "-8",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_52",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 1x^2 + 0x - 8, evaluate f(-5)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 0 = 2\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "2",
+      "groundTruth": "17",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_53",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 2x^2 + 8x + 0, evaluate f(2)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 8 = 10\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "10",
+      "groundTruth": "24",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_56",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 2x^2 + 2x + 0, evaluate f(-1)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 2 = 4\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "4",
+      "groundTruth": "0",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_57",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -3x^2 + 7x - 6, evaluate f(1)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 7 = 9\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "9",
+      "groundTruth": "-2",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_58",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 4x^2 + 8x + 4, evaluate f(-3)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 8 = 10\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "10",
+      "groundTruth": "16",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_59",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 5x^2 - 3x + 5, evaluate f(-1)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 3 = -1\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "-1",
+      "groundTruth": "13",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_62",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 3x^2 + 1x - 6, evaluate f(1)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 1 = 3\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "3",
+      "groundTruth": "-2",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_63",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -5x^2 + 10x + 3, evaluate f(-6)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 10 = 12\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "12",
+      "groundTruth": "-237",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_64",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 2x^2 + 7x + 3, evaluate f(6)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 7 = 9\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "9",
+      "groundTruth": "117",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_65",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 1x^2 - 4x - 6, evaluate f(-4)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 4 = -2\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "-2",
+      "groundTruth": "26",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_66",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 2x^2 + 3x - 3, evaluate f(-5)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 3 = 5\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "5",
+      "groundTruth": "32",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_67",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 2x^2 + 8x + 8, evaluate f(-5)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 8 = 10\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "10",
+      "groundTruth": "18",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_68",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 2x^2 - 8x + 9, evaluate f(2)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 8 = -6\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "-6",
+      "groundTruth": "1",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_69",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -3x^2 + 4x + 10, evaluate f(-1)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 4 = 6\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "6",
+      "groundTruth": "3",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_70",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -1x^2 - 3x - 4, evaluate f(-2)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 3 = -1\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "-1",
+      "groundTruth": "-2",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_71",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 5x^2 + 2x + 8, evaluate f(4)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 2 = 4\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "4",
+      "groundTruth": "96",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_73",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 4x^2 + 6x - 7, evaluate f(6)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 6 = 8\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "8",
+      "groundTruth": "173",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_74",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 2x^2 + 4x - 3, evaluate f(-5)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 4 = 6\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "6",
+      "groundTruth": "27",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_75",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 1x^2 + 9x - 1, evaluate f(2)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 9 = 11\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "11",
+      "groundTruth": "21",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_76",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 5x^2 - 7x + 6, evaluate f(3)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 7 = -5\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "-5",
+      "groundTruth": "30",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_78",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 3x^2 + 2x + 10, evaluate f(4)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 2 = 4\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "4",
+      "groundTruth": "66",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_79",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -1x^2 + 9x + 5, evaluate f(-1)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 9 = 11\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "11",
+      "groundTruth": "-5",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_80",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 1x^2 + 1x - 4, evaluate f(1)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 1 = 3\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "3",
+      "groundTruth": "-2",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_81",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -2x^2 - 1x + 3, evaluate f(5)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 1 = 1\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "1",
+      "groundTruth": "-52",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_82",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -4x^2 + 9x + 4, evaluate f(6)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 9 = 11\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "11",
+      "groundTruth": "-86",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_83",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 3x^2 - 8x + 3, evaluate f(0)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 8 = -6\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "-6",
+      "groundTruth": "3",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_84",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 5x^2 - 9x + 6, evaluate f(6)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 9 = -7\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "-7",
+      "groundTruth": "132",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_85",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -1x^2 - 5x - 2, evaluate f(0)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 5 = -3\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "-3",
+      "groundTruth": "-2",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_86",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 2x^2 + 10x + 0, evaluate f(-1)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 10 = 12\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "12",
+      "groundTruth": "-8",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_87",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -5x^2 + 6x - 10, evaluate f(5)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 6 = 8\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "8",
+      "groundTruth": "-105",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_88",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 4x^2 + 0x - 6, evaluate f(3)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 0 = 2\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "2",
+      "groundTruth": "30",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_89",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 2x^2 + 0x + 7, evaluate f(4)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 0 = 2\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "2",
+      "groundTruth": "39",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_90",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 2x^2 - 6x - 1, evaluate f(4)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 6 = -4\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "-4",
+      "groundTruth": "7",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_91",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 1x^2 + 2x + 2, evaluate f(-5)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 2 = 4\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "4",
+      "groundTruth": "17",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_92",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 4x^2 + 2x + 5, evaluate f(0)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 2 = 4\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "4",
+      "groundTruth": "5",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_93",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 4x^2 + 5x + 7, evaluate f(-2)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 5 = 7\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "7",
+      "groundTruth": "13",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_94",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -3x^2 - 9x + 3, evaluate f(0)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 9 = -7\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "-7",
+      "groundTruth": "3",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_97",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -4x^2 - 6x + 7, evaluate f(-3)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 6 = -4\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "-4",
+      "groundTruth": "-11",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_98",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 5x^2 - 10x + 8, evaluate f(-4)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 10 = -8\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "-8",
+      "groundTruth": "128",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_99",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 2x^2 - 9x - 6, evaluate f(6)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 9 = -7\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "-7",
+      "groundTruth": "12",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_100",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 5x^2 - 3x + 0, evaluate f(0)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 3 = -1\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "-1",
+      "groundTruth": "0",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_101",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -1x^2 - 2x + 6, evaluate f(5)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 2 = 0\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "0",
+      "groundTruth": "-29",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_102",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -1x^2 + 8x + 4, evaluate f(5)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 8 = 10\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "10",
+      "groundTruth": "19",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_103",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 2x^2 + 8x + 9, evaluate f(-6)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 8 = 10\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "10",
+      "groundTruth": "33",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_104",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 3x^2 + 3x + 3, evaluate f(-3)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 3 = 5\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "5",
+      "groundTruth": "21",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_105",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 1x^2 + 10x + 6, evaluate f(-6)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 10 = 12\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "12",
+      "groundTruth": "-18",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_106",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -2x^2 + 8x - 10, evaluate f(5)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 8 = 10\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "10",
+      "groundTruth": "-20",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_107",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -5x^2 + 8x - 2, evaluate f(2)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 8 = 10\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "10",
+      "groundTruth": "-6",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_108",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -3x^2 + 7x + 8, evaluate f(4)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 7 = 9\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "9",
+      "groundTruth": "-12",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_109",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 2x^2 + 10x - 5, evaluate f(0)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 10 = 12\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "12",
+      "groundTruth": "-5",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_110",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -4x^2 - 6x - 8, evaluate f(-3)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 6 = -4\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "-4",
+      "groundTruth": "-26",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_111",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 3x^2 - 7x + 3, evaluate f(3)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 7 = -5\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "-5",
+      "groundTruth": "9",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_112",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = 2x^2 + 0x + 2, evaluate f(2)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 0 = 2\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "2",
+      "groundTruth": "10",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_113",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -2x^2 - 8x + 6, evaluate f(-6)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 8 = -6\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "-6",
+      "groundTruth": "-18",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_114",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -1x^2 + 8x + 3, evaluate f(0)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 8 = 10\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "10",
+      "groundTruth": "3",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_115",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -5x^2 + 2x + 5, evaluate f(4)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 + 2 = 4\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "4",
+      "groundTruth": "-67",
+      "stage": "DETERMINISTIC_ROUTER"
+    },
+    {
+      "id": "FUNC_116",
+      "domain": "FUNCTIONS",
+      "type": "INCORRECT_DELIVERY",
+      "prompt": "If f(x) = -1x^2 - 1x + 2, evaluate f(6)",
+      "candidate": "✅ Here is the exact calculation:\n\n$$\n2 - 1 = 1\n$$\n\nIs there another step or concept you'd like to explore with this problem?",
+      "deliveredAnswer": "1",
+      "groundTruth": "-40",
+      "stage": "DETERMINISTIC_ROUTER"
+    }
+  ]
+}

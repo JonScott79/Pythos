@@ -468,7 +468,7 @@ app.get('/health/ready', async (req, res) => {
 });
 
 const learningStore = require('./learningStore');
-const { runDeterministicVerification, extractClaims, auditInternalConsistency, verifyResponseClaims } = require('./verificationBridge');
+const { runDeterministicVerification, extractClaims, auditInternalConsistency, verifyResponseClaims, extractCandidateAnswer, evaluateCandidateDelivery } = require('./verificationBridge');
 const {
   analyzeDeterministicIntent,
   extractPreflightDeterministicFacts,
@@ -1482,51 +1482,97 @@ app.post('/api/chat', async (req, res) => {
 
   // Extract latest user query
   const lastUserMsg = [...messages].reverse().find(m => m && m.role === 'user');
+  // Setup per-request AbortController for cancellation
+  const abortController = new AbortController();
+  activeControllers.add(abortController);
+  let acquiredSemaphore = false;
 
-  // Fast-Path: Deterministic First-Line Evaluation for pure calculation/conversions
-  // Note: Evaluated BEFORE acquiring concurrency slots so deterministic math is instantaneous
+  // Fast-Path: Deterministic Candidate Generation & Mandatory Verification Gate
+  // Note: Evaluated BEFORE acquiring concurrency slots, but deterministic candidates
+  // MUST pass through the mandatory verification and delivery gate architecture.
   if (lastUserMsg && (!lastUserMsg.images || lastUserMsg.images.length === 0)) {
     const deterministicIntent = analyzeDeterministicIntent(lastUserMsg.content, messages);
     if (deterministicIntent) {
       const directResponse = buildDeterministicResponse(deterministicIntent);
       if (directResponse) {
-        if (isStreaming) {
-          res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
-          res.setHeader('Transfer-Encoding', 'chunked');
-          res.setHeader('Cache-Control', 'no-cache, no-transform');
-          res.write(JSON.stringify({ type: 'token', content: directResponse }) + '\n');
-          res.write(JSON.stringify({
-            type: 'verified',
-            requestId,
-            latencyMs: Date.now() - startTime,
-            claims: [],
-            verification: [],
-            model: 'pythos-deterministic-router',
-            deterministic: true
-          }) + '\n');
-          res.write(JSON.stringify({ type: 'done' }) + '\n');
-          return res.end();
+        // Deterministic solution is a CANDIDATE, never an unverified delivery!
+        const candidateAnswer = extractCandidateAnswer(directResponse);
+        const effectiveVerificationPrompt = (contextManager.buildEffectivePrompt && Array.isArray(messages))
+          ? contextManager.buildEffectivePrompt(messages)
+          : (lastUserMsg ? lastUserMsg.content : '');
+
+        let gatePassed = false;
+        let delivery = null;
+        let claims = [];
+        let verificationResults = [];
+
+        try {
+          const verifyResult = await verifyResponseClaims(directResponse, effectiveVerificationPrompt, abortController.signal);
+          claims = verifyResult.claims || [];
+          verificationResults = verifyResult.verificationResults || [];
+          const internalContradictions = verifyResult.internalContradictions || [];
+          const invalidClaims = verifyResult.invalidClaims || [];
+
+          delivery = evaluateCandidateDelivery({
+            candidateAnswer,
+            verifications: verificationResults,
+            contradictions: internalContradictions,
+            claims,
+            prompt: effectiveVerificationPrompt
+          });
+
+          if (delivery && delivery.delivered && (!invalidClaims || invalidClaims.length === 0)) {
+            gatePassed = true;
+          }
+        } catch (gateErr) {
+          console.warn('[DETERMINISTIC GATE] Verification gate error:', gateErr.message);
+          gatePassed = false;
         }
 
-        return res.status(200).json({
-          requestId,
-          latencyMs: Date.now() - startTime,
-          model: 'pythos-deterministic-router',
-          message: {
-            role: 'assistant',
-            content: directResponse
-          },
-          deterministic: true,
-          done: true
-        });
+        if (gatePassed && delivery && delivery.delivered) {
+          console.log(`[DETERMINISTIC GATE] Verified candidate delivered: '${candidateAnswer}' (${delivery.reason})`);
+          if (isStreaming) {
+            res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+            res.setHeader('Transfer-Encoding', 'chunked');
+            res.setHeader('Cache-Control', 'no-cache, no-transform');
+            res.write(JSON.stringify({ type: 'token', content: directResponse }) + '\n');
+            res.write(JSON.stringify({
+              type: 'verified',
+              requestId,
+              latencyMs: Date.now() - startTime,
+              claims,
+              verification: verificationResults,
+              model: 'pythos-deterministic-router',
+              deterministic: true,
+              deliveryStatus: delivery.status,
+              deliveredAnswer: delivery.answer
+            }) + '\n');
+            res.write(JSON.stringify({ type: 'done' }) + '\n');
+            return res.end();
+          }
+
+          return res.status(200).json({
+            requestId,
+            latencyMs: Date.now() - startTime,
+            model: 'pythos-deterministic-router',
+            message: {
+              role: 'assistant',
+              content: directResponse
+            },
+            claims,
+            verification: verificationResults,
+            deterministic: true,
+            deliveryStatus: delivery.status,
+            deliveredAnswer: delivery.answer,
+            done: true
+          });
+        } else {
+          console.warn(`[DETERMINISTIC GATE] Candidate withheld by delivery gate (${delivery ? delivery.status : 'FAILED'}): ${delivery ? delivery.reason : 'Unverified'}. Routing to LLM/CAS pipeline.`);
+          // Candidate failed gate -> Fail-closed! Fall through to standard reasoning & verification pipeline
+        }
       }
     }
   }
-
-  // Setup per-request AbortController for cancellation
-  const abortController = new AbortController();
-  activeControllers.add(abortController);
-  let acquiredSemaphore = false;
 
   const clientCloseHandler = () => {
     if (!res.writableEnded && !res.destroyed) {

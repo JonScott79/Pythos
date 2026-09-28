@@ -229,22 +229,19 @@ function extractArithmeticExpressions(text) {
   const expressions = [];
   if (!text || typeof text !== 'string') return expressions;
 
-  // If the query is an explicit request for plotting, graphing, or creating a table of values,
-  // or contains explicit functional/algebraic notation (e.g. f(x) = x^2 - 4, Table of values for x^2),
-  // NEVER extract arithmetic subexpressions (like 2 - 4 from x^2 - 4).
-  const vizOrAlgebraPattern = /\b(plot|graph|table|draw|sketch|chart|diagram|number\s*line)\b/i;
-  const funcPattern = /\b(?:f\(x\)|y\s*=|[a-zA-Z]\^|\b[a-zA-Z]\s*[-+*^/]\s*\d|\d\s*[-+*^/]\s*[a-zA-Z])\b/i;
-  if (vizOrAlgebraPattern.test(text) || funcPattern.test(text)) {
-    // Only permit arithmetic extraction if the line is an explicit standalone arithmetic command
-    const isPureCalc = /^(?:calculate|compute|evaluate|what is|find|solve)?\s*[-+*/^0-9.()\s]+$/i.test(text.trim());
-    if (!isPureCalc) {
-      return expressions;
-    }
+  // 1. Conceptual Intent Guard
+  if (hasConceptualIntent(text)) {
+    return expressions;
   }
 
-  // If the query is an inquiry, question, conversational commentary, or observation
-  // (e.g. "is that the same thing?", "what does that mean?", "its ~95-96% with 0 incorrect answers returned", "Your accuracy is 95.81%"),
-  // do NOT extract arithmetic unless the prompt is an explicit standalone calculation command
+  // 2. Comprehensive Domain & Protection Boundaries:
+  // Mathematical context protection: Variables, polynomials, calculus, geometry, physics, functions
+  const protectedDomainPattern = /\b(?:d\/dx|dy\/dx|derivative|differentiate|integral|integrate|limit|lim|triangle|circle|radius|diameter|hypotenuse|perimeter|area|angle|sine|cosine|tangent|degrees|radians|force|mass|acceleration|velocity|distance|displacement|momentum|kinetic\s+energy|potential\s+energy|joules|newtons|watts|meters\s+per\s+second|m\/s|m\/s\^?2|m\/s²|kg|function|evaluate\s+f|domain|range|root|roots|polynomial|sin|cos|tan)\b|[∫²³⁴⁵]|(?:[a-zA-Z]\s*=[^=])|(?:[a-zA-Z]\^)|(?:\d+[a-zA-Z]|[a-zA-Z]\d+)|(?:[fgh]\s*\([a-zA-Z0-9.]+\))/i;
+  if (protectedDomainPattern.test(text)) {
+    return expressions;
+  }
+
+  // 3. Question & Conversational Commentary Guard
   const isQuestionOrProse = /[?]$/.test(text.trim()) ||
     /\b(?:is\s+(?:that|this|it)|same\s+thing|same\s+as|the\s+same|equivalent|what\s+about|why|how|explain|does\s+(?:this|that))\b/i.test(text) ||
     /\b(?:accuracy|accurate|validation|validated|benchmark|withheld|incorrect\s+answers?|correct\s+answers?|answers?\s+returned|error\s+rate|pythos|tutor|model)\b/i.test(text);
@@ -264,10 +261,6 @@ function extractArithmeticExpressions(text) {
     const unaddressedLine = line.replace(/^(?:pythos[,\s]+)+/i, '');
 
     // Check if line contains a bullet/list prefix (e.g. "1. 93/100", "* 93/100", "• 93/100")
-    // A bullet list marker is a bullet symbol (•, *, #) or ordered list (1., 1)) followed by optional whitespace,
-    // OR a hyphen '-' followed by whitespace and a prose word.
-    // A leading '-' directly attached to a digit, decimal, parenthesis, or math symbol (e.g. "-992 - -988", "-194 + 123", "-5/14")
-    // is a legitimate negative numeric operand and must NEVER be stripped.
     const cleanLine = unaddressedLine
       .replace(/^(?:[•*#]|\d+(?:\.(?!\d)|\)))\s*/, '')
       .replace(/^-\s+(?=[a-zA-Z])/, '')
@@ -275,8 +268,9 @@ function extractArithmeticExpressions(text) {
       .replace(/[,;]+$/, '')
       .trim();
 
-    // General conversational prefix normalization
+    // General conversational prefix and correction normalization
     const cleanExprLine = cleanLine
+      .replace(/^(?:wait,?\s+)?(?:i\s+meant|actually|correction|typo,?\s+meant)[:\s]*/i, '')
       .replace(/^(?:(?:just\s+(?:give\s+me|tell\s+me)\s+(?:the\s+answer)?|(?:don't|do not|without)\s+(?:check(?:ing)?|verify(?:ing)?)(?:\s+(?:it|this|anything))?)[,\s:]*)*(?:pythos[,\s]+)?(?:(?:please|kindly)\s+)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?)?(?:help\s+(?:me\s+)?(?:to\s+)?)?(?:what\s+(?:is|would\s+be)|calculate|compute|evaluate|determine|solve(?:\s+for)?|find|simplify|work\s+out|give\s+me|how\s+much\s+is|is)(?:\s+(?:the\s+)?(?:result|value|answer|evaluation|solution|sum|difference|product|quotient)(?:\s+(?:of|to|for))?)?[:\s]+/i, '')
       .replace(/[?!.]+$/, '')
       .trim();
@@ -291,87 +285,32 @@ function extractArithmeticExpressions(text) {
     }
 
     // Check if line contains a problem label like "a. Add: 3/4 + 2/5", "b. Subtract: 7/8 - 1/3", "1. Multiply: 5/6 * 2/9", "Problem 1: 5 + 3"
-    // Note: Do NOT match decimal points in floating point numbers like "904.78" by requiring non-digit after period or explicit label delimiter
     const strippedLabelLine = cleanExprLine
       .replace(/^(?:[a-zA-Z0-9]+(?:\.(?!\d)|\))|(?:problem|exercise|q|question)\s*\d+[:.]?)\s*(?:add|subtract|multiply|divide|compute|evaluate|simplify|find)?[:\s]*/i, '')
       .replace(/[×✕✖]/g, '*')
       .replace(/[÷]/g, '/')
       .replace(/[−–—]/g, '-')
+      .replace(/\\times/g, '*')
+      .replace(/\\cdot/g, '*')
+      .replace(/\\div/g, '/')
       .replace(/\\pi/g, 'pi')
       .replace(/π/g, 'pi')
       .trim();
 
-    if (/^[-+*/^0-9.()\s]+$/i.test(strippedLabelLine.replace(/\bpi\b/gi, '1').replace(/\bsqrt\b/gi, '')) &&
+    // Whole-Input Arithmetic Verification:
+    // Candidate line must be strictly composed of arithmetic tokens (digits, operations, parens, pi, sqrt).
+    const cleanForSyntax = strippedLabelLine
+      .replace(/\bpi\b/gi, '1')
+      .replace(/\bsqrt\b/gi, '')
+      .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1)/($2)');
+
+    if (/^[-+*/^0-9.()\s]+$/i.test(cleanForSyntax) &&
         /(?:\d|\bpi\b)/i.test(strippedLabelLine) &&
-        (/[-+*/^]/.test(strippedLabelLine) || /\(.*\)/.test(strippedLabelLine))) {
-      expressions.push(strippedLabelLine);
+        (/[-+*/^]/.test(strippedLabelLine) || /\bsqrt\b/.test(strippedLabelLine) || /\(.*\)/.test(strippedLabelLine) || /\\frac/.test(strippedLabelLine))) {
+      
+      let normalized = strippedLabelLine.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1)/($2)');
+      expressions.push(normalized);
       continue;
-    }
-
-    // Match fraction/division patterns: A / B or \frac{A}{B} (including pi / π)
-    const normLine = line
-      .replace(/^(?:pythos[,\s]+)+/i, '')
-      .replace(/(\d),(\d{3})\b/g, '$1$2')
-      .replace(/\\pi/g, 'pi')
-      .replace(/π/g, 'pi');
-
-    // Only match if the fraction is NOT immediately followed by or prefixed by a variable, pi, closing paren with variable/pi, or algebraic expression
-    const fracMatches = normLine.matchAll(/(?:\\frac\{([\d.]+|\bpi\b)\}\{([\d.]+|\bpi\b)\}|((?:[-+]\s*)?\b(?:\d+(?:\.\d+)?|\bpi\b)\s*\/\s*(?:\d+(?:\.\d+)?|\bpi\b)\b))(?!\s*\)?\s*(?:[a-zA-Z]|\\pi|π))/gi);
-    for (const m of fracMatches) {
-      if (m[1] && m[2]) {
-        expressions.push(`(${m[1]}) / (${m[2]})`);
-      } else if (m[3]) {
-        // Ensure the match is not part of a larger algebraic expression on the line
-        const matchIdx = m.index;
-        const matchStr = m[0];
-        const afterMatch = normLine.slice(matchIdx + matchStr.length).trim();
-        const beforeMatch = normLine.slice(0, matchIdx).trim();
-
-        // If surrounded by operators (+, -, *, ^) or pi, or inside parentheses followed by a variable/pi/operator, or inside a function, it is a subexpression
-        const isSubExpr = /[-+*^/]$/.test(beforeMatch) ||
-                          (/\($/.test(beforeMatch) && /^\)/.test(afterMatch) && /^\)\s*(?:pi|[a-zA-Z]|[-+*^/])/i.test(afterMatch)) ||
-                          /^[-+*^/]/.test(afterMatch) ||
-                          /^(?:pi|[a-zA-Z])\b/i.test(afterMatch) ||
-                          /(?:sin|cos|tan|sec|csc|cot|log|ln|exp)\s*\($/i.test(beforeMatch);
-        if (!isSubExpr) {
-          expressions.push(m[3].trim());
-        }
-      }
-    }
-
-    // Match general infix arithmetic: A * B, A + B, A - B, A ^ B, sqrt(A), (A/B) * (C/D)
-    // Operand handles signed numbers, fractions, pi, and parenthesized expressions
-    const operandPattern = '(?:[-+]\\s*)?(?:\\((?:[-+]\\s*)?(?:\\d+(?:\\.\\d+)?(?:\\s*\\/\\s*\\d+(?:\\.\\d+)?)?|\\bpi\\b)\\)|(?:\\d+(?:\\.\\d+)?(?:\\s*\\/\\s*\\d+(?:\\.\\d+)?)?|\\bpi\\b)|sqrt\\((?:[-+]\\s*)?(?:\\d+(?:\\.\\d+)?|\\bpi\\b)\\))';
-    const infixOp = '[-+*^]';
-    const fallbackInfixRegex = new RegExp('(?:' + operandPattern + '\\s*' + infixOp + '\\s*)+' + operandPattern, 'gi');
-    const infixMatches = normLine.matchAll(fallbackInfixRegex);
-    for (const m of infixMatches) {
-      const matchIdx = m.index;
-      const matchStr = m[0];
-      const beforeMatch = normLine.slice(0, matchIdx);
-      const afterMatch = normLine.slice(matchIdx + matchStr.length);
-
-      if (/(?:sin|cos|tan|sec|csc|cot|log|ln|exp)\s*\($/i.test(beforeMatch.trim())) {
-        continue;
-      }
-
-      // Reject range expressions (e.g. ~95-96, 95-96%, ~95-96%) and compound labels (e.g. 3-4-5 right triangle, 5-12-13 triangle)
-      // A hyphen between numbers followed by % or preceded by ~ is a range/estimate, NOT subtraction.
-      // Hyphens without surrounding spaces directly followed by nouns (triangle, ratio, etc.) are compound modifiers.
-      if (/[-–—]/.test(matchStr)) {
-        if (/~\s*$/.test(beforeMatch) || /^\s*%/.test(afterMatch) || /^\s*-\s*\d/.test(afterMatch) ||
-            /^\s*(?:right\s+)?(?:triangle|polygon|ratio|dimensional|sided|grade|year|meter|cm|km|hour|minute|sec)\b/i.test(afterMatch)) {
-          continue;
-        }
-        if (!/\s[-–—]\s/.test(matchStr) && (/\b[a-zA-Z]+\s*$/.test(beforeMatch) && /^\s*[a-zA-Z]+/.test(afterMatch))) {
-          continue;
-        }
-      }
-
-      const expr = matchStr.trim();
-      if (!expressions.includes(expr)) {
-        expressions.push(expr);
-      }
     }
   }
 
@@ -1116,7 +1055,56 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   // Error diagnosis requests (e.g. "What is wrong with this step...", "Find the error in...")
   if (/\b(?:what\s+is\s+wrong|find\s+(?:the\s+)?error|find\s+(?:the\s+)?mistake|where\s+is\s+the\s+(?:error|mistake)|is\s+this\s+(?:solution\s+)?valid|check\s+(?:my|this)\s+(?:work|solution))\b/i.test(clean)) {
     return null; // Defer to pedagogical analysis, do NOT fast-path solve equation!
+  }  // Multi-Turn Chained Arithmetic Handler (e.g. "Subtract 7 from that", "Add 10 to that", "Multiply that by 3")
+  const chainedArithMatch = clean.match(/^(?:now\s+|then\s+)?(subtract|add|multiply|divide|plus|minus|times)\s+([\d.]+)(?:\s+(?:from|to|by)\s+(?:that|it|the\s+result|the\s+previous\s+answer|the\s+answer))?[.?!]?$/i) ||
+                            clean.match(/^(?:now\s+|then\s+)?(subtract|add|multiply|divide|plus|minus|times)\s+(?:that|it|the\s+result)\s+by\s+([\d.]+)[.?!]?$/i);
+  if (chainedArithMatch && Array.isArray(conversationHistory) && conversationHistory.length > 0) {
+    const opWord = chainedArithMatch[1].toLowerCase();
+    const operandNum = parseFloat(chainedArithMatch[2]);
+    const lastAsst = [...conversationHistory].reverse().find(m => m && m.role === 'assistant');
+    if (lastAsst && typeof lastAsst.content === 'string') {
+      const prevNumMatch = lastAsst.content.match(/(?:=\s*|is\s+)([-+]?\d+(?:\.\d+)?)\s*(?:\$|\n|\.\s|$)/) ||
+                           lastAsst.content.match(/\\boxed\{([-+]?\d+(?:\.\d+)?)\}/) ||
+                           lastAsst.content.match(/\b([-+]?\d+(?:\.\d+)?)\s*$/);
+      if (prevNumMatch) {
+        const prevVal = parseFloat(prevNumMatch[1]);
+        if (!isNaN(prevVal) && !isNaN(operandNum)) {
+          let chainedExpr = null;
+          let chainedResult = null;
+          if (opWord === 'subtract' || opWord === 'minus') {
+            chainedExpr = `${prevVal} - ${operandNum}`;
+            chainedResult = prevVal - operandNum;
+          } else if (opWord === 'add' || opWord === 'plus') {
+            chainedExpr = `${prevVal} + ${operandNum}`;
+            chainedResult = prevVal + operandNum;
+          } else if (opWord === 'multiply' || opWord === 'times') {
+            chainedExpr = `${prevVal} * ${operandNum}`;
+            chainedResult = prevVal * operandNum;
+          } else if (opWord === 'divide') {
+            if (operandNum !== 0) {
+              chainedExpr = `${prevVal} / ${operandNum}`;
+              chainedResult = prevVal / operandNum;
+            }
+          }
+          if (chainedExpr && chainedResult !== null) {
+            return {
+              type: 'ARITHMETIC',
+              expression: chainedExpr,
+              result: chainedResult,
+              solution: chainedResult,
+              formatted: String(chainedResult),
+              wantsPercentages: false,
+              wantsOnly: false
+            };
+          }
+        }
+      }
+    }
+    // Cannot unambiguously resolve referent -> fail-closed, return null
+    return null;
   }
+
+
 
   // Indeterminate form and notation ambiguity guards
   if (/\b0\s*\^\s*0\b/.test(clean)) {

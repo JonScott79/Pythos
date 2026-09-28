@@ -1,3 +1,26 @@
+## Pythos 1.8.15
+**Release Date:** September 27, 2026
+
+### Added & Hardened
+- **Mandatory Verification Gate for Deterministic Candidates** (`server.js`, `verificationBridge.js`):
+  - Enforced the architectural invariant: *A deterministic solution is a candidate, never an unverified delivery.*
+  - Eliminated the direct delivery fast-path bypass; all deterministic router responses now undergo candidate extraction (`extractCandidateAnswer`), claim verification (`verifyResponseClaims`), prompt-to-claim fidelity evaluation, and production candidate delivery gating (`evaluateCandidateDelivery`).
+  - Implemented fail-closed withholding: candidates with unverified or contradictory claims fall through cleanly to the core LLM reasoning and CAS verification pipeline.
+- **Whole-Input Standalone Arithmetic Recognition** (`deterministicRouter.js`):
+  - Constrained arithmetic fast-path matching strictly to whole-input/whole-line mathematical problems.
+  - Eliminated permissive global fallback infix regex matching on non-arithmetic text, stopping fragment extraction from prose and algebra.
+- **Universal Domain & Context Protection Boundaries** (`deterministicRouter.js`):
+  - Protected variables and polynomial expressions ($x, y, z, t, a, b, c$, exponents $x^2, x^3, x², x³$, coefficients $2x, 3y, 4t$, equations $x = 2 + 5$, functions $f(x), g(x), f(5)$).
+  - Protected calculus operations ($d/dx, dy/dx$, derivative, differentiate, integral, integrate, $\int$, limit, lim).
+  - Protected geometry and trigonometry entities (triangle, circle, radius, diameter, hypotenuse, perimeter, area, angle, sine, cosine, tangent).
+  - Protected physics quantities and dimensions (force, mass, acceleration, velocity, distance, momentum, kinetic energy, potential energy, $m/s, m/s^2, kg$).
+- **Multi-Turn Context Isolation & Sequential Chaining** (`contextManager.js`, `deterministicRouter.js`):
+  - Integrated sequential arithmetic directives (`"Subtract 7 from that"`, `"Now multiply by 3"`) into active problem state reconstruction, preventing stale Turn 1 arithmetic rediscovery.
+  - Added referential multi-turn arithmetic evaluation with fail-closed fallback.
+- **Zero Leaks & Full Regression Integrity**:
+  - 20/20 tests passing in dedicated Task #6 suite (`test-deterministic-fastpath-hardening.js`).
+  - 100% passing across all 24 master regression suites.
+
 ## Pythos 1.8.14
 **Release Date:** September 27, 2026
 

@@ -698,6 +698,14 @@ function buildEffectivePrompt(messages = []) {
       continue;
     }
 
+    // Sequential arithmetic / operations follow-ups: e.g. "Subtract 7 from that", "Now add 12", "Multiply that by 3"
+    const seqMatch = turnText.match(/^(?:now\s+|then\s+)?(subtract|add|multiply|divide|plus|minus|times)\s+([\d.]+)(?:\s+(?:from|to|by)\s+(?:that|it|the\s+result|the\s+previous\s+answer))?[.?!]?$/i) ||
+                     turnText.match(/^(?:now\s+|then\s+)?(subtract|add|multiply|divide|plus|minus|times)\s+(?:that|it|the\s+result)\s+by\s+([\d.]+)[.?!]?$/i);
+    if (seqMatch) {
+      effective = effective.replace(/[?.!]+$/, '') + '. Then ' + turnText + '.';
+      continue;
+    }
+
     // Conversational follow-ups
     if (/\b(?:what\s+was\s+the\s+answer|explain|what\s+about\s+at\s+x\s*=\s*\d+)\b/i.test(turnText)) {
       effective += ' (' + turnText + ')';

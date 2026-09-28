@@ -13,14 +13,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="assets/favicon.png">
-  <title>Pythos Release History &amp; Changelog | v1.8.14</title>
+  <title>Pythos Release History &amp; Changelog | v1.8.15</title>
   <meta name="description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://pythos.lanzar.me/changelog.html">
 
   <!-- OPEN GRAPH -->
-  <meta property="og:title" content="Pythos Release History &amp; Changelog | v1.8.14">
+  <meta property="og:title" content="Pythos Release History &amp; Changelog | v1.8.15">
   <meta property="og:description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta property="og:url" content="https://pythos.lanzar.me/changelog.html">
   <meta property="og:type" content="article">
@@ -32,7 +32,7 @@
 
   <!-- TWITTER CARD -->
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Pythos Release History &amp; Changelog | v1.8.14">
+  <meta name="twitter:title" content="Pythos Release History &amp; Changelog | v1.8.15">
   <meta name="twitter:description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="twitter:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
 
@@ -522,7 +522,7 @@
         <a href="about/" class="nav-link">About</a>
         <a href="nonprofit.html" class="nav-link">Mission &amp; Roadmap</a>
         <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" class="nav-link">Facebook</a>
-        <a href="changelog.html#pythos-1-8-14" class="nav-link active" aria-current="page">v1.8.14</a>
+        <a href="changelog.html#pythos-1-8-15" class="nav-link active" aria-current="page">v1.8.15</a>
       </div>
     </div>
 
@@ -547,12 +547,34 @@
       <p>Authoritative release notes, verification engine milestones, and mathematical system updates.</p>
     </header>
 
-                                        <!-- RELEASE v1.8.14 -->
-    <article class="release-card" id="pythos-1-8-14">
+                                                                                <!-- RELEASE v1.8.15 -->
+    <article class="release-card" id="pythos-1-8-15">
+      <div class="release-header">
+        <div class="release-title-wrap">
+          <h2 class="release-version">Pythos 1.8.15</h2>
+          <span class="release-badge">Latest Release</span>
+        </div>
+        <time class="release-date" datetime="2026-09-27">September 27, 2026</time>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header added">⭐ WHAT'S NEW &amp; HARDENED</div>
+        <ul class="feature-list">
+          <li><strong>Mandatory Verification Gate for Deterministic Candidates</strong>: Deterministic solutions are strictly treated as candidates. They now pass through candidate extraction, claim verification, prompt-to-claim fidelity, and candidate delivery gating before delivery, with fail-closed fallback to the core LLM reasoning pipeline.</li>
+          <li><strong>Whole-Input Standalone Arithmetic Recognition</strong>: Arithmetic fast-path recognition is restricted to whole-input problems, eliminating loose substring matches on complex prompts.</li>
+          <li><strong>Universal Domain &amp; Context Protection Boundaries</strong>: Strict protection for variables, polynomials, calculus notation ($d/dx$, $\int$), geometry concepts, and physics quantities against arithmetic fragment extraction.</li>
+          <li><strong>Multi-Turn Context Scoping</strong>: Sequential directives (e.g. <em>"Subtract 7 from that"</em>) evolve active problem state, preventing stale turn rediscovery.</li>
+          <li><strong>100% Verification Integrity</strong>: 20/20 dedicated Task #6 tests and all 24 master regression suites passing cleanly.</li>
+        </ul>
+      </div>
+    </article>
+
+<!-- RELEASE v1.8.15 -->
+    <article class="release-card" id="pythos-1-8-15">
       <div class="release-header">
         <div class="release-title-wrap">
           <h2 class="release-version">Pythos 1.8.14</h2>
-          <span class="release-badge">Latest Release</span>
+          
         </div>
         <time class="release-date" datetime="2026-09-27">September 27, 2026</time>
       </div>
@@ -1334,7 +1356,7 @@
 
   <footer>
     <div>🏛️ Pythos — Free AI Mathematics &amp; Physics Education. Created by Jon Scott as part of the LANZAR initiative.</div>
-    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-8-14" style="color:var(--primary-color); text-decoration:none;">v1.8.14</a></div>
+    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-8-15" style="color:var(--primary-color); text-decoration:none;">v1.8.15</a></div>
   </footer>
 
   <script>
