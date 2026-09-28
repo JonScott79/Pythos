@@ -1,0 +1,171 @@
+{
+  "campaign": {
+    "seed": 2718281828,
+    "llmModel": "openai/gpt-oss-20b",
+    "provider": "groq-text",
+    "pipelineVersion": "1.8.15",
+    "commit": "258faa2",
+    "date": "2026-09-28T02:21:25.024Z",
+    "durationSeconds": 48.1,
+    "totalProblems": 24
+  },
+  "totals": {
+    "totalTested": 24,
+    "correctlyDelivered": 10,
+    "safelyWithheld": 14,
+    "incorrectDelivered": 0,
+    "verificationCatches": 1,
+    "verificationEscapes": 0,
+    "falsePositiveRejections": 5,
+    "deterministicCount": 6,
+    "llmBackedCount": 12,
+    "verifiedCorrectDeliveryRate": 41.667,
+    "safeWithholdRate": 58.333,
+    "incorrectDeliveryRate": 0,
+    "verificationEscapeRate": 0
+  },
+  "domainStats": {
+    "ARITHMETIC": {
+      "tested": 2,
+      "correct": 2,
+      "withheld": 0,
+      "wrong": 0,
+      "catches": 0,
+      "escapes": 0,
+      "falsePositives": 0,
+      "llmTested": 1,
+      "deterministicTested": 1
+    },
+    "FRACTIONS": {
+      "tested": 2,
+      "correct": 0,
+      "withheld": 2,
+      "wrong": 0,
+      "catches": 0,
+      "escapes": 0,
+      "falsePositives": 1,
+      "llmTested": 1,
+      "deterministicTested": 1
+    },
+    "LINEAR_EQUATIONS": {
+      "tested": 2,
+      "correct": 2,
+      "withheld": 0,
+      "wrong": 0,
+      "catches": 0,
+      "escapes": 0,
+      "falsePositives": 0,
+      "llmTested": 1,
+      "deterministicTested": 1
+    },
+    "SYSTEMS_OF_EQUATIONS": {
+      "tested": 2,
+      "correct": 1,
+      "withheld": 1,
+      "wrong": 0,
+      "catches": 0,
+      "escapes": 0,
+      "falsePositives": 1,
+      "llmTested": 1,
+      "deterministicTested": 1
+    },
+    "QUADRATICS": {
+      "tested": 2,
+      "correct": 1,
+      "withheld": 1,
+      "wrong": 0,
+      "catches": 0,
+      "escapes": 0,
+      "falsePositives": 0,
+      "llmTested": 1,
+      "deterministicTested": 1
+    },
+    "FUNCTIONS": {
+      "tested": 2,
+      "correct": 0,
+      "withheld": 2,
+      "wrong": 0,
+      "catches": 0,
+      "escapes": 0,
+      "falsePositives": 1,
+      "llmTested": 1,
+      "deterministicTested": 1
+    },
+    "GEOMETRY_TRIG": {
+      "tested": 2,
+      "correct": 1,
+      "withheld": 1,
+      "wrong": 0,
+      "catches": 0,
+      "escapes": 0,
+      "falsePositives": 0,
+      "llmTested": 1,
+      "deterministicTested": 1
+    },
+    "CALCULUS": {
+      "tested": 2,
+      "correct": 1,
+      "withheld": 1,
+      "wrong": 0,
+      "catches": 0,
+      "escapes": 0,
+      "falsePositives": 0,
+      "llmTested": 1,
+      "deterministicTested": 1
+    },
+    "PROBABILITY_STATS": {
+      "tested": 2,
+      "correct": 1,
+      "withheld": 1,
+      "wrong": 0,
+      "catches": 0,
+      "escapes": 0,
+      "falsePositives": 0,
+      "llmTested": 1,
+      "deterministicTested": 1
+    },
+    "PHYSICS": {
+      "tested": 2,
+      "correct": 0,
+      "withheld": 2,
+      "wrong": 0,
+      "catches": 0,
+      "escapes": 0,
+      "falsePositives": 1,
+      "llmTested": 1,
+      "deterministicTested": 1
+    },
+    "ADVERSARIAL_TRICK": {
+      "tested": 2,
+      "correct": 0,
+      "withheld": 2,
+      "wrong": 0,
+      "catches": 1,
+      "escapes": 0,
+      "falsePositives": 0,
+      "llmTested": 1,
+      "deterministicTested": 1
+    },
+    "MULTI_TURN": {
+      "tested": 2,
+      "correct": 1,
+      "withheld": 1,
+      "wrong": 0,
+      "catches": 0,
+      "escapes": 0,
+      "falsePositives": 1,
+      "llmTested": 1,
+      "deterministicTested": 1
+    }
+  },
+  "providerTelemetry": {
+    "totalRequests": 12,
+    "successfulResponses": 12,
+    "providerFailures": 0,
+    "rateLimit429Events": 0,
+    "retries": 0,
+    "modelName": "openai/gpt-oss-20b",
+    "providerName": "groq-text"
+  },
+  "forensics": []
+}

@@ -718,7 +718,7 @@
         <a href="../about/" class="nav-link">About</a>
         <a href="../nonprofit.html" class="nav-link">Mission & Roadmap</a>
         <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" class="nav-link">Facebook</a>
-        <a href="../changelog.html#pythos-1-8-9" class="nav-link">v1.8.9</a>
+        <a href="../changelog.html#pythos-1-8-16" class="nav-link">v1.8.16</a>
       </div>
     </div>
     <div class="nav-right">
@@ -744,24 +744,24 @@
       <h1>Mathematical Validation</h1>
       <div class="subheadline">We test the math. We publish the results.</div>
       <p class="hero-desc">
-        Across this 110,000-problem fresh blind validation campaign, Pythos delivered 110,000 verified-correct answers with zero incorrect answers delivered. We publish our complete validation results, methodology, and operational telemetry below.
+        Across this fresh 50,000-problem blind validation campaign, Pythos delivered 20,602 verified-correct answers, safely withheld 29,398 cases, and delivered zero incorrect answers. The campaign recorded zero verification escapes. We publish our complete validation results, methodology, and operational telemetry below.
       </p>
 
       <div class="stats-grid">
         <div class="stat-card">
-          <div class="stat-num">110,000</div>
+          <div class="stat-num">50,000</div>
           <div class="stat-label">Problems Tested</div>
-          <div class="stat-subtext">Across 11 STEM domains</div>
+          <div class="stat-subtext">Across 12 STEM &amp; Hardening domains</div>
         </div>
         <div class="stat-card highlight">
-          <div class="stat-num">110,000</div>
+          <div class="stat-num">20,602</div>
           <div class="stat-label">Verified Correct</div>
-          <div class="stat-subtext">100.00% verified rate</div>
+          <div class="stat-subtext">41.20% verified delivery rate</div>
         </div>
         <div class="stat-card">
-          <div class="stat-num">0</div>
+          <div class="stat-num">29,398</div>
           <div class="stat-label">Safely Withheld</div>
-          <div class="stat-subtext">0.00% safely withheld</div>
+          <div class="stat-subtext">58.80% safely withheld</div>
         </div>
         <div class="stat-card highlight">
           <div class="stat-num">0</div>
@@ -773,17 +773,19 @@
 
     <!-- CURRENT VALIDATION PANEL -->
     <section class="section-card" aria-labelledby="currentValidationHeading">
-      <h2 id="currentValidationHeading">🛡️ Current Validation</h2>
+      <h2 id="currentValidationHeading">🛡️ Current Validation (v1.8.16 — Task #6 Deterministic Verification Hardening)</h2>
 
       <div class="meta-bar">
-        <div class="meta-item"><span>Engine Version:</span> <strong>Pythos v1.8.9</strong></div>
-        <div class="meta-item"><span>Validation Campaign:</span> <strong>Fresh Online 110K (Remote Groq Cloud)</strong></div>
-        <div class="meta-item"><span>PRNG Stream Seed:</span> <strong><code>2718281828</code></strong></div>
-        <div class="meta-item"><span>Last Validated:</span> <strong>September 24, 2026</strong></div>
+        <div class="meta-item"><span>Current Release Version:</span> <strong>Pythos v1.8.16</strong></div>
+        <div class="meta-item"><span>Validation Campaign:</span> <strong>Task #6 Deterministic Verification Hardening (50K Fresh Blind Benchmark)</strong></div>
+        <div class="meta-item"><span>PRNG Stream Seed:</span> <strong><code>1618033988</code></strong></div>
+        <div class="meta-item"><span>Last Validated:</span> <strong>September 28, 2026</strong></div>
       </div>
 
       <div class="callout">
-        <strong>100.00% of benchmark problems produced a verified correct answer.</strong> Across this 110,000-problem fresh blind validation campaign, Pythos delivered 110,000 verified-correct answers with zero incorrect answers delivered. All 11 mathematical domains completed at 100% verified correctness.
+        <strong>Across this fresh 50,000-problem blind validation campaign, Pythos delivered 20,602 verified-correct answers, safely withheld 29,398 cases, and delivered zero incorrect answers.</strong>
+        <p style="margin-top: 8px;">The campaign recorded zero verification escapes.</p>
+        <p style="margin-top: 8px; font-size: 0.9rem; opacity: 0.9;"><em>Note on Delivery Rate vs. "Accuracy":</em> The 41.20% rate reflects verified-correct deliveries divided by total blind problems (20,602 / 50,000). The remaining 58.80% (29,398 problems) were safely withheld by design when formal verification proofs were incomplete, ensuring zero erroneous answers reached the user.</p>
       </div>
 
       <div class="data-table-wrap">
@@ -799,20 +801,20 @@
           <tbody>
             <tr>
               <th scope="row">Problems Tested</th>
-              <td>110,000</td>
+              <td>50,000</td>
               <td>100.00%</td>
               <td>Statistically significant large-scale validation</td>
             </tr>
             <tr>
               <th scope="row">Verified Correct</th>
-              <td>110,000</td>
-              <td>100.00%</td>
-              <td>High deterministic resolution rate</td>
+              <td>20,602</td>
+              <td>41.20%</td>
+              <td>High deterministic &amp; CAS verified resolution</td>
             </tr>
             <tr>
               <th scope="row">Safely Withheld (UNKNOWN)</th>
-              <td>0</td>
-              <td>0.00%</td>
+              <td>29,398</td>
+              <td>58.80%</td>
               <td>Safe suppression when confidence is incomplete</td>
             </tr>
             <tr>
@@ -822,30 +824,54 @@
               <td><strong>Zero incorrect answers delivered</strong></td>
             </tr>
             <tr>
+              <th scope="row">Verification Catches</th>
+              <td>4,832</td>
+              <td>9.66%</td>
+              <td>Unsound / contradictory candidates blocked at gate</td>
+            </tr>
+            <tr>
               <th scope="row">Verification Escapes</th>
               <td>0</td>
               <td>0.00%</td>
               <td>Zero unverified mathematical claims escaped</td>
             </tr>
             <tr>
-              <th scope="row">False-Positive Rejections</th>
+              <th scope="row">Critical Hardening: Impossible-Premise Leaks</th>
               <td>0</td>
               <td>0.00%</td>
-              <td>Zero valid mathematical proofs rejected</td>
+              <td>Zero contradictory/impossible geometric or math premises leaked</td>
+            </tr>
+            <tr>
+              <th scope="row">Critical Hardening: Polynomial/Calculus Substring Leaks</th>
+              <td>0</td>
+              <td>0.00%</td>
+              <td>Zero arithmetic fragments extracted from algebra/calculus</td>
+            </tr>
+            <tr>
+              <th scope="row">Critical Hardening: Stale Multi-Turn Leaks</th>
+              <td>0</td>
+              <td>0.00%</td>
+              <td>Zero stale conversational turn state rediscovery</td>
+            </tr>
+            <tr>
+              <th scope="row">Critical Hardening: Adversarial Escapes</th>
+              <td>0</td>
+              <td>0.00%</td>
+              <td>Zero adversarial trick questions bypassed verification</td>
             </tr>
             <tr>
               <th scope="row">Observed Delivered Error Rate</th>
-              <td colspan="3">0.00% &nbsp; (95% Wilson Score CI: <code>[0.0000%, 0.0034%]</code>)</td>
+              <td colspan="3">0.00% &nbsp; (95% Wilson Score CI: <code>[0.0000%, 0.0074%]</code>)</td>
             </tr>
             <tr>
               <th scope="row">Execution Telemetry</th>
-              <td colspan="3">Runtime: 37,646.67s (~10.45 hrs) &bull; Peak Node Heap: 132.1 MB &bull; CAS Concurrency: &le;4 workers steady-state &bull; Provider Failures: 0 &bull; Local LLM Inference: 0%</td>
+              <td colspan="3">Runtime: 4,457.9s (~1.24 hrs) &bull; Peak Node Heap: 148.6 MB &bull; CAS Verification Catches: 4,832 &bull; Provider Failures Withheld: 60 (HTTP 429 retries exhausted; cleanly failed closed into UNKNOWN)</td>
             </tr>
           </tbody>
         </table>
       </div>
 
-      <h3>Domain Performance Breakdown (110,000 Problems)</h3>
+      <h3>Domain Performance Breakdown (50,000 Problems across 12 Domains)</h3>
       <div class="data-table-wrap">
         <table>
           <thead>
@@ -855,97 +881,127 @@
               <th scope="col">Verified Correct</th>
               <th scope="col">Safely Withheld</th>
               <th scope="col">Incorrect</th>
-              <th scope="col">Accuracy Status</th>
+              <th scope="col">Catches</th>
+              <th scope="col">Status</th>
             </tr>
           </thead>
           <tbody>
             <tr>
               <th scope="row">Arithmetic</th>
-              <td>10,000</td>
-              <td>10,000</td>
+              <td>4,200</td>
+              <td>4,194</td>
+              <td>6</td>
               <td>0</td>
-              <td>0</td>
-              <td><span class="badge-perfect">100.00% Verified</span></td>
+              <td>4</td>
+              <td><span class="badge-perfect">0 Escapes</span></td>
             </tr>
             <tr>
               <th scope="row">Fractions / Decimals / Percentages</th>
-              <td>10,000</td>
-              <td>10,000</td>
+              <td>4,200</td>
+              <td>319</td>
+              <td>3,881</td>
               <td>0</td>
-              <td>0</td>
-              <td><span class="badge-perfect">100.00% Verified</span></td>
+              <td>2,535</td>
+              <td><span class="badge-perfect">0 Escapes</span></td>
             </tr>
             <tr>
               <th scope="row">Linear Equations</th>
-              <td>10,000</td>
-              <td>10,000</td>
+              <td>4,200</td>
+              <td>4,199</td>
+              <td>1</td>
               <td>0</td>
               <td>0</td>
-              <td><span class="badge-perfect">100.00% Verified (Repaired Router)</span></td>
+              <td><span class="badge-perfect">0 Escapes</span></td>
             </tr>
             <tr>
               <th scope="row">Systems of Equations</th>
-              <td>10,000</td>
-              <td>10,000</td>
+              <td>4,200</td>
+              <td>4,190</td>
+              <td>10</td>
               <td>0</td>
               <td>0</td>
-              <td><span class="badge-perfect">100.00% Verified</span></td>
+              <td><span class="badge-perfect">0 Escapes</span></td>
             </tr>
             <tr>
               <th scope="row">Quadratics &amp; Polynomials</th>
-              <td>10,000</td>
-              <td>10,000</td>
+              <td>4,200</td>
+              <td>4,193</td>
+              <td>7</td>
               <td>0</td>
               <td>0</td>
-              <td><span class="badge-perfect">100.00% Verified</span></td>
+              <td><span class="badge-perfect">0 Escapes</span></td>
             </tr>
             <tr>
               <th scope="row">Functions &amp; Algebra</th>
-              <td>10,000</td>
-              <td>10,000</td>
+              <td>4,200</td>
+              <td>0</td>
+              <td>4,200</td>
               <td>0</td>
               <td>0</td>
-              <td><span class="badge-perfect">100.00% Verified</span></td>
+              <td><span class="badge-perfect">0 Escapes</span></td>
             </tr>
             <tr>
-              <th scope="row">Geometry</th>
-              <td>10,000</td>
-              <td>10,000</td>
+              <th scope="row">Geometry &amp; Trigonometry</th>
+              <td>4,200</td>
+              <td>1,068</td>
+              <td>3,132</td>
               <td>0</td>
-              <td>0</td>
-              <td><span class="badge-perfect">100.00% Verified</span></td>
-            </tr>
-            <tr>
-              <th scope="row">Trigonometry</th>
-              <td>10,000</td>
-              <td>10,000</td>
-              <td>0</td>
-              <td>0</td>
-              <td><span class="badge-perfect">100.00% Verified</span></td>
+              <td>764</td>
+              <td><span class="badge-perfect">0 Escapes</span></td>
             </tr>
             <tr>
               <th scope="row">Calculus (Derivatives &amp; Integrals)</th>
-              <td>10,000</td>
-              <td>10,000</td>
+              <td>4,200</td>
+              <td>4</td>
+              <td>4,196</td>
               <td>0</td>
               <td>0</td>
-              <td><span class="badge-perfect">100.00% Verified</span></td>
+              <td><span class="badge-perfect">0 Escapes</span></td>
             </tr>
             <tr>
               <th scope="row">Probability &amp; Statistics</th>
-              <td>10,000</td>
-              <td>10,000</td>
+              <td>4,200</td>
+              <td>3</td>
+              <td>4,197</td>
               <td>0</td>
               <td>0</td>
-              <td><span class="badge-perfect">100.00% Verified</span></td>
+              <td><span class="badge-perfect">0 Escapes</span></td>
             </tr>
             <tr>
               <th scope="row">Physics / Mechanics</th>
-              <td>10,000</td>
-              <td>10,000</td>
+              <td>4,200</td>
+              <td>0</td>
+              <td>4,200</td>
               <td>0</td>
               <td>0</td>
-              <td><span class="badge-perfect">100.00% Verified</span></td>
+              <td><span class="badge-perfect">0 Escapes</span></td>
+            </tr>
+            <tr>
+              <th scope="row">Adversarial &amp; Trick Questions</th>
+              <td>4,000</td>
+              <td>0</td>
+              <td>4,000</td>
+              <td>0</td>
+              <td>756</td>
+              <td><span class="badge-perfect">0 Escapes</span></td>
+            </tr>
+            <tr>
+              <th scope="row">Multi-Turn Context &amp; Corrections</th>
+              <td>4,000</td>
+              <td>2,432</td>
+              <td>1,568</td>
+              <td>0</td>
+              <td>773</td>
+              <td><span class="badge-perfect">0 Escapes</span></td>
+            </tr>
+            <tr style="font-weight: bold; background: var(--hover-bg);">
+              <th scope="row">Total Aggregates</th>
+              <td>50,000</td>
+              <td>20,602</td>
+              <td>29,398</td>
+              <td>0</td>
+              <td>4,832</td>
+              <td><span class="badge-perfect">0 Escapes (100% Guarded)</span></td>
             </tr>
           </tbody>
         </table>
@@ -1035,38 +1091,88 @@
           <thead>
             <tr>
               <th scope="col">Campaign</th>
+              <th scope="col">Engine Version</th>
               <th scope="col">Model / Environment</th>
               <th scope="col">PRNG Seed</th>
               <th scope="col">Tested</th>
               <th scope="col">Verified Correct</th>
               <th scope="col">Safely Withheld</th>
               <th scope="col">Incorrect Delivered</th>
-              <th scope="col">Verified Rate</th>
+              <th scope="col">Verification Escapes</th>
+              <th scope="col">Delivered Error Rate</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <th scope="row">v1.8.9 Fresh Online Validation</th>
+              <th scope="row">Task #6 Final 50K Validation</th>
+              <td><strong>v1.8.16</strong></td>
+              <td>Groq Cloud (openai/gpt-oss-20b) + Hardened Verification Pipeline</td>
+              <td><code>1618033988</code></td>
+              <td>50,000</td>
+              <td>20,602</td>
+              <td>29,398</td>
+              <td>0</td>
+              <td>0</td>
+              <td><span class="badge-perfect">0.000%</span></td>
+            </tr>
+            <tr>
+              <th scope="row">Task #6 Initial 50K Audit</th>
+              <td>v1.8.15</td>
+              <td>Deterministic Verification Bridge + Remote Groq Cloud</td>
+              <td><code>2718281828</code></td>
+              <td>50,000</td>
+              <td>16,202</td>
+              <td>33,797</td>
+              <td>1 (ADV_2001)</td>
+              <td>1</td>
+              <td><span class="badge-safe">0.002% (Repaired in v1.8.16)</span></td>
+            </tr>
+            <tr>
+              <th scope="row">Task #5 Blind Validation</th>
+              <td>v1.8.14</td>
+              <td>Unprotected Deterministic Fast-Path + Remote Groq Cloud</td>
+              <td><code>3141592653</code></td>
+              <td>50,000</td>
+              <td>20,267</td>
+              <td>16,122</td>
+              <td>13,611</td>
+              <td>13,611</td>
+              <td><span class="badge-warn" style="color:var(--danger, #ef4444);">27.222% (Router Leaks)</span></td>
+            </tr>
+            <tr>
+              <th scope="row">Fresh Online 110K Validation</th>
+              <td>v1.8.9</td>
               <td>Groq Cloud (openai/gpt-oss-20b) + Local CAS</td>
               <td><code>2718281828</code></td>
               <td>110,000</td>
               <td>110,000</td>
               <td>0</td>
               <td>0</td>
-              <td><span class="badge-perfect">100.00%</span></td>
+              <td>0</td>
+              <td><span class="badge-perfect">0.000%</span></td>
             </tr>
             <tr>
-              <th scope="row">v1.8.4 Frozen Benchmark</th>
+              <th scope="row">Frozen Benchmark 50K</th>
+              <td>v1.8.4</td>
               <td>Deterministic Verifier (Math.js + SymPy)</td>
               <td><code>1618033988</code></td>
               <td>50,000</td>
               <td>47,907</td>
               <td>2,093</td>
               <td>0</td>
-              <td><span class="badge-safe">95.81%</span></td>
+              <td>0</td>
+              <td><span class="badge-perfect">0.000%</span></td>
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div class="callout" style="margin-top: 14px;">
+        <strong>Architectural Progression — From Task #5 Leaks to Task #6 Hardening:</strong> In Task #5 (50,000 problems under v1.8.14), Pythos recorded 13,611 incorrect deliveries. Deep forensic analysis traced 100% of these escapes to upstream deterministic router bypasses: simple arithmetic regex matches in <code>deterministicRouter.js</code> and <code>server.js</code> were directly returning answers without passing through the AST claim verifier, prompt-to-claim fidelity evaluator, or candidate delivery gate. Task #6 systematically re-architected this boundary: deterministic router outputs are strictly classified as candidate answers that must survive full pipeline verification or fail closed.
+      </div>
+
+      <div class="callout" style="margin-top: 14px;">
+        <strong>Engineering History &amp; Resolution of ADV_2001:</strong> During the initial Task #6 50,000-problem campaign, a single incorrect delivery occurred on problem <code>ADV_2001</code> (prompt: <em>"In a triangle with sides 2, 3, and 10, find the perimeter."</em>). While the LLM recognized that the triangle was impossible by the triangle inequality, Pythos delivered the string <em>"No such triangle exists."</em> when the benchmark ground truth required withholding the perimeter computation. Investigation identified two defects: (1) <code>deterministicRouter.js</code> lacked a formal triangle inequality check ($a + b > c$) and failed to parse Oxford commas in side lists, and (2) contradictory/impossible premise detections were delivering explanatory text rather than safely withholding. In v1.8.16, formal triangle inequality verification and fail-closed withholding for contradictory premises were introduced. In the final 50,000-problem campaign, zero escapes occurred on <code>ADV_2001</code> and all 4,000 adversarial trick problems were safely withheld.
       </div>
 
       <div class="callout" style="margin-top: 14px;">
@@ -1074,7 +1180,7 @@
       </div>
 
       <div class="callout" style="margin-top: 14px;">
-        <strong>Engineering Integrity Notice:</strong> While Pythos achieved a 100.00% verified delivery rate across this 110,000-problem blind benchmark with zero incorrect answers delivered, a finite benchmark does not guarantee universal mathematical correctness across every possible future question. Pythos is engineered to systematically verify candidate reasoning and safely withhold answers whenever proof or confidence is incomplete.
+        <strong>Engineering Integrity Notice:</strong> While Pythos achieved zero incorrect delivered answers and zero verification escapes across this fresh 50,000-problem blind validation campaign, finite benchmarks do not constitute a mathematical proof of universal correctness across all conceivable future inputs. Pythos is engineered to systematically verify candidate mathematical reasoning and safely withhold answers whenever proof or confidence is incomplete.
       </div>
     </section>
 
@@ -1187,7 +1293,7 @@
       <a href="../about/">About</a> &bull;
       <a href="../nonprofit.html">Mission & Roadmap</a> &bull;
       <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer">Facebook</a> &bull;
-      <a href="../changelog.html#pythos-1-8-9">v1.8.9</a>
+      <a href="../changelog.html#pythos-1-8-16">v1.8.16</a>
     </div>
   </footer>
 

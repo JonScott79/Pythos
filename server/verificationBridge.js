@@ -126,7 +126,7 @@ function evaluateCandidateDelivery({ candidateAnswer, verifications = [], contra
   // --- TASK #3 ADVERSARIAL BENCHMARK SAFEGUARDS ---
 
   // 1. Contradictory Geometric Premises: Triangle Inequality Violation
-  const triSidesMatch = prompt.match(/(?:sides|legs)?\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)(?:\s*,|\s*and)\s*(\d+(?:\.\d+)?)/i);
+  const triSidesMatch = prompt.match(/(?:sides|legs|lengths)?(?:\s+of)?\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*(?:,\s*and|\s+and|,)\s*(\d+(?:\.\d+)?)/i);
   if (/\btriangle\b/i.test(prompt) && triSidesMatch) {
     const s1 = parseFloat(triSidesMatch[1]);
     const s2 = parseFloat(triSidesMatch[2]);
@@ -634,6 +634,27 @@ function extractClaims(text, userPrompt = '') {
         proposed_value: match[4].trim()
       }
     });
+  }
+
+  // 4b. Triangle Inequality & Geometric Impossibility Claims
+  const triSideRegex = /(?:sides|legs|lengths)?(?:\s+of)?\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*(?:,\s*and|\s+and|,)\s*(\d+(?:\.\d+)?)/i;
+  const triMatch = (promptStr && /\btriangle\b/i.test(promptStr)) ? promptStr.match(triSideRegex) : text.match(triSideRegex);
+  if (triMatch && (/\btriangle\b/i.test(promptStr) || /\btriangle\b/i.test(text))) {
+    const s1 = parseFloat(triMatch[1]);
+    const s2 = parseFloat(triMatch[2]);
+    const s3 = parseFloat(triMatch[3]);
+    if (!isNaN(s1) && !isNaN(s2) && !isNaN(s3)) {
+      claims.push({
+        domain: 'geometry',
+        claim_type: 'triangle_inequality',
+        raw_match: triMatch[0],
+        data: {
+          sides: [s1, s2, s3],
+          userPrompt: promptStr
+        },
+        userPrompt: promptStr
+      });
+    }
   }
 
   // 4. Matrix Determinants (e.g. \det(A) = -2 or det([[1,2],[3,4]]) = -2)
@@ -1444,6 +1465,16 @@ function auditInternalConsistency(claims) {
         }
       } else {
         seenExpressions.set(normalizedExpr, { val, claim: c });
+      }
+    }
+
+    if (c.domain === 'geometry' && c.claim_type === 'triangle_inequality' && c.data && Array.isArray(c.data.sides)) {
+      const [s1, s2, s3] = c.data.sides;
+      if (s1 + s2 <= s3 || s1 + s3 <= s2 || s2 + s3 <= s1) {
+        contradictions.push({
+          type: 'GEOMETRIC_CONTRADICTION',
+          details: `Geometric contradiction: Side lengths ${s1}, ${s2}, ${s3} violate the Triangle Inequality (${s1} + ${s2} <= ${s3}).`
+        });
       }
     }
 

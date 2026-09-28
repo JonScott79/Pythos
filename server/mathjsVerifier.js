@@ -832,6 +832,52 @@ const MathJSVerifier = {
   },
 
   /**
+   * Level 7b: Triangle Inequality & Geometric Impossibility Verification
+   */
+  verifyTriangleInequality(data) {
+    const { sides } = data;
+    if (!Array.isArray(sides) || sides.length < 3) {
+      return {
+        verified: false,
+        engine: 'mathjs',
+        status: 'UNKNOWN',
+        reason: 'Three side lengths are required to verify the triangle inequality.'
+      };
+    }
+    const [a, b, c] = sides.map(Number);
+    if (isNaN(a) || isNaN(b) || isNaN(c) || a <= 0 || b <= 0 || c <= 0) {
+      return {
+        verified: false,
+        engine: 'mathjs',
+        status: 'GEOMETRIC_IMPOSSIBILITY',
+        error_type: 'INVALID_SIDE_LENGTH',
+        is_impossible: true,
+        details: `Side lengths must be positive numbers; received [${a}, ${b}, ${c}].`
+      };
+    }
+
+    const violates = (a + b <= c) || (a + c <= b) || (b + c <= a);
+    if (violates) {
+      return {
+        verified: false,
+        engine: 'mathjs',
+        status: 'GEOMETRIC_IMPOSSIBILITY',
+        error_type: 'TRIANGLE_INEQUALITY_VIOLATION',
+        is_impossible: true,
+        details: `Triangle with side lengths ${a}, ${b}, ${c} violates the Triangle Inequality: sum of any two sides must be strictly greater than the third side.`
+      };
+    }
+
+    return {
+      verified: true,
+      engine: 'mathjs',
+      status: 'VERIFIED',
+      is_impossible: false,
+      details: `Triangle with side lengths ${a}, ${b}, ${c} satisfies the Triangle Inequality.`
+    };
+  },
+
+  /**
    * Level 8: Systems of Linear Equations (Simultaneous Verification)
    */
   verifySystemSolution(claim) {
@@ -1168,6 +1214,9 @@ const MathJSVerifier = {
     }
 if (domain === 'geometry' && (claim_type === 'right_triangle_geometry' || claim_type === 'right_triangle_sides')) {
       return this.verifyRightTriangle(data);
+    }
+    if (domain === 'geometry' && (claim_type === 'triangle_inequality' || claim_type === 'triangle_validity' || claim_type === 'impossible_premise')) {
+      return this.verifyTriangleInequality(data);
     }
     // Physics: Kinematics
     if (domain === 'physics' && (claim_type === 'kinematics_velocity' || claim_type === 'kinematics')) {

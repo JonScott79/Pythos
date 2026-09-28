@@ -1,3 +1,30 @@
+## Pythos 1.8.16
+**Release Date:** September 28, 2026
+
+### Added & Hardened
+- **Deterministic Verification Pipeline Hardening** (`server.js`, `verificationBridge.js`, `deterministicRouter.js`):
+  - Deterministic fast-path delivery strictly passes through the complete verification pipeline.
+  - Deterministic solutions are treated exclusively as candidate answers; they must undergo candidate extraction, AST claim verification, prompt-to-claim fidelity, and candidate delivery gating prior to delivery.
+  - Implemented fail-closed withholding: candidates with unverified or contradictory claims fall through cleanly to the core LLM reasoning and CAS verification pipeline.
+- **Whole-Input Arithmetic Protection** (`deterministicRouter.js`):
+  - Arithmetic fast-path recognition is restricted to standalone, whole-input mathematical problems, preventing extraction of arithmetic fragments from complex prose or algebra.
+- **Polynomial & Calculus Substring Extraction Protection** (`deterministicRouter.js`):
+  - Universal domain and context boundaries defend variable symbols, polynomials ($x^2, x^3, f(x)$), calculus notation ($d/dx, \int$), geometry concepts, and physical quantities against arithmetic fragment extraction.
+- **Active-Problem-State Handling for Multi-Turn Arithmetic** (`contextManager.js`, `deterministicRouter.js`):
+  - Sequential mathematical directives (e.g. *"Subtract 7 from that"*) dynamically evolve active problem state, eliminating stale turn rediscovery.
+- **Prompt-to-Claim Fidelity Protection** (`verificationBridge.js`):
+  - Expanded prompt-to-claim verification detects variable/target substitutions, sign modifications, and premise contradictions.
+- **Formal Triangle Inequality Verification & Oxford-Comma Parsing** (`deterministicRouter.js`):
+  - Added strict geometric triangle inequality checking ($a + b > c, a + c > b, b + c > a$) with robust parsing for Oxford-comma side lists (e.g. *"sides 2, 3, and 10"*).
+- **Impossible-Premise Detection & Fail-Closed Delivery** (`mathjsVerifier.js`, `verificationBridge.js`):
+  - Mathematical queries with contradictory or impossible computational premises (e.g. impossible triangle perimeters) fail closed and are safely withheld rather than delivering raw explanatory strings.
+- **Task #6 50,000-Problem Blind Validation Result**:
+  - Across a fresh 50,000-problem blind validation campaign (PRNG seed `1618033988`), Pythos delivered 20,602 verified-correct answers, safely withheld 29,398 cases, and delivered zero incorrect answers.
+  - The campaign recorded zero verification escapes and 4,832 verification catches.
+  - Verified 0 impossible-premise leaks, 0 polynomial/calculus substring leaks, 0 stale multi-turn leaks, and 0 adversarial escapes.
+  - Fully resolved the historical `ADV_2001` impossible-premise escape discovered in the initial Task #6 run.
+  - Verification rate reflects verified-correct deliveries / total blind problems because the remainder were intentionally withheld. This empirical result does not claim universal mathematical correctness across all possible future inputs.
+
 ## Pythos 1.8.15
 **Release Date:** September 27, 2026
 

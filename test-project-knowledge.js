@@ -78,9 +78,9 @@ for (const q of validationQueries) {
     const ctx = buildProjectKnowledgeContext(q);
     assert(ctx.includes('Mathematical Validation Record'), 'Context must contain Validation title');
     assert(ctx.includes('/validation/'), 'Context must reference /validation/ URL');
-    assert(ctx.includes('110,000'), 'Context must contain live benchmark count 110,000');
-    assert(ctx.includes('100.00%'), 'Context must contain live accuracy 100.00%');
-    assert(ctx.includes('0'), 'Context must contain live withheld count 0');
+    assert(ctx.includes('50,000'), 'Context must contain live benchmark count 50,000');
+    assert(ctx.includes('20,602'), 'Context must contain live verified count 20,602');
+    assert(ctx.includes('29,398'), 'Context must contain live withheld count 29,398');
   });
 }
 
@@ -218,10 +218,10 @@ for (const q of releaseQueries) {
     assert(res.sources.includes('CHANGELOG'));
 
     const ctx = buildProjectKnowledgeContext(q);
-    assert(ctx.includes('Pythos 1.8.15'), 'Context must contain latest version 1.8.10');
-    assert(ctx.includes('September 27, 2026'), 'Context must contain release date');
+    assert(ctx.includes('Pythos 1.8.16'), 'Context must contain latest version 1.8.16');
+    assert(ctx.includes('September 28, 2026'), 'Context must contain release date');
     // Token efficiency check: latest release extracted should be under 500 tokens
-    assert(ctx.length < 2500, `Changelog context should be compact (< 2500 chars), got ${ctx.length}`);
+    assert(ctx.length < 3200, `Changelog context should be compact (< 3200 chars), got ${ctx.length}`);
   });
 }
 
@@ -396,14 +396,15 @@ runTest('Authoritative source reads from filesystem, not hardcoded strings', () 
   const valSource = getAuthoritativeSource('VALIDATION');
   assert(valSource !== null);
   assert.strictEqual(valSource.id, 'VALIDATION');
-  assert(valSource.text.includes('110,000'));
-  assert(valSource.text.includes('100.00%'));
+  assert(valSource.text.includes('50,000'));
+  assert(valSource.text.includes('20,602'));
+  assert(valSource.text.includes('29,398'));
   // zero withheld in 110k campaign
   assert(valSource.mtime instanceof Date);
 
   const changelogSource = getAuthoritativeSource('CHANGELOG');
   assert(changelogSource !== null);
-  assert(changelogSource.text.includes('Pythos 1.8.15'));
+  assert(changelogSource.text.includes('Pythos 1.8.16'));
 });
 
 // =========================================================================

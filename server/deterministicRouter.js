@@ -1056,8 +1056,8 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   if (/\b(?:what\s+is\s+wrong|find\s+(?:the\s+)?error|find\s+(?:the\s+)?mistake|where\s+is\s+the\s+(?:error|mistake)|is\s+this\s+(?:solution\s+)?valid|check\s+(?:my|this)\s+(?:work|solution))\b/i.test(clean)) {
     return null; // Defer to pedagogical analysis, do NOT fast-path solve equation!
   }  // Multi-Turn Chained Arithmetic Handler (e.g. "Subtract 7 from that", "Add 10 to that", "Multiply that by 3")
-  const chainedArithMatch = clean.match(/^(?:now\s+|then\s+)?(subtract|add|multiply|divide|plus|minus|times)\s+([\d.]+)(?:\s+(?:from|to|by)\s+(?:that|it|the\s+result|the\s+previous\s+answer|the\s+answer))?[.?!]?$/i) ||
-                            clean.match(/^(?:now\s+|then\s+)?(subtract|add|multiply|divide|plus|minus|times)\s+(?:that|it|the\s+result)\s+by\s+([\d.]+)[.?!]?$/i);
+  const chainedArithMatch = clean.match(/^(?:now\s+|then\s+)?(subtract|add|multiply|divide|plus|minus|times)\s+([\d.]+)(?:\s+(?:from|to|by)\s+(?:that|it|the|this)?\s*(?:result|answer|value|previous\s+answer|number)?)?[.?!]?$/i) ||
+                            clean.match(/^(?:now\s+|then\s+)?(subtract|add|multiply|divide|plus|minus|times)\s+(?:that|it|the|this)?\s*(?:result|answer|value|previous\s+answer|number)?\s*(?:by|with)\s+([\d.]+)[.?!]?$/i);
   if (chainedArithMatch && Array.isArray(conversationHistory) && conversationHistory.length > 0) {
     const opWord = chainedArithMatch[1].toLowerCase();
     const operandNum = parseFloat(chainedArithMatch[2]);

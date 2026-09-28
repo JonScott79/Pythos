@@ -401,13 +401,21 @@ app.use(cors({
 app.use(express.json({ limit: '15mb' }));
 app.use(express.static(path.join(__dirname, '..')));
 
+// Standalone version endpoint
+app.get('/version', (req, res) => {
+  const pkg = require('./package.json');
+  res.status(200).json({ version: pkg.version });
+});
+
 // Standalone liveness probe: Returns 200 immediately without depending on Ollama availability
 app.get('/health', (req, res) => {
+  const pkg = require('./package.json');
   const firebaseAdmin = require('./firebaseAdmin');
   const { getCasTelemetry } = require('./verificationBridge');
   res.status(200).json({
     status: 'ok',
     service: 'pythos-api',
+    version: pkg.version,
     model: OLLAMA_MODEL,
     visionModel: OLLAMA_VISION_MODEL,
     hasAuth: Boolean(OLLAMA_API_KEY),

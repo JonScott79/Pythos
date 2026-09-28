@@ -1,0 +1,176 @@
+{
+  "campaign": "TASK_6_FINAL_50K_CAMPAIGN_POST_FIX",
+  "seed": 1618033988,
+  "commit": "258faa2",
+  "timestamp": "2026-09-28T03:47:19.107Z",
+  "runtimeSeconds": 4457.9,
+  "totals": {
+    "totalTested": 50000,
+    "correct": 20602,
+    "withheld": 29398,
+    "incorrect": 0,
+    "catches": 4832,
+    "escapes": 0,
+    "falsePositives": 0
+  },
+  "deterministic": {
+    "generated": 31295,
+    "delivered": 20577,
+    "withheld": 40021,
+    "wrong": 0,
+    "catches": 4818,
+    "escapes": 0
+  },
+  "llm": {
+    "calls": 120,
+    "delivered": 25,
+    "withheld": 95,
+    "wrong": 0,
+    "catches": 11,
+    "escapes": 0
+  },
+  "domainStats": {
+    "ARITHMETIC": {
+      "tested": 4200,
+      "correct": 4194,
+      "withheld": 6,
+      "wrong": 0,
+      "catches": 4,
+      "escapes": 0,
+      "falsePositives": 0,
+      "llmTested": 10,
+      "deterministicTested": 4190
+    },
+    "FRACTIONS": {
+      "tested": 4200,
+      "correct": 319,
+      "withheld": 3881,
+      "wrong": 0,
+      "catches": 2535,
+      "escapes": 0,
+      "falsePositives": 0,
+      "llmTested": 10,
+      "deterministicTested": 4190
+    },
+    "LINEAR_EQUATIONS": {
+      "tested": 4200,
+      "correct": 4199,
+      "withheld": 1,
+      "wrong": 0,
+      "catches": 0,
+      "escapes": 0,
+      "falsePositives": 0,
+      "llmTested": 10,
+      "deterministicTested": 4190
+    },
+    "SYSTEMS_OF_EQUATIONS": {
+      "tested": 4200,
+      "correct": 4190,
+      "withheld": 10,
+      "wrong": 0,
+      "catches": 0,
+      "escapes": 0,
+      "falsePositives": 0,
+      "llmTested": 10,
+      "deterministicTested": 4190
+    },
+    "QUADRATICS": {
+      "tested": 4200,
+      "correct": 4193,
+      "withheld": 7,
+      "wrong": 0,
+      "catches": 0,
+      "escapes": 0,
+      "falsePositives": 0,
+      "llmTested": 10,
+      "deterministicTested": 4190
+    },
+    "FUNCTIONS": {
+      "tested": 4200,
+      "correct": 0,
+      "withheld": 4200,
+      "wrong": 0,
+      "catches": 0,
+      "escapes": 0,
+      "falsePositives": 0,
+      "llmTested": 10,
+      "deterministicTested": 4190
+    },
+    "GEOMETRY_TRIG": {
+      "tested": 4200,
+      "correct": 1068,
+      "withheld": 3132,
+      "wrong": 0,
+      "catches": 764,
+      "escapes": 0,
+      "falsePositives": 0,
+      "llmTested": 10,
+      "deterministicTested": 4190
+    },
+    "CALCULUS": {
+      "tested": 4200,
+      "correct": 4,
+      "withheld": 4196,
+      "wrong": 0,
+      "catches": 0,
+      "escapes": 0,
+      "falsePositives": 0,
+      "llmTested": 10,
+      "deterministicTested": 4190
+    },
+    "PROBABILITY_STATS": {
+      "tested": 4200,
+      "correct": 3,
+      "withheld": 4197,
+      "wrong": 0,
+      "catches": 0,
+      "escapes": 0,
+      "falsePositives": 0,
+      "llmTested": 10,
+      "deterministicTested": 4190
+    },
+    "PHYSICS": {
+      "tested": 4200,
+      "correct": 0,
+      "withheld": 4200,
+      "wrong": 0,
+      "catches": 0,
+      "escapes": 0,
+      "falsePositives": 0,
+      "llmTested": 10,
+      "deterministicTested": 4190
+    },
+    "ADVERSARIAL_TRICK": {
+      "tested": 4000,
+      "correct": 0,
+      "withheld": 4000,
+      "wrong": 0,
+      "catches": 756,
+      "escapes": 0,
+      "falsePositives": 0,
+      "llmTested": 10,
+      "deterministicTested": 3990
+    },
+    "MULTI_TURN": {
+      "tested": 4000,
+      "correct": 2432,
+      "withheld": 1568,
+      "wrong": 0,
+      "catches": 773,
+      "escapes": 0,
+      "falsePositives": 0,
+      "llmTested": 10,
+      "deterministicTested": 3990
+    }
+  },
+  "providerTelemetry": {
+    "totalRequests": 266,
+    "successfulResponses": 60,
+    "providerFailures": 60,
+    "rateLimit429Events": 206,
+    "retries": 206,
+    "modelName": "openai/gpt-oss-20b",
+    "providerName": "groq-text"
+  },
+  "forensics": []
+}

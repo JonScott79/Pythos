@@ -699,8 +699,8 @@ function buildEffectivePrompt(messages = []) {
     }
 
     // Sequential arithmetic / operations follow-ups: e.g. "Subtract 7 from that", "Now add 12", "Multiply that by 3"
-    const seqMatch = turnText.match(/^(?:now\s+|then\s+)?(subtract|add|multiply|divide|plus|minus|times)\s+([\d.]+)(?:\s+(?:from|to|by)\s+(?:that|it|the\s+result|the\s+previous\s+answer))?[.?!]?$/i) ||
-                     turnText.match(/^(?:now\s+|then\s+)?(subtract|add|multiply|divide|plus|minus|times)\s+(?:that|it|the\s+result)\s+by\s+([\d.]+)[.?!]?$/i);
+    const seqMatch = turnText.match(/^(?:now\s+|then\s+)?(subtract|add|multiply|divide|plus|minus|times)\s+([\d.]+)(?:\s+(?:from|to|by)\s+(?:that|it|the|this)?\s*(?:result|answer|value|previous\s+answer|number)?)?[.?!]?$/i) ||
+                     turnText.match(/^(?:now\s+|then\s+)?(subtract|add|multiply|divide|plus|minus|times)\s+(?:that|it|the|this)?\s*(?:result|answer|value|previous\s+answer|number)?\s*(?:by|with)\s+([\d.]+)[.?!]?$/i);
     if (seqMatch) {
       effective = effective.replace(/[?.!]+$/, '') + '. Then ' + turnText + '.';
       continue;
