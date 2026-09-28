@@ -152,6 +152,7 @@ assert(appJs.includes('showThinking') && appJs.includes('aria-hidden="true"') &&
 // Focus management in JS
 assert(appJs.includes('openMathGuide') && appJs.includes('closeMathGuide'), 'Math input guide has explicit focus open/close handlers');
 assert(appJs.includes('previouslyFocused') && appJs.includes('showPythosConfirm'), 'Delete confirmation modal restores previous focus on dismiss');
+assert(appJs.includes('okBtn.focus()'), 'Delete confirmation modal auto-focuses confirm button for streamlined mass deletion');
 
 // 3. LANGUAGE ACCESSIBILITY AUDIT
 console.log('\n--- Auditing Language Selector Accessibility ---');
@@ -163,8 +164,9 @@ assert(appJs.includes('LANG_LOCALES') && appJs.includes('aria-pressed'), 'Langua
 
 // 4. VERSION LINK & CHANGELOG ANCHOR AUDIT
 console.log('\n--- Auditing Version Links & Changelog Integrity ---');
-assert(indexHtml.includes('href="changelog.html#pythos-1-8-17"'), 'Version link points to #pythos-1-8-17 anchor');
-assert(changelogHtml.includes('id="pythos-1-8-17"'), 'Changelog has target anchor id="pythos-1-8-17"');
+assert(indexHtml.includes('href="changelog.html#pythos-1-8-18"'), 'Version link points to #pythos-1-8-18 anchor');
+assert(changelogHtml.includes('id="pythos-1-8-18"'), 'Changelog has target anchor id="pythos-1-8-18"');
+assert(changelogHtml.includes('id="pythos-1-8-17"'), 'Changelog retains previous release anchor id="pythos-1-8-17"');
 assert(changelogHtml.includes('id="pythos-1-8-16"'), 'Changelog retains previous release anchor id="pythos-1-8-16"');
 assert(changelogHtml.includes('id="pythos-1-8-15"'), 'Changelog retains previous release anchor id="pythos-1-8-15"');
 assert(changelogHtml.includes('id="pythos-1-8-11"'), 'Changelog has target anchor id="pythos-1-8-11"');
@@ -189,7 +191,7 @@ assert(changelogHtml.includes('id="pythos-1-6-1"'), 'Changelog retains previous 
 assert(changelogHtml.includes('id="pythos-1-6-0"'), 'Changelog retains previous release anchor id="pythos-1-6-0"');
 assert(changelogHtml.includes('id="pythos-1-5-0"'), 'Changelog retains previous release anchor id="pythos-1-5-0"');
 assert(changelogHtml.includes('class="back-btn"') && changelogHtml.includes('href="index.html"'), 'Changelog has back-link to workspace');
-assert(indexHtml.includes('aria-label="Version 1.8.17 Release Notes"'), 'Version links have accessible screen reader names');
+assert(indexHtml.includes('aria-label="Version 1.8.18 Release Notes"'), 'Version links have accessible screen reader names');
 
 // 5. CONVERSATION HISTORY AUDIT
 console.log('\n--- Auditing Conversation History Filtering ---');

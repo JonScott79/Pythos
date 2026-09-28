@@ -1,3 +1,12 @@
+## Pythos 1.8.18 (HOTFIX)
+**Release Date:** September 28, 2026
+
+### Fixed & Streamlined
+- **Session Erasure Confirmation Auto-Focus** (`app.js`, `index.html`):
+  - Automatically targets keyboard focus to the "Erase Session" confirmation action (`#pythosConfirmOk`) when the deletion modal appears.
+  - Streamlines mass discussion deletion by enabling rapid keyboard confirmation via Enter or Space without requiring extra tabbing past the cancellation button.
+  - Added HTML `autofocus` attribute on the confirm button and synchronized animation-frame focus management.
+
 ## Pythos 1.8.17
 **Release Date:** September 28, 2026
 

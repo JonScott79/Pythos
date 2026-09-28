@@ -2098,8 +2098,14 @@ function showPythosConfirm(message = "Are you sure you wish to delete this chat 
     if (msgEl) msgEl.textContent = message;
     if (quoteEl) quoteEl.textContent = getRandomGreekQuote();
     modal.classList.add("visible");
-    modal.focus();
-    if (cancelBtn) cancelBtn.focus();
+    if (okBtn) {
+      okBtn.focus();
+    } else if (cancelBtn) {
+      cancelBtn.focus();
+    }
+    requestAnimationFrame(() => {
+      if (okBtn) okBtn.focus();
+    });
 
     const cleanup = (result) => {
       modal.classList.remove("visible");
