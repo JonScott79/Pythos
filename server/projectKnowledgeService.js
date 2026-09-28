@@ -175,7 +175,7 @@ function cleanHtmlContent(rawHtml, sourceId) {
     .replace(/&mdash;/g, '—')
     .replace(/&ndash;/g, '–');
 
-  const ctaButtonPattern = /^(?:Experience Pythos Free|TRY PYTHOS|GET IN TOUCH|Practice (?:Algebra|Calculus|Physics) in Pythos|Explore (?:Algebra|Calculus|Physics)|Inspect Pythos-Tests Repository ↗)$/i;
+  const ctaButtonPattern = /^(?:Experience Pythos Free|TRY PYTHOS|GET IN TOUCH|Practice (?:Algebra|Calculus|Physics) in Pythos|Explore (?:Algebra|Calculus|Physics)|Inspect Pythos-Tests Repository ↗|View Source on GitHub ↗|View Source on GitHub)$/i;
 
   const lines = clean.split(/\r?\n/)
     .map(l => l.replace(/\s+/g, ' ').trim())

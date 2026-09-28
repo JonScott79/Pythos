@@ -1,3 +1,17 @@
+## Pythos 1.8.17
+**Release Date:** September 28, 2026
+
+### Added & Improved
+- **Open Development & Public Source Code Links**:
+  - Added direct links to the official Pythos repository (`https://github.com/JonScott79/Pythos`) on the About and Validation pages.
+  - Transparently highlights open development, multi-tier deterministic verification architecture, automated test suites, and public development history.
+  - Added GitHub links to the footer navigation across updated pages.
+- **Responsive Call-to-Action Layouts**:
+  - Unified bottom actions on the About page into a single responsive, centered flex action bar with matching typography, padding, and vertical baseline alignment.
+  - Preserved dual-action button layout on the Validation page pairing the primary GitHub repository link with the `Pythos-Tests` benchmark suite telemetry repository.
+- **Project Knowledge Isolation**:
+  - Updated `server/projectKnowledgeService.js` regex filters to ignore GitHub CTA actions and button text, ensuring knowledge context extraction remains clean during student tutoring sessions.
+
 ## Pythos 1.8.16
 **Release Date:** September 28, 2026
 
