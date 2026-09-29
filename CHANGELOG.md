@@ -1,3 +1,11 @@
+## Pythos 1.8.19
+**Release Date:** September 29, 2026
+
+### Added & Hardened
+- **Pythos Free Education License (PFEL v2.0) Public Documentation** (`license.html`, `server/site_sources/license.html`): Added dedicated public documentation and interactive viewer for PFEL v2.0 at `/license`. Details core principles, commercial product integration rules, explicit prohibitions, and access preservation covenants with interactive copy tools and capped, high-contrast scrollable license text.
+- **Global Navigation & Footer Integration** (`index.html`, `nonprofit.html`, `license.html`): Added direct "License" links across header navigation, mobile sidebars, and site footers.
+- **Sitemap & Search Discovery** (`sitemap.xml`): Indexed `/license` in canonical sitemap with full schema metadata and Open Graph / Twitter card tags.
+
 ## Pythos 1.8.18 (HOTFIX)
 **Release Date:** September 28, 2026
 
