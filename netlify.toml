@@ -8,3 +8,21 @@
     X-Content-Type-Options = "nosniff"
     X-XSS-Protection = "1; mode=block"
     Referrer-Policy = "strict-origin-when-cross-origin"
+
+[[redirects]]
+  from = "/license"
+  to = "/license.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/license/"
+  to = "/license.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/LICENSE"
+  to = "/license.html"
+  status = 200
+  force = true
