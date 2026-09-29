@@ -1,0 +1,719 @@
+PYTHOS FREE EDUCATION LICENSE
+Version 2.0
+
+Copyright (c) 2026 Jon Scott / LANZAR
+https://pythos.lanzar.me/
+https://github.com/JonScott79/Pythos
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PREAMBLE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+No kid should be charged to learn.
+
+Pythos is free educational software. It exists to give every
+student, everywhere, access to high-quality mathematics and
+physics tutoring without paying for it.
+
+This license is designed around one principle:
+
+    FREE ACCESS TO PYTHOS MUST ALWAYS BE PRESERVED.
+
+Commercial organizations may include Pythos in paid products,
+platforms, educational systems, enterprise software, and
+subscription services. Commercialization of surrounding products
+is permitted.
+
+What is not permitted is any commercialization that eliminates,
+obstructs, hides, or misrepresents a user's ability to access
+Pythos for free at the official Pythos service.
+
+If a company sells a product that includes Pythos, the company
+must clearly tell every user that Pythos is free and provide a
+direct, functional link to the official free service. That link
+must genuinely work — without payment, without a subscription,
+without a credit card, without purchasing the commercial product.
+
+The rights granted by this license are conditioned on compliance
+with its terms. This is a condition of the license grant, not
+merely a contractual obligation. Use that violates these conditions
+is not authorized and constitutes copyright infringement.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 1. DEFINITIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1.1  "Pythos" means the software program known as Pythos as
+     distributed by the copyright holder, including its source
+     code, object code, documentation, and associated materials.
+
+1.2  "Covered Work" means:
+     (a) Pythos itself;
+     (b) any work containing Pythos source code or any
+         substantial portion thereof;
+     (c) any modification of Pythos;
+     (d) any fork incorporating Pythos source code or substantial
+         portions thereof; or
+     (e) any combination incorporating Pythos source code or
+         substantial portions thereof.
+
+     A Covered Work does NOT include:
+     (i)  works that independently implement similar functionality
+          without copying Pythos expression;
+     (ii) works that interface with a Pythos Network Service
+          through a published API without incorporating Pythos
+          source code; or
+     (iii) works that use only the outputs of Pythos (such as
+           mathematical answers or explanations) without
+           incorporating Pythos source code.
+
+1.3  "Pythos Functionality" means the core capabilities provided
+     by Pythos, including AI-assisted mathematics and physics
+     reasoning, deterministic verification of mathematical claims,
+     prompt-to-claim fidelity analysis, and delivery gate
+     management, or substantially equivalent capabilities in a
+     Covered Work.
+
+1.4  "Pythos Network Service" means any system, application,
+     platform, API, or service that:
+     (a) is made available to users over a network; and
+     (b) uses a Covered Work to process user inputs or requests,
+         including through intermediate processing layers or
+         microservices; and
+     (c) returns Pythos Functionality to those users, directly
+         or through intermediate systems.
+
+     A Pythos Network Service exists regardless of how it is
+     labeled (service, platform, product, tool, API, chatbot,
+     application, or otherwise), and regardless of the number
+     of processing layers between the Covered Work and the user.
+
+1.5  "Official Free Pythos Service" means the free Pythos service
+     operated by the copyright holder at:
+
+         https://pythos.lanzar.me/
+
+     or any successor URL designated by the copyright holder.
+     The authoritative current URL is maintained in the canonical
+     project repository at https://github.com/JonScott79/Pythos
+     in a file named PYTHOS_FREE_URL. Operators who maintain a
+     Free Access Link have a 60-day grace period to update links
+     following any published URL change.
+
+1.6  "Free Access Link" means a hyperlink, URL reference, or
+     other functional reference that satisfies all the
+     requirements of Section 3.2.
+
+1.7  "User" means any person who uses, interacts with, or
+     receives Pythos Functionality through a Covered Work or
+     Pythos Network Service. Where a Covered Work is accessed
+     through an API, Users include both the developers who access
+     the API and, where applicable, the end users of applications
+     built on that API.
+
+1.8  "Operator" means any person or organization that distributes,
+     hosts, deploys, or makes available a Covered Work or Pythos
+     Network Service to Users.
+
+1.9  "You" or "Licensee" means the individual or legal entity
+     exercising rights under this license.
+
+1.10 "Distribute" means to make available to others by any means,
+     including download, physical media, hosted service, API,
+     network service, embedded delivery, or any other mechanism.
+
+1.11 "Contributor" means any person or entity that submits
+     material for inclusion in Pythos.
+
+1.12 "Complete Corresponding Source Code" means the preferred
+     form of the Covered Work for making modifications, including
+     all source code necessary to generate, install, and run the
+     Covered Work, regardless of any intermediate compilation,
+     transpilation, obfuscation, or other transformation applied
+     before deployment.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 2. GRANT OF RIGHTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Subject to the conditions of this license — which are conditions
+of the grant, not merely covenants — the copyright holder grants
+you a worldwide, non-exclusive, royalty-free license to:
+
+     (a) use Pythos for any lawful purpose;
+     (b) study and inspect the Pythos source code;
+     (c) copy and redistribute Pythos;
+     (d) modify Pythos and create Covered Works;
+     (e) run Pythos and Covered Works, including as Pythos
+         Network Services; and
+     (f) make Pythos and Covered Works available to others.
+
+THESE RIGHTS ARE CONDITIONED ON COMPLIANCE WITH THIS LICENSE.
+Exercise of any right granted here in violation of the conditions
+of this license is not authorized and constitutes copyright
+infringement. These obligations are conditions of the license
+grant and are not merely contractual covenants.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 3. FREE ACCESS PRESERVATION — CORE OBLIGATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3.1  FUNDAMENTAL REQUIREMENT.
+
+     Any Operator who distributes, hosts, deploys, or makes
+     available a Covered Work or Pythos Network Service must
+     preserve free access to Pythos by satisfying ALL of the
+     following requirements:
+
+     (a) provide a Free Access Link as defined in Section 3.2;
+     (b) not engage in prohibited obstruction as defined in
+         Section 3.3; and
+     (c) not engage in misrepresentation as defined in Section 3.4.
+
+     These requirements apply regardless of whether the Operator
+     charges for the surrounding product, platform, service,
+     subscription, or software.
+
+3.2  FREE ACCESS LINK REQUIREMENTS.
+
+     A Free Access Link must satisfy ALL of the following
+     objective requirements:
+
+     (a) TARGET. The link must resolve to the Official Free
+         Pythos Service as defined in Section 1.5. A link to
+         any other URL does not satisfy this requirement without
+         written authorization from the copyright holder.
+
+     (b) FUNCTIONAL. The link must return a live, accessible
+         HTTP response at the time a User follows it. A broken,
+         dead, or incorrectly redirecting link does not satisfy
+         this requirement.
+
+     (c) PAYMENT-FREE PATH. Following the link must not require
+         the User to provide payment, a credit card number, bank
+         account information, subscription status, membership
+         status, institutional affiliation, or any form of
+         financial consideration to access Pythos Functionality.
+         The complete path from the link to Pythos Functionality
+         must be traversable at no cost.
+
+     (d) PLACEMENT. The Free Access Link must appear in at
+         least one of the following locations:
+
+         (i)  the primary landing page, product page, or
+              marketing page at which the Operator describes
+              or promotes Pythos Functionality, visible without
+              scrolling past the primary product description;
+
+         (ii) the purchase, checkout, or subscription flow,
+              before payment is confirmed; or
+
+         (iii) within the product interface, accessible within
+               one direct user interaction from any interface at
+               which Pythos Functionality is presented to a User,
+               not buried within menus, dropdowns, accordions,
+               legal pages, or multi-step navigation.
+
+     (e) ACCESSIBILITY WITHOUT AUTHENTICATION OR PURCHASE. The
+         Free Access Link must be accessible to a User who has
+         not logged into, purchased, subscribed to, or paid for
+         the commercial product in any form. If the link exists
+         only inside an authenticated or paid product interface,
+         it does not satisfy this requirement unless it also
+         appears in a pre-authentication, pre-purchase location
+         satisfying (d)(i) or (d)(ii).
+
+     (f) VISUAL PROMINENCE. The Free Access Link must not be
+         styled, positioned, or rendered in a manner designed to
+         discourage Users from noticing or following it.
+         Specifically, the link:
+
+         (i)  must be rendered in a font size no smaller than
+              the smallest body text on the same page or screen;
+
+         (ii) must be rendered with a text-to-background color
+              contrast ratio of at least 3:1 (per WCAG 2.1
+              criterion 1.4.3 or its successor);
+
+         (iii) must not be placed exclusively within a navigation
+              menu, dropdown, accordion, tooltip, or other
+              collapsed UI element that requires a user interaction
+              to reveal, unless the existence and purpose of the
+              link is indicated by a visible, permanently displayed
+              label at that location; and
+
+         (iv) must not require the User to scroll significantly
+              past the principal page content to reach it without
+              any visible indicator of its existence in the
+              above-the-fold viewport.
+
+     (g) ACCURATE AND SPECIFIC LABEL. The Free Access Link must
+         be accompanied by a label or surrounding text that:
+
+         (i)  includes the name "Pythos";
+         (ii) accurately communicates that Pythos is available
+              for free at the linked address; and
+         (iii) does not suggest, imply, or state that payment is
+              required to access the linked resource.
+
+         Examples of compliant labels:
+             "Pythos is free at pythos.lanzar.me"
+             "Access Pythos for free — no payment required"
+             "The original Pythos is freely available at
+              pythos.lanzar.me"
+
+         A vague label that omits the Pythos name or implies
+         a cost does not satisfy this requirement.
+
+3.3  PROHIBITED OBSTRUCTION.
+
+     An Operator must not take any action — whether technical,
+     contractual, communicative, interface-based, or otherwise —
+     that is designed or reasonably likely to prevent, discourage,
+     or impede Users from accessing the Official Free Pythos
+     Service. The following specific acts are prohibited:
+
+     (a) placing the Free Access Link exclusively in legal terms,
+         privacy policies, end-user license agreements, footnotes,
+         or similar documents not ordinarily encountered by Users
+         during normal product use;
+
+     (b) placing the Free Access Link in a location requiring a
+         User to be authenticated into or to have purchased the
+         commercial product to find it, without also providing
+         the link in a pre-authentication, pre-purchase location;
+
+     (c) providing a link that routes the User through an
+         intermediate page requiring payment, registration, or
+         subscription before reaching Pythos Functionality;
+
+     (d) providing a link to a URL that is not the Official Free
+         Pythos Service and that imposes payment or restrictions
+         on Pythos Functionality;
+
+     (e) including any provision in an Operator's terms of
+         service, user agreement, or other contractual document
+         that prohibits, discourages, or penalizes Users for
+         accessing the Official Free Pythos Service;
+
+     (f) taking any technical measure — including DNS manipulation,
+         network filtering, application-level blocking, or other
+         technical interference — that blocks, filters, throttles,
+         or degrades User access to the Official Free Pythos
+         Service;
+
+     (g) deliberately designing the product interface to make the
+         Free Access Link difficult to find through visual
+         deemphasis, misleading navigation structure, or
+         intentional interface complexity; or
+
+     (h) making any communication, policy, or practice — including
+         verbal, written, or automated communications to Users —
+         that discourages Users from accessing the Official Free
+         Pythos Service through misrepresentation, false implication,
+         or unfounded negative characterization.
+
+3.4  PROHIBITED MISREPRESENTATION.
+
+     An Operator must not make any affirmative statement to
+     Users that is false or misleading regarding the free
+     availability of Pythos. The following are prohibited:
+
+     (a) stating or implying that payment is required to access
+         Pythos, without immediately and prominently clarifying
+         that free access is available at the Official Free
+         Pythos Service;
+
+     (b) stating or implying that there is no free version of
+         Pythos;
+
+     (c) stating or implying that the Operator's product is the
+         official, only, or definitive version of Pythos;
+
+     (d) stating or implying that the Official Free Pythos Service
+         is unsafe, unreliable, discontinued, deprecated, or
+         inferior in any respect that is not based on demonstrably
+         accurate factual information that the Operator can
+         substantiate; or
+
+     (e) claiming official endorsement or affiliation with the
+         Pythos project or copyright holder without written
+         authorization.
+
+3.5  PROHIBITED CRIPPLING.
+
+     An Operator must not deliberately reduce the capabilities
+     of a Covered Work below the documented capabilities of the
+     Official Free Pythos Service for the purpose of making the
+     commercial product appear superior by comparison to the
+     Covered Work.
+
+     The following acts create a rebuttable presumption of
+     prohibited crippling:
+
+     (a) reducing the mathematical accuracy, scope, or response
+         quality of a Covered Work below the documented capability
+         of the Official Free Pythos Service while simultaneously
+         marketing the paid product's superior performance over
+         that Covered Work; or
+
+     (b) introducing artificial errors, deliberate delays, or
+         artificial restrictions in a Covered Work that are not
+         present in the Pythos codebase and that serve no
+         legitimate technical purpose.
+
+     The following are expressly NOT prohibited crippling:
+
+     (c) a paid product providing additional proprietary features,
+         better AI models, more subjects, faster response times,
+         or other genuine enhancements not present in the
+         Official Free Pythos Service;
+
+     (d) a Covered Work operating at lower performance due to
+         genuine infrastructure constraints, provided those
+         constraints are not artificially introduced; or
+
+     (e) maintaining a Covered Work that has not been updated
+         to match every improvement in the Official Free Pythos
+         Service, provided the Operator does not represent the
+         Covered Work as current or equivalent to the Official
+         Free Pythos Service.
+
+3.6  SCOPE OF THESE OBLIGATIONS.
+
+     These obligations apply to any Operator who distributes,
+     hosts, deploys, or makes a Covered Work or Pythos Network
+     Service available to Users, regardless of whether the
+     Operator is a commercial company, nonprofit, school,
+     university, government body, or individual.
+
+     These obligations do NOT apply to:
+
+     (a) private internal use of a Covered Work where no Users
+         receive Pythos Functionality externally; or
+
+     (b) use of Pythos solely to generate outputs (such as
+         mathematical content or explanations) incorporated into
+         separate works, without distributing or making available
+         the Covered Work itself.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 4. WHAT THIS LICENSE DOES NOT PROHIBIT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Subject to full compliance with Section 3, the following
+activities are expressly permitted:
+
+4.1  A commercial organization may charge for a product,
+     platform, service, subscription, or application that
+     includes, embeds, or provides access to Pythos Functionality,
+     provided the Operator satisfies all Free Access Preservation
+     requirements of Section 3.
+
+4.2  An Operator may charge for:
+
+     (a) installation, configuration, or deployment services;
+     (b) technical support, consulting, or training;
+     (c) custom development or integration work;
+     (d) infrastructure, hosting, or server management for a
+         customer's own Pythos deployment;
+     (e) proprietary features, content, curriculum, analytics,
+         or other value genuinely separate from and independent
+         of Pythos Functionality, provided Pythos Functionality
+         remains accessible under Section 3; or
+     (f) enhanced AI models, improved performance, additional
+         academic subjects, or other genuine improvements beyond
+         the Official Free Pythos Service.
+
+4.3  An Operator may operate an advertising-supported service
+     providing Pythos Functionality without violating this
+     license, provided Users are not charged money for access.
+
+4.4  An Operator may accept voluntary donations, grants, or
+     sponsorships related to Pythos development or deployment,
+     provided access to Pythos Functionality is not conditioned
+     on such contributions.
+
+4.5  A paid product may limit access to its own proprietary
+     infrastructure, features, and capabilities to paying
+     customers. The obligation under Section 3 is not to make
+     the paid product free — it is to preserve the path to the
+     Official Free Pythos Service for every User.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 5. THE LINE: PRODUCT VERSUS ACCESS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+5.1  PERMITTED.
+
+     A company may say:
+     "Our $20/month platform includes Pythos."
+
+     provided it also clearly tells Users:
+     "Pythos is available free at https://pythos.lanzar.me/"
+
+     and that link genuinely works without payment.
+
+5.2  PROHIBITED.
+
+     A company may NOT:
+
+     (a) tell Users: "Our $20/month platform includes Pythos —
+         there is no free access to Pythos"; or
+
+     (b) make Pythos Functionality accessible only to paying
+         customers while concealing or failing to disclose the
+         free alternative.
+
+5.3  DIRECT CHARGE FOR PYTHOS AS A SERVICE.
+
+     Where an Operator's sole or dominant commercial purpose —
+     as evidenced by the Operator's own marketing materials,
+     product description, or user interface — is to charge Users
+     for access to Pythos Functionality, the Free Access Link
+     requirement does NOT make such an arrangement compliant.
+     Providing a link to the free service does not cure a
+     violation of this section, because Users are paying for
+     access to Pythos Functionality directly, not for a
+     surrounding product in which Pythos is incidentally included.
+
+     The distinction is:
+     - Paying for a product that INCLUDES Pythos, with free
+       access preserved → permitted under Section 4.
+     - Paying for ACCESS TO PYTHOS ITSELF → prohibited, even
+       if a free link is provided.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 6. NETWORK SERVICES AND SOURCE AVAILABILITY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+6.1  If you operate a Pythos Network Service using a Covered
+     Work, you must make the Complete Corresponding Source Code
+     of that Covered Work available to Users at no charge, by:
+
+     (a) providing a prominent link to a publicly accessible
+         repository containing the Complete Corresponding
+         Source Code; or
+
+     (b) offering in writing to provide the Complete Corresponding
+         Source Code on request.
+
+6.2  Source availability under this section does not satisfy
+     the Free Access Preservation requirements of Section 3.
+     Both obligations apply independently.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 7. COPYLEFT — DERIVATIVE WORKS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+7.1  If you distribute a Covered Work, you must license it to
+     all recipients under this license, with all the same
+     conditions, without additional restrictions.
+
+7.2  You may not relicense a Covered Work under terms that
+     eliminate or weaken the Free Access Preservation
+     requirements of Section 3.
+
+7.3  You must make the Complete Corresponding Source Code of
+     any Covered Work you distribute available under this
+     license, at no charge, by publicly accessible means.
+
+7.4  You may incorporate a Covered Work into a larger work
+     containing separate components under different licenses,
+     provided:
+
+     (a) the Covered Work portions remain clearly identified
+         and licensed under this license;
+
+     (b) the Free Access Preservation requirements of Section 3
+         are fully satisfied; and
+
+     (c) the larger work does not prevent recipients from
+         exercising their rights under this license with respect
+         to the Covered Work portions.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 8. ATTRIBUTION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+8.1  Any redistribution or public deployment of a Covered Work
+     must:
+
+     (a) preserve all copyright notices in the original Pythos
+         source code;
+
+     (b) include the following attribution in a location visible
+         to Users — such as an About page, product interface, or
+         documentation accessible without authentication:
+
+             Based on Pythos
+             Copyright (c) 2026 Jon Scott / LANZAR
+             https://pythos.lanzar.me/
+             Licensed under the Pythos Free Education License
+
+     (c) not remove, alter, or obscure required attribution.
+
+8.2  Attribution must be visible to Users without authentication
+     or payment. Attribution placed exclusively in source code
+     comments or inaccessible back-end documentation does not
+     satisfy this requirement for deployed network services or
+     distributed software.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 9. TRADEMARKS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+9.1  This license does not grant permission to use the name
+     "Pythos," "LANZAR," or associated logos, trademarks, or
+     service marks, except:
+
+     (a) as necessary to satisfy attribution requirements under
+         Section 8; and
+
+     (b) to accurately describe the origin of a Covered Work
+         (e.g., "based on Pythos," "powered by Pythos," "derived
+         from Pythos").
+
+9.2  You may not represent a Covered Work as the official Pythos
+     project or claim endorsement by the copyright holder without
+     written permission.
+
+9.3  Trademark rights are governed by applicable trademark law
+     and the Pythos Trademark Policy (published separately) and
+     are distinct from the copyright rights governed by this
+     license.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 10. PATENTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+10.1 Each Contributor grants a worldwide, non-exclusive,
+     royalty-free, irrevocable patent license to make, use,
+     sell, offer for sale, import, and transfer Covered Works,
+     for patent claims licensable by that Contributor that are
+     necessarily infringed by their contribution alone or in
+     combination with Pythos.
+
+10.2 If you initiate patent litigation — including cross-claims
+     or counterclaims — asserting that Pythos or a Covered Work
+     infringes a patent, your rights under this license terminate
+     automatically on the date such litigation is filed.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 11. TERMINATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+11.1 AUTOMATIC TERMINATION. Your rights under this license
+     terminate automatically if you fail to comply with any
+     condition of this license.
+
+11.2 CURE. If your violation is curable, your rights may be
+     reinstated if:
+
+     (a) you receive written notice of the violation from the
+         copyright holder;
+     (b) you cure the violation within 30 days of receiving
+         notice; and
+     (c) you have not previously violated and been cured under
+         this section for a violation of the same provision.
+
+11.3 INCURABLE VIOLATIONS. The following violations are not
+     subject to cure and result in immediate, permanent
+     termination of your rights:
+
+     (a) intentional obstruction of free access after receiving
+         written notice of violation;
+
+     (b) deliberate misrepresentation to Users that payment is
+         required for Pythos after receiving written notice;
+
+     (c) a second or subsequent violation of the same provision
+         following a prior cure; or
+
+     (d) distributing a Covered Work under terms that affirmatively
+         eliminate the Free Access Preservation requirement.
+
+11.4 EFFECT OF TERMINATION. Upon termination, you must immediately
+     cease distribution of all Covered Works and cease operation
+     of all Pythos Network Services.
+
+     Rights of downstream recipients who received a Covered Work
+     from you in compliance with this license before termination
+     are not affected by your termination.
+
+11.5 REINSTATEMENT. The copyright holder may reinstate terminated
+     rights at their sole discretion, in writing.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 12. NO WARRANTY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PYTHOS IS PROVIDED "AS IS," WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, ACCURACY, OR NONINFRINGEMENT.
+THE ENTIRE RISK AS TO QUALITY AND PERFORMANCE OF PYTHOS IS
+WITH YOU.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 13. LIMITATION OF LIABILITY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, OR
+CONSEQUENTIAL DAMAGES (INCLUDING BUT NOT LIMITED TO LOSS OF
+DATA, BUSINESS INTERRUPTION, OR LOSS OF PROFITS) ARISING OUT
+OF OR IN CONNECTION WITH PYTHOS, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 14. GOVERNING LAW AND JURISDICTION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+14.1 This license is governed by the laws of the Commonwealth
+     of Massachusetts and applicable federal law of the United
+     States of America.
+
+14.2 Legal actions arising from this license shall be brought
+     in the federal or state courts of the Commonwealth of
+     Massachusetts. You consent to the personal jurisdiction
+     of such courts for matters arising from this license.
+
+14.3 Copyright claims under this license are federal claims
+     subject to the exclusive jurisdiction of the federal
+     district courts of the United States.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 15. INTERPRETATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+15.1 The obligations in Section 3 are conditions of the copyright
+     license grant in Section 2. They are not merely contractual
+     covenants. Violation of Section 3 terminates the license
+     and renders continued use copyright infringement.
+
+15.2 If any provision is found unenforceable, remaining provisions
+     remain in full effect to the maximum extent permitted by law.
+
+15.3 No waiver of any condition of this license is effective
+     unless made in writing by the copyright holder.
+
+15.4 Where this license specifies objective tests, those tests
+     control. A reasonable-person standard applies only where
+     objective tests are specified as fallbacks or where objective
+     measurement is impractical.
+
+15.5 Ambiguity shall be resolved in favor of the interpretation
+     that best preserves free access to Pythos.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+END OF PYTHOS FREE EDUCATION LICENSE VERSION 2.0
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Pythos — Free AI Mathematics & Physics Tutor
+No kid should be charged to learn.
+
+Copyright (c) 2026 Jon Scott / LANZAR
+https://pythos.lanzar.me/
+https://github.com/JonScott79/Pythos
