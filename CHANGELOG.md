@@ -1,3 +1,23 @@
+## Pythos 1.8.20
+**Release Date:** October 2, 2026
+
+### Added & Improved
+- **Interactive Stop / Cancellation Button** (`index.html`, `app.js`):
+  - Dynamic button transformation: The Send button dynamically shifts to an active Stop button (`.send-btn.stop-mode`) whenever Pythos is thinking or streaming response tokens.
+  - User-driven generation cancellation: Halts ongoing mathematical derivations, long-running proofs, and deep reasoning steps immediately upon click.
+  - AbortController and stream reader lifecycle integration: Gracefully cancels network requests and active ReadableStreams, finalizes partial responses with `*(Response stopped)*`, updates metadata (`stoppedByUser: true`), and safely unlocks input.
+  - Keyboard shortcut: Added Escape key interception to stop generation when no modal dialogs or guides are active.
+  - Full WCAG AA accessibility: Distinct high-contrast stop icon with dynamic `aria-label` and `title` announcements in both light and dark themes.
+
+### Fixed & Hardened
+- **Sticky Vision Routing Resolution** (`server/visionExtractor.js`, `server/server.js`, `app.js`):
+  - Resolved production routing bug where uploading an image caused subsequent text-only questions to permanently route through the vision engine instead of the normal deterministic/LLM math pipeline.
+  - Established formal architectural separation between `IMAGE IS ATTACHED / AVAILABLE` (session/UI state) and `CURRENT TURN REQUIRES VISION` (turn reasoning dependency).
+  - Added `isVisionRequiredForTurn(activeUserMsg, conversationMessages)` on the server and `isVisionIntent()` on the client to evaluate explicit visual references, deictic follow-ups, and self-contained mathematical problems.
+  - Strips image payloads from prior turns before routing to text models (`ollamaMessages`), preventing upstream schema violations and repeated vision-dependent withholding.
+  - Preserves user attachment strip and historical image context so legitimate follow-ups (e.g., *"Look at the image again. Is the angle 37 degrees?"*) continue routing to vision without forcing unrelated text requests into vision retry loops.
+  - Maintained complete fail-closed verification and withholding safety guarantees.
+
 ## Pythos 1.8.19
 **Release Date:** September 29, 2026
 

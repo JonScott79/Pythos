@@ -165,9 +165,119 @@ function postProcessVisionResponse(text) {
   return normalizeWorksheetMath(text);
 }
 
+/**
+ * Determines whether text contains explicit references to visual artifacts,
+ * diagrams, images, photos, handwriting, or deictic phrases.
+ */
+function isVisionIntent(text, hasAttachedImage = false) {
+  if (!text) return true;
+  const trimmed = text.trim();
+  if (trimmed === 'Please inspect and help me with this problem.') return true;
+
+  // Explicit visual reference or student handwriting/diagram inspection
+  const visualPattern = /\b(?:image|photo|picture|diagram|graph|drawing|screenshot|worksheet|figure|handwriting|handwritten|sketch|check\s+(?:my\s+)?work|inspect\s+(?:my\s+)?work|my\s+work|my\s+steps|my\s+attempt|my\s+solution)\b/i;
+  const deicticPattern = /\b(?:look\s+at\s+(?:this|the|my|again|closer)|look\s+again|see\s+attached|what\s+does\s+(?:the\s+(?:image|picture|diagram|photo|figure)|it)\s+(?:show|say|mean)|can\s+you\s+(?:see|read|inspect|transcribe)|in\s+the\s+photo|on\s+the\s+page|from\s+the\s+photo|based\s+on\s+the\s+(?:image|diagram|drawing)|according\s+to\s+the\s+(?:image|diagram|worksheet))\b/i;
+  if (visualPattern.test(trimmed) || deicticPattern.test(trimmed)) return true;
+
+  // Terse image-dependent phrases with no independent problem
+  const tersePattern = /^(?:(?:can\s+you\s+)?(?:please\s+)?(?:help(?:\s+me)?|solve|check|work\s+out|look\s+at|inspect)\s+(?:this|my\s+work)|here\s+(?:is|'s)\s+(?:my\s+)?(?:problem|work|homework)|solve\s+this|what\s+is\s+this|check\s+this|is\s+this\s+right|is\s+my\s+answer\s+correct|how\s+do\s+i\s+do\s+this|how\s+do\s+i\s+solve\s+this|what\s+do\s+i\s+do\s+here|find\s+the\s+answer|help)[.?!]?$/i;
+  if (tersePattern.test(trimmed)) return true;
+
+  // If an image is present, check if text is a complete self-contained math/science problem
+  if (hasAttachedImage) {
+    const clean = trimmed.replace(/[?.,!]+$/, '').trim();
+    const hasEquation = /[a-zA-Z0-9+\-*\/^().\s]+\s*=\s*[a-zA-Z0-9+\-*\/^().\s]+/.test(clean) && !/^[a-zA-Z]\s*=/.test(clean);
+    const hasArithmetic = /^(?:(?:calculate|compute|evaluate|what\s+is|find|value\s+of)\s*)?[-+*\/^0-9.(),\s]+$/i.test(clean) && /\d/.test(clean);
+    const hasCalculus = /\b(?:derivative|integral|integrate|differentiate|limit|dx|dy\/dx)\b/i.test(clean);
+    const hasConceptual = /\b(?:what\s+is\s+the\s+formula|why\s+is|explain\s+the\s+concept|theorem|definition)\b/i.test(clean);
+    const hasAlgebra = /\b(?:solve|factor|simplify|expand|evaluate|root|roots|quadratic)\b/i.test(clean);
+
+    let hasCompleteMath = hasEquation || hasArithmetic || hasCalculus || hasConceptual || hasAlgebra;
+    if (!hasCompleteMath) {
+      try {
+        const { classifyProblem } = require('./problemClassifier');
+        const cls = classifyProblem(trimmed);
+        if (cls && cls.problemDomain !== 'UNKNOWN' && cls.problemDomain !== 'OFF_TOPIC') {
+          if (cls.deterministicWorkAvailable || Object.keys(cls.knownQuantities || {}).length > 0) {
+            hasCompleteMath = true;
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (hasCompleteMath) {
+      return false; // Complete text math problem, does not require vision
+    }
+
+    return true; // Fragment or incomplete text with attached image
+  }
+
+  return false;
+}
+
+/**
+ * Determines whether the current turn actually requires multimodal vision reasoning.
+ * Enforces the strict architectural distinction:
+ * 1. Image is attached / available in session or UI
+ * 2. Current turn actually requires vision
+ *
+ * @param {Object} activeUserMsg - Current user message { role: 'user', content: string, images?: string[] }
+ * @param {Array} conversationMessages - Full conversation history
+ * @returns {{ requiresVision: boolean, reason: string }}
+ */
+function isVisionRequiredForTurn(activeUserMsg, conversationMessages = []) {
+  if (!activeUserMsg || activeUserMsg.role !== 'user') {
+    return { requiresVision: false, reason: 'NO_USER_MESSAGE' };
+  }
+
+  const currentTurnHasImages = Array.isArray(activeUserMsg.images) && activeUserMsg.images.length > 0;
+  const historyHasImages = conversationMessages.some((m) => {
+    if (m === activeUserMsg) return false;
+    return (Array.isArray(m.images) && m.images.length > 0) || m.hasHistoricalImage === true;
+  });
+
+  const isImageAvailable = currentTurnHasImages || historyHasImages;
+  if (!isImageAvailable) {
+    return { requiresVision: false, reason: 'NO_IMAGE_AVAILABLE' };
+  }
+
+  const content = (activeUserMsg.content || '').trim();
+
+  // Rule 1: Empty or default fallback prompt when an image is attached
+  if (!content || content === 'Please inspect and help me with this problem.') {
+    return { requiresVision: true, reason: 'EMPTY_OR_DEFAULT_IMAGE_PROMPT' };
+  }
+
+  // Rule 2: Explicit visual reference
+  const visualPattern = /\b(?:image|photo|picture|diagram|graph|drawing|screenshot|worksheet|figure|handwriting|handwritten|sketch|check\s+(?:my\s+)?work|inspect\s+(?:my\s+)?work|my\s+work|my\s+steps|my\s+attempt|my\s+solution)\b/i;
+  const deicticPattern = /\b(?:look\s+at\s+(?:this|the|my|again|closer)|look\s+again|see\s+attached|what\s+does\s+(?:the\s+(?:image|picture|diagram|photo|figure)|it)\s+(?:show|say|mean)|can\s+you\s+(?:see|read|inspect|transcribe)|in\s+the\s+photo|on\s+the\s+page|from\s+the\s+photo|based\s+on\s+the\s+(?:image|diagram|drawing)|according\s+to\s+the\s+(?:image|diagram|worksheet))\b/i;
+  if (visualPattern.test(content) || deicticPattern.test(content)) {
+    return { requiresVision: true, reason: 'EXPLICIT_VISUAL_REFERENCE' };
+  }
+
+  // Rule 3: Terse / deictic image-dependent phrases
+  const tersePattern = /^(?:(?:can\s+you\s+)?(?:please\s+)?(?:help(?:\s+me)?|solve|check|work\s+out|look\s+at|inspect)\s+(?:this|my\s+work)|here\s+(?:is|'s)\s+(?:my\s+)?(?:problem|work|homework)|solve\s+this|what\s+is\s+this|check\s+this|is\s+this\s+right|is\s+my\s+answer\s+correct|how\s+do\s+i\s+do\s+this|how\s+do\s+i\s+solve\s+this|what\s+do\s+i\s+do\s+here|find\s+the\s+answer|help)[.?!]?$/i;
+  if (tersePattern.test(content)) {
+    return { requiresVision: true, reason: 'TERSE_IMAGE_DEPENDENT' };
+  }
+
+  // Rule 4: If new image was provided on this turn
+  if (currentTurnHasImages) {
+    if (!isVisionIntent(content, true)) {
+      return { requiresVision: false, reason: 'SELF_CONTAINED_TEXT_PROBLEM_WITH_INCIDENTAL_IMAGE' };
+    }
+    return { requiresVision: true, reason: 'NEW_IMAGE_INCOMPLETE_TEXT_DEPENDENCY' };
+  }
+
+  // Rule 5: Existing image from prior turns, but current turn has no new image and no visual reference
+  return { requiresVision: false, reason: 'EXISTING_IMAGE_UNRELATED_TEXT_TURN' };
+}
+
 module.exports = {
   buildVisionPromptDirective,
   cleanVisionMessage,
   validateBase64Image,
-  postProcessVisionResponse
+  postProcessVisionResponse,
+  isVisionRequiredForTurn,
+  isVisionIntent
 };

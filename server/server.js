@@ -1498,7 +1498,11 @@ app.post('/api/chat', async (req, res) => {
   // Fast-Path: Deterministic Candidate Generation & Mandatory Verification Gate
   // Note: Evaluated BEFORE acquiring concurrency slots, but deterministic candidates
   // MUST pass through the mandatory verification and delivery gate architecture.
-  if (lastUserMsg && (!lastUserMsg.images || lastUserMsg.images.length === 0)) {
+  const turnRequiresVisionEarly = lastUserMsg
+    ? visionExtractor.isVisionRequiredForTurn(lastUserMsg, messages).requiresVision
+    : false;
+
+  if (lastUserMsg && !turnRequiresVisionEarly) {
     const deterministicIntent = analyzeDeterministicIntent(lastUserMsg.content, messages);
     if (deterministicIntent) {
       const directResponse = buildDeterministicResponse(deterministicIntent);
@@ -1689,25 +1693,20 @@ app.post('/api/chat', async (req, res) => {
     content: PYTHOS_SYSTEM_PROMPT + identityContext + preflightContext + studentWorkContext + activeProblemContext + learningContext + memoryContext + projectKnowledgeContext
   });
 
-  // Detect if latest user turn contains an image payload
-  const latestUserMsg = [...preparedMessages].reverse().find(m => m.role === 'user');
-  const latestHasImages = !!(latestUserMsg && latestUserMsg.images && latestUserMsg.images.length > 0);
+  // Clean vision messages in conversation history
+  preparedMessages = preparedMessages.map(m => visionExtractor.cleanVisionMessage(m));
 
-  // Detect if any message in the conversation contains image payloads
-  let hasImages = false;
-  preparedMessages = preparedMessages.map(m => {
-    const cleanMsg = visionExtractor.cleanVisionMessage(m);
-    if (cleanMsg.images && cleanMsg.images.length > 0) {
-      hasImages = true;
-    }
-    return cleanMsg;
-  });
-
-  const conversationNeedsVision = latestHasImages || hasImages;
+  // Determine if the current turn actually requires vision reasoning
+  // (Distinguishes between image being available in session/UI vs current turn requiring vision)
+  const visionRequirement = visionExtractor.isVisionRequiredForTurn(lastUserMsg, messages);
+  const conversationNeedsVision = visionRequirement.requiresVision;
 
   if (conversationNeedsVision) {
+    console.log(`[ROUTER] Routing to Multimodal Vision Gateway: ${visionRequirement.reason}`);
     const visionDirective = visionExtractor.buildVisionPromptDirective();
     preparedMessages[0].content += visionDirective;
+  } else {
+    console.log(`[ROUTER] Vision not required for turn (${visionRequirement.reason}). Routing to text reasoning pipeline.`);
   }
 
   // Route to vision model only when the active prompt needs vision inspection

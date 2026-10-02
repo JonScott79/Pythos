@@ -2930,21 +2930,43 @@ if (inputWrapper) {
 
 
 // =========================
-// OLLAMA INTEGRATION
+// OLLAMA INTEGRATION & GENERATION CONTROL
 // =========================
 let isProcessing = false;
+let activeAbortController = null;
+let activeStreamReader = null;
+let activeThinkingElement = null;
+let userStoppedGeneration = false;
 const MAX_INPUT_LENGTH = 1500;
 const charCounter = document.getElementById("charCounter");
 
+const SEND_ICON_HTML = `<svg class="send-icon" viewBox="0 0 24 24" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>`;
+const STOP_ICON_HTML = `<svg class="stop-icon" viewBox="0 0 24 24" aria-hidden="true" width="14" height="14" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"></rect></svg>`;
+
 function setInputLocked(locked) {
   isProcessing = locked;
-  button.disabled = locked;
   input.disabled = locked;
-  button.style.opacity = locked ? "0.5" : "1";
-  button.style.cursor = locked ? "not-allowed" : "pointer";
   input.style.opacity = locked ? "0.7" : "1";
 
-  if (!locked) {
+  if (locked) {
+    // Transform Send button into active Stop button
+    button.disabled = false;
+    button.classList.add("stop-mode");
+    button.setAttribute("aria-label", "Stop generating response");
+    button.setAttribute("title", "Stop generating (Esc)");
+    button.innerHTML = STOP_ICON_HTML;
+    button.style.opacity = "1";
+    button.style.cursor = "pointer";
+  } else {
+    // Restore Stop button back to standard Send button
+    button.disabled = false;
+    button.classList.remove("stop-mode");
+    button.setAttribute("aria-label", "Send question to Pythos");
+    button.removeAttribute("title");
+    button.innerHTML = SEND_ICON_HTML;
+    button.style.opacity = "1";
+    button.style.cursor = "pointer";
+
     // Restore focus to chat input if the student is not actively focusing on another interactive element (e.g. tool window, modal, math-field)
     const active = document.activeElement;
     const isInteractingElsewhere = active && (
@@ -2961,23 +2983,77 @@ function setInputLocked(locked) {
   }
 }
 
+function stopGeneration() {
+  if (!isProcessing) return;
+  userStoppedGeneration = true;
+
+  if (activeStreamReader) {
+    try {
+      activeStreamReader.cancel();
+    } catch (_) {}
+  }
+
+  if (activeAbortController) {
+    try {
+      activeAbortController.abort();
+    } catch (_) {}
+  }
+
+  if (activeThinkingElement) {
+    removeThinking(activeThinkingElement);
+    activeThinkingElement = null;
+    const stoppedNotice = "*(Response stopped)*";
+    messages.push({ role: "assistant", content: stoppedNotice });
+    appendMessage("assistant", stoppedNotice);
+    setInputLocked(false);
+  } else if (!activeStreamReader) {
+    const stoppedNotice = "*(Response stopped)*";
+    messages.push({ role: "assistant", content: stoppedNotice });
+    appendMessage("assistant", stoppedNotice);
+    setInputLocked(false);
+  }
+}
+
+/**
+ * Client-Side Vision Intent Helper:
+ * Determines if user query actually requires the attached or historical image.
+ */
+function isVisionIntent(text, hasAttachedImage = false) {
+  if (!text) return true;
+  const trimmed = text.trim();
+  if (trimmed === "Please inspect and help me with this problem.") return true;
+
+  // Explicit visual reference or student handwriting/diagram inspection
+  const visualPattern = /\b(?:image|photo|picture|diagram|graph|drawing|screenshot|worksheet|figure|handwriting|handwritten|sketch|check\s+(?:my\s+)?work|inspect\s+(?:my\s+)?work|my\s+work|my\s+steps|my\s+attempt|my\s+solution)\b/i;
+  const deicticPattern = /\b(?:look\s+at\s+(?:this|the|my|again|closer)|look\s+again|see\s+attached|what\s+does\s+(?:the\s+(?:image|picture|diagram|photo|figure)|it)\s+(?:show|say|mean)|can\s+you\s+(?:see|read|inspect|transcribe)|in\s+the\s+photo|on\s+the\s+page|from\s+the\s+photo|based\s+on\s+the\s+(?:image|diagram|drawing)|according\s+to\s+the\s+(?:image|diagram|worksheet))\b/i;
+  if (visualPattern.test(trimmed) || deicticPattern.test(trimmed)) return true;
+
+  // Terse image-dependent phrases
+  const tersePattern = /^(?:(?:can\s+you\s+)?(?:please\s+)?(?:help(?:\s+me)?|solve|check|work\s+out|look\s+at|inspect)\s+(?:this|my\s+work)|here\s+(?:is|'s)\s+(?:my\s+)?(?:problem|work|homework)|solve\s+this|what\s+is\s+this|check\s+this|is\s+this\s+right|is\s+my\s+answer\s+correct|how\s+do\s+i\s+do\s+this|how\s+do\s+i\s+solve\s+this|what\s+do\s+i\s+do\s+here|find\s+the\s+answer|help)[.?!]?$/i;
+  if (tersePattern.test(trimmed)) return true;
+
+  // If an image is attached, check if text is a complete self-contained math/science problem
+  if (hasAttachedImage) {
+    const hasEquation = /[a-zA-Z0-9+\-*\/^().\s]+\s*=\s*[a-zA-Z0-9+\-*\/^().\s]+/.test(trimmed) && !/^[a-zA-Z]\s*=/.test(trimmed);
+    const hasArithmetic = /^(?:(?:calculate|compute|evaluate|what\s+is)\s*)?[-+*\/^0-9.(),\s]+$/i.test(trimmed) && /\d/.test(trimmed);
+    const hasCalculus = /\b(?:derivative|integral|integrate|differentiate|limit|dx|dy\/dx)\b/i.test(trimmed);
+    const hasConceptual = /\b(?:what\s+is\s+the\s+formula|why\s+is|explain\s+the\s+concept|theorem|definition)\b/i.test(trimmed);
+
+    if (hasEquation || hasArithmetic || hasCalculus || hasConceptual) {
+      return false; // Complete text math problem, doesn't require vision
+    }
+
+    return true; // Fragment or incomplete text with attached image
+  }
+
+  return false;
+}
+
 async function askPythos(userText) {
   const hasPendingImages = pendingImages.length > 0;
   if ((!userText || !userText.trim()) && !hasPendingImages) return;
   if (isProcessing) return; // Block spam
   isProcessing = true;
-
-  // Client-side prevention: If student attempts an image request while vision cooldown timer is active
-  if (hasPendingImages && isVisionCooldownActive()) {
-    isProcessing = false;
-    const remainingSecs = Math.ceil((visionCooldownEndTime - Date.now()) / 1000);
-    const formatted = formatTimerCountdown(remainingSecs);
-    appendMessage(
-      "assistant",
-      `⏳ Pythos image reasoning is temporarily busy with high demand. Please wait ${formatted} before submitting another image, or ask your question in text.`
-    );
-    return;
-  }
 
   // Cap input length
   let cleanText = (userText || "").trim();
@@ -2988,13 +3064,41 @@ async function askPythos(userText) {
     cleanText = "Please inspect and help me with this problem.";
   }
 
-  // Snapshot images for current message
-  const imagesToSend = pendingImages.map(img => img.base64);
-  const dataUrlsToDisplay = pendingImages.map(img => img.dataUrl);
+  // Client-side vision intent determination: Does this specific turn require vision reasoning?
+  const requiresVision = hasPendingImages && isVisionIntent(cleanText, hasPendingImages);
 
-  // Clear pending image attachments
-  pendingImages = [];
+  // Client-side prevention: If student attempts an image request while vision cooldown timer is active
+  if (hasPendingImages && isVisionCooldownActive()) {
+    if (requiresVision) {
+      isProcessing = false;
+      const remainingSecs = Math.ceil((visionCooldownEndTime - Date.now()) / 1000);
+      const formatted = formatTimerCountdown(remainingSecs);
+      appendMessage(
+        "assistant",
+        `⏳ Pythos image reasoning is temporarily busy with high demand. Please wait ${formatted} before submitting another image, or ask your question in text.`
+      );
+      return;
+    }
+  }
+
+  // Snapshot images for current message (only attach if this turn requires vision)
+  let imagesToSend = [];
+  let dataUrlsToDisplay = [];
+
+  if (hasPendingImages && requiresVision) {
+    imagesToSend = pendingImages.map(img => img.base64);
+    dataUrlsToDisplay = pendingImages.map(img => img.dataUrl);
+
+    // Clear pending image attachments once consumed for this vision turn
+    pendingImages = [];
+    updatePendingImagesUI();
+  }
   updatePendingImagesUI();
+
+  userStoppedGeneration = false;
+  activeAbortController = new AbortController();
+  activeStreamReader = null;
+  activeThinkingElement = null;
 
   setInputLocked(true);
 
@@ -3032,6 +3136,7 @@ async function askPythos(userText) {
   }
 
   const thinking = showThinking(cleanText);
+  activeThinkingElement = thinking;
 
   // Pythos API Endpoint: Resilient local and production resolution
   let pythosApiUrl = "/api/chat";
@@ -3062,6 +3167,7 @@ async function askPythos(userText) {
     const res = await fetch(pythosApiUrl, {
       method: "POST",
       headers,
+      signal: activeAbortController ? activeAbortController.signal : undefined,
       body: JSON.stringify({
         messages: messages,
         stream: true,
@@ -3076,6 +3182,7 @@ async function askPythos(userText) {
     // Handle Streaming Responses (application/x-ndjson)
     if (res.ok && contentType.includes("application/x-ndjson") && res.body && typeof res.body.getReader === "function") {
       removeThinking(thinking);
+      activeThinkingElement = null;
 
       // Create drafting assistant message bubble immediately
       const draftBubble = document.createElement("div");
@@ -3100,6 +3207,7 @@ async function askPythos(userText) {
       scrollToMessageTop(draftBubble, false);
 
       const reader = res.body.getReader();
+      activeStreamReader = reader;
       const decoder = new TextDecoder();
       let streamedText = "";
       let lineBuffer = "";
@@ -3115,12 +3223,14 @@ async function askPythos(userText) {
       let verificationTimer = null;
 
       while (true) {
+        if (userStoppedGeneration) break;
         let readResult;
         try {
           readResult = await reader.read();
         } catch (_) {
           break;
         }
+        if (userStoppedGeneration) break;
         const { value, done } = readResult;
         if (done) break;
 
@@ -3235,25 +3345,41 @@ async function askPythos(userText) {
         draftBubble.remove();
       }
 
-      const finalReply = streamedText.trim() || "The Oracle is silent. (Empty response)";
-      messages.push({ role: "assistant", content: finalReply });
-      appendMessage("assistant", finalReply, null, {
-        question: cleanText,
-        claims: metaClaims,
-        verification: metaVerification,
-        model: metaModel,
-        withheld: metaWithheld,
-        withholdingReason: metaWithholdingReason,
-        withholdingExplanation: metaWithholdingExplanation,
-        withholdingDetails: metaWithholdingDetails
-      });
+      if (userStoppedGeneration) {
+        const partialReply = streamedText.trim();
+        const finalReply = partialReply || "*(Response stopped)*";
+        messages.push({ role: "assistant", content: finalReply });
+        appendMessage("assistant", finalReply, null, {
+          question: cleanText,
+          claims: metaClaims,
+          verification: metaVerification,
+          model: metaModel,
+          stoppedByUser: true
+        });
+        if (partialReply) {
+          await saveChatState(userText, finalReply);
+        }
+      } else {
+        const finalReply = streamedText.trim() || "The Oracle is silent. (Empty response)";
+        messages.push({ role: "assistant", content: finalReply });
+        appendMessage("assistant", finalReply, null, {
+          question: cleanText,
+          claims: metaClaims,
+          verification: metaVerification,
+          model: metaModel,
+          withheld: metaWithheld,
+          withholdingReason: metaWithholdingReason,
+          withholdingExplanation: metaWithholdingExplanation,
+          withholdingDetails: metaWithholdingDetails
+        });
 
-      // If user was reading scrolled up during streaming, preserve their exact reading position
-      if (wasScrolledUpBeforePromotion && output) {
-        output.scrollTop = prePromotionScrollTop;
+        // If user was reading scrolled up during streaming, preserve their exact reading position
+        if (wasScrolledUpBeforePromotion && output) {
+          output.scrollTop = prePromotionScrollTop;
+        }
+
+        await saveChatState(userText, finalReply);
       }
-
-      await saveChatState(userText, finalReply);
     } else if (!res.ok) {
       removeThinking(thinking);
       removeFailedUserMessage();
@@ -3314,14 +3440,32 @@ async function askPythos(userText) {
     }
 
   } catch (err) {
+    if (userStoppedGeneration || (err && (err.name === 'AbortError' || String(err.message || '').toLowerCase().includes('abort')))) {
+      if (activeThinkingElement) {
+        removeThinking(activeThinkingElement);
+        activeThinkingElement = null;
+        const stoppedNotice = "*(Response stopped)*";
+        messages.push({ role: "assistant", content: stoppedNotice });
+        appendMessage("assistant", stoppedNotice);
+      }
+      return;
+    }
     console.error(err);
     removeThinking(thinking);
     removeFailedUserMessage();
     appendMessage("assistant", "The connection to Athens has been lost. Is the inference server running?");
+  } finally {
+    const wasStopped = userStoppedGeneration;
+    activeAbortController = null;
+    activeStreamReader = null;
+    activeThinkingElement = null;
+    userStoppedGeneration = false;
+    if (wasStopped) {
+      setInputLocked(false);
+    } else {
+      setTimeout(() => setInputLocked(false), 1000);
+    }
   }
-
-  // Cooldown before allowing next message
-  setTimeout(() => setInputLocked(false), 1000);
 }
 
 // =====================================
@@ -3344,9 +3488,25 @@ function addToPromptHistory(text) {
 
 // ===== EVENTS =====
 button.addEventListener("click", () => {
-  if (isProcessing) return;
+  if (isProcessing) {
+    stopGeneration();
+    return;
+  }
   addToPromptHistory(input.value);
   askPythos(input.value);
+});
+
+// Escape key stops generation if Pythos is thinking or streaming
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && isProcessing) {
+    const modalVisible = (typeof reportModalEl !== "undefined" && reportModalEl && reportModalEl.classList.contains("visible")) ||
+      (typeof guideOverlay !== "undefined" && guideOverlay && guideOverlay.classList.contains("visible")) ||
+      (document.getElementById("pythosConfirmModal") && document.getElementById("pythosConfirmModal").classList.contains("visible"));
+    if (!modalVisible) {
+      e.preventDefault();
+      stopGeneration();
+    }
+  }
 });
 
 function autoResizeInput() {
@@ -4689,9 +4849,15 @@ if (typeof window !== "undefined") {
   window.latexToMathText = latexToMathText;
   window.getKaTeXMathText = getKaTeXMathText;
   window.extractKaTeXDomText = extractKaTeXDomText;
+  window.stopGeneration = stopGeneration;
+  window.setInputLocked = setInputLocked;
+  window.isVisionIntent = isVisionIntent;
 }
 if (typeof module !== "undefined" && module.exports) {
   module.exports.latexToMathText = latexToMathText;
   module.exports.getKaTeXMathText = getKaTeXMathText;
   module.exports.extractKaTeXDomText = extractKaTeXDomText;
+  module.exports.stopGeneration = stopGeneration;
+  module.exports.setInputLocked = setInputLocked;
+  module.exports.isVisionIntent = isVisionIntent;
 }

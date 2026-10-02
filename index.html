@@ -1110,6 +1110,50 @@
       stroke-linejoin: round;
     }
 
+    button.send-btn.stop-mode {
+      background: #0f172a;
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    }
+
+    button.send-btn.stop-mode:hover {
+      background: #ef4444;
+      border-color: #ef4444;
+      color: #ffffff;
+      transform: scale(1.05);
+      box-shadow: 0 0 10px rgba(239, 68, 68, 0.45);
+    }
+
+    button.send-btn.stop-mode:active {
+      transform: scale(0.92);
+    }
+
+    [data-theme="dark"] button.send-btn.stop-mode {
+      background: #f8fafc;
+      color: #0f172a;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+    }
+
+    [data-theme="dark"] button.send-btn.stop-mode:hover {
+      background: #ef4444;
+      border-color: #ef4444;
+      color: #ffffff;
+      box-shadow: 0 0 12px rgba(239, 68, 68, 0.55);
+    }
+
+    .stop-icon {
+      width: 14px;
+      height: 14px;
+      display: block;
+      transition: transform 0.15s ease;
+    }
+
+    button.send-btn.stop-mode:hover .stop-icon {
+      transform: scale(0.9);
+    }
+
     .polyglot-footer {
       background: var(--surface-color);
       padding: 8px 16px;
@@ -2761,7 +2805,7 @@
           <a href="nonprofit.html">Mission &amp; Roadmap</a>
           <a href="license.html">License</a>
           <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" title="Official Facebook Page" aria-label="Official Facebook Page">Facebook</a>
-          <a href="changelog.html#pythos-1-8-19" title="View Changelog" aria-label="Version 1.8.19 Release Notes">v1.8.19</a>
+          <a href="changelog.html#pythos-1-8-20" title="View Changelog" aria-label="Version 1.8.20 Release Notes">v1.8.20</a>
         </nav>
       </div>
     </aside>
@@ -2776,7 +2820,7 @@
         <header class="header">
           <img class="header-avatar" src="assets/pythos_avatar.jpg" alt="Pythos Oracle" width="40" height="40" />
           <div class="header-info">
-            <h1>PYTHOS <a href="changelog.html#pythos-1-8-19" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.19)" aria-label="Version 1.8.19 Release Notes">v1.8.19</a></h1>
+            <h1>PYTHOS <a href="changelog.html#pythos-1-8-20" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.20)" aria-label="Version 1.8.20 Release Notes">v1.8.20</a></h1>
             <p>Mathematics & Physics Oracle</p>
           </div>
           <button id="themeToggleBtn" class="theme-toggle-btn" title="Toggle Dark/Light Mode" aria-label="Toggle Dark and Light Theme">

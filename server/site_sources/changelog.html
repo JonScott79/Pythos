@@ -523,7 +523,7 @@
         <a href="nonprofit.html" class="nav-link">Mission &amp; Roadmap</a>
         <a href="license.html" class="nav-link">License</a>
         <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" class="nav-link">Facebook</a>
-        <a href="changelog.html#pythos-1-8-19" class="nav-link active" aria-current="page">v1.8.19</a>
+        <a href="changelog.html#pythos-1-8-20" class="nav-link active" aria-current="page">v1.8.20</a>
       </div>
     </div>
 
@@ -549,12 +549,31 @@
     </header>
 
                                                                                     <!-- RELEASE v1.8.16 -->
-                <!-- RELEASE v1.8.19 -->
+                    <!-- RELEASE v1.8.20 -->
+    <article class="release-card" id="pythos-1-8-20">
+      <div class="release-header">
+        <div class="release-title-wrap">
+          <h2 class="release-version">Pythos 1.8.20</h2>
+          <span class="release-badge">Latest Release</span>
+        </div>
+        <time class="release-date" datetime="2026-10-02">October 2, 2026</time>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header added">⭐ WHAT'S NEW &amp; HARDENED</div>
+        <ul class="feature-list">
+          <li><strong>Interactive Stop / Generation Cancellation Control</strong>: The Send button transforms into an active Stop button (<code>.send-btn.stop-mode</code>) while Pythos is thinking or streaming tokens. Clicking or pressing <kbd>Escape</kbd> halts long mathematical proofs immediately via <code>AbortController</code> and stream reader cancellation.</li>
+          <li><strong>Sticky Vision Routing Resolution</strong>: Decoupled image attachment availability from current turn vision requirements. Subsequent text-only mathematics and physics questions route cleanly through normal deterministic and LLM pipelines even after an image upload, while legitimate visual follow-ups (e.g., <em>"Look at the image again"</em>) remain fully supported.</li>
+          <li><strong>Text Model Upstream Protection</strong>: Historical image payloads are stripped before dispatching to text-only inference providers, preventing upstream schema rejections and unnecessary fail-closed withholding loops.</li>
+        </ul>
+      </div>
+    </article>
+
+    <!-- RELEASE v1.8.19 -->
     <article class="release-card" id="pythos-1-8-19">
       <div class="release-header">
         <div class="release-title-wrap">
           <h2 class="release-version">Pythos 1.8.19</h2>
-          <span class="release-badge">Latest Release</span>
         </div>
         <time class="release-date" datetime="2026-09-29">September 29, 2026</time>
       </div>
@@ -1434,7 +1453,7 @@
 
   <footer>
     <div>🏛️ Pythos — Free AI Mathematics &amp; Physics Education. Created by Jon Scott as part of the LANZAR initiative.</div>
-    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-8-19" style="color:var(--primary-color); text-decoration:none;">v1.8.19</a></div>
+    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-8-20" style="color:var(--primary-color); text-decoration:none;">v1.8.20</a></div>
   </footer>
 
   <script>
