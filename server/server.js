@@ -308,6 +308,35 @@ For non-trivial mathematical and physical problems (word problems, optimization,
 
 - Always place visualization tokens on their own line. Explain the key physical or mathematical insights alongside the visualization in clean LaTeX.
 
+# VISUAL INSTRUCTION FIDELITY & SKETCH REQUIREMENTS (ABSOLUTE RULE)
+When a student asks to solve a problem "using sketches", "using a sketch", "draw a triangle", "show me a diagram", "visualize this", or asks for any drawing/graph:
+1. ALWAYS PROVIDE AN ACTUAL VISUAL:
+   - For right triangles and trigonometric reference triangles:
+     * Provide the interactive geometric token: [GEOMETRY: triangle, a=<opposite>, b=<adjacent>, c=<hypotenuse>, right_angle=C, opp=<opposite>, adj=<adjacent>, hyp=<hypotenuse>, theta=true]
+     * AND provide an accurate ASCII diagram in a code block:
+\`\`\`
+             hypotenuse = <hypotenuse>
+                /|
+               / |
+              /  | <opposite> (opposite)
+             /?  |
+            /____|
+             <adjacent> (adjacent)
+\`\`\`
+   - For reference triangles with negative trigonometric ratios (e.g. cot(?) = -36.23):
+     * Explain that reference triangle side lengths are strictly positive magnitudes (adjacent = 36.23, opposite = 1, hypotenuse = ?(36.23? + 1?)).
+     * Explain the sign and quadrant orientation separately rather than implying a physical triangle side has negative length.
+2. NEVER CLAIM A VISUAL WAS PROVIDED WHEN IT WAS NOT:
+   - NEVER output text like "(See the sketch below...)" or "As shown in the diagram below..." unless the actual [GEOMETRY:] / [VIZ:] token or ASCII code block is directly included in the response.
+3. HONEST FALLBACK WHEN GRAPHICAL RENDERING IS UNAVAILABLE:
+   - If a graphical canvas component cannot represent the concept, state honestly:
+     "I cannot generate a live graphic for this, but here is a clear diagram:"
+     followed immediately by an accurate text/ASCII representation.
+4. DO NOT INVENT UNSOLICITED VISUALS:
+   - If the student asks a standard text-only calculation without requesting a sketch, diagram, or visualization, do NOT dump an unrequested visual.
+5. FOLLOW-UP VISUAL REQUESTS:
+   - If a student receives an initial text explanation and then asks: "can you show me on a sketch?" or "draw this", immediately provide the visual for the active problem.
+
 # MATHEMATICAL NOTATION & LATEX (CRITICAL)
 - Students do NOT need to know LaTeX. You must automatically format all mathematical and physics notation in clean LaTeX.
 - Standard Formats:
@@ -501,6 +530,8 @@ const visionExtractor = require('./visionExtractor');
 const { classifyUpstreamError, sanitizeErrorDetail, extractRetrySeconds } = require('./errorHandler');
 const { classifyStudentIntent } = require('./studentIntentClassifier');
 const { evaluateStudentWork, formatStudentWorkContext } = require('./studentWorkEvaluator');
+const { classifyLearnerState, formatLearnerStateContext, LEARNER_STATES } = require('./learnerState');
+const { enforceVisualFidelity, isVisualRequested } = require('./vizEngine/visualFidelity');
 const { getSafeWithholding, WITHHOLDING_REASONS } = require('./withholdingTaxonomy');
 
 // Mount Admin Routes
@@ -1656,6 +1687,15 @@ app.post('/api/chat', async (req, res) => {
   }
   const studentWorkContext = formatStudentWorkContext(studentIntent, studentEvaluation, activeProblemState);
 
+  // Learner-Aware Tutoring: Classify student state and generate pedagogical directives
+  const learnerState = lastUserMsg
+    ? classifyLearnerState(lastUserMsg.content, messages, activeProblemState, studentIntent, studentEvaluation)
+    : null;
+  const learnerStateContext = learnerState ? formatLearnerStateContext(learnerState) : '';
+  if (learnerState && learnerState.state !== LEARNER_STATES.NEUTRAL_QUESTION) {
+    console.log(`[LEARNER STATE] Classified learner state: ${learnerState.state} (signals: ${learnerState.signals.join(', ')})`);
+  }
+
   const relevantLessons = (lastUserMsg && studentUid) ? await learningStore.retrieveRelevantCorrections(studentUid, lastUserMsg.content) : [];
   const learningContext = learningStore.formatLearningContext(relevantLessons);
 
@@ -1691,7 +1731,7 @@ app.post('/api/chat', async (req, res) => {
   let preparedMessages = [...boundedContext.messagesForModel];
   preparedMessages.unshift({
     role: 'system',
-    content: PYTHOS_SYSTEM_PROMPT + identityContext + preflightContext + studentWorkContext + activeProblemContext + learningContext + memoryContext + projectKnowledgeContext
+    content: PYTHOS_SYSTEM_PROMPT + identityContext + preflightContext + studentWorkContext + learnerStateContext + activeProblemContext + learningContext + memoryContext + projectKnowledgeContext
   });
 
   // Clean vision messages in conversation history
@@ -2316,35 +2356,12 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
       }
     }
 
-    const wantsTextViz = lastUserMsg && /\b(?:visualize|draw|plot|show|sketch|diagram|illustration)\b/i.test(lastUserMsg.content);
-    if (wantsTextViz && finalContent && !finalContent.includes('[VIZ:') && !finalContent.includes('[GEOMETRY:') && !finalContent.includes('[GRAPH:')) {
-      const angleData = parseAngleFromText(finalContent) || (activeProblemState?.active && parseAngleFromText(activeProblemState.active.activeExpression || activeProblemState.active.transcription || activeProblemState.active.initialUserPrompt || ''));
-      if (angleData) {
-        const vizResp = buildDeterministicResponse({
-          type: 'CLASSICAL_MODEL_VIZ',
-          model: 'trigonometry',
-          customAngle: Math.round(angleData.normalizedDeg)
-        });
-        if (vizResp) {
-          finalContent += '\n\n' + vizResp;
-        }
-      } else if (/(?:triangle|trig|ratio|tangent|sine|cosine|tan|sin|cos|opposite|adjacent|hypotenuse)/i.test(lastUserMsg.content) || (activeProblemState?.active && /(?:triangle|trig|ratio|tangent|sine|cosine|tan|sin|cos)/i.test(activeProblemState.active.activeExpression || activeProblemState.active.initialUserPrompt || ''))) {
-        const vizResp = buildDeterministicResponse({
-          type: 'GEOMETRY_VIZ',
-          figType: 'triangle',
-          a: 3,
-          b: 4,
-          c: 5,
-          right_angle: 'C',
-          isTrigExplanation: true,
-          opp: 3,
-          adj: 4,
-          hyp: 5
-        });
-        if (vizResp) {
-          finalContent += '\n\n' + vizResp;
-        }
-      }
+    // Visual Instruction Fidelity Enforcement
+    // Ensures that requested sketches/diagrams are actually provided, never hallucinated,
+    // and that text-only queries remain clean without unsolicited visuals.
+    finalContent = enforceVisualFidelity(finalContent, lastUserMsg?.content || '', messages, activeProblemState);
+    if (finalContent && ollamaResponse && ollamaResponse.message) {
+      ollamaResponse.message.content = finalContent;
     }
 
     if (!res.writableEnded) {
@@ -2394,7 +2411,8 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           privacySafeUid,
           domain: classification?.problemDomain || null,
           subtype: classification?.problemSubtype || null,
-          intent: studentIntent?.type || null,
+          intent: studentIntent?.intent || studentIntent?.type || null,
+          learnerState: learnerState?.state || null,
           claims: claims || [],
           verification: verificationResults,
           model: ollamaResponse.model,

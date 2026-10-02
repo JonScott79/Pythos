@@ -1,3 +1,17 @@
+## Pythos 1.8.21
+**Release Date:** October 2, 2026
+
+### Added & Improved
+- **Learner-Aware Tutoring & Student State Modeling** (`server/learnerState.js`, `server/studentIntentClassifier.js`, `server/server.js`):
+  - Student emotional & metacognitive state classification: Real-time multi-signal detection across 18 distinct learner states, including self-correction with humor (`"yeah i messed that all up and was doing and old problem HAHAHA"`), tentative hypothesis exploration (`"is this quad 4????"`), spontaneous breakthroughs, confusion, discouragement, fatigue, and question-answering.
+  - Pedagogical context injection: Formulates tailored pedagogical directives injected directly into system context for each student turn. Directs Pythos to laugh along and validate self-discovery rather than robotically repeating mathematical answers, validate reasoning on tentative guesses, and step down complexity when fatigue or confusion is signaled.
+  - Tentative hypothesis intent: Added `TENTATIVE_HYPOTHESIS` to `studentIntentClassifier.js` to distinguish curious or uncertain student conjectures from authoritative mathematical inputs.
+
+- **Visual Instruction Fidelity & Dynamic Geometry Synthesis** (`server/vizEngine/visualFidelity.js`, `server/server.js`):
+  - Visual request detection: Identifies explicit requests for visual explanations, sketches, diagrams, or graphs (e.g., *"using sketches find the exact value of sec(cot(-36.23))"*).
+  - Right-triangle & trigonometric diagram generator: Extracts trigonometry function arguments and right-triangle legs, automatically synthesizing structured `[GEOMETRY: triangle ...]` canvas instructions alongside clear ASCII reference diagrams.
+  - Strict anti-hallucination delivery gate: Prevents Pythos from falsely claiming a sketch or diagram exists (such as *"See the sketch below"*) when no visual token or diagram was actually emitted. Either guarantees generation of the visual or removes misleading visual references.
+
 ## Pythos 1.8.20
 **Release Date:** October 2, 2026
 

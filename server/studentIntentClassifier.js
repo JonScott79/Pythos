@@ -25,6 +25,7 @@ const INTENTS = Object.freeze({
   CONTINUATION: 'CONTINUATION',
   CONFUSION: 'CONFUSION',
   HYPOTHETICAL: 'HYPOTHETICAL',
+  TENTATIVE_HYPOTHESIS: 'TENTATIVE_HYPOTHESIS',
   UNKNOWN: 'UNKNOWN'
 });
 
@@ -184,6 +185,26 @@ function classifyStudentIntent(userText, conversationHistory = []) {
   if (isHypothetical) {
     signals.push('hypothetical_parameter_query');
     return { intent: INTENTS.HYPOTHETICAL, confidence: 'high', signals };
+  }
+
+  // -------------------------------------------------------------
+  // 5c. TENTATIVE_HYPOTHESIS Intent
+  // e.g. "is this quad 4????", "maybe x = 3?", "could it be Q2?", "is theta in quad 2?"
+  // -------------------------------------------------------------
+  const isTentative = !/\b(?:right|correct)\b/i.test(clean) && (
+    /^(?:is\s+(?:this|it|theta)\s+(?:in\s+)?(?:quad(?:rant)?\s*[0-4IViv]+|[-+]?\d+|[a-zA-Z0-9/.\s]+)|maybe\s+(.+)|could\s+(?:it|this)\s+be\s+(.+))$/i.test(clean) ||
+    /\bquad(?:rant)?\s*[0-4IViv]+\s*\?+/i.test(raw)
+  );
+  if (isTentative) {
+    signals.push('tentative_hypothesis_marker');
+    const hypMatch = clean.match(/^(?:is\s+(?:this|it|theta)\s+(?:in\s+)?|maybe\s+|could\s+(?:it|this)\s+be\s+)?(.+)$/i);
+    const extractedHyp = hypMatch ? hypMatch[1].trim() : clean;
+    return {
+      intent: INTENTS.TENTATIVE_HYPOTHESIS,
+      confidence: 'high',
+      signals,
+      extractedExpression: extractedHyp
+    };
   }
 
   // -------------------------------------------------------------
