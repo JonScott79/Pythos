@@ -482,7 +482,8 @@ const {
   extractPreflightDeterministicFacts,
   buildPreflightContext,
   buildDeterministicResponse,
-  classifyProblem
+  classifyProblem,
+  parseAngleFromText
 } = require('./deterministicRouter');
 // Concurrency limiter
 const concurrencyLimiter = require('./concurrencyLimiter');
@@ -552,7 +553,7 @@ async function executeGroqVisionCall(provider, { messages, visionSystemPrompt, o
     model: targetModel,
     messages: formattedMessages,
     temperature: options?.temperature || 0.2,
-    max_tokens: 900,
+    max_tokens: Math.min(options?.max_tokens || 450, 450),
     stream: false
   });
 
