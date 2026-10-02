@@ -354,6 +354,30 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
       const text = m.content;
 
       // Check for variable root assignment / completion (e.g. "x = 5" or "x = 4" or "t = 3")
+      
+      // Detect if assistant delivered a practice problem to set active problem
+      if (m && m.role === 'assistant' && (m.content.includes('practice problem') || m.content.includes('Using a sketch, find the exact value') || m.content.includes('Don\'t solve it yet'))) {
+        const sketchMatch = m.content.match(/(?:Using\s+(?:a\s+)?sketch(?:es)?.*?find\s+the\s+exact\s+value\s+of\s+)?\$?(\\[a-zA-Z]+(?:\([^)]+\))+)\$?|Solve\s+for\s+\$?[a-zA-Z]\$?:?\s*\$\$?([^$\n]+)\$\$?|Find\s+the\s+derivative.*?for:\s*\$\$?([^$\n]+)\$\$?|find\s+the\s+exact\s+value\s+of\s+\$?([^$\n.]+)\$?|[Ss]olve\s+for\s+\$?[a-zA-Z]\$?.*?\$\$?([^$\n]+)\$\$?|find\s+its\s+acceleration/i);
+        if (sketchMatch) {
+          const pExpr = sketchMatch[1] || sketchMatch[2] || sketchMatch[3] || sketchMatch[4] || sketchMatch[5] || 'practice_problem';
+          if (currentActive) {
+            currentActive.status = 'ARCHIVED_IN_SESSION';
+            sessionProblems.push(currentActive);
+          }
+          currentActive = {
+            domain: sketchMatch[1] ? 'TRIGONOMETRY' : (sketchMatch[3] ? 'CALCULUS' : 'ALGEBRA'),
+            subtype: sketchMatch[1] ? 'TRIG_COMPOSITE_SKETCH' : (sketchMatch[3] ? 'DERIVATIVE_POWER_RULE' : 'LINEAR_EQUATION'),
+            activeExpression: pExpr.trim(),
+            initialUserPrompt: m.content,
+            transcription: m.content,
+            problemType: 'PRACTICE_PROBLEM',
+            isPracticeProblem: true,
+            status: 'WAITING_FOR_STUDENT_ATTEMPT',
+            isCompleted: false
+          };
+        }
+      }
+
       const rootMatch = text.match(/\b([a-zA-Z])\s*=\s*([-\d.]+)\b/);
       if (rootMatch) {
         const vName = rootMatch[1];
@@ -559,6 +583,26 @@ function buildEffectivePrompt(messages = []) {
     let np = newProblemMatch[1].trim();
     if (!/^(?:solve|calculate|what|find)\b/i.test(np)) np = 'Solve ' + np;
     return np;
+  }
+
+  // 1b. Practice problem request: prompt is practice generation, not prior math solution
+  if (/\b(?:give|gimme)\s+(?:me\s+)?(?:another|a\s+similar|one\s+more|a\s+practice|a\s+harder|an\s+easier|a\s+different)\s+(?:problem|question|one|exercise)\b/i.test(latestUser) ||
+      /\b(?:quiz|test)\s+me\b/i.test(latestUser)) {
+    return 'Generate practice problem: ' + latestUser;
+  }
+
+  // 1c. If previous assistant response was a practice problem, base prompt is the practice problem
+  for (let pi = messages.length - 2; pi >= 0; pi--) {
+    const prevMsg = messages[pi];
+    if (prevMsg && prevMsg.role === 'assistant' && (prevMsg.content.includes('practice problem') || prevMsg.content.includes('Using a sketch, find the exact value') || prevMsg.content.includes('Don\'t solve it yet'))) {
+      const pMatch = prevMsg.content.match(/(?:Using\s+(?:a\s+)?sketch(?:es)?.*?find\s+the\s+exact\s+value\s+of\s+)?\$?(\\[a-zA-Z]+(?:\([^)]+\))+)\$?|Solve\s+for\s+\$?[a-zA-Z]\$?:?\s*\$\$?([^$\n]+)\$\$?|Find\s+the\s+derivative.*?for:\s*\$\$?([^$\n]+)\$\$?|find\s+the\s+exact\s+value\s+of\s+\$?([^$\n.]+)\$?|[Ss]olve\s+for\s+\$?[a-zA-Z]\$?.*?\$\$?([^$\n]+)\$\$?|find\s+its\s+acceleration/i);
+      if (pMatch) {
+        const extractedProblem = pMatch[0].trim();
+        basePrompt = extractedProblem;
+        effective = basePrompt;
+        break;
+      }
+    }
   }
 
   // 2. Identify base problem

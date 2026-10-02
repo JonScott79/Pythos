@@ -1,3 +1,4 @@
+const { isPracticeRequest, extractDifficultyPreference } = require('./practiceProblemGenerator');
 /*
     studentIntentClassifier.js
 
@@ -26,6 +27,7 @@ const INTENTS = Object.freeze({
   CONFUSION: 'CONFUSION',
   HYPOTHETICAL: 'HYPOTHETICAL',
   TENTATIVE_HYPOTHESIS: 'TENTATIVE_HYPOTHESIS',
+  PRACTICE_REQUEST: 'PRACTICE_REQUEST',
   UNKNOWN: 'UNKNOWN'
 });
 
@@ -208,6 +210,22 @@ function classifyStudentIntent(userText, conversationHistory = []) {
   }
 
   // -------------------------------------------------------------
+  // 5d. PRACTICE_REQUEST Intent
+  // e.g. "give me another problem", "give me a similar problem", "gimme another problem similar to that one",
+  // "quiz me", "give me one to practice", "test me on this", "make me another one like that", "give me a harder one", "give me an easier one"
+  // -------------------------------------------------------------
+  if (isPracticeRequest(clean)) {
+    signals.push('practice_problem_request');
+    const diff = extractDifficultyPreference(clean);
+    return {
+      intent: INTENTS.PRACTICE_REQUEST,
+      confidence: 'high',
+      difficulty: diff,
+      signals
+    };
+  }
+
+  // -------------------------------------------------------------
   // 6. NEW_PROBLEM Intent
   // e.g. "Now solve 3x + 5 = 20", "Let's do a new problem", "Next problem: 2x - 1 = 9", or full word problems
   // -------------------------------------------------------------
@@ -376,7 +394,8 @@ function classifyStudentIntent(userText, conversationHistory = []) {
   // e.g. "Can you explain that?", "Why is that?", "How did you get 7?", "Where did that come from?"
   // -------------------------------------------------------------
   const isExplanation = /^(?:why(?:\s+is\s+that)?\??|why\s+did\s+you\s+do\s+that\??|how\s+did\s+you\s+get\s+that\??|can\s+you\s+explain(?:\s+that|\s+why|\s+how)?(?:\s+again)?\??|explain\s+how|what\s+does\s+that\s+mean\??|where\s+did\s+(?:that|\d+|the)\s+come\s+from\??)$/i.test(lower) ||
-                        /^(?:why|how)\s+(?:is|did|does|can|would|are|was|were|come|so|to)\b/i.test(lower);
+                        /^(?:why|how)\s+(?:is|did|does|can|would|are|was|were|come|so|to)\b/i.test(lower) ||
+                        /^(?:what(?:'s|\s+is)\s+(?:the\s+)?(?:answer|solution|result)|can\s+you\s+(?:give|tell)\s+me\s+the\s+answer|show\s+me\s+the\s+(?:answer|solution))\b/i.test(lower);
   if (isExplanation) {
     signals.push('explanation_query');
     return { intent: INTENTS.EXPLANATION_REQUEST, confidence: 'high', signals };

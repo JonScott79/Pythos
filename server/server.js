@@ -308,6 +308,26 @@ For non-trivial mathematical and physical problems (word problems, optimization,
 
 - Always place visualization tokens on their own line. Explain the key physical or mathematical insights alongside the visualization in clean LaTeX.
 
+
+# PRACTICE-PROBLEM GENERATION (CRITICAL EDUCATIONAL MODE)
+When a student asks to practice or requests another problem:
+- "give me another problem"
+- "give me a similar problem" / "gimme another problem similar to that one"
+- "quiz me"
+- "give me one to practice"
+- "test me on this"
+- "make me another one like that"
+- "give me a harder one"
+- "give me an easier one"
+- "give me one like the last problem"
+
+1. YOU ARE GENERATING A QUESTION, NOT ASSERTING A MATHEMATICAL ANSWER.
+2. Target the same underlying mathematical concepts (e.g. right-triangle sketches, composite trig, negative angle handling, two-step equations) unless a difficulty change is requested.
+3. Present the problem clearly and invite the student to attempt it:
+   "Don't solve it yet — give it a shot and I'll check your work."
+4. DO NOT reveal the solution or final answer in the generation turn.
+5. Wait for the student's attempt before evaluating or solving.
+
 # VISUAL INSTRUCTION FIDELITY & SKETCH REQUIREMENTS (ABSOLUTE RULE)
 When a student asks to solve a problem "using sketches", "using a sketch", "draw a triangle", "show me a diagram", "visualize this", or asks for any drawing/graph:
 1. ALWAYS PROVIDE AN ACTUAL VISUAL:
@@ -529,6 +549,7 @@ const contextManager = require('./contextManager');
 const visionExtractor = require('./visionExtractor');
 const { classifyUpstreamError, sanitizeErrorDetail, extractRetrySeconds } = require('./errorHandler');
 const { classifyStudentIntent } = require('./studentIntentClassifier');
+const { generatePracticeProblem, validateProblemStructure } = require('./practiceProblemGenerator');
 const { evaluateStudentWork, formatStudentWorkContext } = require('./studentWorkEvaluator');
 const { classifyLearnerState, formatLearnerStateContext, LEARNER_STATES } = require('./learnerState');
 const { enforceVisualFidelity, isVisualRequested } = require('./vizEngine/visualFidelity');
@@ -1694,6 +1715,71 @@ app.post('/api/chat', async (req, res) => {
   const learnerStateContext = learnerState ? formatLearnerStateContext(learnerState) : '';
   if (learnerState && learnerState.state !== LEARNER_STATES.NEUTRAL_QUESTION) {
     console.log(`[LEARNER STATE] Classified learner state: ${learnerState.state} (signals: ${learnerState.signals.join(', ')})`);
+  }
+
+
+  // Phase B2: Practice-Problem Generation Flow (Must not fail closed)
+  if (studentIntent && studentIntent.intent === 'PRACTICE_REQUEST') {
+    const practiceResult = generatePracticeProblem({
+      difficulty: studentIntent.difficulty || 'similar',
+      conversationHistory: messages,
+      activeProblemState
+    });
+
+    if (practiceResult && practiceResult.formattedResponse) {
+      if (activeProblemState) {
+        if (activeProblemState.active) {
+          activeProblemState.active.status = 'ARCHIVED_IN_SESSION';
+          if (!activeProblemState.archived) activeProblemState.archived = [];
+          activeProblemState.archived.push(activeProblemState.active);
+        }
+        activeProblemState.active = {
+          domain: practiceResult.domain,
+          subtype: practiceResult.subtype,
+          activeExpression: practiceResult.expression,
+          problemType: 'PRACTICE_PROBLEM',
+          isPracticeProblem: true,
+          status: 'WAITING_FOR_STUDENT_ATTEMPT',
+          expectedAnswer: practiceResult.expectedAnswer || null,
+          targetConcept: practiceResult.targetConcept,
+          initialUserPrompt: practiceResult.problemText,
+          transcription: practiceResult.problemText,
+          isCompleted: false
+        };
+      }
+
+      console.log(`[PRACTICE GENERATOR] Successfully generated practice problem for concept '${practiceResult.targetConcept}' (difficulty: ${practiceResult.difficulty})`);
+
+      if (isStreaming) {
+        res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+        res.setHeader('Transfer-Encoding', 'chunked');
+        res.setHeader('Cache-Control', 'no-cache, no-transform');
+        res.write(JSON.stringify({ type: 'token', content: practiceResult.formattedResponse }) + '\n');
+        res.write(JSON.stringify({
+          type: 'verified',
+          claims: [],
+          verification: [],
+          model: 'pythos-practice-engine',
+          isPracticeProblem: true,
+          deterministic: true
+        }) + '\n');
+        res.write(JSON.stringify({ type: 'done' }) + '\n');
+        activeControllers.delete(abortController);
+        return res.end();
+      }
+
+      activeControllers.delete(abortController);
+      return res.status(200).json({
+        model: 'pythos-practice-engine',
+        message: {
+          role: 'assistant',
+          content: practiceResult.formattedResponse
+        },
+        isPracticeProblem: true,
+        deterministic: true,
+        done: true
+      });
+    }
   }
 
   const relevantLessons = (lastUserMsg && studentUid) ? await learningStore.retrieveRelevantCorrections(studentUid, lastUserMsg.content) : [];

@@ -1,3 +1,15 @@
+## Pythos 1.8.22
+**Release Date:** October 2, 2026
+
+### Added & Improved
+- **Practice-Problem Generation & Educational Non-Withholding Architecture** (`server/practiceProblemGenerator.js`, `server/studentIntentClassifier.js`, `server/contextManager.js`, `server/server.js`):
+  - Architectural separation of Question Generation vs. Solution vs. Verification: Established that the fail-closed verification gate (`UNKNOWN`) applies strictly to mathematical claims asserted as facts/answers, and must never falsely suppress educational practice generation or quiz requests.
+  - Practice intent classification: Added `PRACTICE_REQUEST` intent to identify prompts such as *"give me another problem"*, *"gimme another problem similar to that one"*, *"quiz me"*, *"give me one to practice"*, *"give me a harder one"*, and *"give me an easier one"*, while ensuring answer inquiries (*"what's the answer to the practice problem?"*) route to verified solution delivery.
+  - Instructional skill & concept mapping: Analyzes active problem context to extract underlying mathematical characteristics (e.g., right-triangle sketches, composite trig ratios, negative angle/sign handling, two-step equations, quadratics, calculus power rule) and generates structurally similar candidate exercises.
+  - Generation safety & structural validation: Validates candidate problems for mathematical meaningfulness, solvability, absence of contradictory premises (Triangle Inequality violations, conflicting circle dimensions), absence of undefined operations (division by zero, undefined trig points), and LaTeX notation fidelity with resilient regeneration.
+  - Active problem handoff: Automatically updates session active problem state to the generated practice question so subsequent student work (*"I got 9"*, *"I got -sqrt(810.4025)"*) seamlessly flows into the authoritative verification pipeline.
+  - Comprehensive test suite: Added `test-practice-generation.js` covering all 14 architectural and safety scenarios (100% pass).
+
 ## Pythos 1.8.21
 **Release Date:** October 2, 2026
 
