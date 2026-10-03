@@ -155,7 +155,7 @@ async function runTestCase(id, category, name, testFn) {
     const delivered = enforceVisualFidelity('Derivation steps for sec(cot(-36.23)):', prompt);
     rec.deliveryState = 'DELIVERED_WITH_VISUAL_AND_STEPS';
     assert.ok(delivered.includes('[GEOMETRY: triangle'));
-    assert.ok(delivered.includes('```'));
+    assert.ok(!delivered.includes('```'), 'Must NOT contain duplicate ASCII sketch when visual token renders');
   });
 
   await runTestCase(4, 'VISUALIZATION', 'Existing image + "look at the image again."', async (rec) => {

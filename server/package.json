@@ -1,6 +1,6 @@
 {
   "name": "pythos-backend",
-  "version": "1.8.24",
+  "version": "1.8.25",
   "description": "Pythos Backend Verification and Reasoning Server",
   "main": "server.js",
   "scripts": {

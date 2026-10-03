@@ -800,7 +800,7 @@ Pedagogical Directive: Include the authoritative geometry token "${toolResult.to
 Geometry Token: ${toolResult.token}
 Triangle Parameters: opposite=${toolResult.opp}, adjacent=${toolResult.adj}, hypotenuse=${toolResult.hyp}
 Angle Label: ${toolResult.angleLabel}
-ASCII Sketch Available: YES${trigDecomposition ? '\n' + trigDecomposition : '\nPedagogical Directive: Include the authoritative geometry token "' + toolResult.token + '" on its own line. Explain that reference triangle side lengths are positive distances, while the quadrant orientation accounts for negative trigonometric values.'}`;
+${trigDecomposition ? trigDecomposition : 'Pedagogical Directive: Include the authoritative geometry token "' + toolResult.token + '" on its own line. DO NOT output an ASCII or text triangle diagram; the interactive geometry component will be rendered directly by the canvas engine. Provide only the geometry token and a brief mathematical explanation. Reference triangle side lengths are positive Euclidean lengths.'}`;
       break;
     }
 

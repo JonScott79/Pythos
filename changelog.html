@@ -523,7 +523,7 @@
         <a href="nonprofit.html" class="nav-link">Mission &amp; Roadmap</a>
         <a href="license.html" class="nav-link">License</a>
         <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" class="nav-link">Facebook</a>
-        <a href="changelog.html#pythos-1-8-24" class="nav-link active" aria-current="page">v1.8.24</a>
+        <a href="changelog.html#pythos-1-8-25" class="nav-link active" aria-current="page">v1.8.25</a>
       </div>
     </div>
 
@@ -549,12 +549,35 @@
     </header>
 
                                                                                     <!-- RELEASE v1.8.16 -->
+    <!-- RELEASE v1.8.25 -->
+    <article class="release-card" id="pythos-1-8-25">
+      <div class="release-header">
+        <div class="release-title-wrap">
+          <h2 class="release-version">Pythos 1.8.25</h2>
+          <span class="release-badge">Latest Release</span>
+        </div>
+        <time class="release-date" datetime="2026-10-03">October 3, 2026</time>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header added">⚡ WHAT'S NEW &amp; HARDENED</div>
+        <ul class="feature-list">
+          <li><strong>Authoritative Safe Response Constructor</strong>: Implemented <code>server/safeResponseConstructor.js</code> and updated the Delivery Gate to ensure Pythos never withholds verified mathematical truth when an independently verified solution or preflight tool result exists, even if the conversational LLM candidate explanation fails verification.</li>
+          <li><strong>Conditional ASCII Diagram Suppression</strong>: Suppressed redundant ASCII right-triangle sketches whenever interactive geometry tokens (<code>[GEOMETRY: ...]</code>) render successfully, preserving ASCII diagrams strictly as an honest fallback when graphical rendering is unavailable.</li>
+          <li><strong>Verification Bridge Precision &amp; Negative Degree Handling</strong>: Corrected regex boundary scanning (<code>[^
+*:=]*</code>) for right-triangle geometric claims and added negative degree unit support (<code>[-+]?[0-9.]+</code>), preventing false Pythagorean rejections and degree-to-radian misinterpretations.</li>
+          <li><strong>Composite Trigonometric Step Fidelity</strong>: Updated prompt-to-claim fidelity verification to recognize valid intermediate steps in composite trigonometric derivations (such as inner cotangent calculations within outer cosecant problems) without false fidelity mismatches.</li>
+          <li><strong>Comprehensive Regression Coverage</strong>: Verified 10-case safe response constructor suite (<code>test-safe-response-constructor.js</code>) and 8-case visual fallback suite (<code>test-visual-fallback-conditional.js</code>) alongside full 284-case accessibility and 70-case benchmark suites with 100% pass rates.</li>
+        </ul>
+      </div>
+    </article>
+
     <!-- RELEASE v1.8.24 -->
     <article class="release-card" id="pythos-1-8-24">
       <div class="release-header">
         <div class="release-title-wrap">
           <h2 class="release-version">Pythos 1.8.24</h2>
-          <span class="release-badge">Latest Release</span>
+          
         </div>
         <time class="release-date" datetime="2026-10-02">October 2, 2026</time>
       </div>
@@ -1533,7 +1556,7 @@
 
   <footer>
     <div>🏛️ Pythos — Free AI Mathematics &amp; Physics Education. Created by Jon Scott as part of the LANZAR initiative.</div>
-    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-8-24" style="color:var(--primary-color); text-decoration:none;">v1.8.24</a></div>
+    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-8-25" style="color:var(--primary-color); text-decoration:none;">v1.8.25</a></div>
   </footer>
 
   <script>

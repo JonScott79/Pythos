@@ -71,10 +71,7 @@ runTest(1, '"using sketches" + right-triangle problem -> actual visual requested
   assert.ok(result.includes('opp=1'), 'Token must have opp=1');
   assert.ok(result.includes('adj=36.23'), 'Token must have adj=36.23');
   assert.ok(result.includes('hyp=36.2438'), 'Token must have hyp=36.2438');
-  assert.ok(result.includes('```'), 'Must contain code-fenced ASCII sketch');
-  assert.ok(result.includes('hypotenuse = 36.2438'), 'ASCII sketch must label hypotenuse');
-  assert.ok(result.includes('1 (opposite)'), 'ASCII sketch must label opposite');
-  assert.ok(result.includes('36.23 (adjacent)'), 'ASCII sketch must label adjacent');
+  assert.ok(!result.includes('/|'), 'Must NOT contain duplicate ASCII sketch');
   assert.ok(result.includes('Orientation note:'), 'Must explain positive side lengths vs quadrant signs');
 });
 
@@ -92,7 +89,7 @@ runTest(2, '"draw a triangle" -> visual requested/rendered', () => {
   assert.ok(result.includes('opp=3') || result.includes('a=3'), 'Must have vertical leg 3');
   assert.ok(result.includes('adj=4') || result.includes('b=4'), 'Must have horizontal leg 4');
   assert.ok(result.includes('hyp=5') || result.includes('c=5'), 'Must have hypotenuse 5');
-  assert.ok(result.includes('```'), 'Must include ASCII representation');
+  assert.ok(!result.includes('/|'), 'Must NOT include duplicate ASCII sketch when canvas token is rendered');
 });
 
 // -------------------------------------------------------------
@@ -109,7 +106,7 @@ runTest(3, '"show me a diagram" -> visual requested/rendered', () => {
   assert.ok(result.includes('opp=1'), 'Opposite side must be 1');
   assert.ok(result.includes('adj=6'), 'Adjacent side must be 6');
   assert.ok(result.includes('hyp=6.0828'), 'Hypotenuse must be sqrt(37)');
-  assert.ok(result.includes('```'), 'Must contain ASCII diagram');
+  assert.ok(!result.includes('/|'), 'Must NOT contain duplicate ASCII diagram');
 });
 
 // -------------------------------------------------------------
@@ -205,7 +202,7 @@ runTest(9, 'Student asks for a sketch after an initial text explanation -> provi
   assert.ok(result.includes('opp=5') || result.includes('a=5'), 'Must pick up leg 5 from history');
   assert.ok(result.includes('adj=12') || result.includes('b=12'), 'Must pick up leg 12 from history');
   assert.ok(result.includes('hyp=13') || result.includes('c=13'), 'Must pick up hypotenuse 13 from history');
-  assert.ok(result.includes('```'), 'Must include ASCII sketch on follow-up');
+  assert.ok(!result.includes('/|'), 'Must NOT include duplicate ASCII sketch on follow-up');
 });
 
 // -------------------------------------------------------------
@@ -224,10 +221,8 @@ runTest(10, 'Mathematical labels in the visual must agree with the verified math
   assert.strictEqual(params.opp, 1, 'Visual opposite must strictly equal 1');
   assert.strictEqual(params.hyp, 36.2438, 'Visual hypotenuse must strictly equal 36.2438');
 
-  // Verify that ASCII diagram contains exact numbers
-  assert.ok(result.includes('36.23 (adjacent)'), 'ASCII diagram must label 36.23 (adjacent)');
-  assert.ok(result.includes('1 (opposite)'), 'ASCII diagram must label 1 (opposite)');
-  assert.ok(result.includes('hypotenuse = 36.2438'), 'ASCII diagram must label hypotenuse = 36.2438');
+  assert.ok(result.includes('[GEOMETRY: triangle'), 'Must render geometry token');
+  assert.ok(!result.includes('/|'), 'Must NOT contain duplicate ASCII diagram');
 });
 
 console.log('\n================================================================');

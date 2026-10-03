@@ -215,7 +215,7 @@ runTest('Live reproduction fidelity: enforceVisualFidelity replaces bogus cot cl
   const enforced = vf.enforceVisualFidelity(initialContent, 'show me this visually: csc(cot(-28.45°))');
   assert(!enforced.includes('cot(-28.45°) = 28.45'), 'Bogus cot claim must be sanitized');
   assert(enforced.includes('[GEOMETRY: triangle, a=1, b=1.8456, c=2.0991'), 'Verified geometry token must be mounted');
-  assert(enforced.includes('1.8456 (adjacent)'), 'ASCII sketch must have 1.8456 adjacent');
+  assert(!enforced.includes('/|'), 'Must NOT contain duplicate ASCII sketch when geometry token is mounted');
 });
 
 console.log(`\n====================================================`);

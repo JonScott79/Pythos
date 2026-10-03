@@ -953,7 +953,7 @@ function extractClaims(text, userPrompt = '') {
     }
 
     // Convert trigonometric degree arguments into explicit Math.js degree units e.g. csc(60 deg)
-    const lineWithTrigDeg = rawLine.replace(/(?:\\)?(sin|cos|tan|sec|csc|cot)\s*(?:\(\s*([0-9.]+)\s*(?:\^\{\s*\\?circ\s*\}|\^\\?circ|°|\s*deg)?\s*\)|\s+([0-9.]+)\s*(?:\^\{\s*\\?circ\s*\}|\^\\?circ|°|\s*deg)?)/gi, (m, fn, argParen, argBare) => {
+    const lineWithTrigDeg = rawLine.replace(/(?:\\)?(sin|cos|tan|sec|csc|cot)\s*(?:\(\s*([-+]?[0-9.]+)\s*(?:\^\{\s*\\?circ\s*\}|\^\\?circ|°|\s*deg)?\s*\)|\s+([-+]?[0-9.]+)\s*(?:\^\{\s*\\?circ\s*\}|\^\\?circ|°|\s*deg)?)/gi, (m, fn, argParen, argBare) => {
       const rawArg = (argParen || argBare || '').trim();
       const isDeg = /°|circ|deg/i.test(m) || /°|circ|deg/i.test(promptStr);
       return `${fn.toLowerCase()}(${rawArg}${isDeg ? ' deg' : ''})`;
@@ -1177,9 +1177,9 @@ function extractClaims(text, userPrompt = '') {
   }
 
   // 9. Right Triangle Geometric Claims (e.g. opposite = 10, adjacent = 24, hypotenuse = 26)
-  const oppMatch = text.match(/opposite[^*:]*[*]*\s*[:=]\s*[$]?\s*([0-9.]+)/i);
-  const adjMatch = text.match(/adjacent[^*:]*[*]*\s*[:=]\s*[$]?\s*([0-9.]+)/i);
-  const hypMatch = text.match(/hypotenuse[^*:]*[*]*\s*[:=]\s*[$]?\s*([0-9.]+)/i);
+  const oppMatch = text.match(/opposite[^\r\n*:=]*[*]*\s*[:=]\s*[$]?\s*([0-9.]+)/i);
+  const adjMatch = text.match(/adjacent[^\r\n*:=]*[*]*\s*[:=]\s*[$]?\s*([0-9.]+)/i);
+  const hypMatch = text.match(/hypotenuse[^\r\n*:=]*[*]*\s*[:=]\s*[$]?\s*([0-9.]+)/i);
 
   if (hypMatch && (oppMatch || adjMatch)) {
     const hyp = parseFloat(hypMatch[1]);
@@ -1602,14 +1602,14 @@ function checkPromptClaimFidelity(claim, userPrompt) {
       const claimTrigMatch = claimExpr.match(/\b(sin|cos|tan|sec|csc|cot)\b/i);
       if (claimTrigMatch) {
         const solvedFn = claimTrigMatch[1].toLowerCase();
-        if (solvedFn !== reqFn) {
+        if (solvedFn !== reqFn && !promptStr.toLowerCase().includes(solvedFn)) {
           return {
             ok: false,
             reason: `Prompt-to-claim fidelity mismatch: Prompt requested trigonometric function '${reqFn}', but candidate claim solved '${solvedFn}'`
           };
         }
-        const claimAngleMatch = claimExpr.match(/\b(?:sin|cos|tan|sec|csc|cot)\s*\(\s*([0-9.]+)/i);
-        if (claimAngleMatch && reqAngle && Math.abs(parseFloat(claimAngleMatch[1]) - parseFloat(reqAngle)) > 1e-4) {
+        const claimAngleMatch = claimExpr.match(/\b(?:sin|cos|tan|sec|csc|cot)\s*\(\s*([-+]?[0-9.]+)/i);
+        if (claimAngleMatch && reqAngle && Math.abs(parseFloat(claimAngleMatch[1]) - parseFloat(reqAngle)) > 1e-4 && !promptStr.includes(claimAngleMatch[1])) {
           return {
             ok: false,
             reason: `Prompt-to-claim fidelity mismatch: Prompt requested angle '${reqAngle}', but candidate claim solved for angle '${claimAngleMatch[1]}'`

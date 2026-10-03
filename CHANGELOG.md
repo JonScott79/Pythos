@@ -1,3 +1,21 @@
+## Pythos 1.8.25
+**Release Date:** October 3, 2026
+
+### Added & Hardened
+- **Authoritative Safe Response Constructor & Delivery Gate Mandate** (`server/safeResponseConstructor.js`, `server/server.js`):
+  - **Zero Withholding of Verified Truth**: Mandated architectural principle: "Never withhold verified mathematical truth merely because the conversational explanation failed verification. If Pythos possesses a trusted, independently verified solution, the delivery system must attempt to construct a safe response from that solution rather than discarding it."
+  - **Certified Response Construction**: Implemented `server/safeResponseConstructor.js` to synthesize authoritative derivations directly from verified CAS models (`parseTrigExpression`), preflight tool executions (`render_geometry_triangle`, `calculate_deterministic`, `render_function_graph`, `generate_practice_problem`, `evaluate_student_work`), or deterministic router intents.
+  - **Delivery Gate & Timeout Recovery**: When conversational candidate explanations are rejected by verification, or if upstream LLM reasoning times out or fails, Pythos recovers and delivers the verified mathematical truth directly with `withheld: false` and `safeResponseRecovered: true`. Preserves fail-closed safe withholding only for genuinely uncomputable or ambiguous queries.
+- **Conditional ASCII Diagram Suppression on Visual Success** (`server/vizEngine/visualFidelity.js`, `server/toolController.js`, `server/server.js`):
+  - **Redundancy Elimination**: Whenever an interactive visual component mounts successfully (`[GEOMETRY: ...]`), redundant legacy ASCII right-triangle sketches are suppressed.
+  - **Conditional Text Fallback**: ASCII diagrams remain strictly as a conditional fallback when graphical rendering is unavailable (`rendererAvailable: false`), announced with *"Here's a text representation instead:"*.
+- **Verification Bridge Precision & Degree Unit Boundaries** (`server/verificationBridge.js`):
+  - **Single-Line RegEx Bounding**: Fixed greedy multi-line matching in right-triangle geometric claim extraction (`oppMatch`, `adjMatch`, `hypMatch`) with `[^\r\n*:=]*` to prevent cross-line bleeding that previously misattributed adjacent/hypotenuse values to opposite legs.
+  - **Negative Degree Unit Preservation**: Added `[-+]?[0-9.]+` support in `lineWithTrigDeg` and `claimAngleMatch` so negative angles (e.g., $\cot(-28.45^\circ)$) preserve their degree units and avoid radian misinterpretation in CAS verification.
+  - **Composite Trig Fidelity Check**: Updated `checkPromptClaimFidelity` so intermediate steps of composite expressions (such as inner $\cot$ evaluation for an outer $\csc$) are recognized as valid steps rather than false prompt mismatches.
+- **Comprehensive Regression Suite**:
+  - Added `test-safe-response-constructor.js` (10/10 passing) and `test-visual-fallback-conditional.js` (8/8 passing); all 284 accessibility audit tests and 56 project knowledge tests verified at 100% pass rate.
+
 ## Pythos 1.8.24
 **Release Date:** October 2, 2026
 

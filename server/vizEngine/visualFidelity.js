@@ -66,7 +66,47 @@ function hasVisualPresent(text) {
          text.includes('[VIZ:') ||
          text.includes('[GRAPH:') ||
          text.includes('[CHART:') ||
-         /```[\s\S]*?(?:hypotenuse|\/\||\/__+\|)[\s\S]*?```/i.test(text);
+         text.includes('[NUMBER_LINE:');
+}
+
+/**
+ * Checks whether text contains an ASCII triangle diagram.
+ *
+ * @param {string} text - Response text
+ * @returns {boolean}
+ */
+function hasAsciiTriangle(text) {
+  if (!text || typeof text !== 'string') return false;
+  return /```[\s\S]*?(?:\/\||\/__+\|)[\s\S]*?```/i.test(text) ||
+         /(?:^|\n)[ \t]*(?:hypotenuse\s*=[^\n]*\n)?[ \t]*\/\|/i.test(text);
+}
+
+/**
+ * Suppresses / strips ASCII triangle diagrams from response text.
+ * Leaves non-diagram markdown code blocks intact.
+ *
+ * @param {string} text - Response text
+ * @returns {string} Text without ASCII triangle diagrams
+ */
+function suppressAsciiTriangle(text) {
+  if (!text || typeof text !== 'string') return text;
+
+  // 1. Remove "### Reference Right-Triangle Sketch:" or redundant sketch heading
+  let cleaned = text.replace(/###\s*(?:Reference\s+)?Right-Triangle(?:\s+Sketch)?:?\s*/gi, '');
+
+  // 2. Remove code-fenced ASCII right triangles (code blocks containing `/|` or `/__+|`)
+  cleaned = cleaned.replace(/```(?:[a-zA-Z0-9_-]*\n)?[\s\S]*?(?:\/\||\/__+\|)[\s\S]*?```/gi, '');
+
+  // 3. Remove raw unfenced ASCII right triangles if present
+  cleaned = cleaned.replace(/(?:^|\n)[ \t]*(?:hypotenuse\s*=[^\n]*\n)?[ \t]*\/\|[ \t]*\n[ \t]*\/[^\n]*\|[ \t]*\n(?:[ \t]*\/[^\n]*\|[ \t]*\n)*[ \t]*\/[_\-=]+(?:\||\/)[ \t]*(?:\n[ \t]*[0-9.]+[^\n]*)?/gi, '\n');
+
+  // 4. Remove orphaned "Here's a text representation instead:" if the ASCII block was stripped
+  cleaned = cleaned.replace(/(?:Here's|Here is)\s+(?:a\s+)?text\s+representation\s+instead:?\s*/gi, '');
+
+  // 5. Clean up redundant empty lines
+  cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
+
+  return cleaned.trim();
 }
 
 /**
@@ -241,8 +281,11 @@ function generateGeometryToken({ opp, adj, hyp }) {
  * @param {Object} [activeProblemState=null] - Active problem tracking
  * @returns {string} Enforced content
  */
-function enforceVisualFidelity(finalContent, userText, conversationHistory = [], activeProblemState = null) {
+function enforceVisualFidelity(finalContent, userText, conversationHistory = [], activeProblemState = null, options = {}) {
   if (!finalContent || typeof finalContent !== 'string') return finalContent;
+
+  const rendererAvailable = options?.rendererAvailable !== false &&
+                            (!activeProblemState || activeProblemState.rendererAvailable !== false);
 
   // Clean any placeholder strings that might have leaked from model or history
   let cleanedContent = finalContent.replace(/%%%INLINE_[A-Z_]+_PLACEHOLDER%%%/g, '');
@@ -250,6 +293,19 @@ function enforceVisualFidelity(finalContent, userText, conversationHistory = [],
   // Unwrap any code-fenced visualization tokens
   cleanedContent = cleanedContent.replace(/```(?:[a-zA-Z0-9_-]*\n)?\s*(\[(?:GEOMETRY|GRAPH|NUMBER_LINE|CHART|VIZ):[\s\S]*?\])\s*```/gi, '\n$1\n');
   cleanedContent = cleanedContent.replace(/`(\[(?:GEOMETRY|GRAPH|NUMBER_LINE|CHART|VIZ):[^`]+\])`/gi, '\n$1\n');
+
+  // Deduplicate [GEOMETRY: ...] tokens if model emitted multiple
+  const geomMatches = cleanedContent.match(/\[GEOMETRY:\s*[^\]]+\]/gi);
+  if (geomMatches && geomMatches.length > 1) {
+    let first = true;
+    cleanedContent = cleanedContent.replace(/\[GEOMETRY:\s*[^\]]+\]/gi, (match) => {
+      if (first) {
+        first = false;
+        return match;
+      }
+      return '';
+    });
+  }
 
   const requested = isVisualRequested(userText);
   const claimed = containsVisualClaim(cleanedContent);
@@ -270,7 +326,8 @@ function enforceVisualFidelity(finalContent, userText, conversationHistory = [],
 
   // If no visual was requested and no visual was claimed, do NOT add unsolicited visuals
   if (!requested && !claimed) {
-    return cleanedContent;
+    // Normal non-visual math response: ensure no stray ASCII diagram
+    return suppressAsciiTriangle(cleanedContent);
   }
 
   // If visual is already present: verify that it is mathematically sound
@@ -292,33 +349,49 @@ function enforceVisualFidelity(finalContent, userText, conversationHistory = [],
         }
       }
     }
-    return cleanedContent;
+    // Interactive visual successfully generated/mounted -> SUPPRESS legacy ASCII/text diagram
+    return suppressAsciiTriangle(cleanedContent);
   }
 
   // Visual was requested or claimed, but missing: attempt extraction
   const params = extractRightTriangleParameters(`${userText} ${cleanedContent}`, conversationHistory, activeProblemState);
 
   if (params) {
-    const geomToken = generateGeometryToken(params);
-    const asciiSketch = generateAsciiRightTriangle(params);
+    if (rendererAvailable) {
+      // Interactive renderer succeeds -> generate geometry token and SUPPRESS ASCII diagram
+      const geomToken = generateGeometryToken(params);
+      const orientationText = params.orientationNote ||
+        `*Orientation note:* In a reference triangle, geometric side lengths represent positive Euclidean distances ($adjacent = ${params.adj}$, $opposite = ${params.opp}$, $hypotenuse = ${params.hyp}$). Any negative signs indicate quadrant orientation.`;
 
-    const orientationText = params.orientationNote ||
-      `*Orientation note:* In a reference triangle, geometric side lengths represent positive Euclidean distances ($adjacent = ${params.adj}$, $opposite = ${params.opp}$, $hypotenuse = ${params.hyp}$). Any negative signs indicate quadrant orientation.`;
+      const visualBlock = [
+        '',
+        '### Reference Right-Triangle:',
+        geomToken,
+        '',
+        orientationText
+      ].join('\n');
 
-    const visualBlock = [
-      '',
-      '### Reference Right-Triangle Sketch:',
-      geomToken,
-      '',
-      asciiSketch,
-      '',
-      orientationText
-    ].join('\n');
+      let combined = cleanedContent.trim() + '\n\n' + visualBlock;
+      return suppressAsciiTriangle(combined);
+    } else {
+      // FALLBACK: Interactive renderer unavailable -> provide clear text/ASCII fallback
+      const asciiSketch = generateAsciiRightTriangle(params);
+      const orientationText = params.orientationNote ||
+        `*Orientation note:* In a reference triangle, geometric side lengths represent positive Euclidean distances ($adjacent = ${params.adj}$, $opposite = ${params.opp}$, $hypotenuse = ${params.hyp}$). Any negative signs indicate quadrant orientation.`;
 
-    return cleanedContent.trim() + '\n\n' + visualBlock;
+      const fallbackBlock = [
+        '',
+        "Here's a text representation instead:",
+        asciiSketch,
+        '',
+        orientationText
+      ].join('\n');
+
+      return cleanedContent.trim() + '\n\n' + fallbackBlock;
+    }
   }
 
-  // Visual is unavailable for this concept: ensure honesty and remove false visual claims
+  // Visual is unavailable for this concept or geometry tool failed: ensure honesty and remove false visual claims
   let sanitized = cleanedContent;
   if (claimed) {
     sanitized = sanitized.replace(/\(?[Ss]ee\s+(?:the\s+)?(?:sketch|diagram|drawing|triangle|figure)\s+below[:\.\)]?/g, '');
@@ -327,12 +400,14 @@ function enforceVisualFidelity(finalContent, userText, conversationHistory = [],
 
   const honestDisclaimer = '\n\n*(Note: An interactive graphical sketch is currently unavailable for this specific concept, but the mathematical steps above represent the exact derivation.)*';
 
-  return sanitized.trim() + honestDisclaimer;
+  return suppressAsciiTriangle(sanitized.trim()) + honestDisclaimer;
 }
 
 module.exports = {
   isVisualRequested,
   hasVisualPresent,
+  hasAsciiTriangle,
+  suppressAsciiTriangle,
   containsVisualClaim,
   extractRightTriangleParameters,
   generateAsciiRightTriangle,

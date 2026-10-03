@@ -585,6 +585,7 @@ const { classifyLearnerState, formatLearnerStateContext, LEARNER_STATES } = requ
 const { enforceVisualFidelity, isVisualRequested } = require('./vizEngine/visualFidelity');
 const toolController = require('./toolController');
 const { getSafeWithholding, WITHHOLDING_REASONS } = require('./withholdingTaxonomy');
+const { constructSafeVerifiedResponse } = require('./safeResponseConstructor');
 
 // Mount Admin Routes
 app.use('/admin', adminRoutes);
@@ -2116,6 +2117,32 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
       if (!selectedProvider) {
         if (candidateResult) break;
 
+        // ARCHITECTURAL MANDATE:
+        // Never withhold verified mathematical truth merely because the conversational explanation failed verification
+        // or because the conversational LLM is unavailable.
+        // If Pythos possesses a trusted, independently verified solution, the delivery system must attempt to construct
+        // a safe response from that solution rather than discarding it.
+        const safeRecovery = constructSafeVerifiedResponse({
+          userPrompt: lastUserMsg?.content || '',
+          preflightToolResult,
+          activeProblemState,
+          messages: req.body?.messages || []
+        });
+
+        if (safeRecovery && safeRecovery.content) {
+          console.log(`[DELIVERY GATE] Upstream LLMs unavailable, but Pythos possesses trusted verified solution from ${safeRecovery.source} (${safeRecovery.title}). Delivering verified truth directly!`);
+          candidateResult = {
+            model: 'pythos-verified-engine',
+            content: safeRecovery.content,
+            provider: 'deterministic-cas',
+            reasoningPath: safeRecovery.source,
+            safeResponseRecovered: true,
+            recoverySource: safeRecovery.source,
+            recoveryTitle: safeRecovery.title
+          };
+          break;
+        }
+
         if (primaryFailureError) {
           throw primaryFailureError;
         }
@@ -2148,7 +2175,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
             isStreaming,
             res,
             abortController,
-            timeoutMs: REQUEST_TIMEOUT_MS
+            timeoutMs: Math.min(REQUEST_TIMEOUT_MS, 15000)
           });
 
           if (!resOllama.content || !resOllama.content.trim()) {
@@ -2445,46 +2472,76 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
       if (hasUnresolvableFailure) {
         console.warn(`[DELIVERY GATE] Candidate contains ${uncorrectedInvalidClaims.length} uncorrected errors and ${internalContradictions.length} contradictions. Enforcing safe withholding gate...`);
 
-        const failureAudit = [];
-        uncorrectedInvalidClaims.forEach(({ verification }) => {
-          failureAudit.push(verification.details || verification.error_type || verification.status);
-        });
-        internalContradictions.forEach(ic => {
-          failureAudit.push(ic.details);
-        });
-
-        // Determine structured reason code from context & failures
-        let resolvedReason = WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED;
-        const hasImages = candidateResult?.hasImages || (req.body.messages && req.body.messages.some(m => m.images && m.images.length > 0)) || (req.body.image);
-        const auditText = failureAudit.join(' ').toLowerCase();
-
-        if (hasImages) {
-          resolvedReason = WITHHOLDING_REASONS.IMAGE_UNVERIFIABLE;
-        } else if (auditText.includes('missing') || auditText.includes('insufficient') || auditText.includes('undefined variable') || auditText.includes('not enough info')) {
-          resolvedReason = WITHHOLDING_REASONS.MISSING_INFORMATION;
-        } else if (auditText.includes('ambiguous') || auditText.includes('multiple interpretation')) {
-          resolvedReason = WITHHOLDING_REASONS.AMBIGUOUS_PROBLEM;
-        } else if (auditText.includes('fidelity') || auditText.includes('mismatch') || auditText.includes('different equation')) {
-          resolvedReason = WITHHOLDING_REASONS.PROMPT_CLAIM_MISMATCH;
-        } else {
-          resolvedReason = WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED;
+        // ARCHITECTURAL MANDATE:
+        // Never withhold verified mathematical truth merely because the conversational explanation failed verification.
+        // If Pythos possesses a trusted, independently verified solution, the delivery system must attempt to construct
+        // a safe response from that solution rather than discarding it.
+        // The LLM may explain verified mathematics, but it must never be the only mechanism capable of presenting verified mathematics to the student.
+        let safeRecovery = null;
+        try {
+          safeRecovery = constructSafeVerifiedResponse({
+            userPrompt: lastUserMsg?.content || '',
+            preflightToolResult,
+            activeProblemState,
+            messages: req.body.messages,
+            verificationResults: uncorrectedInvalidClaims
+          });
+        } catch (recoverErr) {
+          console.error('[DELIVERY GATE] Error constructing safe verified response:', recoverErr.message);
         }
 
-        const safeWithholding = getSafeWithholding(resolvedReason);
+        if (safeRecovery && safeRecovery.content && typeof safeRecovery.content === 'string') {
+          console.log(`[DELIVERY GATE] Conversational candidate rejected, but safe verified response successfully constructed from ${safeRecovery.source} (${safeRecovery.title}). Delivering verified mathematical truth!`);
+          finalContent = safeRecovery.content;
+          ollamaResponse.withheld = false;
+          ollamaResponse.safeResponseRecovered = true;
+          ollamaResponse.recoverySource = safeRecovery.source;
+          ollamaResponse.recoveryTitle = safeRecovery.title;
+          ollamaResponse.message.content = finalContent;
+        } else {
+          // No trusted verified solution exists (e.g. genuinely ambiguous, missing problem information, uncomputable)
+          // -> Enforce fail-closed safe withholding to protect the student from unverified guesses.
+          const failureAudit = [];
+          uncorrectedInvalidClaims.forEach(({ verification }) => {
+            failureAudit.push(verification.details || verification.error_type || verification.status);
+          });
+          internalContradictions.forEach(ic => {
+            failureAudit.push(ic.details);
+          });
 
-        finalContent = safeWithholding.formattedContent;
-        ollamaResponse.withheld = true;
-        ollamaResponse.withholdingReason = resolvedReason;
-        ollamaResponse.withholdingExplanation = safeWithholding.explanation;
-        ollamaResponse.withholdingDetails = {
-          headline: safeWithholding.headline,
-          explanation: safeWithholding.explanation,
-          cause: safeWithholding.cause,
-          help: safeWithholding.help,
-          nextStep: safeWithholding.nextStep
-        };
-        ollamaResponse.message.content = finalContent;
-        ollamaResponse.withholdingReasons = failureAudit; // Preserved internally for auditing
+          // Determine structured reason code from context & failures
+          let resolvedReason = WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED;
+          const hasImages = candidateResult?.hasImages || (req.body.messages && req.body.messages.some(m => m.images && m.images.length > 0)) || (req.body.image);
+          const auditText = failureAudit.join(' ').toLowerCase();
+
+          if (hasImages) {
+            resolvedReason = WITHHOLDING_REASONS.IMAGE_UNVERIFIABLE;
+          } else if (auditText.includes('missing') || auditText.includes('insufficient') || auditText.includes('undefined variable') || auditText.includes('not enough info')) {
+            resolvedReason = WITHHOLDING_REASONS.MISSING_INFORMATION;
+          } else if (auditText.includes('ambiguous') || auditText.includes('multiple interpretation')) {
+            resolvedReason = WITHHOLDING_REASONS.AMBIGUOUS_PROBLEM;
+          } else if (auditText.includes('fidelity') || auditText.includes('mismatch') || auditText.includes('different equation')) {
+            resolvedReason = WITHHOLDING_REASONS.PROMPT_CLAIM_MISMATCH;
+          } else {
+            resolvedReason = WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED;
+          }
+
+          const safeWithholding = getSafeWithholding(resolvedReason);
+
+          finalContent = safeWithholding.formattedContent;
+          ollamaResponse.withheld = true;
+          ollamaResponse.withholdingReason = resolvedReason;
+          ollamaResponse.withholdingExplanation = safeWithholding.explanation;
+          ollamaResponse.withholdingDetails = {
+            headline: safeWithholding.headline,
+            explanation: safeWithholding.explanation,
+            cause: safeWithholding.cause,
+            help: safeWithholding.help,
+            nextStep: safeWithholding.nextStep
+          };
+          ollamaResponse.message.content = finalContent;
+          ollamaResponse.withholdingReasons = failureAudit; // Preserved internally for auditing
+        }
       }
 
       // Automatic System Error Flagging (Priority 1)
@@ -2616,6 +2673,9 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           withholdingReason: ollamaResponse.withholdingReason || null,
           withholdingExplanation: ollamaResponse.withholdingExplanation || null,
           withholdingDetails: ollamaResponse.withholdingDetails || null,
+          safeResponseRecovered: ollamaResponse.safeResponseRecovered || false,
+          recoverySource: ollamaResponse.recoverySource || null,
+          recoveryTitle: ollamaResponse.recoveryTitle || null,
           done: true
         }) + '\n');
         res.write(JSON.stringify({ type: 'done' }) + '\n');
@@ -2641,6 +2701,62 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
     }
     if (res.writableEnded) {
       return;
+    }
+
+    // ARCHITECTURAL MANDATE:
+    // Never withhold verified mathematical truth merely because the conversational explanation failed verification
+    // or because the conversational LLM is unavailable / timed out.
+    // If Pythos possesses a trusted, independently verified solution, the delivery system must attempt to construct
+    // a safe response from that solution rather than discarding it.
+    let safeFallback = null;
+    try {
+      safeFallback = constructSafeVerifiedResponse({
+        userPrompt: lastUserMsg?.content || '',
+        preflightToolResult,
+        activeProblemState,
+        messages: req.body?.messages || []
+      });
+    } catch (safeErr) {
+      console.error('[PYTHOS API] Error constructing safe response in error handler:', safeErr.message);
+    }
+
+    if (safeFallback && safeFallback.content) {
+      let fallbackContent = enforceVisualFidelity(safeFallback.content, lastUserMsg?.content || '', req.body?.messages || [], activeProblemState);
+      console.log(`[DELIVERY GATE] Recovered from upstream failure. Delivering safe verified truth from ${safeFallback.source} (${safeFallback.title})!`);
+      if (isStreaming) {
+        if (!res.headersSent) {
+          res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+          res.setHeader('Transfer-Encoding', 'chunked');
+          res.setHeader('Cache-Control', 'no-cache, no-transform');
+        }
+        res.write(JSON.stringify({ type: 'token', content: fallbackContent }) + '\n');
+        res.write(JSON.stringify({
+          type: 'verified',
+          claims: [],
+          verification: [],
+          model: 'pythos-verified-engine',
+          deterministic: true,
+          safeResponseRecovered: true,
+          recoverySource: safeFallback.source,
+          recoveryTitle: safeFallback.title
+        }) + '\n');
+        res.write(JSON.stringify({ type: 'done' }) + '\n');
+        return res.end();
+      }
+
+      return res.status(200).json({
+        model: 'pythos-verified-engine',
+        provider: 'deterministic-cas',
+        safeResponseRecovered: true,
+        recoverySource: safeFallback.source,
+        recoveryTitle: safeFallback.title,
+        withheld: false,
+        message: {
+          role: 'assistant',
+          content: fallbackContent
+        },
+        done: true
+      });
     }
 
     const isTimeout = error.message === 'ETIMEDOUT' || error.message.includes('timeout');
