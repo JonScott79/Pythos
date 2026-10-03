@@ -1,13 +1,13 @@
-﻿/*
+/*
     visualFidelity.js
 
     Pythos Brain Architecture: Visual Instruction Fidelity & Sketch Engine.
 
     Responsibilities:
     1. Detects explicit student visual-teaching requirements:
-       "using sketches", "draw a triangle", "show me a diagram", "can you visualize this?", etc.
+       "using sketches", "draw a triangle", "show me a diagram", "show me this visually", "can you visualize this?", etc.
     2. Extracts right-triangle and geometric parameters from mathematical context:
-       e.g. sec(cot(-36.23)) -> adjacent = 36.23, opposite = 1, hypotenuse = sqrt(36.23^2 + 1).
+       e.g. sec(cot(-36.23)), csc(cot(-28.45°)) -> adjacent = 28.45, opposite = 1, hypotenuse = sqrt(28.45^2 + 1).
     3. Generates authoritative visual components:
        - [GEOMETRY: triangle ...] live HTML5 canvas interactive token
        - ASCII right-triangle representation in fenced code block
@@ -27,17 +27,21 @@ function isVisualRequested(text) {
   if (!text || typeof text !== 'string') return false;
   const clean = text.trim().toLowerCase();
 
-  // Explicit visual keywords (singular and plural)
-  if (/\b(?:sketch(?:es|ing)?|draw(?:ing|ings)?|diagram(?:s)?|graph(?:s|ing)?|plot(?:s|ting)?|illustrat(?:e|ion|ions)|visual(?:ize|ization|izations|s)?)\b/i.test(clean)) {
+  // Explicit visual keywords (singular, plural, adverbs)
+  if (/\b(?:sketch(?:es|ing)?|draw(?:ing|ings)?|diagram(?:s)?|graph(?:s|ing)?|plot(?:s|ting)?|illustrat(?:e|ion|ions)|visual(?:ize|ization|izations|s|ly)?)\b/i.test(clean)) {
     return true;
   }
 
-  // Phrases like "using sketches", "with a diagram", "show me on a triangle"
-  if (/\b(?:using|with|by)\s+(?:a\s+)?(?:sketch(?:es)?|diagram(?:s)?|drawing(?:s)?|picture|figure|visual(?:s)?)\b/i.test(clean)) {
+  // Phrases like "using sketches", "with a diagram", "show me on a triangle", "show me this visually"
+  if (/\b(?:using|with|by)\s+(?:a\s+)?(?:sketch(?:es)?|diagram(?:s)?|drawing(?:s)?|picture|figure|visual(?:s|ization)?)\b/i.test(clean)) {
     return true;
   }
 
-  if (/\bshow\s+(?:me\s+)?(?:a\s+|the\s+)?(?:triangle|diagram|sketch|graph|visual|drawing|picture|figure)\b/i.test(clean)) {
+  if (/\bshow\s+(?:me\s+)?(?:this\s+|a\s+|the\s+)?(?:visually|triangle|diagram|sketch|graph|visual|drawing|picture|figure)\b/i.test(clean)) {
+    return true;
+  }
+
+  if (/\b(?:visual\s+representation|can\s+you\s+(?:show|draw|sketch|visualize))\b/i.test(clean)) {
     return true;
   }
 
@@ -98,17 +102,25 @@ function extractRightTriangleParameters(text, conversationHistory = [], activePr
   if (legsMatch) {
     const v1 = parseFloat(legsMatch[1]);
     const v2 = parseFloat(legsMatch[2]);
-    // By convention in trig sketches: horizontal leg is adjacent, vertical is opposite
     const adj = Math.max(v1, v2);
     const opp = Math.min(v1, v2);
     const hyp = Math.round(Math.hypot(opp, adj) * 10000) / 10000;
     return { opp, adj, hyp, angleLabel: 'θ' };
   }
 
-  // 3. Trigonometric functions with numerical ratios
-  // E.g. cot(-36.23) or cot = -36.23 -> cot = adj / opp -> adj = 36.23, opp = 1
-  const cotMatch = combined.match(/\bcot\s*(?:\([^\)]*?\))?\s*[:=]\s*(-?[0-9]+(?:\.[0-9]+)?)/i) ||
-                   combined.match(/\bcot\s*\(\s*(-?[0-9]+(?:\.[0-9]+)?)\s*\)/i);
+  // 3. Trigonometric functions with numerical ratios (supporting fractions and degrees °, deg, degrees)
+  // cot = adj / opp (fraction form e.g. cot(theta) = 5/12 or cot = 7/24)
+  const cotFracMatch = combined.match(/\bcot\s*(?:[a-zA-Z]|theta|\([^\)]*?\))?\s*[:=]\s*(-?[0-9]+(?:\.[0-9]+)?)\s*\/\s*([0-9]+(?:\.[0-9]+)?)/i);
+  if (cotFracMatch) {
+    const adj = Math.abs(parseFloat(cotFracMatch[1]));
+    const opp = Math.abs(parseFloat(cotFracMatch[2]));
+    const hyp = Math.round(Math.hypot(opp, adj) * 10000) / 10000;
+    return { opp, adj, hyp, angleLabel: 'θ' };
+  }
+
+  // E.g. cot(-28.45°), cot(-36.23), csc(cot(-28.45°)), sec(cot(-36.23))
+  const cotMatch = combined.match(/\bcot\s*(?:\([^\)]*?\))?\s*[:=]\s*(-?[0-9]+(?:\.[0-9]+)?)(?:°|\s*deg(?:rees)?)?/i) ||
+                   combined.match(/\bcot\s*\(\s*(-?[0-9]+(?:\.[0-9]+)?)(?:°|\s*deg(?:rees)?)?\s*\)/i);
   if (cotMatch) {
     const val = Math.abs(parseFloat(cotMatch[1]));
     const adj = val;
@@ -126,8 +138,8 @@ function extractRightTriangleParameters(text, conversationHistory = [], activePr
     return { opp, adj, hyp, angleLabel: 'θ' };
   }
 
-  const tanMatch = combined.match(/\btan\s*(?:[a-zA-Z]|theta)?\s*[:=]\s*(-?[0-9]+(?:\.[0-9]+)?)/i) ||
-                   combined.match(/\btan\s*\(\s*(-?[0-9]+(?:\.[0-9]+)?)\s*\)/i);
+  const tanMatch = combined.match(/\btan\s*(?:[a-zA-Z]|theta)?\s*[:=]\s*(-?[0-9]+(?:\.[0-9]+)?)(?:°|\s*deg(?:rees)?)?/i) ||
+                   combined.match(/\btan\s*\(\s*(-?[0-9]+(?:\.[0-9]+)?)(?:°|\s*deg(?:rees)?)?\s*\)/i);
   if (tanMatch) {
     const val = Math.abs(parseFloat(tanMatch[1]));
     const opp = val;
@@ -194,32 +206,37 @@ function generateGeometryToken({ opp, adj, hyp }) {
  * 2. If graphical rendering is unavailable, honest fallback text is provided without claiming a visual exists.
  * 3. Never produces "See the sketch below" without an actual visual.
  * 4. Never generates unsolicited visuals for pure text math requests.
+ * 5. Sanitizes any orphaned internal placeholders (e.g. %%%INLINE_GEOMETRY_PLACEHOLDER%%%)
+ *    so placeholders NEVER leak into student view.
  *
  * @param {string} finalContent - Upstream assistant response
  * @param {string} userText - Student prompt
  * @param {Array<Object>} [conversationHistory=[]] - Conversation history
- * @param {Object} [activeProblemState=null] - Active problem state
+ * @param {Object} [activeProblemState=null] - Active problem tracking
  * @returns {string} Enforced content
  */
 function enforceVisualFidelity(finalContent, userText, conversationHistory = [], activeProblemState = null) {
   if (!finalContent || typeof finalContent !== 'string') return finalContent;
 
+  // Clean any placeholder strings that might have leaked from model or history
+  let cleanedContent = finalContent.replace(/%%%INLINE_[A-Z_]+_PLACEHOLDER%%%/g, '');
+
   const requested = isVisualRequested(userText);
-  const claimed = containsVisualClaim(finalContent);
-  const alreadyHasVisual = hasVisualPresent(finalContent);
+  const claimed = containsVisualClaim(cleanedContent);
+  const alreadyHasVisual = hasVisualPresent(cleanedContent);
 
   // If no visual was requested and no visual was claimed, do NOT add unsolicited visuals
   if (!requested && !claimed) {
-    return finalContent;
+    return cleanedContent;
   }
 
   // If visual is already present, verify and return
   if (alreadyHasVisual) {
-    return finalContent;
+    return cleanedContent;
   }
 
   // Visual was requested or claimed, but missing: attempt extraction
-  const params = extractRightTriangleParameters(`${userText} ${finalContent}`, conversationHistory, activeProblemState);
+  const params = extractRightTriangleParameters(`${userText} ${cleanedContent}`, conversationHistory, activeProblemState);
 
   if (params) {
     const geomToken = generateGeometryToken(params);
@@ -235,11 +252,11 @@ function enforceVisualFidelity(finalContent, userText, conversationHistory = [],
       `*Orientation note:* In a reference triangle, geometric side lengths represent positive distances ($adjacent = ${params.adj}$, $opposite = ${params.opp}$, $hypotenuse = ${params.hyp}$). Any negative signs from trigonometric functions or coordinates indicate the quadrant orientation, not negative triangle length.`
     ].join('\n');
 
-    return finalContent.trim() + '\n\n' + visualBlock;
+    return cleanedContent.trim() + '\n\n' + visualBlock;
   }
 
   // Visual is unavailable for this concept: ensure honesty and remove false visual claims
-  let sanitized = finalContent;
+  let sanitized = cleanedContent;
   if (claimed) {
     sanitized = sanitized.replace(/\(?[Ss]ee\s+(?:the\s+)?(?:sketch|diagram|drawing|triangle|figure)\s+below[:\.\)]?/g, '');
     sanitized = sanitized.replace(/[Aa]s\s+shown\s+in\s+the\s+(?:sketch|diagram|drawing|figure)\s+below[:\.]?/g, '');

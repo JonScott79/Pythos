@@ -1258,6 +1258,8 @@ function appendMessage(role, text, images = null, metadata = {}) {
   const geometryMatch = sanitized.match(geometryTokenRegex);
   if (geometryMatch) {
     sanitized = sanitized.replace(geometryTokenRegex, "%%%INLINE_GEOMETRY_PLACEHOLDER%%%");
+  } else if (sanitized.includes("%%%INLINE_GEOMETRY_PLACEHOLDER%%%")) {
+    sanitized = sanitized.replaceAll("%%%INLINE_GEOMETRY_PLACEHOLDER%%%", "");
   }
 
   // Detect [CHART: ...] tokens

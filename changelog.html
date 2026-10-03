@@ -523,7 +523,7 @@
         <a href="nonprofit.html" class="nav-link">Mission &amp; Roadmap</a>
         <a href="license.html" class="nav-link">License</a>
         <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" class="nav-link">Facebook</a>
-        <a href="changelog.html#pythos-1-8-22" class="nav-link active" aria-current="page">v1.8.22</a>
+        <a href="changelog.html#pythos-1-8-23" class="nav-link active" aria-current="page">v1.8.23</a>
       </div>
     </div>
 
@@ -549,12 +549,33 @@
     </header>
 
                                                                                     <!-- RELEASE v1.8.16 -->
-                                                            <!-- RELEASE v1.8.22 -->
+                                                                                <!-- RELEASE v1.8.23 -->
+    <article class="release-card" id="pythos-1-8-23">
+      <div class="release-header">
+        <div class="release-title-wrap">
+          <h2 class="release-version">Pythos 1.8.23</h2>
+          <span class="release-badge">Latest Release</span>
+        </div>
+        <time class="release-date" datetime="2026-10-02">October 2, 2026</time>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header added">⚡ WHAT'S NEW &amp; HARDENED</div>
+        <ul class="feature-list">
+          <li><strong>Controlled Tool Utilization Architecture</strong>: Implemented an intent-driven tool request layer allowing Pythos to intentionally invoke specialized backend capabilities (deterministic CAS calculations, right-triangle geometry rendering, function graphing, practice problem generation, student work evaluation) through structured, validated requests.</li>
+          <li><strong>Strict Allowlist &amp; Security Boundary</strong>: Server-enforced allowlist strictly restricts model tool invocation to 5 authorized capabilities with per-tool argument validation, bounds checking, and token sanitization, safely blocking arbitrary execution and injection attacks.</li>
+          <li><strong>Resolved Live Visualization Failures</strong>: Eliminates orphan placeholder tokens (<code>%%%INLINE_GEOMETRY_PLACEHOLDER%%%</code>) and unfulfilled visual promises (<em>"See the sketch below"</em>) on visual requests like <em>"Show me this visually"</em>; mounts verified interactive geometry tokens and ASCII reference diagrams.</li>
+          <li><strong>Authoritative Deterministic Context &amp; Safety Preservation</strong>: Verified tool results provide authoritative grounding for pedagogical explanations without weakening existing mathematical verification, prompt-to-claim fidelity, or fail-closed delivery gates.</li>
+          <li><strong>Capability Gap Detection &amp; Telemetry</strong>: Transparently identifies unsupported domains (such as fluid simulations, stoichiometry, or shell scripts) without hallucinating capabilities, supported by structured telemetry across 9 standard event types.</li>
+        </ul>
+      </div>
+    </article>
+
+    <!-- RELEASE v1.8.22 -->
     <article class="release-card" id="pythos-1-8-22">
       <div class="release-header">
         <div class="release-title-wrap">
           <h2 class="release-version">Pythos 1.8.22</h2>
-          <span class="release-badge">Latest Release</span>
         </div>
         <time class="release-date" datetime="2026-10-02">October 2, 2026</time>
       </div>
@@ -1490,7 +1511,7 @@
 
   <footer>
     <div>🏛️ Pythos — Free AI Mathematics &amp; Physics Education. Created by Jon Scott as part of the LANZAR initiative.</div>
-    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-8-22" style="color:var(--primary-color); text-decoration:none;">v1.8.22</a></div>
+    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-8-23" style="color:var(--primary-color); text-decoration:none;">v1.8.23</a></div>
   </footer>
 
   <script>

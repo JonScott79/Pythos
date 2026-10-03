@@ -309,6 +309,36 @@ For non-trivial mathematical and physical problems (word problems, optimization,
 - Always place visualization tokens on their own line. Explain the key physical or mathematical insights alongside the visualization in clean LaTeX.
 
 
+# SPECIALIZED CAPABILITIES & TOOL UTILIZATION PROTOCOL
+Pythos has access to verified deterministic server tools. When a task requires specialized calculation, geometry visualization, function graphing, practice-problem generation, or student-work evaluation, you may intentionally invoke a tool.
+
+To request a tool, output a structured block:
+<tool_request>
+{
+  "tool": "<tool_name>",
+  "reason": "<rationale>",
+  "arguments": { ... }
+}
+</tool_request>
+
+Allowlisted Tools:
+1. calculate_deterministic: Authoritative CAS calculation, arithmetic, roots, derivatives, integrals.
+   - Arguments: {"expression": "<math expression>", "operation": "evaluate" | "simplify" | "solve" | "derivative" | "integral"}
+2. render_geometry_triangle: Generates verified right-triangle [GEOMETRY: triangle ...] canvas token and ASCII sketch.
+   - Arguments: {"opposite": <number>, "adjacent": <number>, "hypotenuse": <number (optional)>, "angleLabel": "<symbol>"}
+3. render_function_graph: Generates interactive Cartesian coordinate graph [GRAPH: ...].
+   - Arguments: {"expression": "<function>", "domain": [<min>, <max>]}
+4. generate_practice_problem: Generates a structurally similar practice problem without leaking answers.
+   - Arguments: {"concept": "<concept>", "difficulty": "similar" | "easier" | "harder"}
+5. evaluate_student_work: Evaluates a student's proposed algebraic step or answer for mathematical equivalence.
+   - Arguments: {"studentStep": "<student step>", "targetExpression": "<target>"}
+
+RULES:
+- Only request allowlisted tools. NEVER invent tool names or execute arbitrary code.
+- Normal tutoring (explanations, confusion, encouragement, self-corrections) must NOT invoke tools.
+- When an authoritative tool result is provided, explain it pedagogically. Do not contradict it.
+- NEVER claim a visual or graph exists unless the corresponding tool has executed successfully.
+
 # PRACTICE-PROBLEM GENERATION (CRITICAL EDUCATIONAL MODE)
 When a student asks to practice or requests another problem:
 - "give me another problem"
@@ -553,6 +583,7 @@ const { generatePracticeProblem, validateProblemStructure } = require('./practic
 const { evaluateStudentWork, formatStudentWorkContext } = require('./studentWorkEvaluator');
 const { classifyLearnerState, formatLearnerStateContext, LEARNER_STATES } = require('./learnerState');
 const { enforceVisualFidelity, isVisualRequested } = require('./vizEngine/visualFidelity');
+const toolController = require('./toolController');
 const { getSafeWithholding, WITHHOLDING_REASONS } = require('./withholdingTaxonomy');
 
 // Mount Admin Routes
@@ -1813,11 +1844,32 @@ app.post('/api/chat', async (req, res) => {
     console.log(`[PROJECT KNOWLEDGE] Injected ${projectKnowledgeContext.length} chars of authoritative source context into system prompt`);
   }
 
+  // Tool Utilization Layer: Analyze intent and select/execute appropriate allowlisted tool
+  let toolResultContext = '';
+  let preflightToolResult = null;
+  const toolSelection = toolController.selectAppropriateTool(studentIntent, lastUserMsg?.content || '', messages, activeProblemState);
+  if (toolSelection) {
+    if (toolSelection.isCapabilityGap) {
+      console.log(`[TOOL CONTROLLER] Capability gap detected: ${toolSelection.gapName}`);
+      toolResultContext = `\n\n[CAPABILITY LIMITATION NOTICE]\n${toolSelection.message}\nPedagogical Directive: Gracefully inform the student about this limitation and explain the relevant theoretical or mathematical concepts without fabricating or pretending to simulate.\n`;
+    } else if (toolSelection.tool) {
+      console.log(`[TOOL CONTROLLER] Preflight tool selected: ${toolSelection.tool} (reason: ${toolSelection.reason})`);
+      preflightToolResult = await toolController.executeTool(toolSelection.tool, toolSelection.arguments, {
+        messages,
+        activeProblemState
+      });
+      if (preflightToolResult && preflightToolResult.success) {
+        toolResultContext = toolController.formatToolResultContext(preflightToolResult);
+        console.log(`[TOOL CONTROLLER] Successfully executed tool ${toolSelection.tool}, injected authoritative context (${toolResultContext.length} chars)`);
+      }
+    }
+  }
+
   // Ensure system instructions are always present, up-to-date, and enriched with deterministic ground truth
   let preparedMessages = [...boundedContext.messagesForModel];
   preparedMessages.unshift({
     role: 'system',
-    content: PYTHOS_SYSTEM_PROMPT + identityContext + preflightContext + studentWorkContext + learnerStateContext + activeProblemContext + learningContext + memoryContext + projectKnowledgeContext
+    content: PYTHOS_SYSTEM_PROMPT + identityContext + preflightContext + studentWorkContext + learnerStateContext + activeProblemContext + learningContext + memoryContext + projectKnowledgeContext + toolResultContext
   });
 
   // Clean vision messages in conversation history
@@ -2200,6 +2252,43 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
       res.write(JSON.stringify({ type: 'status', stage: 'verifying' }) + '\n');
     }
 
+    // Model-driven Tool Request Interception & Execution
+    if (candidateResult && candidateResult.content) {
+      const modelToolReq = toolController.extractModelToolRequest(candidateResult.content);
+      if (modelToolReq.hasRequest) {
+        toolController.recordTelemetry(toolController.TELEMETRY_EVENTS.TOOL_REQUESTED, {
+          details: modelToolReq.rawJson
+        });
+        if (modelToolReq.error) {
+          console.warn(`[TOOL CONTROLLER] Malformed tool request from model: ${modelToolReq.error}`);
+        } else {
+          const validation = toolController.validateToolRequest(modelToolReq.parsedRequest);
+          if (!validation.valid) {
+            console.warn(`[TOOL CONTROLLER] Model tool request rejected: ${validation.error}`);
+          } else {
+            const { tool, arguments: args } = validation.sanitizedRequest;
+            const executed = await toolController.executeTool(tool, args, { messages, activeProblemState });
+            if (executed && executed.success) {
+              toolController.recordTelemetry(toolController.TELEMETRY_EVENTS.TOOL_RESULT_USED_IN_RESPONSE, {
+                tool,
+                details: `Applied model-requested tool ${tool}`
+              });
+              let cleanCandidate = candidateResult.content
+                .replace(/<tool_request>[\s\S]*?<\/tool_request>/gi, '')
+                .replace(/```(?:json\s+)?tool_request[\s\S]*?```/gi, '')
+                .trim();
+              if (executed.formattedComponent) {
+                cleanCandidate = cleanCandidate + '\n\n' + executed.formattedComponent;
+              } else if (executed.result) {
+                cleanCandidate = cleanCandidate + '\n\nVerified Calculation: ' + (executed.details || executed.result);
+              }
+              candidateResult.content = cleanCandidate;
+            }
+          }
+        }
+      }
+    }
+
     let finalContent = candidateResult ? candidateResult.content : '';
     let ollamaResponse = {
       model: candidateResult?.model || targetModel,
@@ -2439,6 +2528,19 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
             ollamaResponse.message.content = finalContent;
           }
         }
+      }
+    }
+
+    // If preflight tool produced a graph component, ensure it is mounted
+    if (preflightToolResult && preflightToolResult.tool === toolController.TOOL_ALLOWLIST.RENDER_FUNCTION_GRAPH && preflightToolResult.success) {
+      if (!finalContent.includes('[GRAPH:') && preflightToolResult.formattedComponent) {
+        finalContent = finalContent.trim() + '\n\n' + preflightToolResult.formattedComponent;
+      }
+    }
+    // If preflight tool produced a geometry triangle component, ensure it is mounted
+    if (preflightToolResult && preflightToolResult.tool === toolController.TOOL_ALLOWLIST.RENDER_GEOMETRY_TRIANGLE && preflightToolResult.success) {
+      if (!finalContent.includes('[GEOMETRY:') && preflightToolResult.formattedComponent) {
+        finalContent = finalContent.trim() + '\n\n' + preflightToolResult.formattedComponent;
       }
     }
 

@@ -1,3 +1,17 @@
+## Pythos 1.8.23
+**Release Date:** October 2, 2026
+
+### Added & Hardened
+- **Controlled Tool Utilization Layer & Capability Execution Architecture** (`server/toolController.js`, `server/server.js`, `server/vizEngine/visualFidelity.js`, `server/studentIntentClassifier.js`, `app.js`):
+  - **Intent-Driven Capability Utilization**: Implemented structured, controlled tool requesting architecture enabling Pythos to intentionally invoke specialized backend instruments via structured requests: `<tool_request>{"tool": "...", "reason": "...", "arguments": {...}}</tool_request>`.
+  - **Strict Tool Allowlist & Security Sandbox**: Server-side enforcement restricting tool execution strictly to 5 allowlisted capabilities (`calculate_deterministic`, `render_geometry_triangle`, `render_function_graph`, `generate_practice_problem`, `evaluate_student_work`). Arbitrary tool names or code injection payloads (e.g. `eval`, `require`, shell execution) are rejected with `TOOL_REJECTED` telemetry.
+  - **Resolved Live Visualization Failure**: Solved the visual failure class for requests like *"Show me this visually"* on right-triangle and trigonometric problems (e.g. $csc(cot(-28.45^\circ))$). Dynamic geometry rendering synthesizes verified reference triangle tokens with ASCII sketches and positive Euclidean side lengths; strictly eliminates orphan placeholder tokens (`%%%INLINE_GEOMETRY_PLACEHOLDER%%%`) and false visual promises (*"See the sketch below"*).
+  - **Authoritative Deterministic Result Injection**: Verified computational and visualization results are injected into the pedagogical tutoring context with strict instructions that deterministic results are authoritative and must not be contradicted by speculative LLM arithmetic.
+  - **Preserved Safety & Fail-Closed Delivery**: All final mathematical answers remain subject to mandatory verification and fail-closed delivery gates. Practice-problem generation and visualization rendering operate through dedicated structural validity checks without false withholding.
+  - **Normal Tutoring Over-Tooling Guard**: Conceptual questions, encouragement, student self-correction, confusion, and conversational inquiries remain natural Socratic dialogue without unnecessary server tool overhead.
+  - **Capability Gap Detection & Developer Telemetry**: Recognizes unfulfillable domains (e.g., 3D CFD, chemical stoichiometry, arbitrary shell scripts, AI art) and delivers transparent educational explanations with `CAPABILITY_GAP_DETECTED` telemetry, completely preventing hallucinated capabilities or fabricated results.
+  - **Comprehensive Benchmark & Regression Suites**: Added dedicated 25-case regression suite (`test-tool-utilization.js`) and 70-case comprehensive benchmark suite (`test-tool-benchmark-70.js`) passing with 100% compliance across all 24 master regression suites.
+
 ## Pythos 1.8.22
 **Release Date:** October 2, 2026
 
