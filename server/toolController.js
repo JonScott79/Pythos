@@ -340,14 +340,73 @@ async function executeTool(toolName, args, sessionContext = {}) {
         let numericResult = null;
         let formattedResult = '';
 
+        // Explicit fail-closed guard: Division by zero or undefined operations
+        if (/\/\s*0+(?:\.0*)?(?!\d)/.test(cleanExpr) || /\b(?:0\^0)\b/.test(cleanExpr)) {
+          recordTelemetry(TELEMETRY_EVENTS.TOOL_FAILED, {
+            tool: toolName,
+            success: false,
+            details: `Division by zero / undefined arithmetic in ${cleanExpr}`
+          });
+          return {
+            success: false,
+            tool: toolName,
+            error: 'Division by zero is mathematically undefined.',
+            isUndefined: true,
+            details: `${expression} is mathematically undefined`
+          };
+        }
+
         try {
           const evaluated = math.evaluate(cleanExpr);
           if (typeof evaluated === 'number') {
+            if (!Number.isFinite(evaluated) || isNaN(evaluated)) {
+              recordTelemetry(TELEMETRY_EVENTS.TOOL_FAILED, {
+                tool: toolName,
+                success: false,
+                details: `Math evaluation produced non-finite value: ${evaluated}`
+              });
+              return {
+                success: false,
+                tool: toolName,
+                error: 'Calculation produced a non-finite or undefined value (e.g. division by zero).',
+                isUndefined: true,
+                details: `${expression} is undefined`
+              };
+            }
             numericResult = evaluated;
             formattedResult = Number.isInteger(evaluated) ? String(evaluated) : evaluated.toFixed(6).replace(/\.?0+$/, '');
+          } else if (evaluated && typeof evaluated === 'object' && evaluated.isComplex) {
+            recordTelemetry(TELEMETRY_EVENTS.TOOL_FAILED, {
+              tool: toolName,
+              success: false,
+              details: `Calculation produced complex result over real domain: ${evaluated}`
+            });
+            return {
+              success: false,
+              tool: toolName,
+              error: 'Operation produces a complex result outside the real domain.',
+              isUndefined: true,
+              details: `${expression} has no real value`
+            };
           } else if (evaluated && typeof evaluated.toString === 'function') {
-            formattedResult = evaluated.toString();
-            numericResult = Number(evaluated);
+            const strVal = evaluated.toString();
+            const numVal = Number(evaluated);
+            if (!Number.isFinite(numVal) || isNaN(numVal) || strVal === 'Infinity' || strVal === '-Infinity' || strVal === 'NaN') {
+              recordTelemetry(TELEMETRY_EVENTS.TOOL_FAILED, {
+                tool: toolName,
+                success: false,
+                details: `Math evaluation produced non-finite string representation: ${strVal}`
+              });
+              return {
+                success: false,
+                tool: toolName,
+                error: 'Calculation produced a non-finite or undefined value.',
+                isUndefined: true,
+                details: `${expression} is undefined`
+              };
+            }
+            formattedResult = strVal;
+            numericResult = numVal;
           } else {
             formattedResult = String(evaluated);
           }

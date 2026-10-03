@@ -1358,6 +1358,16 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
     const hasThirdSide = !!(triangleMatch && triangleMatch[3]);
     const c = hasThirdSide ? parseFloat(triangleMatch[3]) : (triangleMatch ? Math.round(Math.hypot(a, b) * 100) / 100 : 5);
 
+    if (a <= 0 || b <= 0 || c <= 0) {
+      return {
+        type: 'GEOMETRIC_CONTRADICTION',
+        result: 'IMPOSSIBLE',
+        solution: 'IMPOSSIBLE',
+        formatted: 'Geometric Contradiction: Triangle side lengths must be strictly positive.',
+        reason: `Triangle sides must be strictly positive (got legs ${a}, ${b}).`
+      };
+    }
+
     // Contradictory Premise Check: Triangle Inequality Theorem
     if (hasThirdSide) {
       if (a + b <= c || a + c <= b || b + c <= a) {
@@ -1384,7 +1394,9 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
       b,
       c,
       right_angle: 'C',
-      isTrigExplanation: hasTrigContext,
+      isTrigExplanation: hasTrigContext && !isPerimeter && !isArea,
+      isPerimeter,
+      isArea,
       opp: a,
       adj: b,
       hyp: c,
@@ -1581,13 +1593,13 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   }
 
   // 3. Linear & Quadratic Equation Solving (e.g. "solve 3x + 5 = 20", "solve for x: x^2 - 5x + 6 = 0", "Pythos, solve this equation: 2x + 7 = 15", "Okay, now solve x^2 - 5x + 6 = 0", "Find root for x: 7x + 44 = 9")
-  const eqMatch = clean.match(/^(?:(?:(?:okay|ok|now|pythos|please|kindly)[,\s]+)*(?:solve|find|determine|calculate)(?:\s+[a-zA-Z]\s+in\b)?(?:\s+(?:the\s+)?(?:root|roots|solution|solutions|value(?:\s+of)?))?(?:\s+(?:this|the)?\s*equation)?(?:\s+(?:for|in|of|to)(?:\s+[a-zA-Z])?)?[:\s]+)?([a-zA-Z0-9.\s*+^/()\-]+=[a-zA-Z0-9.\s*+^/()\-]+)$/i) ||
-                  clean.match(/^(?:(?:(?:okay|ok|now|pythos|please|kindly)[,\s]+)*(?:solve|find|determine|calculate)(?:\s+[a-zA-Z]\s+in\b)?(?:\s+(?:the\s+)?(?:root|roots|solution|solutions|value(?:\s+of)?))?(?:\s+(?:this|the)?\s*equation)?(?:\s+(?:for|in|of|to)(?:\s+[a-zA-Z])?)?[:\s]+)?(sqrt\([a-zA-Z0-9.\s*+^/()\-]+\)\s*=\s*[a-zA-Z0-9.\s*+^/()\-]+)$/i);
+  const eqMatch = clean.match(/^(?:(?:(?:okay|ok|now|pythos|please|kindly|actually|wait|sorry|no)[,\s]+)*(?:solve|find|determine|calculate|(?:the\s+)?equation\s+(?:was|is)|i\s+meant)(?:\s+[a-zA-Z]\s+in\b)?(?:\s+(?:all\s+)?(?:the\s+)?(?:real\s+)?(?:root|roots|solution|solutions|value(?:\s+of)?))?(?:\s+(?:this|the)?\s*equation)?(?:\s+(?:for|in|of|to)(?:\s+[a-zA-Z])?)?[:\s]+)?([a-zA-Z0-9.\s*+^/()\-]+=[a-zA-Z0-9.\s*+^/()\-]+)$/i) ||
+                  clean.match(/^(?:(?:(?:okay|ok|now|pythos|please|kindly|actually|wait|sorry|no)[,\s]+)*(?:solve|find|determine|calculate|(?:the\s+)?equation\s+(?:was|is)|i\s+meant)(?:\s+[a-zA-Z]\s+in\b)?(?:\s+(?:all\s+)?(?:the\s+)?(?:real\s+)?(?:root|roots|solution|solutions|value(?:\s+of)?))?(?:\s+(?:this|the)?\s*equation)?(?:\s+(?:for|in|of|to)(?:\s+[a-zA-Z])?)?[:\s]+)?(sqrt\([a-zA-Z0-9.\s*+^/()\-]+\)\s*=\s*[a-zA-Z0-9.\s*+^/()\-]+)$/i);
   if (eqMatch) {
     const rawEq = eqMatch[1].trim().replace(/\+\s*-/g, '- ');
 
     // If an active problem exists and student did not explicitly command "solve...", defer to contextual student work evaluation
-    const hasExplicitSolveDirective = /^(?:solve|find\s+(?:the\s+)?(?:root|roots|solution)|calculate|determine)\b/i.test(clean);
+    const hasExplicitSolveDirective = /^(?:solve|find\s+(?:the\s+)?(?:root|roots|solution)|calculate|determine|(?:actually|wait|sorry)[,\s]+(?:the\s+)?equation\s+(?:was|is))\b/i.test(clean);
     if (!hasExplicitSolveDirective && conversationHistory && conversationHistory.length > 0) {
       try {
         const { extractActiveProblemState } = require('./contextManager');
@@ -1775,13 +1787,11 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
                 };
               } else {
                 return {
-                  type: 'ALGEBRA_LINEAR_SOLVE',
-                  equation: rawEq,
-                  variable: v,
-                  solution: 'No solution',
-                  result: 'No solution',
-                  formatted: `\\text{No solution}`,
-                  steps: [`Simplifying both sides yields a contradiction: $0 = ${B.toFixed(4)}$`, `There is no solution.`]
+                  type: 'ALGEBRA_CONTRADICTION',
+                  result: 'IMPOSSIBLE',
+                  solution: 'IMPOSSIBLE',
+                  formatted: `Contradiction: Equation simplifies to 0 = ${B.toFixed(4)}, which has no solution.`,
+                  reason: 'Contradiction: Inconsistent linear equation (no solution).'
                 };
               }
             }
@@ -2124,6 +2134,7 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   }
 
   const forceMatch = clean.match(/(?:net\s+)?force.*?mass\s*([\d.]+)\s*kg.*?accelerat(?:ing|ion)\s+(?:at\s+|of\s*)?([\d.]+)\s*m\/s\^?2/i) ||
+                     clean.match(/(?:net\s+)?force.*?accelerat(?:ing|e|ion)?.*?(?:mass\s*(?:of\s*)?|a\s+)?([\d.]+)\s*kg.*?at\s*([\d.]+)\s*m\/s\^?2/i) ||
                      clean.match(/mass\s*([\d.]+)\s*kg.*?accelerat(?:ing|ion)\s+(?:at\s+|of\s*)?([\d.]+)\s*m\/s\^?2.*?(?:net\s+)?force/i);
   if (forceMatch) {
     const m = parseFloat(forceMatch[1]);
@@ -2150,6 +2161,25 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
       solution: ke,
       formatted: `${ke} J`
     };
+  }
+
+  // Constant speed velocity: v = d / t
+  const constVelMatch = clean.match(/(?:travels|moves|covers)\s*([\d.]+)\s*meters\s*in\s*([\d.]+)\s*s(?:econds?)?.*?(?:velocity|speed)/i) ||
+                        clean.match(/(?:velocity|speed).*?(?:travels|moves|covers)\s*([\d.]+)\s*meters\s*in\s*([\d.]+)\s*s(?:econds?)?/i) ||
+                        clean.match(/(?:an\s+object\s+travels\s+)?([\d.]+)\s*meters\s+in\s+([\d.]+)\s+seconds(?:\s+at\s+constant\s+speed)?.*?(?:velocity|speed)/i);
+  if (constVelMatch) {
+    const d = parseFloat(constVelMatch[1]);
+    const t = parseFloat(constVelMatch[2]);
+    if (t > 0) {
+      const v = Math.round((d / t) * 100) / 100;
+      return {
+        type: 'PHYSICS_VELOCITY',
+        d, t,
+        result: v,
+        solution: v,
+        formatted: `${v} m/s`
+      };
+    }
   }
 
   // 3i. Percentage of Value (e.g. "Calculate 20% of 320", "Determine 40% of 198")
@@ -2335,10 +2365,40 @@ Points within the highlighted segment satisfy the condition. Would you like to s
   }
 
   if (intent.type === 'GEOMETRY_VIZ') {
-    if (intent.isTrigExplanation || intent.opp !== undefined) {
-      const opp = intent.opp || intent.a;
-      const adj = intent.adj || intent.b;
-      const hyp = intent.hyp || intent.c;
+    const opp = intent.opp || intent.a;
+    const adj = intent.adj || intent.b;
+    const hyp = intent.hyp || intent.c;
+
+    if (intent.isPerimeter) {
+      const perimeter = opp + adj + hyp;
+      return `📐 **Right-Triangle Perimeter**
+
+Here is the right triangle with legs $${opp}$ and $${adj}$ and hypotenuse $${hyp}$:
+
+[GEOMETRY: triangle, a=${opp}, b=${adj}, c=${hyp}, right_angle=C, opp=${opp}, adj=${adj}, hyp=${hyp}]
+
+### Perimeter Calculation:
+The perimeter is the sum of all three side lengths:
+$$\\text{Perimeter} = a + b + c = ${opp} + ${adj} + ${hyp} = ${perimeter}$$
+
+$$\\boxed{${perimeter}}$$`;
+    }
+
+    if (intent.isArea) {
+      const area = 0.5 * opp * adj;
+      return `📐 **Right-Triangle Area**
+
+Here is the right triangle with base $${opp}$ and height $${adj}$:
+
+[GEOMETRY: triangle, a=${opp}, b=${adj}, c=${hyp}, right_angle=C, opp=${opp}, adj=${adj}, hyp=${hyp}]
+
+### Area Calculation:
+$$\\text{Area} = \\frac{1}{2} \\times \\text{base} \\times \\text{height} = \\frac{1}{2}(${opp})(${adj}) = ${area}$$
+
+$$\\boxed{${area}}$$`;
+    }
+
+    if (intent.isTrigExplanation) {
       return `📐 **Right-Triangle Trigonometric Model**
 
 Here is the right triangle illustrating the opposite, adjacent, and hypotenuse sides with angle $\\theta$:
@@ -2346,9 +2406,9 @@ Here is the right triangle illustrating the opposite, adjacent, and hypotenuse s
 [GEOMETRY: triangle, a=${intent.a}, b=${intent.b}, c=${intent.c}, right_angle=C, opp=${opp}, adj=${adj}, hyp=${hyp}, theta=true]
 
 ### 1. Side Identification Relative to $\\theta$:
-- **Opposite side** = $${opp}$ (vertical leg opposite to angle $\\theta$)
-- **Adjacent side** = $${adj}$ (horizontal leg adjacent to angle $\\theta$)
-- **Hypotenuse** = $${hyp}$ (longest side opposite the $90^\\circ$ right angle $C$)
+- **Opposite side** = ${opp}$ (vertical leg opposite to angle $\\theta$)
+- **Adjacent side** = ${adj}$ (horizontal leg adjacent to angle $\\theta$)
+- **Hypotenuse** = ${hyp}$ (longest side opposite the $90^\\circ$ right angle $C$)
 
 ### 2. Trigonometric Ratios for $\\theta$:
 - $\\sin(\\theta) = \\frac{\\text{opposite}}{\\text{hypotenuse}} = \\frac{${opp}}{${hyp}}$
@@ -2357,18 +2417,20 @@ Here is the right triangle illustrating the opposite, adjacent, and hypotenuse s
 
 ### 3. Connecting $\\tan(\\theta) = \\frac{\\sin(\\theta)}{\\cos(\\theta)}$:
 Dividing the sine ratio by the cosine ratio:
-$$\\frac{\\sin(\\theta)}{\\cos(\\theta)} = \\frac{\\frac{${opp}}{${hyp}}}{\\frac{${adj}}{${hyp}}} = \\frac{${opp}}{${hyp}} \\times \\frac{${hyp}}{${adj}} = \\frac{${opp}}{${adj}} = \\tan(\\theta)$$
+$\\frac{\\sin(\\theta)}{\\cos(\\theta)} = \\frac{\\frac{${opp}}{${hyp}}}{\\frac{${adj}}{${hyp}}} = \\frac{${opp}}{${hyp}} \\times \\frac{${hyp}}{${adj}} = \\frac{${opp}}{${adj}} = \\tan(\\theta)$
 
-The hypotenuse ($${hyp}$) cancels out directly, confirming why tangent is identically $\\frac{\\text{opposite}}{\\text{adjacent}}$ and $\\frac{\\sin(\\theta)}{\\cos(\\theta)}$.`;
+The hypotenuse (${hyp}$) cancels out directly, confirming why tangent is identically $\\frac{\\text{opposite}}{\\text{adjacent}}$ and $\\frac{\\sin(\\theta)}{\\cos(\\theta)}$.`;
     }
 
     return `📐 **Geometric Construction**
 
 Here is the requested geometric figure:
 
-[GEOMETRY: triangle, a=${intent.a}, b=${intent.b}, c=${intent.c}, right_angle=C]
+[GEOMETRY: triangle, a=${intent.a}, b=${intent.b}, c=${intent.c}, right_angle=C, opp=${opp}, adj=${adj}, hyp=${hyp}]
 
-By the Pythagorean theorem: $a^2 + b^2 = ${intent.a}^2 + ${intent.b}^2 = ${intent.a * intent.a + intent.b * intent.b} = c^2$, confirming $c = ${intent.c}$. Would you like to find the acute angles or area?`;
+By the Pythagorean theorem: $a^2 + b^2 = ${intent.a}^2 + ${intent.b}^2 = ${intent.a * intent.a + intent.b * intent.b} = c^2$, confirming $c = ${intent.c}$.
+
+\\boxed{${intent.c}}`;
   }
 
   if (intent.type === 'CHART_VIZ') {
@@ -2574,7 +2636,11 @@ Adjust the controls above to explore how launch angle $\\theta$ and velocity $v_
   }
 
   if (intent.type === 'PHYSICS_KINETIC_ENERGY') {
-    return `✅ Kinetic Energy calculation:\n\n$$\nKE = \\frac{1}{2} m v^2 = \\frac{1}{2}(${intent.m})(${intent.v})^2 = ${intent.formatted}\n$$\n\n\\boxed{${intent.result}}`;
+    return `✅ Kinetic Energy calculation:\n\n$\nKE = \\frac{1}{2} m v^2 = \\frac{1}{2}(${intent.m})(${intent.v})^2 = ${intent.formatted}\n$\n\n\\boxed{${intent.result}}`;
+  }
+
+  if (intent.type === 'PHYSICS_VELOCITY') {
+    return `✅ Velocity calculation:\n\n$\nv = \\frac{d}{t} = \\frac{${intent.d}}{${intent.t}} = ${intent.formatted}\n$\n\n\\boxed{${intent.result}}`;
   }
 
   if (intent.type === 'COTERMINAL_ANGLE') {

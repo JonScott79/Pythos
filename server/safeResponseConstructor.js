@@ -132,12 +132,20 @@ function constructSafeVerifiedResponse({
 
     // 2b. Preflight Deterministic Calculation
     if (preflightToolResult.tool === 'calculate_deterministic') {
-      const { expression, result, isExact } = preflightToolResult;
+      const { expression, result, numericValue, isExact } = preflightToolResult;
+      
+      // Strict mathematical validity check: Never deliver non-finite, NaN, or undefined values
+      const resStr = String(result || '').trim();
+      const numVal = numericValue !== undefined && numericValue !== null ? numericValue : Number(resStr);
+      if (!Number.isFinite(numVal) || isNaN(numVal) || ['Infinity', '-Infinity', 'NaN', 'undefined'].includes(resStr)) {
+        return null; // Fail-closed: Never deliver undefined or infinite values as certified truth
+      }
+
       const lines = [
         `Here is the verified calculation:`,
         '',
         `$$\\begin{aligned}`,
-        `  \\text{Expression:} &\\quad ${expression} \\\\[4pt]`,
+        `  \\text{Expression:} &\\quad ${expression} \\[4pt]`,
         `  \\text{Evaluated Result:} &\\quad ${result}`,
         `\\end{aligned}$$`,
         '',

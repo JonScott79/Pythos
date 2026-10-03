@@ -85,6 +85,27 @@ const MathJSVerifier = {
 
     // 2. Exact Fraction vs Approximate Decimal
     if (expression) {
+      // Explicit mathematical undefined / division by zero pre-check
+      if (/\/\s*0+(?:\.0*)?(?!\d)/.test(expression) || /\b0\^0\b/.test(expression)) {
+        return {
+          verified: false,
+          engine: 'mathjs',
+          status: 'DIVISION_BY_ZERO',
+          error_type: 'MATHEMATICAL_UNDEFINED',
+          details: `Expression ${expression} contains division by zero or indeterminate form (mathematically undefined).`
+        };
+      }
+
+      // Real domain check for logarithm of non-positive numbers
+      if (/\b(?:log|ln|log10|log2)\s*\(\s*[-0]/.test(expression)) {
+        return {
+          verified: false,
+          engine: 'mathjs',
+          status: 'DOMAIN_ERROR',
+          error_type: 'DOMAIN_VIOLATION',
+          details: `Logarithm is undefined for non-positive arguments over the real numbers (domain violation).`
+        };
+      }
       try {
         // Try exact fraction evaluation first
         let exactResult;
@@ -103,6 +124,31 @@ const MathJSVerifier = {
         const numResult = typeof exactResult === 'number'
           ? exactResult
           : (exactResult && exactResult.valueOf ? exactResult.valueOf() : Number(exactResult));
+
+        // Reject non-finite values (Infinity, -Infinity, NaN, Complex in real domain)
+        if (!Number.isFinite(numResult) || isNaN(numResult)) {
+          return {
+            verified: false,
+            engine: 'mathjs',
+            status: 'MATHEMATICAL_UNDEFINED',
+            error_type: 'NON_FINITE_RESULT',
+            exact_value: null,
+            proposed_value,
+            details: `Expression ${expression} evaluated to a non-finite value (${numResult}), which is mathematically undefined.`
+          };
+        }
+
+        if (exactResult && typeof exactResult === 'object' && exactResult.isComplex && domain === 'real') {
+          return {
+            verified: false,
+            engine: 'mathjs',
+            status: 'DOMAIN_ERROR',
+            error_type: 'DOMAIN_VIOLATION',
+            exact_value: null,
+            proposed_value,
+            details: `Expression ${expression} evaluated to a complex number (${exactResult.toString()}) over the real domain.`
+          };
+        }
 
         if (typeof proposed_value !== 'undefined') {
           // Exact fraction string match e.g. "1/3"

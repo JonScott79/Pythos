@@ -492,7 +492,7 @@
         <a href="../nonprofit.html" class="nav-link">Mission &amp; Roadmap</a>
         <a href="../license.html" class="nav-link">License</a>
         <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" class="nav-link">Facebook</a>
-        <a href="../changelog.html#pythos-1-8-25" class="nav-link">v1.8.25</a>
+        <a href="../changelog.html#pythos-1-8-26" class="nav-link">v1.8.26</a>
       </div>
     </div>
 
@@ -555,34 +555,34 @@
       </div>
 
 
-      <h2>When Verification Rejects an Answer</h2>
+      <h2>Verified-Truth Recovery</h2>
       <p>
-        Verification is not the end of the process. It is also a recovery point. If Pythos rejects a generated answer but already has independently verified mathematical truth available from a trusted deterministic calculation, preflight tool, or other authoritative source, it can construct a new response directly from that verified result.
+        Verification is not merely a rejection mechanism; it is also a recovery point. In traditional AI tutoring architectures, verification operates strictly as an all-or-nothing rejection filter: if an upstream model hallucinates an intermediate step or outputs contradictory conversational prose, the entire response is discarded and safely withheld. While safe withholding prevents false information from reaching students, it creates an educational inefficiency: <strong>rejecting a flawed explanation does not require throwing away a good, verified answer.</strong>
       </p>
       <p>
-        The recovered response is sent through verification again before delivery. If trusted truth is unavailable, Pythos remains fail-closed and withholds the unsupported answer rather than filling the gap with a guess.
+        Pythos addresses this with its <strong>Verified-Truth Recovery System</strong>. When candidate generation fails verification, the delivery layer inspects whether authoritative mathematical truth is already established through preflight deterministic calculations, computer algebra systems (CAS), or verified geometric and trigonometric models. If trusted truth exists, Pythos constructs a clean, authoritative derivation directly from that verified foundation:
       </p>
       <div class="features-grid">
         <div class="feature-card">
-          <h3>Reject the Candidate</h3>
-          <p>Invalid or unverifiable mathematical claims are stopped before they reach the student as an answer.</p>
+          <h3>1. Reject the Candidate</h3>
+          <p>Invalid, unverifiable, or flawed conversational claims are stopped before they can reach the student as an answer.</p>
         </div>
         <div class="feature-card">
-          <h3>Recover Trusted Truth</h3>
-          <p>When an independently verified result already exists, Pythos can reconstruct the response from that authoritative result.</p>
+          <h3>2. Recover Trusted Truth</h3>
+          <p>When an independently verified result already exists from deterministic solvers or preflight tools, Pythos reconstructs the response from that authoritative result.</p>
         </div>
         <div class="feature-card">
-          <h3>Verify Again</h3>
-          <p>Recovered responses still pass through the mathematical verification and delivery gates before they are shown.</p>
+          <h3>3. Mandatory Re-Verification</h3>
+          <p>Recovered responses still pass through mathematical verification and delivery gates to confirm prompt fidelity, finite bounds, and proper formatting before delivery.</p>
         </div>
         <div class="feature-card">
-          <h3>Withhold When Necessary</h3>
-          <p>If Pythos cannot establish a trustworthy answer, it says so instead of inventing one.</p>
+          <h3>4. Fail-Closed Withholding</h3>
+          <p>If Pythos cannot establish independent trusted truth (such as uncomputable, ambiguous, or contradictory premises), it safely withholds rather than inventing an answer.</p>
         </div>
       </div>
 
-      <div class="disclaimer-box">
-        <strong>Recovery validation:</strong> In a dedicated 50,000-problem deterministic stress campaign, Pythos recovered <strong>2,920 / 2,920</strong> cases where trusted mathematical truth was available, with <strong>100% recovery correctness</strong>. The campaign delivered 21,733 verified answers, safely withheld 28,267 unsupported cases, and recorded 0 incorrect delivered answers. This result validates the recovery subsystem under the tested conditions; it is not a claim of universal mathematical accuracy.
+      <div class="disclaimer-box" style="margin-top: 20px;">
+        <strong>Recovery validation:</strong> In a dedicated 50,000-problem deterministic stress campaign (seed <code>1732050808</code>, commit <code>4cdb7ee</code>), Pythos recovered <strong>2,920 / 2,920</strong> cases where trusted mathematical truth was available, with <strong>100% recovery correctness</strong>. The campaign delivered 21,733 verified answers, safely withheld 28,267 unsupported cases, and recorded 0 incorrect delivered answers and 0 verification escapes. This result validates the recovery subsystem under tested deterministic conditions; it is not a claim of universal mathematical accuracy.
       </div>
 
       <h2>Think You Can Stump Pythos?</h2>
@@ -652,7 +652,7 @@
   <!-- Footer -->
   <footer>
     <div>🏛️ Pythos — Free AI Mathematics &amp; Physics Education. Created by Jon Scott as part of the LANZAR initiative.</div>
-    <div style="margin-top: 6px; opacity: 0.75;">Pythos &copy; 2026 <a href="https://lanzar.me" target="_blank" rel="noopener" style="color:var(--primary-color); text-decoration:none;">LANZAR</a>. All rights reserved. &bull; <a href="../subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="../validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="../about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="../nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="https://github.com/JonScott79/Pythos" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">GitHub</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="../changelog.html#pythos-1-8-25" style="color:var(--primary-color); text-decoration:none;">v1.8.25</a></div>
+    <div style="margin-top: 6px; opacity: 0.75;">Pythos &copy; 2026 <a href="https://lanzar.me" target="_blank" rel="noopener" style="color:var(--primary-color); text-decoration:none;">LANZAR</a>. All rights reserved. &bull; <a href="../subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="../validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="../about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="../nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="https://github.com/JonScott79/Pythos" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">GitHub</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="../changelog.html#pythos-1-8-26" style="color:var(--primary-color); text-decoration:none;">v1.8.26</a></div>
   </footer>
 
   <script>

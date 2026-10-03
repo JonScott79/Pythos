@@ -65,6 +65,18 @@ function cleanLatexUnits(str) {
  */
 function extractCandidateAnswer(text) {
   if (!text || typeof text !== 'string') return null;
+
+  function sanitizeExtracted(ans) {
+    if (!ans || typeof ans !== 'string') return null;
+    const clean = ans.trim();
+    if (clean.length === 0) return null;
+    // Reject non-finite, undefined or error values
+    if (/^(?:Infinity|-Infinity|NaN|undefined|null|error)$/i.test(clean)) {
+      return null;
+    }
+    return clean;
+  }
+
   const boxedMatches = extractBoxedMatches(text);
   if (boxedMatches.length > 0) {
     let raw = cleanLatexUnits(boxedMatches[boxedMatches.length - 1].content);
@@ -72,14 +84,21 @@ function extractCandidateAnswer(text) {
       const eqMatch = raw.match(/^[a-zA-Z]\s*=\s*(.+)$/);
       if (eqMatch) raw = eqMatch[1].trim();
     }
-    if (raw.length > 0) return raw;
+    const sanitized = sanitizeExtracted(raw);
+    if (sanitized) return sanitized;
   }
   
   const dispEqMatch = text.match(/\$\$\s*[\s\S]*?=\s*([-\d./]+(?:\s*[a-zA-Z/^2]+)?)\s*\$\$/);
-  if (dispEqMatch) return dispEqMatch[1].trim();
+  if (dispEqMatch) {
+    const sanitized = sanitizeExtracted(dispEqMatch[1]);
+    if (sanitized) return sanitized;
+  }
   
   const inlineMatch = text.match(/(?:x|y|z|result|answer|v|velocity|force|energy)\s*=\s*([-\d./]+(?:\s*[a-zA-Z/^2]+)?)/i);
-  if (inlineMatch) return inlineMatch[1].trim();
+  if (inlineMatch) {
+    const sanitized = sanitizeExtracted(inlineMatch[1]);
+    if (sanitized) return sanitized;
+  }
   
   return null;
 }
@@ -91,13 +110,26 @@ function extractCandidateAnswer(text) {
  * - Prompt-to-claim fidelity must be satisfied.
  */
 function evaluateCandidateDelivery({ candidateAnswer, verifications = [], contradictions = [], claims = [], prompt = '' }) {
-  if (candidateAnswer === null || candidateAnswer === undefined || String(candidateAnswer).trim() === '') {
+  // Reject division by zero in prompt (fail-closed)
+  if (/\/\s*0+(?:\.0*)?(?!\d)/.test(prompt) || /\b(?:divide\s+by\s+zero|division\s+by\s+zero)\b/i.test(prompt)) {
+    return {
+      status: 'UNDEFINED_OPERATION',
+      delivered: false,
+      withheld: true,
+      answer: null,
+      reason: 'Prompt attempts division by zero, which is mathematically undefined.'
+    };
+  }
+
+  // Reject non-finite or undefined candidate answers
+  if (candidateAnswer === null || candidateAnswer === undefined || String(candidateAnswer).trim() === '' ||
+      /^(?:Infinity|-Infinity|NaN|undefined|null)$/i.test(String(candidateAnswer).trim())) {
     return {
       status: 'NO_CANDIDATE_ANSWER',
       delivered: false,
       withheld: true,
       answer: null,
-      reason: 'No non-empty candidate answer could be extracted (fail-closed).'
+      reason: 'No valid finite candidate answer could be extracted (fail-closed).'
     };
   }
 

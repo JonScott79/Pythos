@@ -1,0 +1,60 @@
+{
+  "campaign": "PYTHOS_v1825_50K_OVERNIGHT_VALIDATION",
+  "commit": "4cdb7ee657dbe44bd0b32e4008fcfe2e8182797d",
+  "version": "1.8.25",
+  "seed": 1414213562,
+  "mode": "Deterministic & Candidate-Rejection Production Stress Validation",
+  "totalProblems": 50000,
+  "recoveryCohortSize": 5000,
+  "domains": [
+    {
+      "domain": "ARITHMETIC",
+      "count": 4200
+    },
+    {
+      "domain": "FRACTIONS",
+      "count": 4200
+    },
+    {
+      "domain": "LINEAR_EQUATIONS",
+      "count": 4200
+    },
+    {
+      "domain": "SYSTEMS_OF_EQUATIONS",
+      "count": 4200
+    },
+    {
+      "domain": "QUADRATICS",
+      "count": 4200
+    },
+    {
+      "domain": "FUNCTIONS",
+      "count": 4200
+    },
+    {
+      "domain": "GEOMETRY_TRIG",
+      "count": 4200
+    },
+    {
+      "domain": "CALCULUS",
+      "count": 4200
+    },
+    {
+      "domain": "PROBABILITY_STATS",
+      "count": 4200
+    },
+    {
+      "domain": "PHYSICS",
+      "count": 4200
+    },
+    {
+      "domain": "ADVERSARIAL_TRICK",
+      "count": 4000
+    },
+    {
+      "domain": "MULTI_TURN",
+      "count": 4000
+    }
+  ],
+  "timestamp": "2026-10-03T04:47:17.403Z"
+}

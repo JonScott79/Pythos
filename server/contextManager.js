@@ -67,8 +67,8 @@ function detectTopicTransitionIntent(userText) {
   }
 
   // 3. Explicit correction / modification of previous problem
-  const isCorrection = /\b(?:wait|sorry|actually|correction|oops|no\s*wait|typo)\b.*?\b(?:is\s+actually|i\s+meant|i\s+mean|i\s+said|instead\s+of|actually\s+shows|actually\s+find)\b/i.test(lower) ||
-                       /\b(?:i\s+meant|meant\s+to\s+say|my\s+bad,?\s+i\s+meant|typo,?\s+meant|actually\s+the\s+third\s+side\s+is|actually\s+i\s+need|actually,?\s+solve\s+for)\b/i.test(lower);
+  const isCorrection = /\b(?:wait|sorry|actually|correction|oops|no\s*wait|typo)\b.*?\b(?:is\s+actually|i\s+meant|i\s+mean|i\s+said|instead\s+of|actually\s+shows|actually\s+find|(?:the\s+)?equation\s+(?:was|is))\b/i.test(lower) ||
+                       /\b(?:i\s+meant|meant\s+to\s+say|my\s+bad,?\s+i\s+meant|typo,?\s+meant|actually\s+the\s+third\s+side\s+is|actually\s+i\s+need|actually,?\s+solve\s+for|(?:the\s+)?equation\s+(?:was|is)\s+actually|actually[,\s]+(?:the\s+)?equation\s+(?:was|is))\b/i.test(lower);
   if (isCorrection) {
     return {
       type: 'CORRECTION',
@@ -623,7 +623,7 @@ function buildEffectivePrompt(messages = []) {
     const turnText = userMsgs[i].content.trim();
 
     // Equation correction
-    const eqMatch = turnText.match(/(?:i\s+meant|solve|typo,?\s+meant)\s+([a-zA-Z0-9+\-*/^().\s=]+=[a-zA-Z0-9+\-*/^().\s=]+)/i);
+    const eqMatch = turnText.match(/(?:i\s+meant|solve|typo,?\s+meant|(?:actually|wait|sorry|no)[,\s]*(?:the\s+)?equation\s+(?:is|was)|actually)\s+([a-zA-Z0-9+\-*/^().\s=]+=[a-zA-Z0-9+\-*/^().\s=]+)/i);
     if (eqMatch) {
       const newEq = eqMatch[1].trim();
       if (/[-+*/^0-9a-zA-Z().\s]+=[-+\-*/^0-9a-zA-Z().\s]+/.test(effective)) {

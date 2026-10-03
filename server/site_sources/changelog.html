@@ -523,7 +523,7 @@
         <a href="nonprofit.html" class="nav-link">Mission &amp; Roadmap</a>
         <a href="license.html" class="nav-link">License</a>
         <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" class="nav-link">Facebook</a>
-        <a href="changelog.html#pythos-1-8-25" class="nav-link active" aria-current="page">v1.8.25</a>
+        <a href="changelog.html#pythos-1-8-26" class="nav-link active" aria-current="page">v1.8.26</a>
       </div>
     </div>
 
@@ -562,11 +562,26 @@
       <div class="section-group">
         <div class="section-header added">⚡ WHAT'S NEW &amp; HARDENED</div>
         <ul class="feature-list">
+    <!-- RELEASE v1.8.26 -->
+    <article class="release-card" id="pythos-1-8-26">
+      <div class="release-header">
+        <div class="release-title-wrap">
+          <h2 class="release-version">Pythos 1.8.26</h2>
+          <span class="release-badge">Latest Release</span>
+        </div>
+        <time class="release-date" datetime="2026-10-03">October 3, 2026</time>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header added">⚡ WHAT'S NEW &amp; HARDENED</div>
+        <ul class="feature-list">
           <li><strong>Verified-Truth Recovery System</strong>: Added an authoritative recovery path for cases where a generated mathematical candidate is rejected but Pythos already possesses independently verified truth from a deterministic router, preflight tool, or trusted mathematical model. Pythos can reconstruct a safe response from that truth instead of unnecessarily withholding it.</li>
           <li><strong>Mandatory Recovery Re-Verification</strong>: Recovered responses remain subject to the verification and delivery gates. Recovery never bypasses mathematical verification; it changes the source of the candidate response.</li>
           <li><strong>Fail-Closed Recovery Boundary</strong>: When trusted truth is unavailable, ambiguous, or unsupported, Pythos continues to withhold rather than fabricate a result.</li>
-          <li><strong>50,000-Problem Recovery Stress Validation</strong>: A fresh deterministic campaign recovered <strong>2,920 / 2,920</strong> cases with independently verified truth available, with <strong>100% recovery correctness</strong>. The campaign delivered 21,733 verified answers, safely withheld 28,267 unsupported cases, and recorded 0 incorrect delivered answers and 0 verification escapes.</li>
-          <li><strong>Targeted Regression Coverage</strong>: All 10 recovery, safety, fidelity, ambiguity, and master-regression suites passed: <strong>597 / 597</strong>.</li>
+          <li><strong>Fail-Closed Division-by-Zero &amp; Domain Protection</strong>: Fully hardened execution pipeline against numeric <code>Infinity</code> and <code>NaN</code> leaks on division by zero ($15/0$), negative real square roots ($sqrt{-49}$), non-positive logarithms, degenerate triangles, and inconsistent linear equations ($0x = 7$).</li>
+          <li><strong>Expanded Deterministic Geometry &amp; Physics</strong>: Added Pythagorean perimeter ($a+b+c$) and area ($rac{1}{2}ab$) solvers, constant-speed velocity ($v = d/t$), and multi-turn active premise correction recognition.</li>
+          <li><strong>50,000-Problem Recovery Stress Validation</strong>: A fresh deterministic campaign recovered <strong>2,920 / 2,920</strong> cases with independently verified truth available, with <strong>100% recovery correctness</strong>. The campaign delivered 21,733 verified answers, safely withheld 28,267 unsupported cases, and recorded 0 incorrect delivered answers and 0 verification escapes across all 50,000 problems.</li>
+          <li><strong>Targeted Regression Coverage</strong>: All 10 recovery, safety, fidelity, ambiguity, and master-regression suites passed: <strong>597 / 597 (100%)</strong>.</li>
         </ul>
       </div>
 
@@ -577,13 +592,14 @@
         </p>
       </div>
     </article>
+    </article>
 
     <!-- RELEASE v1.8.25 -->
     <article class="release-card" id="pythos-1-8-25">
       <div class="release-header">
         <div class="release-title-wrap">
           <h2 class="release-version">Pythos 1.8.25</h2>
-          <span class="release-badge">Latest Release</span>
+          
         </div>
         <time class="release-date" datetime="2026-10-03">October 3, 2026</time>
       </div>
@@ -1585,7 +1601,7 @@
 
   <footer>
     <div>🏛️ Pythos — Free AI Mathematics &amp; Physics Education. Created by Jon Scott as part of the LANZAR initiative.</div>
-    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-8-25" style="color:var(--primary-color); text-decoration:none;">v1.8.25</a></div>
+    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-8-26" style="color:var(--primary-color); text-decoration:none;">v1.8.26</a></div>
   </footer>
 
   <script>
