@@ -611,17 +611,15 @@
       border-radius: 50%;
     }
 
-    /* Main Chat Area */
+    /* Main Chat Area - Maximized Full-Bleed Display */
     .main-area {
       flex: 1;
       display: flex;
-      justify-content: center;
-      align-items: center;
-      /* Hand-drawn Math Doodle Background */
-      background-image: linear-gradient(rgba(252, 251, 249, 0.92), rgba(252, 251, 249, 0.92)), url('assets/math_bg.jpg');
-      background-size: 500px;
-      background-repeat: repeat;
+      justify-content: stretch;
+      align-items: stretch;
       position: relative;
+      background-color: var(--surface-color);
+      overflow: hidden;
     }
 
     .mobile-menu-btn {
@@ -643,29 +641,38 @@
 
     .app-container {
       width: 100%;
-      max-width: 1120px;
+      max-width: 100%;
       height: 100%;
       background: var(--surface-color);
       display: flex;
       flex-direction: column;
-      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+      box-shadow: none;
+      border: none;
+      border-radius: 0;
+      overflow: hidden;
     }
 
     @media (min-width: 768px) {
       .app-container {
-        height: 94vh;
-        max-height: 960px;
-        border-radius: 12px;
-        border: 1px solid var(--border-color);
-        overflow: hidden;
+        width: 100%;
+        max-width: 100%;
+        height: 100%;
+        max-height: none;
+        border-radius: 0;
+        border: none;
+        box-shadow: none;
       }
     }
 
     @media (min-width: 1400px) {
       .app-container {
-        max-width: 1280px;
-        height: 95vh;
-        max-height: 1080px;
+        width: 100%;
+        max-width: 100%;
+        height: 100%;
+        max-height: none;
+        border-radius: 0;
+        border: none;
+        box-shadow: none;
       }
     }
 
@@ -720,7 +727,7 @@
     }
 
     .message {
-      max-width: 88%;
+      max-width: 95%;
       padding: 12px 18px;
       border-radius: 8px;
       line-height: 1.6;
@@ -1292,7 +1299,7 @@
       border-radius: 16px;
       padding: 24px 20px;
       margin: 16px auto 24px;
-      max-width: 640px;
+      max-width: 880px;
       box-shadow: var(--card-shadow);
       text-align: center;
       position: relative;
@@ -1842,7 +1849,7 @@
 
     .pythos-viz-instrument {
       width: 100%;
-      max-width: 680px;
+      max-width: 100%;
       margin: 16px 0;
       background: var(--surface-color);
       border: 1px solid var(--border-color);
@@ -2820,7 +2827,7 @@
           <a href="nonprofit.html">Mission &amp; Roadmap</a>
           <a href="license.html">License</a>
           <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" title="Official Facebook Page" aria-label="Official Facebook Page">Facebook</a>
-          <a href="changelog.html#pythos-1-8-28" title="View Changelog" aria-label="Version 1.8.28 Release Notes">v1.8.28</a>
+          <a href="changelog.html#pythos-1-8-29" title="View Changelog" aria-label="Version 1.8.29 Release Notes">v1.8.29</a>
         </nav>
       </div>
     </aside>
@@ -2835,7 +2842,7 @@
         <header class="header">
           <img class="header-avatar" src="assets/pythos_avatar.jpg" alt="Pythos Oracle" width="40" height="40" />
           <div class="header-info">
-            <h1>PYTHOS <a href="changelog.html#pythos-1-8-28" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.28)" aria-label="Version 1.8.28 Release Notes">v1.8.28</a></h1>
+            <h1>PYTHOS <a href="changelog.html#pythos-1-8-29" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.29)" aria-label="Version 1.8.29 Release Notes">v1.8.29</a></h1>
             <p>Mathematics & Physics Oracle</p>
           </div>
           <button id="themeToggleBtn" class="theme-toggle-btn" title="Toggle Dark/Light Mode" aria-label="Toggle Dark and Light Theme">

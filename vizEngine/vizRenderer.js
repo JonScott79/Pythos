@@ -63,7 +63,7 @@
 
     // Build Instrument Shell
     container.innerHTML = "";
-    container.className = "pythos-viz-instrument";
+    container.className = "pythos-viz-instrument pythos-viz-wide";
 
     // 1. Classical Header
     const header = document.createElement("div");
