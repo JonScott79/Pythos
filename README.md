@@ -45,6 +45,20 @@ Pythos features real-time, interactive geometric instruments and universal visua
    ![Clean KaTeX mathematical derivation and unit circle scaling](assets/demo/pythos-math-response.png)  
    *Direct URL: [https://pythos.lanzar.me/assets/demo/pythos-math-response.png](https://pythos.lanzar.me/assets/demo/pythos-math-response.png)*
 
+### 🚀 Classical Physics & Ballistics Simulator (Projectile Motion)
+
+When a student asks to simulate or solve 2D kinematics problems (e.g. *"Simulate projectile motion"* or *"A ball is thrown at 20 m/s at 45°"*), Pythos mounts a classical physics instrument directly in the dialogue:
+
+![Pythos Classical Projectile Motion Instrument](assets/demo/projectile-physics-sim.png)
+
+*Direct URL: [https://pythos.lanzar.me/assets/demo/projectile-physics-sim.png](https://pythos.lanzar.me/assets/demo/projectile-physics-sim.png)*
+
+#### Simulator Capabilities:
+- **Real-Time Trajectory Tracing:** Dynamic 2D canvas plots the parabolic trajectory, apex height marker, and ground impact coordinates.
+- **Dynamic Physics Controls:** Classical sliders for Launch Velocity ($v_0$), Launch Angle ($\theta$), and Gravitational Acceleration ($g$).
+- **Etched Metric Tablets:** Instantaneous recalculation of Flight Time ($T$), Maximum Height ($H$), Total Range ($R$), and orthogonal velocity vectors ($v_{0x}, v_{0y}$).
+- **High-Arc vs Flat Ballistics:** Real-time trajectory morphing and comparison (e.g. steep angles with increased apex vs shallow long-range arcs).
+
 ## Live Application
 
 Try Pythos online:  
