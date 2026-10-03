@@ -5050,11 +5050,13 @@ if (trigModalAskPythosBtn) {
     const deg = trigModalAngleSlider ? trigModalAngleSlider.value : 60;
     const hyp = trigModalHypSlider ? trigModalHypSlider.value : 2;
     const promptText = `Can you explain the trigonometric properties of a right triangle with angle θ = ${deg}° and hypotenuse ${hyp}?`;
-    const messageInput = document.getElementById("messageInput");
-    if (messageInput) {
-      messageInput.value = promptText;
-      messageInput.focus();
-      messageInput.dispatchEvent(new Event("input", { bubbles: true }));
+    const inputElem = document.getElementById("userInput") || document.getElementById("messageInput");
+    const sendButton = document.getElementById("submitBtn") || document.getElementById("sendBtn");
+    if (inputElem) {
+      inputElem.value = promptText;
+      inputElem.focus();
+      inputElem.dispatchEvent(new Event("input", { bubbles: true }));
+      if (sendButton) setTimeout(() => sendButton.click(), 60);
     }
   });
 }
@@ -5290,11 +5292,13 @@ if (numLineAskPythosBtn) {
     const intervalStr = document.getElementById("numLineIntervalText")?.textContent || "[-2, 3]";
     const ineqStr = document.getElementById("numLineInequalityText")?.textContent || "-2 ≤ x ≤ 3";
     const promptText = `Can you explain the interval ${intervalStr} and the solutions to ${ineqStr}?`;
-    const messageInput = document.getElementById("messageInput");
-    if (messageInput) {
-      messageInput.value = promptText;
-      messageInput.focus();
-      messageInput.dispatchEvent(new Event("input", { bubbles: true }));
+    const inputElem = document.getElementById("userInput") || document.getElementById("messageInput");
+    const sendButton = document.getElementById("submitBtn") || document.getElementById("sendBtn");
+    if (inputElem) {
+      inputElem.value = promptText;
+      inputElem.focus();
+      inputElem.dispatchEvent(new Event("input", { bubbles: true }));
+      if (sendButton) setTimeout(() => sendButton.click(), 60);
     }
   });
 }
@@ -5476,11 +5480,13 @@ if (chartModalAskPythosBtn) {
   chartModalAskPythosBtn.addEventListener("click", () => {
     closeChartInspectorModal();
     const promptText = `Can you analyze this statistical distribution: ${JSON.stringify(activeChartData.labels.map((l, i) => ({ category: l, value: activeChartData.values[i] })))}?`;
-    const messageInput = document.getElementById("messageInput");
-    if (messageInput) {
-      messageInput.value = promptText;
-      messageInput.focus();
-      messageInput.dispatchEvent(new Event("input", { bubbles: true }));
+    const inputElem = document.getElementById("userInput") || document.getElementById("messageInput");
+    const sendButton = document.getElementById("submitBtn") || document.getElementById("sendBtn");
+    if (inputElem) {
+      inputElem.value = promptText;
+      inputElem.focus();
+      inputElem.dispatchEvent(new Event("input", { bubbles: true }));
+      if (sendButton) setTimeout(() => sendButton.click(), 60);
     }
   });
 }
