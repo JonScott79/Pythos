@@ -149,7 +149,7 @@ async function runTestCase(id, category, name, testFn) {
     rec.toolStatus = result.success ? 'SUCCESS' : 'FAILED';
     rec.resultType = 'GEOMETRY_CANVAS_TOKEN';
     assert.strictEqual(result.success, true);
-    assert.strictEqual(result.adj, 36.23);
+    assert.ok(Math.abs(result.adj - 1.3648) < 1e-3, 'Adjacent must be mathematically verified ~1.3648');
     assert.strictEqual(result.opp, 1);
 
     const delivered = enforceVisualFidelity('Derivation steps for sec(cot(-36.23)):', prompt);

@@ -1854,7 +1854,7 @@ app.post('/api/chat', async (req, res) => {
       toolResultContext = `\n\n[CAPABILITY LIMITATION NOTICE]\n${toolSelection.message}\nPedagogical Directive: Gracefully inform the student about this limitation and explain the relevant theoretical or mathematical concepts without fabricating or pretending to simulate.\n`;
     } else if (toolSelection.tool) {
       console.log(`[TOOL CONTROLLER] Preflight tool selected: ${toolSelection.tool} (reason: ${toolSelection.reason})`);
-      preflightToolResult = await toolController.executeTool(toolSelection.tool, toolSelection.arguments, {
+      preflightToolResult = await toolController.executeTool(toolSelection.tool, { ...toolSelection.arguments, trigModel: toolSelection.trigModel || null }, {
         messages,
         activeProblemState
       });
@@ -2547,6 +2547,11 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
     // Visual Instruction Fidelity Enforcement
     // Ensures that requested sketches/diagrams are actually provided, never hallucinated,
     // and that text-only queries remain clean without unsolicited visuals.
+    // Unwrap any code-fenced visualization tokens before final delivery
+    if (finalContent) {
+      finalContent = finalContent.replace(/```(?:[a-zA-Z0-9_-]*\n)?\s*(\[(?:GEOMETRY|GRAPH|NUMBER_LINE|CHART|VIZ):[\s\S]*?\])\s*```/gi, '\n$1\n');
+      finalContent = finalContent.replace(/`(\[(?:GEOMETRY|GRAPH|NUMBER_LINE|CHART|VIZ):[^`]+\])`/gi, '\n$1\n');
+    }
     finalContent = enforceVisualFidelity(finalContent, lastUserMsg?.content || '', messages, activeProblemState);
     if (finalContent && ollamaResponse && ollamaResponse.message) {
       ollamaResponse.message.content = finalContent;

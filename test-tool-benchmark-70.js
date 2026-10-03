@@ -68,7 +68,7 @@ async function runAll() {
     const res = await toolController.executeTool(sel.tool, sel.arguments);
     rec.toolStatus = res.success ? 'SUCCESS' : 'FAILED';
     assert.strictEqual(res.success, true);
-    assert.strictEqual(res.adj, 28.45);
+    assert.ok(Math.abs(res.adj - 1.8456) < 1e-3, 'adj must be mathematically derived ~1.8456');
     assert.strictEqual(res.opp, 1);
   });
 
@@ -83,7 +83,7 @@ async function runAll() {
     assert.strictEqual(sel?.tool, 'render_geometry_triangle');
     rec.toolInvoked = true;
     const res = await toolController.executeTool(sel.tool, sel.arguments);
-    assert.strictEqual(res.adj, 36.23);
+    assert.ok(Math.abs(res.adj - 1.3648) < 1e-3, 'adj must be mathematically derived ~1.3648');
   });
 
   await runCase(3, 'VISUAL', 'Can you draw a sketch of the right triangle? (cot(θ) = 5/12)', async (rec) => {
@@ -133,7 +133,7 @@ async function runAll() {
     assert.strictEqual(sel?.tool, 'render_geometry_triangle');
     rec.toolInvoked = true;
     const res = await toolController.executeTool(sel.tool, sel.arguments);
-    assert.strictEqual(res.adj, 45);
+    assert.strictEqual(res.adj, 1);
     assert.strictEqual(res.opp, 1);
   });
 
@@ -145,7 +145,7 @@ async function runAll() {
     assert.strictEqual(sel?.tool, 'render_geometry_triangle');
     rec.toolInvoked = true;
     const res = await toolController.executeTool(sel.tool, sel.arguments);
-    assert.strictEqual(res.adj, 12.5);
+    assert.ok(Math.abs(res.adj - 4.5107) < 1e-3, 'adj must be mathematically derived ~4.5107');
   });
 
   await runCase(8, 'VISUAL', 'Can you give me a visual representation of the triangle?', async (rec) => {
@@ -156,7 +156,7 @@ async function runAll() {
     assert.strictEqual(sel?.tool, 'render_geometry_triangle');
     rec.toolInvoked = true;
     const res = await toolController.executeTool(sel.tool, sel.arguments);
-    assert.strictEqual(res.adj, 50);
+    assert.ok(Math.abs(res.adj - 0.8391) < 1e-3, 'adj must be mathematically derived ~0.8391');
   });
 
   await runCase(9, 'VISUAL', 'Show me a picture of the triangle for cot(theta)=7/24', async (rec) => {
@@ -180,7 +180,7 @@ async function runAll() {
     assert.strictEqual(sel?.tool, 'render_geometry_triangle');
     rec.toolInvoked = true;
     const res = await toolController.executeTool(sel.tool, sel.arguments);
-    assert.strictEqual(res.adj, 100.5);
+    assert.ok(Math.abs(res.adj - 0.1853) < 1e-3, 'adj must be mathematically derived ~0.1853');
   });
 
   // -------------------------------------------------------------

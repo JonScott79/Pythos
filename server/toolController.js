@@ -28,6 +28,7 @@ const {
 } = require('./vizEngine/visualFidelity');
 const { generatePracticeProblem, validateProblemStructure } = require('./practiceProblemGenerator');
 const { evaluateStudentWork } = require('./studentWorkEvaluator');
+const { parseTrigExpression, verifyTrigTriangleModel } = require('./trigExpressionParser');
 
 /**
  * Strict Allowlist of permitted server tools
@@ -398,6 +399,7 @@ async function executeTool(toolName, args, sessionContext = {}) {
           adj: adjacent,
           hyp,
           angleLabel,
+          trigModel: args.trigModel || sessionContext.trigModel || null,
           orientationNote: orientationNote || `Orientation: Reference triangle side lengths are strictly positive distances (opposite = ${opposite}, adjacent = ${adjacent}, hypotenuse = ${hyp}). Any negative signs from trigonometric functions or coordinates indicate the quadrant orientation, not negative geometric length.`,
           formattedComponent: [
             '',
@@ -636,6 +638,16 @@ function selectAppropriateTool(studentIntent, userText, conversationHistory = []
     // Check if right triangle parameters can be extracted
     const params = extractRightTriangleParameters(clean, conversationHistory, activeProblemState);
     if (params) {
+      if (params.trigModel) {
+        const isValid = verifyTrigTriangleModel(params, params.trigModel);
+        if (!isValid) {
+          recordTelemetry(TELEMETRY_EVENTS.TOOL_REJECTED, {
+            tool: TOOL_ALLOWLIST.RENDER_GEOMETRY_TRIANGLE,
+            details: 'Trigonometric model failed verification'
+          });
+          return null;
+        }
+      }
       recordTelemetry(TELEMETRY_EVENTS.TOOL_SELECTED, {
         tool: TOOL_ALLOWLIST.RENDER_GEOMETRY_TRIANGLE,
         reason: 'Student requested visual/sketch for geometric/trigonometric problem',
@@ -648,8 +660,11 @@ function selectAppropriateTool(studentIntent, userText, conversationHistory = []
           opposite: params.opp,
           adjacent: params.adj,
           hypotenuse: params.hyp,
-          angleLabel: params.angleLabel || 'θ'
-        }
+          angleLabel: params.angleLabel || 'θ',
+          orientationNote: params.orientationNote || '',
+          trigModel: params.trigModel || null
+        },
+        trigModel: params.trigModel || null
       };
     }
   }
@@ -757,14 +772,37 @@ Numeric Value: ${toolResult.numericValue}
 Pedagogical Directive: Use this exact verified value in your response. Do not contradict or alter it.`;
       break;
 
-    case TOOL_ALLOWLIST.RENDER_GEOMETRY_TRIANGLE:
+    case TOOL_ALLOWLIST.RENDER_GEOMETRY_TRIANGLE: {
+      let trigDecomposition = '';
+      if (toolResult.trigModel) {
+        const tm = toolResult.trigModel;
+        if (tm.isNested) {
+          trigDecomposition = `\nAuthoritative Mathematical Decomposition:
+- Expression: ${tm.outerFunction}(${tm.innerFunction}(${tm.argument.value}°))
+- Step 1 (Inner Operation): ${tm.evaluatedInner.expression} = ${tm.evaluatedInner.numericValue} (${tm.evaluatedInner.unit})
+- Step 2 (Outer Operation): ${tm.evaluatedOuter.expression} ≈ ${tm.evaluatedOuter.numericValue} (evaluated using the dimensionless real number in radians)
+- Reference Triangle: positive Euclidean lengths opposite=${toolResult.opp}, adjacent=${toolResult.adj}, hypotenuse=${toolResult.hyp} for reference angle ${toolResult.angleLabel}.
+Pedagogical Directive: Include the authoritative geometry token "${toolResult.token}" on its own line (do NOT wrap it in code blocks or backticks).
+CRITICAL MATHEMATICAL DISTINCTION:
+- The angle magnitude is ${Math.abs(tm.argument.value)}°.
+- The triangle adjacent side is ${toolResult.adj}, NOT ${Math.abs(tm.argument.value)}.
+- The cotangent of ${tm.argument.value}° is ${tm.evaluatedInner.numericValue}, NOT ${Math.abs(tm.argument.value)}.
+- In your explanation, NEVER claim that the degree angle magnitude is a side length. State the verified values above.`;
+        } else {
+          trigDecomposition = `\nAuthoritative Mathematical Context:
+- Evaluated: ${tm.evaluatedInner.expression} = ${tm.evaluatedInner.numericValue}
+- Reference Triangle: positive Euclidean lengths opposite=${toolResult.opp}, adjacent=${toolResult.adj}, hypotenuse=${toolResult.hyp} for reference angle ${toolResult.angleLabel}.
+Pedagogical Directive: Include the authoritative geometry token "${toolResult.token}" on its own line. Reference triangle side lengths are positive Euclidean lengths.`;
+        }
+      }
+
       body = `Status: SUCCESS
 Geometry Token: ${toolResult.token}
 Triangle Parameters: opposite=${toolResult.opp}, adjacent=${toolResult.adj}, hypotenuse=${toolResult.hyp}
 Angle Label: ${toolResult.angleLabel}
-ASCII Sketch Available: YES
-Pedagogical Directive: Include the authoritative geometry token "${toolResult.token}" on its own line. Explain that reference triangle side lengths are positive distances, while the quadrant orientation accounts for negative trigonometric values.`;
+ASCII Sketch Available: YES${trigDecomposition ? '\n' + trigDecomposition : '\nPedagogical Directive: Include the authoritative geometry token "' + toolResult.token + '" on its own line. Explain that reference triangle side lengths are positive distances, while the quadrant orientation accounts for negative trigonometric values.'}`;
       break;
+    }
 
     case TOOL_ALLOWLIST.RENDER_FUNCTION_GRAPH:
       body = `Status: SUCCESS

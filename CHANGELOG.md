@@ -1,3 +1,15 @@
+## Pythos 1.8.24
+**Release Date:** October 2, 2026
+
+### Added & Hardened
+- **Nested Trigonometric Visualization Engine & Architectural Mathematical Grounding** (`server/trigExpressionParser.js`, `server/vizEngine/visualFidelity.js`, `server/toolController.js`, `server/server.js`):
+  - **Nested Trigonometric Expression Parsing & Decomposition**: Implemented specialized AST parser (`server/trigExpressionParser.js`) that decomposes composite nested expressions like $\csc(\cot(-28.45^\circ))$ or $\sec(\cot(-36.23))$. Evaluates inner arguments first, tracks angle units (degrees vs dimensionless radians), and computes exact intermediate and final values.
+  - **Strict Geometric Triangle Grounding**: Prevents naïve extraction of angle magnitudes as triangle side lengths (e.g., prevents $\cot(-28.45^\circ)$ from claiming $adjacent = 28.45$). Mathematically derives positive Euclidean triangle side lengths ($opp$, $adj$, $hyp$) using verified trigonometric ratios with orientation notes explaining quadrant coordinates.
+  - **Model Verification & Triangle Inequality Enforcement**: Added `verifyTrigTriangleModel` to ensure all generated geometric triangles obey strict mathematical properties: positive side lengths, Pythagorean consistency ($|opp^2 + adj^2 - hyp^2| < 0.05$), and Triangle Inequality ($opp + adj > hyp$).
+  - **Visual Fidelity & Contradiction Sanitization**: Enhanced `enforceVisualFidelity` to detect and correct prose claiming incorrect trigonometric evaluations (e.g., claiming $\cot(-28.45^\circ) = 28.45$). Audits rendered visual tokens against verified mathematical models and replaces inaccurate geometry tokens with verified parameters.
+  - **Browser-Mount Token Unwrapping & Placeholder Sanitization**: Unwraps markdown code-fenced visualization tokens (```[GEOMETRY:...]``` or fenced blocks) so interactive canvas visualizers mount reliably in the browser. Completely strips orphaned internal pipeline tokens (`%%%INLINE_GEOMETRY_PLACEHOLDER%%%`).
+  - **Validation & Test Suite**: Added dedicated 17-case nested trigonometric test suite (`test-nested-trig-viz.js`); verified 70-case benchmark (`test-tool-benchmark-70.js`), 25-case tool utilization suite (`test-tool-utilization.js`), and full regression harness with 100% pass rate.
+
 ## Pythos 1.8.23
 **Release Date:** October 2, 2026
 

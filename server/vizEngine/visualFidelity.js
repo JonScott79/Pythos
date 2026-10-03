@@ -7,7 +7,10 @@
     1. Detects explicit student visual-teaching requirements:
        "using sketches", "draw a triangle", "show me a diagram", "show me this visually", "can you visualize this?", etc.
     2. Extracts right-triangle and geometric parameters from mathematical context:
-       e.g. sec(cot(-36.23)), csc(cot(-28.45°)) -> adjacent = 28.45, opposite = 1, hypotenuse = sqrt(28.45^2 + 1).
+       - Uses verified trigonometric decomposition via trigExpressionParser:
+         e.g. csc(cot(-28.45°)) -> inner cot(-28.45°) = -1.8456, ref angle 28.45°, opp = 1, adj = 1.8456, hyp = 2.0991.
+       - NEVER allows an angle magnitude to masquerade as a triangle side length.
+       - Strictly verifies triangle model before rendering.
     3. Generates authoritative visual components:
        - [GEOMETRY: triangle ...] live HTML5 canvas interactive token
        - ASCII right-triangle representation in fenced code block
@@ -15,7 +18,10 @@
        - NEVER claims a visual was provided ("See the sketch below") without actually rendering it.
        - Provides honest fallback when graphical rendering is unavailable.
        - Preserves normal text-only delivery when no visual was requested.
+       - Prevents contradictory explanatory text from undermining verified visuals.
 */
+
+const { parseTrigExpression, verifyTrigTriangleModel } = require('../trigExpressionParser');
 
 /**
  * Detects whether the student explicitly requested a sketch, diagram, drawing, or visual.
@@ -80,12 +86,12 @@ function containsVisualClaim(text) {
  * @param {string} text - Combined input/output text
  * @param {Array<Object>} [conversationHistory=[]] - Recent conversation turns
  * @param {Object} [activeProblemState=null] - Active problem tracking
- * @returns {Object|null} { opp, adj, hyp, angleLabel }
+ * @returns {Object|null} { opp, adj, hyp, angleLabel, orientationNote, trigModel }
  */
 function extractRightTriangleParameters(text, conversationHistory = [], activeProblemState = null) {
   const combined = `${text} ${(conversationHistory || []).map(m => m.content || '').join(' ')} ${activeProblemState?.active?.activeExpression || ''}`;
 
-  // 1. Explicitly stated opposite, adjacent, hypotenuse
+  // 1. Explicitly stated opposite, adjacent, hypotenuse (Euclidean lengths)
   const oppMatch = combined.match(/\bopp(?:osite)?\s*=\s*([0-9]+(?:\.[0-9]+)?)/i);
   const adjMatch = combined.match(/\badj(?:acent)?\s*=\s*([0-9]+(?:\.[0-9]+)?)/i);
   const hypMatch = combined.match(/\bhyp(?:otenuse)?\s*=\s*([0-9]+(?:\.[0-9]+)?)/i);
@@ -94,7 +100,10 @@ function extractRightTriangleParameters(text, conversationHistory = [], activePr
     const opp = parseFloat(oppMatch[1]);
     const adj = parseFloat(adjMatch[1]);
     const hyp = hypMatch ? parseFloat(hypMatch[1]) : Math.round(Math.hypot(opp, adj) * 10000) / 10000;
-    return { opp, adj, hyp, angleLabel: 'θ' };
+    const candidate = { opp, adj, hyp, angleLabel: 'θ' };
+    if (verifyTrigTriangleModel(candidate)) {
+      return candidate;
+    }
   }
 
   // 2. Explicit legs match (e.g. "legs 36.23 and 1" or "legs 3 and 4")
@@ -105,68 +114,85 @@ function extractRightTriangleParameters(text, conversationHistory = [], activePr
     const adj = Math.max(v1, v2);
     const opp = Math.min(v1, v2);
     const hyp = Math.round(Math.hypot(opp, adj) * 10000) / 10000;
-    return { opp, adj, hyp, angleLabel: 'θ' };
+    const candidate = { opp, adj, hyp, angleLabel: 'θ' };
+    if (verifyTrigTriangleModel(candidate)) {
+      return candidate;
+    }
   }
 
-  // 3. Trigonometric functions with numerical ratios (supporting fractions and degrees °, deg, degrees)
-  // cot = adj / opp (fraction form e.g. cot(theta) = 5/12 or cot = 7/24)
+  // 3. Mathematical Trigonometric Expression (Nested or Single)
+  // Decomposes using verified mathematical model: e.g. csc(cot(-28.45°)), cot(-28.45°), sec(tan(-30°))
+  const trigModel = parseTrigExpression(combined);
+  if (trigModel) {
+    if (trigModel.isMalformed) {
+      // Fails closed on mathematically undefined or invalid expressions
+      return null;
+    }
+    if (trigModel.referenceTriangle) {
+      const isValid = verifyTrigTriangleModel(trigModel.referenceTriangle, trigModel);
+      if (isValid) {
+        return {
+          opp: trigModel.referenceTriangle.opp,
+          adj: trigModel.referenceTriangle.adj,
+          hyp: trigModel.referenceTriangle.hyp,
+          angleLabel: trigModel.referenceTriangle.angleLabel,
+          orientationNote: trigModel.referenceTriangle.orientation,
+          trigModel: trigModel
+        };
+      }
+    }
+  }
+
+  // 4. Trigonometric ratio equations with fractional values:
+  // e.g. cot(theta) = 5/12, tan = 3/4, sin = 3/5, cos = 4/5
   const cotFracMatch = combined.match(/\bcot\s*(?:[a-zA-Z]|theta|\([^\)]*?\))?\s*[:=]\s*(-?[0-9]+(?:\.[0-9]+)?)\s*\/\s*([0-9]+(?:\.[0-9]+)?)/i);
   if (cotFracMatch) {
     const adj = Math.abs(parseFloat(cotFracMatch[1]));
     const opp = Math.abs(parseFloat(cotFracMatch[2]));
     const hyp = Math.round(Math.hypot(opp, adj) * 10000) / 10000;
-    return { opp, adj, hyp, angleLabel: 'θ' };
+    const candidate = { opp, adj, hyp, angleLabel: 'θ' };
+    if (verifyTrigTriangleModel(candidate)) return candidate;
   }
 
-  // E.g. cot(-28.45°), cot(-36.23), csc(cot(-28.45°)), sec(cot(-36.23))
-  const cotMatch = combined.match(/\bcot\s*(?:\([^\)]*?\))?\s*[:=]\s*(-?[0-9]+(?:\.[0-9]+)?)(?:°|\s*deg(?:rees)?)?/i) ||
-                   combined.match(/\bcot\s*\(\s*(-?[0-9]+(?:\.[0-9]+)?)(?:°|\s*deg(?:rees)?)?\s*\)/i);
-  if (cotMatch) {
-    const val = Math.abs(parseFloat(cotMatch[1]));
-    const adj = val;
-    const opp = 1;
-    const hyp = Math.round(Math.hypot(adj, opp) * 10000) / 10000;
-    return { opp, adj, hyp, angleLabel: 'θ' };
-  }
-
-  // tan = opp / adj
-  const tanFracMatch = combined.match(/\btan\s*(?:[a-zA-Z]|theta)?\s*[:=]\s*(-?[0-9]+(?:\.[0-9]+)?)\s*\/\s*([0-9]+(?:\.[0-9]+)?)/i);
+  const tanFracMatch = combined.match(/\btan\s*(?:[a-zA-Z]|theta|\([^\)]*?\))?\s*[:=]\s*(-?[0-9]+(?:\.[0-9]+)?)\s*\/\s*([0-9]+(?:\.[0-9]+)?)/i);
   if (tanFracMatch) {
     const opp = Math.abs(parseFloat(tanFracMatch[1]));
     const adj = Math.abs(parseFloat(tanFracMatch[2]));
     const hyp = Math.round(Math.hypot(opp, adj) * 10000) / 10000;
-    return { opp, adj, hyp, angleLabel: 'θ' };
+    const candidate = { opp, adj, hyp, angleLabel: 'θ' };
+    if (verifyTrigTriangleModel(candidate)) return candidate;
   }
 
-  const tanMatch = combined.match(/\btan\s*(?:[a-zA-Z]|theta)?\s*[:=]\s*(-?[0-9]+(?:\.[0-9]+)?)(?:°|\s*deg(?:rees)?)?/i) ||
-                   combined.match(/\btan\s*\(\s*(-?[0-9]+(?:\.[0-9]+)?)(?:°|\s*deg(?:rees)?)?\s*\)/i);
-  if (tanMatch) {
-    const val = Math.abs(parseFloat(tanMatch[1]));
-    const opp = val;
-    const adj = 1;
-    const hyp = Math.round(Math.hypot(opp, adj) * 10000) / 10000;
-    return { opp, adj, hyp, angleLabel: 'θ' };
-  }
-
-  // sin = opp / hyp
-  const sinFracMatch = combined.match(/\bsin\s*(?:[a-zA-Z]|theta)?\s*[:=]\s*(-?[0-9]+(?:\.[0-9]+)?)\s*\/\s*([0-9]+(?:\.[0-9]+)?)/i);
+  const sinFracMatch = combined.match(/\bsin\s*(?:[a-zA-Z]|theta|\([^\)]*?\))?\s*[:=]\s*(-?[0-9]+(?:\.[0-9]+)?)\s*\/\s*([0-9]+(?:\.[0-9]+)?)/i);
   if (sinFracMatch) {
     const opp = Math.abs(parseFloat(sinFracMatch[1]));
     const hyp = Math.abs(parseFloat(sinFracMatch[2]));
     const adj = Math.round(Math.sqrt(Math.max(0, hyp * hyp - opp * opp)) * 10000) / 10000;
-    return { opp, adj, hyp, angleLabel: 'θ' };
+    const candidate = { opp, adj, hyp, angleLabel: 'θ' };
+    if (verifyTrigTriangleModel(candidate)) return candidate;
   }
 
-  // cos = adj / hyp
-  const cosFracMatch = combined.match(/\bcos\s*(?:[a-zA-Z]|theta)?\s*[:=]\s*(-?[0-9]+(?:\.[0-9]+)?)\s*\/\s*([0-9]+(?:\.[0-9]+)?)/i);
+  const cosFracMatch = combined.match(/\bcos\s*(?:[a-zA-Z]|theta|\([^\)]*?\))?\s*[:=]\s*(-?[0-9]+(?:\.[0-9]+)?)\s*\/\s*([0-9]+(?:\.[0-9]+)?)/i);
   if (cosFracMatch) {
     const adj = Math.abs(parseFloat(cosFracMatch[1]));
     const hyp = Math.abs(parseFloat(cosFracMatch[2]));
     const opp = Math.round(Math.sqrt(Math.max(0, hyp * hyp - adj * adj)) * 10000) / 10000;
-    return { opp, adj, hyp, angleLabel: 'θ' };
+    const candidate = { opp, adj, hyp, angleLabel: 'θ' };
+    if (verifyTrigTriangleModel(candidate)) return candidate;
   }
 
-  // 4. Triangle keyword with qualitative trig context -> default classical 3-4-5 reference triangle
+  // 5. Explicit trigonometric ratio decimal equation (e.g. cot(theta) = 36.23 where = value is explicit ratio)
+  const cotEqMatch = combined.match(/\bcot\s*(?:[a-zA-Z]|theta|\([a-zA-Z]\))?\s*=\s*(-?[0-9]+(?:\.[0-9]+)?)(?![0-9°a-zA-Z])/i);
+  if (cotEqMatch) {
+    const val = Math.abs(parseFloat(cotEqMatch[1]));
+    const adj = val;
+    const opp = 1;
+    const hyp = Math.round(Math.hypot(adj, opp) * 10000) / 10000;
+    const candidate = { opp, adj, hyp, angleLabel: 'θ' };
+    if (verifyTrigTriangleModel(candidate)) return candidate;
+  }
+
+  // 6. Qualitative trig / triangle request -> default classical 3-4-5 reference triangle
   if (/(?:triangle|trig|ratio|tangent|sine|cosine|tan|sin|cos|sec|cot|csc)/i.test(combined)) {
     return { opp: 3, adj: 4, hyp: 5, angleLabel: 'θ' };
   }
@@ -203,11 +229,11 @@ function generateGeometryToken({ opp, adj, hyp }) {
  *
  * Ensures that if a student asks for a visual, or if the assistant claims a visual exists:
  * 1. An actual visual (token + ASCII sketch) is provided.
- * 2. If graphical rendering is unavailable, honest fallback text is provided without claiming a visual exists.
+ * 2. Visual inputs strictly correspond to verified mathematical models, never naively copying angle magnitudes.
  * 3. Never produces "See the sketch below" without an actual visual.
  * 4. Never generates unsolicited visuals for pure text math requests.
- * 5. Sanitizes any orphaned internal placeholders (e.g. %%%INLINE_GEOMETRY_PLACEHOLDER%%%)
- *    so placeholders NEVER leak into student view.
+ * 5. Sanitizes contradictory text (e.g. claiming cot(-28.45°) = 28.45) so the student receives verified math.
+ * 6. Sanitizes any orphaned internal placeholders (e.g. %%%INLINE_GEOMETRY_PLACEHOLDER%%%).
  *
  * @param {string} finalContent - Upstream assistant response
  * @param {string} userText - Student prompt
@@ -221,17 +247,51 @@ function enforceVisualFidelity(finalContent, userText, conversationHistory = [],
   // Clean any placeholder strings that might have leaked from model or history
   let cleanedContent = finalContent.replace(/%%%INLINE_[A-Z_]+_PLACEHOLDER%%%/g, '');
 
+  // Unwrap any code-fenced visualization tokens
+  cleanedContent = cleanedContent.replace(/```(?:[a-zA-Z0-9_-]*\n)?\s*(\[(?:GEOMETRY|GRAPH|NUMBER_LINE|CHART|VIZ):[\s\S]*?\])\s*```/gi, '\n$1\n');
+  cleanedContent = cleanedContent.replace(/`(\[(?:GEOMETRY|GRAPH|NUMBER_LINE|CHART|VIZ):[^`]+\])`/gi, '\n$1\n');
+
   const requested = isVisualRequested(userText);
   const claimed = containsVisualClaim(cleanedContent);
   const alreadyHasVisual = hasVisualPresent(cleanedContent);
+
+  // Check for underlying trigonometric problem
+  const trigModel = parseTrigExpression(`${userText} ${activeProblemState?.active?.activeExpression || ''}`);
+
+  // Contradiction Sanitization:
+  // If a verified trig model exists, ensure the response does not claim cot(angle) = angle magnitude or adj = angle magnitude
+  if (trigModel && !trigModel.isMalformed && trigModel.argument && trigModel.argument.isAngle) {
+    const angleMag = Math.abs(trigModel.argument.value);
+    const bogusCotPattern = new RegExp(`cot\\s*\\(\\s*-?${angleMag}°?\\s*\\)\\s*=\\s*${angleMag}`, 'gi');
+    if (bogusCotPattern.test(cleanedContent)) {
+      cleanedContent = cleanedContent.replace(bogusCotPattern, `cot(${trigModel.argument.value}°) ≈ ${trigModel.evaluatedInner.numericValue}`);
+    }
+  }
 
   // If no visual was requested and no visual was claimed, do NOT add unsolicited visuals
   if (!requested && !claimed) {
     return cleanedContent;
   }
 
-  // If visual is already present, verify and return
+  // If visual is already present: verify that it is mathematically sound
   if (alreadyHasVisual) {
+    if (trigModel && !trigModel.isMalformed && trigModel.referenceTriangle) {
+      // Check if existing [GEOMETRY: ...] token has bogus parameters (e.g. b = angleMagnitude)
+      const geomTokenMatch = cleanedContent.match(/\[GEOMETRY:\s*triangle,[^\]]*\]/i);
+      if (geomTokenMatch) {
+        const tokenStr = geomTokenMatch[0];
+        const bMatch = tokenStr.match(/b=([0-9]+(?:\.[0-9]+)?)/);
+        if (bMatch) {
+          const bVal = parseFloat(bMatch[1]);
+          const angleMag = Math.abs(trigModel.argument.value);
+          if (Math.abs(bVal - angleMag) < 0.01 && Math.abs(bVal - trigModel.referenceTriangle.adj) > 0.5) {
+            // Replace bogus token with verified token
+            const verifiedToken = generateGeometryToken(trigModel.referenceTriangle);
+            cleanedContent = cleanedContent.replace(tokenStr, verifiedToken);
+          }
+        }
+      }
+    }
     return cleanedContent;
   }
 
@@ -242,6 +302,9 @@ function enforceVisualFidelity(finalContent, userText, conversationHistory = [],
     const geomToken = generateGeometryToken(params);
     const asciiSketch = generateAsciiRightTriangle(params);
 
+    const orientationText = params.orientationNote ||
+      `*Orientation note:* In a reference triangle, geometric side lengths represent positive Euclidean distances ($adjacent = ${params.adj}$, $opposite = ${params.opp}$, $hypotenuse = ${params.hyp}$). Any negative signs indicate quadrant orientation.`;
+
     const visualBlock = [
       '',
       '### Reference Right-Triangle Sketch:',
@@ -249,7 +312,7 @@ function enforceVisualFidelity(finalContent, userText, conversationHistory = [],
       '',
       asciiSketch,
       '',
-      `*Orientation note:* In a reference triangle, geometric side lengths represent positive distances ($adjacent = ${params.adj}$, $opposite = ${params.opp}$, $hypotenuse = ${params.hyp}$). Any negative signs from trigonometric functions or coordinates indicate the quadrant orientation, not negative triangle length.`
+      orientationText
     ].join('\n');
 
     return cleanedContent.trim() + '\n\n' + visualBlock;
