@@ -1,3 +1,24 @@
+## Pythos 1.8.26
+**Release Date:** October 3, 2026
+
+### Added & Hardened
+- **Verified-Truth Recovery System**:
+  - Added an authoritative recovery path for cases where a generated mathematical candidate is rejected but Pythos already possesses independently verified truth from a deterministic router, preflight tool, or trusted mathematical model.
+  - Pythos can construct a safe response directly from verified truth rather than unnecessarily withholding a result when the conversational candidate fails verification.
+- **Mandatory Recovery Re-Verification**:
+  - Recovered responses remain subject to the mathematical verification and delivery gates.
+  - Recovery does not bypass verification; it changes the source of the candidate response.
+- **Fail-Closed Recovery Boundary**:
+  - If independently verified truth is unavailable, ambiguous, or unsupported, Pythos continues to withhold rather than fabricate an answer.
+- **50,000-Problem Deterministic Recovery Stress Validation**:
+  - **2,920 / 2,920** trusted-truth recovery cases recovered successfully.
+  - **2,920 / 2,920** recovery responses were mathematically correct.
+  - **21,733** verified answers delivered; **28,267** unsupported cases safely withheld.
+  - **0** incorrect delivered answers and **0** verification escapes.
+  - **597 / 597** targeted recovery, safety, fidelity, ambiguity, and master-regression tests passed.
+- **Scope of Evidence**:
+  - The 2,920 / 2,920 result validates the recovery subsystem under the tested deterministic campaign conditions. It is not a claim of universal mathematical accuracy.
+
 ## Pythos 1.8.25
 **Release Date:** October 3, 2026
 

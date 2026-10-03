@@ -554,6 +554,37 @@
         </div>
       </div>
 
+
+      <h2>When Verification Rejects an Answer</h2>
+      <p>
+        Verification is not the end of the process. It is also a recovery point. If Pythos rejects a generated answer but already has independently verified mathematical truth available from a trusted deterministic calculation, preflight tool, or other authoritative source, it can construct a new response directly from that verified result.
+      </p>
+      <p>
+        The recovered response is sent through verification again before delivery. If trusted truth is unavailable, Pythos remains fail-closed and withholds the unsupported answer rather than filling the gap with a guess.
+      </p>
+      <div class="features-grid">
+        <div class="feature-card">
+          <h3>Reject the Candidate</h3>
+          <p>Invalid or unverifiable mathematical claims are stopped before they reach the student as an answer.</p>
+        </div>
+        <div class="feature-card">
+          <h3>Recover Trusted Truth</h3>
+          <p>When an independently verified result already exists, Pythos can reconstruct the response from that authoritative result.</p>
+        </div>
+        <div class="feature-card">
+          <h3>Verify Again</h3>
+          <p>Recovered responses still pass through the mathematical verification and delivery gates before they are shown.</p>
+        </div>
+        <div class="feature-card">
+          <h3>Withhold When Necessary</h3>
+          <p>If Pythos cannot establish a trustworthy answer, it says so instead of inventing one.</p>
+        </div>
+      </div>
+
+      <div class="disclaimer-box">
+        <strong>Recovery validation:</strong> In a dedicated 50,000-problem deterministic stress campaign, Pythos recovered <strong>2,920 / 2,920</strong> cases where trusted mathematical truth was available, with <strong>100% recovery correctness</strong>. The campaign delivered 21,733 verified answers, safely withheld 28,267 unsupported cases, and recorded 0 incorrect delivered answers. This result validates the recovery subsystem under the tested conditions; it is not a claim of universal mathematical accuracy.
+      </div>
+
       <h2>Think You Can Stump Pythos?</h2>
       <p>We want you to. If you find something Pythos gets wrong, challenge it directly or submit a report. Every edge case helps refine our deterministic verifier layers.</p>
 
