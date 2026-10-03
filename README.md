@@ -49,6 +49,10 @@ Pythos features real-time, interactive geometric instruments and universal visua
 
 When a student asks to simulate or solve 2D kinematics problems (e.g. *"Simulate projectile motion"* or *"A ball is thrown at 20 m/s at 45°"*), Pythos mounts a classical physics instrument directly in the dialogue:
 
+![Pythos Interactive 2D Projectile Simulator Demo](assets/demo/pythos-physics-demo.webp)
+
+*Direct Video Downloads & Live URLs:* [MP4 Video with Ambient Music (YouTube-ready)](https://pythos.lanzar.me/assets/demo/pythos-physics-demo.mp4) | [WebP Animation](https://pythos.lanzar.me/assets/demo/pythos-physics-demo.webp)
+
 ![Pythos Classical Projectile Motion Instrument](assets/demo/projectile-physics-sim.png)
 
 *Direct URL: [https://pythos.lanzar.me/assets/demo/projectile-physics-sim.png](https://pythos.lanzar.me/assets/demo/projectile-physics-sim.png)*
