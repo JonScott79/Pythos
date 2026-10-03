@@ -1,3 +1,25 @@
+## Pythos 1.8.27
+**Release Date:** October 3, 2026
+
+### Added & Hardened
+- **"Always Draw It Out First" STEM Pedagogical Engine**:
+  - Modeled the foundational rule of college trigonometry and physics education. Pythos now proactively mounts interactive geometric right-triangle widgets (`[GEOMETRY: triangle ...]`) and physics visual models for reference angles, trigonometric function evaluations ($\tan 150^\circ$, $\csc(5\pi/4)$, $\sec(1050^\circ)$), and force setups without forcing the student to explicitly type "draw" or "sketch".
+  - Built-in deduplication ensures interactive widgets are mounted at problem setup and conceptual explanations without spamming duplicate widgets across short conversational turns.
+- **Expanded Natural-Language & Radian Angle Parsing**:
+  - Integrated natural-language angle recognition in `server/trigExpressionParser.js` supporting radian $\pi$-fractions ($5\pi/4$, $7\pi/4$, $-13\pi/7$), degree angles, Pearson/MyMathLab question transcriptions (`StartFraction ... Over ... EndFraction`), and reference angle queries.
+- **Zero Conversational Hallucination & Self-Spoiler Guardrail**:
+  - Hardened `server/learnerState.js` and `server/server.js` against conversational hallucinations (forbidding the model from claiming the student calculated or submitted steps they didn't take) and strictly prohibited the model from answering its own pending questions in parenthetical asides.
+- **Eureka & Gratitude Intent Recognition**:
+  - Added `EUREKA_OR_GRATITUDE` intent to `server/studentIntentClassifier.js` to accurately categorize "aha!" moments and expressions of clarity without misclassifying them as mathematical submissions.
+- **Practice Problem Generator Exclusions**:
+  - Prevented reference table, chart, formula, and notes requests from being erroneously hijacked by the practice generator.
+- **Model Chain-of-Thought & Scratchpad Sanitization**:
+  - Implemented `stripModelScratchpad` to eliminate `<think>` tags and third-person planning prompt bleeds from model responses.
+- **Mismatched Input Guidance**:
+  - Added Guided Mode conversational handling for students entering numbers from a different problem (e.g. jumping ahead without pasting the problem), guiding them back to the active problem without dumping the old solution.
+- **Comprehensive Test Coverage**:
+  - Verified full 30-case student intent suite, 22-case learner state suite, 16-case practice generation suite, 17-case nested trig viz suite, and 10-case safe response constructor suite with 100% pass rates.
+
 ## Pythos 1.8.26
 **Release Date:** October 3, 2026
 

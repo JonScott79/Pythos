@@ -533,6 +533,32 @@ runTest(21, 'Safeguard: Learner state never overrides deterministic CAS truth', 
   assert.ok(formattedContext.includes('This learner state is instructional guidance. It must NEVER override verified mathematical truth'));
 });
 
+// -------------------------------------------------------------
+// 22. Student celebrates eureka/clarity without submitting work
+// -------------------------------------------------------------
+runTest(22, 'Student celebrates eureka/clarity on open question without submitting work', () => {
+  const history = [
+    { role: 'user', content: 'What is a coterminal angle between 0 and 2pi for -13pi/7?' },
+    { role: 'assistant', content: 'Since -13pi/7 is negative, we need to add 2pi. To combine 2pi and -13pi/7, what common denominator should we use?' }
+  ];
+  const userText = 'OOOOOOH that makes it easier thanks pythos!!!!';
+  const intent = classifyStudentIntent(userText, history);
+  const res = classifyLearnerState(userText, history, null, intent, null);
+
+  // 1. Intent check
+  assert.strictEqual(intent.intent, INTENTS.EUREKA_OR_GRATITUDE);
+
+  // 2. Learner state check
+  assert.strictEqual(res.state, LEARNER_STATES.GENUINE_BREAKTHROUGH);
+  assert.strictEqual(res.confidence, 'high');
+
+  // 3. Directive checks: must enforce zero conversational hallucination and no self-spoilers
+  assert.ok(res.pedagogy.directive.includes('CRITICAL CONVERSATIONAL REALISM'));
+  assert.ok(res.pedagogy.directive.includes('DO NOT pretend, assume, or hallucinate that the student has already written, calculated, or submitted a step'));
+  assert.ok(res.pedagogy.directive.includes('NEVER SPOIL OR ANSWER YOUR OWN PENDING QUESTION'));
+  assert.ok(res.pedagogy.directive.includes('invite them directly to execute that specific step now'));
+});
+
 console.log('\n================================================================');
 console.log(`RESULTS: ${passedTests}/${totalTests} TESTS PASSED (${totalTests - passedTests} failures)`);
 console.log('================================================================');

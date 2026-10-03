@@ -243,6 +243,25 @@ function runStudentIntentTests() {
     assert.ok(context.includes('Check their previous statement against verified ground truth'));
   });
 
+  // -------------------------------------------------------------
+  // GROUP 5: Model Scratchpad & Meta-Directive Sanitization
+  // -------------------------------------------------------------
+  test('Scratchpad sanitizer removes leaked internal planning directives', () => {
+    const { stripModelScratchpad } = require('../server/studentWorkEvaluator');
+    const leaked = 'We should explain that tangent is sine over cosine, use reference angle, sign negative. Ask student next step.Let’s walk through the reasoning step‑by‑step.';
+    const cleaned = stripModelScratchpad(leaked);
+    assert.strictEqual(cleaned, 'Let’s walk through the reasoning step‑by‑step.');
+  });
+
+  test('Scratchpad sanitizer removes <think> blocks while preserving legit sentences', () => {
+    const { stripModelScratchpad } = require('../server/studentWorkEvaluator');
+    const withThink = '<think>Student needs tangent for 150 deg</think>The reference angle is 30 degrees.';
+    const cleaned = stripModelScratchpad(withThink);
+    assert.strictEqual(cleaned, 'The reference angle is 30 degrees.');
+
+    const legit = 'We should check our work by plugging in x = 4.';
+    assert.strictEqual(stripModelScratchpad(legit), legit);
+  });
   console.log('\n===============================================================');
   console.log(`✅ ALL ${passed}/${total} STUDENT INTENT & WORK TESTS PASSED (100%)`);
   console.log('===============================================================');

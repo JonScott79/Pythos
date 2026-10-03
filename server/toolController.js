@@ -613,6 +613,33 @@ async function executeTool(toolName, args, sessionContext = {}) {
  * @param {Object} activeProblemState - Active problem tracking
  * @returns {Object|null} { tool, reason, arguments } or null if no tool needed
  */
+function isTrigOrPhysicsVisualCandidate(userText, conversationHistory = []) {
+  if (!userText || typeof userText !== "string") return false;
+  const lower = userText.trim().toLowerCase();
+
+  // If student is just saying thanks, eureka, yes, ok, or simple number, don't trigger a new diagram
+  if (/^(?:thanks|thank you|ok|okay|yes|yeah|got it|cool|awesome|aha|oh+h*|nice)[!.]*$/i.test(lower)) return false;
+  if (/^[-+]?\d+(?:\.\d+)?$/.test(lower)) return false;
+
+  // Check if immediate previous assistant turn already rendered a visual
+  const prevAssistant = (conversationHistory || []).slice().reverse().find(m => m.role === "assistant");
+  if (prevAssistant && hasVisualPresent(prevAssistant.content || "")) {
+    if (!/\b(?:lengths?|sides?|show|draw|sketch|visual)\b/i.test(lower)) {
+      return false;
+    }
+  }
+
+  // Trigonometry queries:
+  const isTrigProblem = /\b(?:reference\s+angle|coterminal|quadrant)\b/i.test(lower) ||
+    /\b(?:sin|cos|tan|csc|sec|cot|sine|cosine|tangent|cosecant|secant|cotangent)\b/i.test(lower) ||
+    /\b(?:lengths?|opposite|adjacent|hypotenuse)\b/i.test(lower);
+
+  // Physics queries:
+  const isPhysicsProblem = /\b(?:free\s+body\s+diagram|fbd|projectile|trajectory|launch\s+angle|incline|friction|normal\s+force|spring\s+constant|hooke'?s\s+law|circuit)\b/i.test(lower);
+
+  return isTrigProblem || isPhysicsProblem;
+}
+
 function selectAppropriateTool(studentIntent, userText, conversationHistory = [], activeProblemState = null) {
   if (!userText || typeof userText !== 'string') return null;
 
@@ -692,8 +719,10 @@ function selectAppropriateTool(studentIntent, userText, conversationHistory = []
     }
   }
 
-  // 5. Visual Instruction Request (Right Triangle, Sketch, Visual Representation)
-  if (isVisualRequested(clean)) {
+  // 5. Visual Instruction Request or Proactive STEM "Draw It Out" Visualization
+  const wantsVisual = isVisualRequested(clean);
+  const isSTEMCandidate = wantsVisual || isTrigOrPhysicsVisualCandidate(clean, conversationHistory);
+  if (isSTEMCandidate) {
     // Check if right triangle parameters can be extracted
     const params = extractRightTriangleParameters(clean, conversationHistory, activeProblemState);
     if (params) {

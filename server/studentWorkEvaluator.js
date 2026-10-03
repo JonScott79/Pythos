@@ -946,6 +946,9 @@ function formatStudentWorkContext(classification, evaluation, activeProblemState
     out += `- Action Required: Student is issuing a correction or typo fix. Respect their latest statement over prior turns.\n`;
   } else if (classification.intent === INTENTS.REFRAME_REQUEST) {
     out += `- Action Required: Student requested an alternative explanation. Use a different mental model, visual analogy, or concrete numbers.\n`;
+  } else if (classification.intent === INTENTS.EUREKA_OR_GRATITUDE) {
+    out += `- Action Required: Student is celebrating an 'aha!' moment, eureka, or expressing gratitude without submitting mathematical work yet.
+- CRITICAL CONVERSATIONAL REALISM: DO NOT pretend or state that the student already wrote, calculated, or submitted the terms. DO NOT answer or spoil your own pending question in parentheses. Warmly validate their clarity and prompt them to actually execute that step now.\n`;
   } else if (classification.intent === INTENTS.CONFUSION) {
     out += `- Action Required: Student expresses confusion. Break the current step into a simpler, foundational question.\n`;
   } else if (classification.intent === INTENTS.HYPOTHETICAL) {
@@ -953,6 +956,22 @@ function formatStudentWorkContext(classification, evaluation, activeProblemState
   }
 
   return out;
+}
+
+/**
+ * Strips internal model scratchpads, <think> tags, and leaked third-person meta-directives.
+ * e.g., "We should explain that tangent is sine over cosine, use reference angle, sign negative. Ask student next step.Let’s walk through the reasoning step‑by‑step."
+ */
+function stripModelScratchpad(content) {
+  if (!content || typeof content !== 'string') return content;
+  let text = content;
+  // 1. Strip think/thought tags
+  text = text.replace(/<(?:think|thought|scratchpad|reasoning)>[\s\S]*?<\/(?:think|thought|scratchpad|reasoning)>/gi, '');
+  text = text.replace(/<think>[\s\S]*$/gi, '');
+  // 2. Strip third-person planning directives at the beginning of the response
+  text = text.replace(/^(?:(?:we|i)\s+(?:should|need\s+to|must)\s+)?(?:explain\s+that|tell\s+the\s+student|remind\s+the\s+student|guide\s+the\s+student|explain\s+to\s+the\s+student)[^.\n!?]*(?:(?:\.|\?|!|\n)\s*)+/gi, '');
+  text = text.replace(/\b(?:ask|prompt)\s+(?:the\s+)?student\s+(?:for\s+)?(?:the\s+)?(?:next\s+step|what\s+comes\s+next)[.!?]?\s*/gi, '');
+  return text.trim();
 }
 
 module.exports = {
@@ -965,5 +984,6 @@ module.exports = {
   evaluateEquationCandidate,
   evaluatePhysicsStep,
   evaluateStudentWork,
-  formatStudentWorkContext
+  formatStudentWorkContext,
+  stripModelScratchpad
 };

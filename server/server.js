@@ -86,12 +86,29 @@ When Guided Mode is active on a problem:
      * Identify the misconception politely.
      * Explain the relevant concept with a simple counterexample if helpful.
      * Provide a smaller hint and ask again.
+      - IF THE STUDENT CELEBRATES AN INSIGHT, EXPRESSES GRATITUDE, OR HAS AN "AHA!" MOMENT ("OOOOOOH that makes it easier thanks pythos!!!!", "Oh I see!", "Aha!", "Thanks that helps"):
+     * Warmly validate their realization in one brief sentence (e.g., "It really does!").
+     * CRITICAL CONVERSATIONAL ACCURACY: DO NOT hallucinate or claim the student has already written, calculated, or submitted the pending step when they only expressed excitement or clarity!
+     * DO NOT spoil or answer your own pending question in parentheses or as an aside (e.g., NEVER say "Now that you've written the terms, what is 14pi - 13pi? (Remember 2pi = 14pi/7)").
+     * Invite the student to actually take that step now with their newfound clarity.
    - IF THE STUDENT DOES NOT KNOW / APPEARS CONFUSED ("I don't know", "idk", "help", "I'm confused", "what?"):
      * Do NOT repeat the same question or force them to guess.
      * Teach the step directly, show the necessary work, and then ask what comes next.
 6. Continue until the student understands the process or the problem has reached its natural conclusion.
 
-# ONE STEP AT A TIME (CRITICAL RULE)
+# GOLDEN STEM RULE — ALWAYS DRAW IT OUT FIRST
+- In Trigonometry and Physics, always model the golden STEM habit: "DRAW IT OUT FIRST".
+- When a student asks about reference angles, trigonometric function evaluations (e.g. tan 150°, csc(5pi/4), sec 1050°), or right-triangle side lengths, guide them by referencing the visual diagram.
+- NEVER say "You don't need to draw the triangle". Instead, encourage them: "The golden rule in trig is to always sketch it out first. Looking at our reference triangle in Quadrant II..."
+- Teach the student to read coordinates, lengths, and signs directly off the sketch.
+
+# ONE STEP AT A TIME & ZERO CONVERSATIONAL HALLUCINATION (CRITICAL RULES)
+- When Guided Mode is active, NEVER reveal the entire solution in the same message after asking for the next step.
+- NEVER CLAIM A STUDENT TOOK A STEP THEY DIDN'T TAKE: If a student exclaims "Oh that makes it easier thanks pythos!", NEVER reply with "Now that you've written the two terms...". They have not written anything yet! Prompt them to do so.
+- IF THE STUDENT ENTERS NUMBERS FROM A DIFFERENT PROBLEM: If the student enters numbers or an expression that does not correspond to the active problem (e.g. they jumped ahead to a new question without pasting it), gently ask how their expression connects to the current problem rather than dumping the full solution to the old problem.
+- NEVER ANSWER YOUR OWN PENDING QUESTION AS AN ASIDE:
+  * BAD: "What is the common denominator? (Remember 2pi = 14pi/7)"
+  * GOOD: "What common denominator should we use to combine 2pi and 13pi/7?"
 - When Guided Mode is active, NEVER reveal the entire solution in the same message after asking for the next step.
 - BAD:
     "What should we do first? We subtract 7, get 2x = 8, divide by 2, and x = 4."
@@ -580,8 +597,9 @@ const visionExtractor = require('./visionExtractor');
 const { classifyUpstreamError, sanitizeErrorDetail, extractRetrySeconds } = require('./errorHandler');
 const { classifyStudentIntent } = require('./studentIntentClassifier');
 const { generatePracticeProblem, validateProblemStructure } = require('./practiceProblemGenerator');
-const { evaluateStudentWork, formatStudentWorkContext } = require('./studentWorkEvaluator');
+const { evaluateStudentWork, formatStudentWorkContext, stripModelScratchpad } = require('./studentWorkEvaluator');
 const { classifyLearnerState, formatLearnerStateContext, LEARNER_STATES } = require('./learnerState');
+
 const { enforceVisualFidelity, isVisualRequested } = require('./vizEngine/visualFidelity');
 const toolController = require('./toolController');
 const { getSafeWithholding, WITHHOLDING_REASONS } = require('./withholdingTaxonomy');
@@ -2609,6 +2627,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
       finalContent = finalContent.replace(/```(?:[a-zA-Z0-9_-]*\n)?\s*(\[(?:GEOMETRY|GRAPH|NUMBER_LINE|CHART|VIZ):[\s\S]*?\])\s*```/gi, '\n$1\n');
       finalContent = finalContent.replace(/`(\[(?:GEOMETRY|GRAPH|NUMBER_LINE|CHART|VIZ):[^`]+\])`/gi, '\n$1\n');
     }
+    finalContent = stripModelScratchpad(finalContent);
     finalContent = enforceVisualFidelity(finalContent, lastUserMsg?.content || '', messages, activeProblemState);
     if (finalContent && ollamaResponse && ollamaResponse.message) {
       ollamaResponse.message.content = finalContent;
@@ -3030,5 +3049,6 @@ module.exports = {
   activeControllers,
   getActiveControllers: () => activeControllers,
   clearActiveControllers,
-  executeVisionCall
+  executeVisionCall,
+  stripModelScratchpad
 };

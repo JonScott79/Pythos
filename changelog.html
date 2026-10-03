@@ -13,7 +13,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="assets/favicon.png">
-  <title>Pythos Release History &amp; Changelog | v1.8.26</title>
+  <title>Pythos Release History &amp; Changelog | v1.8.27</title>
   <meta name="description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
@@ -523,7 +523,7 @@
         <a href="nonprofit.html" class="nav-link">Mission &amp; Roadmap</a>
         <a href="license.html" class="nav-link">License</a>
         <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" class="nav-link">Facebook</a>
-        <a href="changelog.html#pythos-1-8-26" class="nav-link active" aria-current="page">v1.8.26</a>
+        <a href="changelog.html#pythos-1-8-27" class="nav-link active" aria-current="page">v1.8.27</a>
       </div>
     </div>
 
@@ -549,12 +549,36 @@
     </header>
 
                                                                                     <!-- RELEASE v1.8.16 -->
+    <!-- RELEASE v1.8.27 -->
+    <article class="release-card" id="pythos-1-8-27">
+      <div class="release-header">
+        <div class="release-title-wrap">
+          <h2 class="release-version">Pythos 1.8.27</h2>
+          <span class="release-badge">Latest Release</span>
+        </div>
+        <time class="release-date" datetime="2026-10-03">October 3, 2026</time>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header added">⚡ WHAT'S NEW &amp; HARDENED</div>
+        <ul class="feature-list">
+          <li><strong>"Always Draw It Out First" STEM Pedagogical Engine</strong>: Modeled the foundational rule of trigonometry and physics education. Pythos now proactively mounts interactive geometric right-triangle widgets (<code>[GEOMETRY: triangle ...]</code>) and physics visual models for reference angles, trigonometric function evaluations ($	an 150^circ$, $csc(5pi/4)$, $sec(1050^circ)$), and force setups without forcing the student to explicitly type "draw" or "sketch".</li>
+          <li><strong>Expanded Natural-Language &amp; Radian Angle Parsing</strong>: Integrated natural-language angle recognition in <code>server/trigExpressionParser.js</code> supporting radian $pi$-fractions ($5pi/4$, $7pi/4$, $-13pi/7$), degree angles, Pearson/MyMathLab question transcriptions, and reference angle queries.</li>
+          <li><strong>Zero Conversational Hallucination &amp; Self-Spoiler Guardrail</strong>: Hardened <code>server/learnerState.js</code> and <code>server/server.js</code> against conversational hallucinations (forbidding the model from claiming the student calculated or submitted steps they didn't take) and strictly prohibited the model from answering its own pending questions in parenthetical asides.</li>
+          <li><strong>Eureka &amp; Gratitude Intent Recognition</strong>: Added <code>EUREKA_OR_GRATITUDE</code> intent to <code>server/studentIntentClassifier.js</code> to accurately categorize "aha!" moments and expressions of clarity without misclassifying them as mathematical submissions.</li>
+          <li><strong>Practice Problem Generator Exclusions</strong>: Prevented reference table, chart, formula, and notes requests from being erroneously hijacked by the practice generator.</li>
+          <li><strong>Model Chain-of-Thought &amp; Scratchpad Sanitization</strong>: Implemented <code>stripModelScratchpad</code> to eliminate <code>&lt;think&gt;</code> tags and third-person planning prompt bleeds from model responses.</li>
+          <li><strong>Mismatched Input Guidance</strong>: Added Guided Mode conversational handling for students entering numbers from a different problem (e.g. jumping ahead without pasting the problem), guiding them back to the active problem without dumping the old solution.</li>
+          <li><strong>Comprehensive Regression Coverage</strong>: Verified full 30-case student intent suite, 22-case learner state suite, 16-case practice generation suite, 17-case nested trig viz suite, and 10-case safe response constructor suite with 100% pass rates.</li>
+        </ul>
+      </div>
+    </article>
+
     <!-- RELEASE v1.8.26 -->
     <article class="release-card" id="pythos-1-8-26">
       <div class="release-header">
         <div class="release-title-wrap">
           <h2 class="release-version">Pythos 1.8.26</h2>
-          <span class="release-badge">Latest Release</span>
         </div>
         <time class="release-date" datetime="2026-10-03">October 3, 2026</time>
       </div>
@@ -567,7 +591,6 @@
       <div class="release-header">
         <div class="release-title-wrap">
           <h2 class="release-version">Pythos 1.8.26</h2>
-          <span class="release-badge">Latest Release</span>
         </div>
         <time class="release-date" datetime="2026-10-03">October 3, 2026</time>
       </div>
@@ -1601,7 +1624,7 @@
 
   <footer>
     <div>🏛️ Pythos — Free AI Mathematics &amp; Physics Education Initiative. Developed by LANZAR.</div>
-    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-8-26" style="color:var(--primary-color); text-decoration:none;">v1.8.26</a></div>
+    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-8-27" style="color:var(--primary-color); text-decoration:none;">v1.8.26</a></div>
   </footer>
 
   <script>

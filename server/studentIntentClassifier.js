@@ -28,6 +28,7 @@ const INTENTS = Object.freeze({
   CONFUSION: 'CONFUSION',
   HYPOTHETICAL: 'HYPOTHETICAL',
   TENTATIVE_HYPOTHESIS: 'TENTATIVE_HYPOTHESIS',
+  EUREKA_OR_GRATITUDE: 'EUREKA_OR_GRATITUDE',
   PRACTICE_REQUEST: 'PRACTICE_REQUEST',
   VISUAL_REQUEST: 'VISUAL_REQUEST',
   GRAPH_REQUEST: 'GRAPH_REQUEST',
@@ -221,6 +222,28 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
   }
 
   // -------------------------------------------------------------
+  // 5f. EUREKA_OR_GRATITUDE Intent
+  // e.g. "OOOOOOH that makes it easier thanks pythos!", "that makes it so much easier", "aha!", "thanks pythos"
+  // -------------------------------------------------------------
+  const isEurekaOrGratitude = (
+    /\b(?:o+h+|a+h+a+)\b/i.test(lower) && /\b(?:makes\s+(?:it\s+)?(?:so\s+much\s+|way\s+)?(?:easier|simpler|clearer|sense)|i\s+(?:get|see)\s+it|thanks|thank\s+you)\b/i.test(lower)
+  ) || (
+    /^(?:wait\s+i\s+get\s+it!?|o+h+h*!?|oh\s+i\s+see!?|that\s+makes\s+sense\s+now!?|so\s+that'?s\s+why!?|now\s+i\s+understand!?|a+h+a+!?)$/i.test(clean)
+  ) || (
+    /\b(?:that\s+makes\s+(?:it\s+)?(?:so\s+much\s+|way\s+)?(?:easier|simpler|clearer|more\s+sense)|makes\s+it\s+(?:much\s+|way\s+)?easier)\b/i.test(lower)
+  ) || (
+    /^(?:thanks|thank\s+you)(?:\s+pythos|\s+so\s+much)?\s*[,!.]*$/i.test(lower)
+  );
+
+  if (isEurekaOrGratitude && !containsMathSymbols(clean)) {
+    signals.push('eureka_or_gratitude_marker');
+    return {
+      intent: INTENTS.EUREKA_OR_GRATITUDE,
+      confidence: 'high',
+      signals
+    };
+  }
+
   // 6. NEW_PROBLEM Intent
   // -------------------------------------------------------------
   const isWordProblem = /\b(?:how\s+(?:many|much|far|fast|long)|what\s+is\s+(?:the|its|her|his))\b/i.test(clean) &&

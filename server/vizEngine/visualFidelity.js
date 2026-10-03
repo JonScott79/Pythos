@@ -324,13 +324,7 @@ function enforceVisualFidelity(finalContent, userText, conversationHistory = [],
     }
   }
 
-  // If no visual was requested and no visual was claimed, do NOT add unsolicited visuals
-  if (!requested && !claimed) {
-    // Normal non-visual math response: ensure no stray ASCII diagram
-    return suppressAsciiTriangle(cleanedContent);
-  }
-
-  // If visual is already present: verify that it is mathematically sound
+  // If visual is already present (e.g. preflight tool mounted): verify that it is mathematically sound
   if (alreadyHasVisual) {
     if (trigModel && !trigModel.isMalformed && trigModel.referenceTriangle) {
       // Check if existing [GEOMETRY: ...] token has bogus parameters (e.g. b = angleMagnitude)
@@ -350,6 +344,12 @@ function enforceVisualFidelity(finalContent, userText, conversationHistory = [],
       }
     }
     // Interactive visual successfully generated/mounted -> SUPPRESS legacy ASCII/text diagram
+    return suppressAsciiTriangle(cleanedContent);
+  }
+
+  // If no visual was requested and no visual was claimed, do NOT add unsolicited visuals
+  if (!requested && !claimed) {
+    // Normal non-visual math response: ensure no stray ASCII diagram
     return suppressAsciiTriangle(cleanedContent);
   }
 

@@ -316,6 +316,28 @@ runTest('Practice generation does not weaken fail-closed behavior for actual ans
   assert(withholding.formattedContent.includes("couldn't verify it well enough") || withholding.formattedContent.includes("rather not guess"));
 });
 
+// -------------------------------------------------------------
+// 15. Table / Chart Exclusions: "make me a similar table" must NOT enter PRACTICE_REQUEST
+// -------------------------------------------------------------
+total++;
+console.log('\n▶ [GROUP 5] Reference Table & Chart Exclusion Safeguards');
+const tableRequest1 = 'make me a similar table as above but with radians instead of degrees';
+const tableIntent1 = classifyStudentIntent(tableRequest1, []);
+const isReq1 = isPracticeRequest(tableRequest1);
+assert.strictEqual(isReq1, false, '"make me a similar table..." must NOT be detected as practice request');
+assert.notStrictEqual(tableIntent1.intent, INTENTS.PRACTICE_REQUEST, 'Intent must not be PRACTICE_REQUEST');
+passed++;
+console.log('  ✅ [PASS 15] "make me a similar table..." is correctly excluded from PRACTICE_REQUEST');
+
+total++;
+const chartRequest2 = 'can you make a similar chart for tangent?';
+const chartIntent2 = classifyStudentIntent(chartRequest2, []);
+const isReq2 = isPracticeRequest(chartRequest2);
+assert.strictEqual(isReq2, false, '"can you make a similar chart..." must NOT be detected as practice request');
+assert.notStrictEqual(chartIntent2.intent, INTENTS.PRACTICE_REQUEST, 'Intent must not be PRACTICE_REQUEST');
+passed++;
+console.log('  ✅ [PASS 16] "can you make a similar chart..." is correctly excluded from PRACTICE_REQUEST');
+
 console.log('\n================================================================');
 console.log(`RESULTS: ${passed}/${total} TESTS PASSED (${total - passed} failures)`);
 console.log('================================================================\n');

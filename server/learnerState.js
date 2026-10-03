@@ -39,6 +39,11 @@ const LEARNER_STATES = Object.freeze({
 /**
  * Checks if text contains laughter, humor, or lighthearted tokens.
  */
+function containsMathSymbols(text) {
+  if (!text || typeof text !== 'string') return false;
+  return /[=+\-*/^<>%]|(?:\bpi\b)|\d+[a-zA-Z]|[a-zA-Z]\^|\b(?:sqrt|sin|cos|tan|cot|sec|csc)\b/i.test(text);
+}
+
 function containsHumorMarkers(text) {
   if (!text || typeof text !== 'string') return false;
   return /\b(?:(?:ha){2,}|hah+a*|lmao|lol|rofl|xd|hehe)\b|[😂🤣]/i.test(text);
@@ -120,8 +125,25 @@ function isTentativeHypothesis(text, studentIntent) {
 function isGenuineBreakthrough(text) {
   if (!text || typeof text !== 'string') return false;
   const clean = text.trim();
-  return /^(?:wait\s+i\s+get\s+it!?|oh+h*!?|oh\s+i\s+see!?|that\s+makes\s+sense\s+now!?|so\s+that'?s\s+why!?|now\s+i\s+understand!?|aha!?)$/i.test(clean) ||
-         /\b(?:wait\s+i\s+get\s+it|that\s+makes\s+sense\s+now|so\s+that'?s\s+why|now\s+i\s+see\s+why)\b/i.test(clean);
+  const lower = clean.toLowerCase();
+
+  if (/^(?:wait\s+i\s+get\s+it!?|o+h+h*!?|oh\s+i\s+see!?|that\s+makes\s+sense\s+now!?|so\s+that'?s\s+why!?|now\s+i\s+understand!?|a+h+a+!?)$/i.test(clean)) {
+    return true;
+  }
+  if (/\b(?:wait\s+i\s+get\s+it|that\s+makes\s+sense\s+now|so\s+that'?s\s+why|now\s+i\s+see\s+why|now\s+i\s+get\s+it)\b/i.test(lower)) {
+    return true;
+  }
+  // "OOOOOOH that makes it easier thanks pythos", "that makes it so much easier", "makes it way simpler"
+  if (/\b(?:o+h+|a+h+a+)\b/i.test(lower) && /\b(?:makes\s+(?:it\s+)?(?:so\s+much\s+|way\s+)?(?:easier|simpler|clearer|sense)|i\s+(?:get|see)\s+it|thanks|thank\s+you)\b/i.test(lower)) {
+    return true;
+  }
+  if (/\b(?:that\s+makes\s+(?:it\s+)?(?:so\s+much\s+|way\s+)?(?:easier|simpler|clearer|more\s+sense)|makes\s+it\s+(?:much\s+|way\s+)?easier)\b/i.test(lower)) {
+    return true;
+  }
+  if (/^(?:thanks|thank\s+you)(?:\s+pythos|\s+so\s+much)?\s*[,!.]*$/i.test(lower)) {
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -254,10 +276,31 @@ function classifyLearnerState(userText, conversationHistory = [], activeProblemS
   }
 
   // =========================================================================
-  // 3. GENUINE BREAKTHROUGH ("Aha!" moment)
+  // 3. GENUINE BREAKTHROUGH ("Aha!" moment / Eureka / Realization)
   // =========================================================================
   if (isGenuineBreakthrough(raw)) {
     signals.push('breakthrough_marker');
+    const prevAssistantMsg = conversationHistory && Array.isArray(conversationHistory)
+      ? conversationHistory.slice().reverse().find(m => m.role === 'assistant')
+      : null;
+    const prevAssistantText = prevAssistantMsg ? prevAssistantMsg.content || '' : '';
+    const hasOpenQuestion = /\?\s*$/m.test(prevAssistantText.trim());
+    const hasMathWork = containsMathSymbols(raw) || /\d/.test(raw);
+
+    const directiveLines = [
+      '1. Acknowledge and reinforce the conceptual breakthrough immediately.',
+      '2. Explain briefly WHY that concept works and why it resolved the earlier hurdle (crystallize the insight).',
+      '3. Avoid empty praise ("Great job!"); focus on the actual mathematical connection.',
+      '4. CRITICAL CONVERSATIONAL REALISM: DO NOT pretend, assume, or hallucinate that the student has already written, calculated, or submitted a step when they only celebrated the insight or said thanks (e.g. NEVER say "Now that you\'ve written the two terms...").',
+      '5. NEVER SPOIL OR ANSWER YOUR OWN PENDING QUESTION: Do not give away the converted values or answers in parentheses or as an aside (e.g. NEVER write "(Remember 2pi = 14pi/7)" right after asking what the common denominator or numerator is).'
+    ];
+
+    if (hasOpenQuestion && !hasMathWork) {
+      directiveLines.push('6. Because the student celebrated the insight without performing the step yet, invite them directly to execute that specific step now (e.g. "It really does! Now let\'s take that step—what common denominator should we use?").');
+    } else {
+      directiveLines.push('6. Prompt for the next natural step while momentum is high.');
+    }
+
     return {
       state: LEARNER_STATES.GENUINE_BREAKTHROUGH,
       confidence: 'high',
@@ -267,12 +310,7 @@ function classifyLearnerState(userText, conversationHistory = [], activeProblemS
         tone: 'energized, concise, reinforcing',
         cognitiveLoad: 'maintain',
         scaffoldLevel: 'targeted_hint',
-        directive: [
-          '1. Acknowledge and reinforce the conceptual breakthrough immediately.',
-          '2. Explain briefly WHY that concept works and why it resolved the earlier hurdle (crystallize the insight).',
-          '3. Avoid empty praise ("Great job!"); focus on the actual mathematical connection.',
-          '4. Prompt for the next natural step while momentum is high.'
-        ].join('\n')
+        directive: directiveLines.join('\n')
       }
     };
   }

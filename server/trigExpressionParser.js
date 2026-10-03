@@ -233,6 +233,88 @@ function parseTrigExpression(text) {
     };
   }
 
+  // 1b. Natural language or radian trig expression: e.g. "tangent 120 degrees", "cosecant 5pi/4", "reference angle for -160 degrees"
+  const cleanNL = text
+    .replace(/StartFraction\s*([0-9]*)\s*pi\s*Over\s*([0-9]+)\s*EndFraction/gi, '$1pi/$2')
+    .replace(/negative\s+([0-9]+)/gi, '-$1');
+
+  // Match: fn + angle (with or without parentheses, degrees or radians with pi)
+  const nlTrigRegex = /\b(sin(?:e)?|cos(?:ine)?|tan(?:gent)?|csc|cosecant|sec(?:ant)?|cot(?:angent)?)\s*(?:\(?\s*|\s+)(?:left\s*\(?\s*)?(-?[0-9]+(?:\.[0-9]+)?\s*pi\s*\/\s*[0-9]+|-?pi\s*\/\s*[0-9]+|-?[0-9]+(?:\.[0-9]+)?\s*(?:°|\s*deg(?:rees)?)?)/i;
+  const nlRefRegex = /reference\s+angle\s+(?:for|of)?\s*(?:the\s+angle)?[.:\s]*(-?[0-9]+(?:\.[0-9]+)?\s*pi\s*\/\s*[0-9]+|-?pi\s*\/\s*[0-9]+|-?[0-9]+(?:\.[0-9]+)?\s*(?:°|\s*deg(?:rees)?)?)/i;
+
+  const nlMatch = cleanNL.match(nlTrigRegex);
+  const nlRefMatch = !nlMatch ? cleanNL.match(nlRefRegex) : null;
+
+  if (nlMatch || nlRefMatch) {
+    let fn = 'tan';
+    let rawAngleStr = '';
+    if (nlMatch) {
+      let rawFn = nlMatch[1].toLowerCase();
+      if (rawFn.startsWith('sin')) fn = 'sin';
+      else if (rawFn.startsWith('cos') && !rawFn.startsWith('cose')) fn = 'cos';
+      else if (rawFn.startsWith('tan')) fn = 'tan';
+      else if (rawFn.startsWith('csc') || rawFn.startsWith('cose')) fn = 'csc';
+      else if (rawFn.startsWith('sec')) fn = 'sec';
+      else if (rawFn.startsWith('cot')) fn = 'cot';
+      rawAngleStr = nlMatch[2];
+    } else {
+      rawAngleStr = nlRefMatch[1];
+    }
+
+    let degVal = null;
+    let isRadian = false;
+    const piMatch = rawAngleStr.match(/(-)?\s*(?:([0-9]+(?:\.[0-9]+)?)\s*\*?\s*)?pi(?:\s*\/\s*([0-9]+(?:\.[0-9]+)?))?/i);
+    if (piMatch && rawAngleStr.includes('pi')) {
+      const isNeg = Boolean(piMatch[1]);
+      const num = piMatch[2] ? parseFloat(piMatch[2]) : 1;
+      const den = piMatch[3] ? parseFloat(piMatch[3]) : 1;
+      const rad = (isNeg ? -1 : 1) * (num * Math.PI / den);
+      degVal = (rad * 180) / Math.PI;
+      isRadian = true;
+    } else {
+      const numMatch = rawAngleStr.match(/(-?[0-9]+(?:\.[0-9]+)?)/);
+      if (numMatch) {
+        degVal = parseFloat(numMatch[1]);
+      }
+    }
+
+    if (degVal !== null && !isNaN(degVal)) {
+      const angleInfo = analyzeAngle(degVal, 'degrees');
+      let val = null;
+      try {
+        val = evalTrig(fn, angleInfo.rad);
+      } catch (_) {}
+
+      const refTriangle = deriveReferenceTriangle(fn, angleInfo.refAngleRad, angleInfo.refAngleDeg, angleInfo.quadrant, degVal);
+      const quadNames = ['I', 'II', 'III', 'IV'];
+      const quadStr = quadNames[angleInfo.quadrant - 1] || 'I';
+
+      return {
+        type: 'single_trig',
+        isNested: false,
+        innerFunction: fn,
+        argument: {
+          value: degVal,
+          unit: isRadian ? 'radians' : 'degrees',
+          isAngle: true,
+          sign: Math.sign(degVal) || 1
+        },
+        angleInfo,
+        evaluatedInner: {
+          numericValue: val !== null ? Math.round(val * 1000000) / 1000000 : null,
+          unit: 'dimensionless',
+          expression: `${fn}(${rawAngleStr})`
+        },
+        referenceTriangle: refTriangle,
+        mathematicalExplanation: [
+          `1. **Angle Analysis:** ${rawAngleStr} terminates in Quadrant ${quadStr} with reference angle ${angleInfo.refAngleDeg}°.`,
+          val !== null ? `2. **Evaluation:** $\\${fn}(${rawAngleStr}) \\approx ${Math.round(val * 10000) / 10000}$.` : '',
+          `3. **Reference Triangle:** Positive side lengths $opposite = ${refTriangle.opp}$, $adjacent = ${refTriangle.adj}$, $hypotenuse = ${refTriangle.hyp}$.`
+        ].filter(Boolean).join('\n')
+      };
+    }
+  }
+
   // 2. Single trig expression: func(arg)
   // e.g. cot(-28.45°), tan(30 deg), sec(45)
   const singleRegex = /\b(sin|cos|tan|csc|sec|cot)\s*\(\s*(-?[0-9]+(?:\.[0-9]+)?)\s*(°|\s*deg(?:rees)?)?\s*\)/i;

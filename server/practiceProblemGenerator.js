@@ -48,8 +48,15 @@ function isPracticeRequest(text) {
     return false;
   }
 
+  // EXCLUSIONS: Requests for reference tables, charts, notes, formulas, lists, summaries, definitions, or code
+  // must NEVER be hijacked as practice problem generation requests.
+  if (/\b(?:table|chart|list|notes?|summary|formula(?:s)?|sheet|definition)\b/i.test(clean) && !/\b(?:practice\s+problem|quiz\s+me)\b/i.test(clean)) {
+    return false;
+  }
+
   const practicePatterns = [
-    /\b(?:give|gimme|make|send|provide)\s+(?:me\s+)?(?:another|a\s+similar|one\s+more|a\s+practice|a\s+harder|an\s+easier|a\s+different|a\s+(?:more\s+)?(?:challenging|difficult|tougher|advanced|simpler))\s+(?:problem|question|one|exercise|example)?\b/i,
+    /\b(?:give|gimme|make|send|provide)\s+(?:me\s+)?(?:another|one\s+more|a\s+practice|a\s+harder|an\s+easier|a\s+(?:more\s+)?(?:challenging|difficult|tougher|advanced|simpler))\s+(?:problem|question|one|exercise|example)?\b/i,
+    /\b(?:give|gimme|make|send|provide)\s+(?:me\s+)?(?:a\s+similar|a\s+different)\s+(?:problem|question|one|exercise|example)\b/i,
     /\b(?:give|gimme|make)\s+(?:me\s+)?(?:another|one)\s+(?:like|similar\s+to)\s+(?:that|this|the\s+last)\b/i,
     /\b(?:quiz|test)\s+me\b/i,
     /\b(?:give|gimme)\s+(?:me\s+)?(?:one\s+to\s+practice|something\s+to\s+try|a\s+problem\s+to\s+try)\b/i,
