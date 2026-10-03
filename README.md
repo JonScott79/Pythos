@@ -26,7 +26,7 @@ Pythos features real-time, interactive geometric instruments and universal visua
 
 ![Pythos Live Interactive Geometric Model Demo](assets/demo/pythos-trig-demo.webp)
 
-*Direct Live Asset URL: [https://pythos.lanzar.me/assets/demo/pythos-trig-demo.webp](https://pythos.lanzar.me/assets/demo/pythos-trig-demo.webp)*
+*Direct Video Downloads & Live URLs:* [MP4 Video (YouTube-ready)](https://pythos.lanzar.me/assets/demo/pythos-trig-demo.mp4) | [WebP Animation](https://pythos.lanzar.me/assets/demo/pythos-trig-demo.webp)
 
 #### Key Demonstration Milestones:
 
