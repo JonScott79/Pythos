@@ -462,10 +462,8 @@ async function executeTool(toolName, args, sessionContext = {}) {
           orientationNote: orientationNote || `Orientation: Reference triangle side lengths are strictly positive distances (opposite = ${opposite}, adjacent = ${adjacent}, hypotenuse = ${hyp}). Any negative signs from trigonometric functions or coordinates indicate the quadrant orientation, not negative geometric length.`,
           formattedComponent: [
             '',
-            '### Reference Right-Triangle Sketch:',
+            '### Reference Right-Triangle:',
             geomToken,
-            '',
-            asciiSketch,
             '',
             `*Orientation note:* In a reference triangle, geometric side lengths represent positive distances ($adjacent = ${adjacent}$, $opposite = ${opposite}$, $hypotenuse = ${hyp}$). Any negative signs indicate quadrant orientation.`
           ].join('\n')

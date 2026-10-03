@@ -96,6 +96,12 @@ function suppressAsciiTriangle(text) {
 
   // 2. Remove code-fenced ASCII right triangles (code blocks containing `/|` or `/__+|`)
   cleaned = cleaned.replace(/```(?:[a-zA-Z0-9_-]*\n)?[\s\S]*?(?:\/\||\/__+\|)[\s\S]*?```/gi, '');
+  // Remove degenerate runaway ASCII loops (e.g. repetitive | \ | \ or / \ / \)
+  cleaned = cleaned.replace(/`(?:[a-zA-Z0-9_-]*\n)?[\s\S]*?(?:\|[ \t]*\\|\\[ \t]*\|)[\s\S]*?(?:`|$)/gi, '');
+  cleaned = cleaned.replace(/(?:(?:\||\/|\\)\s*){6,}[^\n]*/gi, '');
+  cleaned = cleaned.replace(/(?:\|\s*\\){2,}[^\n]*/gi, '');
+  cleaned = cleaned.replace(/(?:Below|Here)\s+is\s+(?:a\s+)?(?:quick\s+)?geometric\s+sketch[^\n.]*[\n.]?/gi, '');
+  cleaned = cleaned.replace(/---\s*###\s*\d+\.\s*Visualizing\s+the\s+triangle[\s\S]*$/gi, '');
 
   // 3. Remove raw unfenced ASCII right triangles if present
   cleaned = cleaned.replace(/(?:^|\n)[ \t]*(?:hypotenuse\s*=[^\n]*\n)?[ \t]*\/\|[ \t]*\n[ \t]*\/[^\n]*\|[ \t]*\n(?:[ \t]*\/[^\n]*\|[ \t]*\n)*[ \t]*\/[_\-=]+(?:\||\/)[ \t]*(?:\n[ \t]*[0-9.]+[^\n]*)?/gi, '\n');

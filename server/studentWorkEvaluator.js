@@ -971,6 +971,12 @@ function stripModelScratchpad(content) {
   // 2. Strip third-person planning directives at the beginning of the response
   text = text.replace(/^(?:(?:we|i)\s+(?:should|need\s+to|must)\s+)?(?:explain\s+that|tell\s+the\s+student|remind\s+the\s+student|guide\s+the\s+student|explain\s+to\s+the\s+student)[^.\n!?]*(?:(?:\.|\?|!|\n)\s*)+/gi, '');
   text = text.replace(/\b(?:ask|prompt)\s+(?:the\s+)?student\s+(?:for\s+)?(?:the\s+)?(?:next\s+step|what\s+comes\s+next)[.!?]?\s*/gi, '');
+  // 3. Strip runaway degenerative ASCII loops & pseudo-sketches
+  text = text.replace(/```(?:[a-zA-Z0-9_-]*\n)?[\s\S]*?(?:\|[ \t]*\\|\\[ \t]*\|)[\s\S]*?(?:```|$)/gi, '');
+  text = text.replace(/(?:(?:\||\/|\\)\s*){6,}[^\n]*/gi, '');
+  text = text.replace(/(?:\|\s*\\){2,}[^\n]*/gi, '');
+  text = text.replace(/(?:Below|Here)\s+is\s+(?:a\s+)?(?:quick\s+)?geometric\s+sketch[^\n.]*[\n.]?/gi, '');
+  text = text.replace(/---\s*###\s*\d+\.\s*Visualizing\s+the\s+triangle[\s\S]*$/gi, '');
   return text.trim();
 }
 

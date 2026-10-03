@@ -3380,7 +3380,12 @@ async function askPythos(userText) {
           await saveChatState(userText, finalReply);
         }
       } else {
-        const finalReply = streamedText.trim() || "The Oracle is silent. (Empty response)";
+        let sanitizedReply = streamedText.trim();
+        // Sanitize any runaway ASCII loops or broken unclosed code blocks before markdown rendering
+        sanitizedReply = sanitizedReply.replace(/```(?:[a-zA-Z0-9_-]*\n)?[\s\S]*?(?:\|[ \t]*\\|\\[ \t]*\|)[\s\S]*?(?:```|$)/gi, '');
+        sanitizedReply = sanitizedReply.replace(/(?:\|\s*\\){2,}[^\n]*/gi, '');
+        sanitizedReply = sanitizedReply.replace(/---\s*###\s*\d+\.\s*Visualizing\s+the\s+triangle[\s\S]*$/gi, '');
+        const finalReply = sanitizedReply.trim() || "The Oracle is silent. (Empty response)";
         messages.push({ role: "assistant", content: finalReply });
         appendMessage("assistant", finalReply, null, {
           question: cleanText,

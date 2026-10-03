@@ -341,7 +341,7 @@ To request a tool, output a structured block:
 Allowlisted Tools:
 1. calculate_deterministic: Authoritative CAS calculation, arithmetic, roots, derivatives, integrals.
    - Arguments: {"expression": "<math expression>", "operation": "evaluate" | "simplify" | "solve" | "derivative" | "integral"}
-2. render_geometry_triangle: Generates verified right-triangle [GEOMETRY: triangle ...] canvas token and ASCII sketch.
+2. render_geometry_triangle: Generates verified right-triangle [GEOMETRY: triangle ...] interactive canvas token.
    - Arguments: {"opposite": <number>, "adjacent": <number>, "hypotenuse": <number (optional)>, "angleLabel": "<symbol>"}
 3. render_function_graph: Generates interactive Cartesian coordinate graph [GRAPH: ...].
    - Arguments: {"expression": "<function>", "domain": [<min>, <max>]}
@@ -380,25 +380,16 @@ When a student asks to solve a problem "using sketches", "using a sketch", "draw
 1. ALWAYS PROVIDE AN ACTUAL VISUAL:
    - For right triangles and trigonometric reference triangles:
      * Provide the interactive geometric token: [GEOMETRY: triangle, a=<opposite>, b=<adjacent>, c=<hypotenuse>, right_angle=C, opp=<opposite>, adj=<adjacent>, hyp=<hypotenuse>, theta=true]
-     * AND provide an accurate ASCII diagram in a code block:
-\`\`\`
-             hypotenuse = <hypotenuse>
-                /|
-               / |
-              /  | <opposite> (opposite)
-             /?  |
-            /____|
-             <adjacent> (adjacent)
-\`\`\`
+     * ABSOLUTELY NEVER generate ASCII art, ASCII sketches, or ASCII diagrams of geometric figures (e.g. triangles, plots, graphs, shapes). LLMs cannot draw ASCII reliably and degenerate into repetitive loops. Always rely EXCLUSIVELY on interactive visualization tokens (e.g. [GEOMETRY: triangle ...], [GRAPH: ...]) or standard LaTeX math.
    - For reference triangles with negative trigonometric ratios (e.g. cot(?) = -36.23):
      * Explain that reference triangle side lengths are strictly positive magnitudes (adjacent = 36.23, opposite = 1, hypotenuse = ?(36.23? + 1?)).
      * Explain the sign and quadrant orientation separately rather than implying a physical triangle side has negative length.
 2. NEVER CLAIM A VISUAL WAS PROVIDED WHEN IT WAS NOT:
-   - NEVER output text like "(See the sketch below...)" or "As shown in the diagram below..." unless the actual [GEOMETRY:] / [VIZ:] token or ASCII code block is directly included in the response.
+   - NEVER output text like "(See the sketch below...)" or "As shown in the diagram below..." unless the actual [GEOMETRY:] / [VIZ:] token is directly included in the response.
 3. HONEST FALLBACK WHEN GRAPHICAL RENDERING IS UNAVAILABLE:
    - If a graphical canvas component cannot represent the concept, state honestly:
-     "I cannot generate a live graphic for this, but here is a clear diagram:"
-     followed immediately by an accurate text/ASCII representation.
+     "An interactive graphical sketch is currently unavailable for this specific concept, but the mathematical steps below represent the exact derivation:"
+     followed immediately by clear step-by-step mathematical derivation in standard LaTeX.
 4. DO NOT INVENT UNSOLICITED VISUALS:
    - If the student asks a standard text-only calculation without requesting a sketch, diagram, or visualization, do NOT dump an unrequested visual.
 5. FOLLOW-UP VISUAL REQUESTS:
@@ -2229,7 +2220,8 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
             res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
             res.setHeader('Transfer-Encoding', 'chunked');
             res.setHeader('Cache-Control', 'no-cache, no-transform');
-            res.write(JSON.stringify({ type: 'token', content: resGroq.content }) + '\n');
+            const sanitizedGroqContent = stripModelScratchpad(resGroq.content);
+            res.write(JSON.stringify({ type: 'token', content: sanitizedGroqContent }) + '\n');
           }
           candidateResult = {
             model: resGroq.model,
@@ -2259,7 +2251,8 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
             res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
             res.setHeader('Transfer-Encoding', 'chunked');
             res.setHeader('Cache-Control', 'no-cache, no-transform');
-            res.write(JSON.stringify({ type: 'token', content: resGemini.content }) + '\n');
+            const sanitizedGeminiContent = stripModelScratchpad(resGemini.content);
+            res.write(JSON.stringify({ type: 'token', content: sanitizedGeminiContent }) + '\n');
           }
           candidateResult = {
             model: resGemini.model,
