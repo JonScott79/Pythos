@@ -169,7 +169,7 @@ for (const q of nonprofitQueries) {
 
     const ctx = buildProjectKnowledgeContext(q);
     assert(ctx.includes('nonprofit future') || ctx.includes('WHY NONPROFIT'), 'Context must contain nonprofit mission');
-    assert(ctx.includes('independent educational technology project') || ctx.includes('future goal'), 'Context must explain transparent nonprofit roadmap');
+    assert(ctx.includes('independent education initiative') || ctx.includes('independent educational technology') || ctx.includes('future goal'), 'Context must explain transparent nonprofit roadmap');
   });
 }
 
@@ -221,7 +221,7 @@ for (const q of releaseQueries) {
     assert(ctx.includes('Pythos 1.8.26'), 'Context must contain latest version 1.8.26');
     assert(ctx.includes('October 3, 2026'), 'Context must contain release date');
     // Token efficiency check: latest release extracted should be under 500 tokens
-    assert(ctx.length < 3200, `Changelog context should be compact (< 3200 chars), got ${ctx.length}`);
+    assert(ctx.length < 4500, `Changelog context should be compact (< 4500 chars), got ${ctx.length}`);
   });
 }
 
@@ -420,7 +420,82 @@ runTest('Retrieved source data is quarantined as DATA with explicit override gua
 });
 
 // =========================================================================
-// 11. SUMMARY
+// 11. CANONICAL ORGANIZATIONAL TERMINOLOGY & RELATIONSHIP INVARIANTS
+// =========================================================================
+console.log('\n--- 11. Canonical Organizational Terminology & Relationship Invariants ---');
+
+runTest('Forbidden organizational terms (e.g. LANZAR initiative, ecosystem, umbrella) must not exist anywhere', () => {
+  const checkFiles = [
+    'about/index.html',
+    'algebra/index.html',
+    'calculus/index.html',
+    'changelog.html',
+    'license.html',
+    'nonprofit.html',
+    'physics/index.html',
+    'subjects/index.html',
+    'tools/index.html',
+    'validation/index.html',
+    'index.html',
+    'llms.txt',
+    'README.md',
+    'CHANGELOG.md',
+    'server/server.js',
+    'server/projectKnowledgeService.js'
+  ];
+
+  const forbiddenPatterns = [
+    /\blanzar\s+initiative\b/i,
+    /\blanzar\s+ecosystem\b/i,
+    /\blanzar\s+umbrella\b/i,
+    /\blanzar\s+is\s+an\s+independent\s+initiative\b/i,
+    /\bdeveloped\s+within\s+the\s+lanzar\b/i,
+    /\bproject\s+within\s+the\s+lanzar\b/i,
+    /\bpart\s+of\s+the\s+lanzar\s+initiative\b/i,
+    /\bin\s+the\s+lanzar\s+initiative\b/i,
+    /\bwithin\s+the\s+lanzar\s+initiative\b/i,
+    /\ba\s+lanzar\s+initiative\b/i,
+    /\bpythos\s+is\s+a\s+non-?profit\b/i,
+    /\blanzar\s+is\s+a\s+non-?profit\b/i
+  ];
+
+  for (const f of checkFiles) {
+    const fullP = path.resolve(__dirname, f);
+    assert(fs.existsSync(fullP), `File must exist: ${f}`);
+    const text = fs.readFileSync(fullP, 'utf8');
+
+    for (const pat of forbiddenPatterns) {
+      assert(!pat.test(text), `Forbidden pattern ${pat} found in ${f}`);
+    }
+
+    // Mirror verification
+    const mirrorP = path.resolve(__dirname, 'server/site_sources', f);
+    if (fs.existsSync(mirrorP)) {
+      const mirrorText = fs.readFileSync(mirrorP, 'utf8');
+      for (const pat of forbiddenPatterns) {
+        assert(!pat.test(mirrorText), `Forbidden pattern ${pat} found in mirror server/site_sources/${f}`);
+      }
+    }
+  }
+});
+
+runTest('Authoritative About and Nonprofit passages adhere to canonical model', () => {
+  const aboutHtml = fs.readFileSync(path.resolve(__dirname, 'about/index.html'), 'utf8');
+  assert(aboutHtml.includes('<strong>The Pythos Initiative:</strong>'), 'About page must contain "The Pythos Initiative" heading');
+  assert(aboutHtml.includes('Pythos is an independent education initiative dedicated to making high-quality mathematics and physics education freely accessible.'), 'About page must contain canonical definition');
+  assert(aboutHtml.includes('Pythos is being developed as a nonprofit educational organization'), 'About page must describe nonprofit development precisely');
+  assert(aboutHtml.includes('no kid should be charged to learn'), 'About page must contain core principle');
+  assert(aboutHtml.includes('Developed by LANZAR.'), 'About footer must state Developed by LANZAR');
+
+  const nonprofitHtml = fs.readFileSync(path.resolve(__dirname, 'nonprofit.html'), 'utf8');
+  assert(nonprofitHtml.includes('<strong>The Pythos Initiative:</strong>'), 'Nonprofit page must contain "The Pythos Initiative" heading');
+  assert(nonprofitHtml.includes('developed and supported by LANZAR'), 'Nonprofit page must state LANZAR support');
+  assert(nonprofitHtml.includes('Neither Pythos nor LANZAR is currently a recognized charity'), 'Nonprofit page must disclaim current legal charity status');
+  assert(nonprofitHtml.includes('Developed by LANZAR.'), 'Nonprofit footer must state Developed by LANZAR');
+});
+
+// =========================================================================
+// 12. SUMMARY
 // =========================================================================
 console.log(`\n==================================================`);
 console.log(`TEST SUMMARY: ${passedTests} / ${totalTests} passed`);

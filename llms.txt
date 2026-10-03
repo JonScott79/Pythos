@@ -1,6 +1,6 @@
 # Pythos — Free AI Mathematics & Physics Tutor
 
-> Pythos is an open, student-built mathematical tutoring oracle and physics study companion developed by Jon Scott under the LANZAR ecosystem.
+> Pythos is an independent education initiative and AI mathematical tutoring oracle and physics study companion created by Jon Scott and developed by LANZAR.
 
 ## Core Capabilities
 - **Algebra**: Linear equations, quadratic formulas, polynomial factoring, matrix arithmetic, determinants, matrix inverses, and system solving.

@@ -23,9 +23,9 @@ Whether working through algebra, calculus, or classical mechanics, Pythos provid
 Try Pythos online:  
 👉 **[https://pythos.lanzar.me/](https://pythos.lanzar.me/)**
 
-## About the Creator
+## Development & Support
 
-Pythos is created and maintained by **[LANZAR](https://lanzar.me/)** as part of an initiative to provide open, reliable, and rigorous educational tools for students everywhere.
+Pythos is an independent education initiative created by Jon Scott and developed and supported by **[LANZAR](https://lanzar.me/)** to provide open, reliable, and rigorous educational tools for students everywhere. Pythos is being developed toward nonprofit educational operation with a simple principle: no kid should be charged to learn.
 
 ---
 
