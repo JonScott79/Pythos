@@ -18,6 +18,33 @@ Whether working through algebra, calculus, or classical mechanics, Pythos provid
 - **Study Guides & Reference Materials:** Includes curated, built-in study guides covering high school through undergraduate topics in algebra, calculus, and Newtonian mechanics.
 - **Free & Accessible:** Fully free to use with no subscriptions or paywalls, built with dedicated accessibility considerations including assistive MathML support, screen-reader polite live regions, and keyboard-navigable tools.
 
+## 📐 Live Visual Demonstrations: "Draw It Out First!"
+
+Pythos features real-time, interactive geometric instruments and universal visual inspectors directly in the conversational canvas. When working through trigonometric reference angles, calculus derivatives, or coordinate geometry, Pythos automatically renders verified visual models that students can manipulate dynamically.
+
+### Interactive Right Triangle & Trigonometry Inspector Demo
+
+![Pythos Live Interactive Geometric Model Demo](assets/demo/pythos-trig-demo.webp)
+
+*Direct Live Asset URL: [https://pythos.lanzar.me/assets/demo/pythos-trig-demo.webp](https://pythos.lanzar.me/assets/demo/pythos-trig-demo.webp)*
+
+#### Key Demonstration Milestones:
+
+1. **Interactive Geometric Model Card & Modal Inspector:**  
+   Pythos proactively illustrates reference triangles with side lengths, angle indicators, and exact trigonometric ratios. Students can click **`📐 Geometric Model ↗`** to launch the full-screen interactive inspector workspace:  
+   ![Interactive Right Triangle & Trigonometry Inspector modal](assets/demo/trig-inspector-modal.png)  
+   *Direct URL: [https://pythos.lanzar.me/assets/demo/trig-inspector-modal.png](https://pythos.lanzar.me/assets/demo/trig-inspector-modal.png)*
+
+2. **Real-Time Dynamic Slider Recalculation:**  
+   Adjusting the angle slider dynamically recalculates the canvas triangle geometry, side dimensions ($a, b, c$), and exact trigonometric functions ($\sin, \cos, \tan$) in real time:  
+   ![Real-time recalculation of the triangle canvas at 30 degrees](assets/demo/trig-inspector-30deg.png)  
+   *Direct URL: [https://pythos.lanzar.me/assets/demo/trig-inspector-30deg.png](https://pythos.lanzar.me/assets/demo/trig-inspector-30deg.png)*
+
+3. **Socratic Follow-Up & Typeset Mathematical Solutions:**  
+   Clicking **`💬 Ask Pythos About This Triangle`** transitions seamlessly back to the AI tutor for step-by-step Socratic breakdown and fully-typeset KaTeX mathematical derivations:  
+   ![Clean KaTeX mathematical derivation and unit circle scaling](assets/demo/pythos-math-response.png)  
+   *Direct URL: [https://pythos.lanzar.me/assets/demo/pythos-math-response.png](https://pythos.lanzar.me/assets/demo/pythos-math-response.png)*
+
 ## Live Application
 
 Try Pythos online:  
