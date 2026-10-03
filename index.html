@@ -1759,7 +1759,9 @@
       white-space: nowrap;
     }
 
-    .msg-graph-open-btn:hover {
+    .msg-graph-open-btn:hover,
+    .msg-viz-badge:hover,
+    .msg-viz-interactive-btn:hover {
       background: var(--primary-color);
       color: #ffffff;
       border-color: var(--primary-color);
@@ -3425,6 +3427,242 @@
           🗑️ Forget Everything
         </button>
         <button id="memoryDoneBtn" class="report-btn submit" aria-label="Close dialog">Done</button>
+      </div>
+    </div>
+  </div>
+
+  
+  <!-- PYTHOS RIGHT TRIANGLE & TRIGONOMETRY INSPECTOR MODAL -->
+  <div id="pythosTrigModal" class="report-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="trigModalTitle" aria-describedby="trigModalDesc" tabindex="-1">
+    <div class="report-modal-card" style="max-width: 680px; width: 92%;">
+      <div class="report-modal-header">
+        <div class="report-modal-title-group">
+          <h3 id="trigModalTitle">📐 Right Triangle &amp; Trigonometry Inspector</h3>
+          <p id="trigModalDesc">Interactive geometric model with real-time trigonometric ratios and side computations</p>
+        </div>
+        <button id="trigModalCloseBtn" class="math-guide-close" title="Close inspector" aria-label="Close Triangle Inspector Dialog">×</button>
+      </div>
+      <div class="report-modal-body" style="gap: 16px;">
+        <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start;">
+          <!-- Canvas Container -->
+          <div style="flex: 1 1 300px; display: flex; flex-direction: column; align-items: center; background: var(--bg-primary); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color);">
+            <canvas id="trigModalCanvas" width="340" height="230" role="img" aria-label="Interactive Right Triangle Geometric Canvas" style="max-width: 100%; border-radius: 6px;"></canvas>
+            <div id="trigModalCanvasCaption" style="margin-top: 8px; font-size: 0.78rem; color: var(--text-muted); text-align: center;">
+              Acute angle θ at vertex B • Right angle at vertex C
+            </div>
+          </div>
+
+          <!-- Controls & Readouts -->
+          <div style="flex: 1 1 280px; display: flex; flex-direction: column; gap: 12px;">
+            <!-- Angle Slider -->
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600;">
+                <label for="trigModalAngleSlider">Angle θ (degrees):</label>
+                <span id="trigModalAngleVal" style="color: var(--primary-color);">60°</span>
+              </div>
+              <input type="range" id="trigModalAngleSlider" min="1" max="89" step="1" value="60" style="width: 100%; accent-color: var(--primary-color);" aria-label="Angle theta in degrees">
+              <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted);">
+                <span>1° (slender)</span>
+                <span id="trigModalRadianVal">1.047 rad (π/3)</span>
+                <span>89° (steep)</span>
+              </div>
+            </div>
+
+            <!-- Hypotenuse Slider -->
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600;">
+                <label for="trigModalHypSlider">Hypotenuse (c):</label>
+                <span id="trigModalHypVal" style="color: var(--primary-color);">2.00</span>
+              </div>
+              <input type="range" id="trigModalHypSlider" min="1" max="25" step="0.5" value="2" style="width: 100%; accent-color: var(--primary-color);" aria-label="Hypotenuse length">
+            </div>
+
+            <!-- Live Trigonometric Ratios Grid -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; background: var(--bg-card); padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); text-align: center; font-size: 0.8rem;">
+              <div>
+                <div style="color: var(--text-muted); font-size: 0.7rem; font-weight: 600;">sin(θ) [opp/hyp]</div>
+                <div id="trigModalSinVal" style="font-weight: 700; color: var(--text-primary); margin-top: 2px;">0.8660</div>
+              </div>
+              <div>
+                <div style="color: var(--text-muted); font-size: 0.7rem; font-weight: 600;">cos(θ) [adj/hyp]</div>
+                <div id="trigModalCosVal" style="font-weight: 700; color: var(--text-primary); margin-top: 2px;">0.5000</div>
+              </div>
+              <div>
+                <div style="color: var(--text-muted); font-size: 0.7rem; font-weight: 600;">tan(θ) [opp/adj]</div>
+                <div id="trigModalTanVal" style="font-weight: 700; color: var(--text-primary); margin-top: 2px;">1.7321</div>
+              </div>
+            </div>
+
+            <!-- Computed Side Values -->
+            <div style="display: flex; flex-direction: column; gap: 4px; font-size: 0.82rem; background: var(--bg-card); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color);">
+              <div style="display: flex; justify-content: space-between;">
+                <span style="color: var(--text-muted);">Opposite side (a):</span>
+                <strong id="trigModalOppVal" style="color: var(--text-primary);">1.7321</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between;">
+                <span style="color: var(--text-muted);">Adjacent side (b):</span>
+                <strong id="trigModalAdjVal" style="color: var(--text-primary);">1.0000</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between;">
+                <span style="color: var(--text-muted);">Complementary angle (∠A):</span>
+                <strong id="trigModalCompAngleVal" style="color: var(--text-primary);">30°</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between;">
+                <span style="color: var(--text-muted);">Pythagorean Check (a² + b²):</span>
+                <strong id="trigModalPythagVal" style="color: #10b981;">c² = 4.00</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="report-modal-actions" style="justify-content: space-between;">
+        <button id="trigModalAskPythosBtn" class="report-btn cancel" style="color: var(--primary-color); border-color: var(--primary-color);" aria-label="Ask Pythos about this triangle">
+          💬 Ask Pythos About This Triangle
+        </button>
+        <button id="trigModalDoneBtn" class="report-btn submit" aria-label="Close dialog">Done</button>
+      </div>
+    </div>
+  </div>
+
+  
+  <!-- PYTHOS NUMBER LINE & INTERVAL INSPECTOR MODAL -->
+  <div id="pythosNumberLineModal" class="report-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="numLineModalTitle" aria-describedby="numLineModalDesc" tabindex="-1">
+    <div class="report-modal-card" style="max-width: 680px; width: 92%;">
+      <div class="report-modal-header">
+        <div class="report-modal-title-group">
+          <h3 id="numLineModalTitle">📏 Number Line &amp; Interval Inspector</h3>
+          <p id="numLineModalDesc">Interactive 1D continuum with interval bounds, inequalities, and set notations</p>
+        </div>
+        <button id="numLineModalCloseBtn" class="math-guide-close" title="Close inspector" aria-label="Close Number Line Inspector Dialog">×</button>
+      </div>
+      <div class="report-modal-body" style="gap: 16px;">
+        <!-- Canvas -->
+        <div style="display: flex; flex-direction: column; align-items: center; background: var(--bg-primary); padding: 14px; border-radius: 8px; border: 1px solid var(--border-color); width: 100%;">
+          <canvas id="numLineModalCanvas" width="560" height="110" role="img" aria-label="Interactive Number Line Canvas" style="max-width: 100%; border-radius: 6px;"></canvas>
+          <div id="numLineModalCanvasCaption" style="margin-top: 8px; font-size: 0.78rem; color: var(--text-muted); text-align: center;">
+            Solid endpoint = inclusive [ ] • Hollow endpoint = exclusive ( )
+          </div>
+        </div>
+
+        <!-- Controls Grid -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+          <!-- Left Endpoint -->
+          <div style="background: var(--bg-card); padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 6px;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.82rem; font-weight: 600;">
+              <label for="numLineLeftVal">Left Bound (a):</label>
+              <span id="numLineLeftDisp" style="color: var(--primary-color);">-2</span>
+            </div>
+            <input type="range" id="numLineLeftVal" min="-10" max="10" step="1" value="-2" style="width: 100%; accent-color: var(--primary-color);" aria-label="Left bound value">
+            <div style="display: flex; gap: 8px; font-size: 0.78rem;">
+              <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                <input type="radio" name="numLineLeftType" id="numLineLeftClosed" value="closed" checked> Closed [ (inclusive)
+              </label>
+              <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                <input type="radio" name="numLineLeftType" id="numLineLeftOpen" value="open"> Open ( (exclusive)
+              </label>
+            </div>
+          </div>
+
+          <!-- Right Endpoint -->
+          <div style="background: var(--bg-card); padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 6px;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.82rem; font-weight: 600;">
+              <label for="numLineRightVal">Right Bound (b):</label>
+              <span id="numLineRightDisp" style="color: var(--primary-color);">3</span>
+            </div>
+            <input type="range" id="numLineRightVal" min="-10" max="10" step="1" value="3" style="width: 100%; accent-color: var(--primary-color);" aria-label="Right bound value">
+            <div style="display: flex; gap: 8px; font-size: 0.78rem;">
+              <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                <input type="radio" name="numLineRightType" id="numLineRightClosed" value="closed" checked> Closed ] (inclusive)
+              </label>
+              <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                <input type="radio" name="numLineRightType" id="numLineRightOpen" value="open"> Open ) (exclusive)
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mathematical Readouts -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; background: var(--bg-card); padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 0.82rem;">
+          <div>
+            <div style="color: var(--text-muted); font-size: 0.7rem; font-weight: 600;">Interval Notation</div>
+            <strong id="numLineIntervalText" style="color: var(--text-primary); font-size: 0.95rem;">[-2, 3]</strong>
+          </div>
+          <div>
+            <div style="color: var(--text-muted); font-size: 0.7rem; font-weight: 600;">Inequality</div>
+            <strong id="numLineInequalityText" style="color: var(--text-primary); font-size: 0.95rem;">-2 ≤ x ≤ 3</strong>
+          </div>
+          <div>
+            <div style="color: var(--text-muted); font-size: 0.7rem; font-weight: 600;">Interval Length</div>
+            <strong id="numLineLengthText" style="color: var(--text-primary); font-size: 0.95rem;">5.00</strong>
+          </div>
+          <div>
+            <div style="color: var(--text-muted); font-size: 0.7rem; font-weight: 600;">Midpoint</div>
+            <strong id="numLineMidpointText" style="color: var(--text-primary); font-size: 0.95rem;">0.50</strong>
+          </div>
+        </div>
+      </div>
+      <div class="report-modal-actions" style="justify-content: space-between;">
+        <button id="numLineAskPythosBtn" class="report-btn cancel" style="color: var(--primary-color); border-color: var(--primary-color);" aria-label="Ask Pythos about this interval">
+          💬 Ask Pythos About This Interval
+        </button>
+        <button id="numLineDoneBtn" class="report-btn submit" aria-label="Close dialog">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PYTHOS DISTRIBUTION & STATISTICS INSPECTOR MODAL -->
+  <div id="pythosChartModal" class="report-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="chartModalTitle" aria-describedby="chartModalDesc" tabindex="-1">
+    <div class="report-modal-card" style="max-width: 680px; width: 92%;">
+      <div class="report-modal-header">
+        <div class="report-modal-title-group">
+          <h3 id="chartModalTitle">📊 Distribution &amp; Statistics Inspector</h3>
+          <p id="chartModalDesc">Interactive categorical and discrete distribution model with summary statistics</p>
+        </div>
+        <button id="chartModalCloseBtn" class="math-guide-close" title="Close inspector" aria-label="Close Distribution Inspector Dialog">×</button>
+      </div>
+      <div class="report-modal-body" style="gap: 16px;">
+        <!-- Canvas -->
+        <div style="display: flex; flex-direction: column; align-items: center; background: var(--bg-primary); padding: 14px; border-radius: 8px; border: 1px solid var(--border-color); width: 100%;">
+          <canvas id="chartModalCanvas" width="520" height="200" role="img" aria-label="Interactive Distribution Chart Canvas" style="max-width: 100%; border-radius: 6px;"></canvas>
+          <div id="chartModalCanvasCaption" style="margin-top: 8px; font-size: 0.78rem; color: var(--text-muted); text-align: center;">
+            Discrete category distributions and observed frequencies
+          </div>
+        </div>
+
+        <!-- Summary Statistics Grid -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; background: var(--bg-card); padding: 10px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 0.82rem; text-align: center;">
+          <div>
+            <div style="color: var(--text-muted); font-size: 0.7rem; font-weight: 600;">Sample Size (N)</div>
+            <strong id="chartModalCount" style="color: var(--text-primary); font-size: 0.95rem;">2</strong>
+          </div>
+          <div>
+            <div style="color: var(--text-muted); font-size: 0.7rem; font-weight: 600;">Sum (Σ)</div>
+            <strong id="chartModalSum" style="color: var(--text-primary); font-size: 0.95rem;">1.00</strong>
+          </div>
+          <div>
+            <div style="color: var(--text-muted); font-size: 0.7rem; font-weight: 600;">Mean (x̄)</div>
+            <strong id="chartModalMean" style="color: var(--text-primary); font-size: 0.95rem;">0.50</strong>
+          </div>
+          <div>
+            <div style="color: var(--text-muted); font-size: 0.7rem; font-weight: 600;">Max Value</div>
+            <strong id="chartModalMax" style="color: var(--text-primary); font-size: 0.95rem;">0.50</strong>
+          </div>
+          <div>
+            <div style="color: var(--text-muted); font-size: 0.7rem; font-weight: 600;">Min Value</div>
+            <strong id="chartModalMin" style="color: var(--text-primary); font-size: 0.95rem;">0.50</strong>
+          </div>
+        </div>
+
+        <!-- Category Breakdown Table -->
+        <div id="chartModalBreakdown" style="max-height: 140px; overflow-y: auto; font-size: 0.8rem; background: var(--bg-card); border-radius: 6px; border: 1px solid var(--border-color); padding: 8px 12px;">
+          <!-- dynamically populated -->
+        </div>
+      </div>
+      <div class="report-modal-actions" style="justify-content: space-between;">
+        <button id="chartModalAskPythosBtn" class="report-btn cancel" style="color: var(--primary-color); border-color: var(--primary-color);" aria-label="Ask Pythos about this distribution">
+          💬 Ask Pythos About This Distribution
+        </button>
+        <button id="chartModalDoneBtn" class="report-btn submit" aria-label="Close dialog">Done</button>
       </div>
     </div>
   </div>

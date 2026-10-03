@@ -1578,9 +1578,15 @@ function appendMessage(role, text, images = null, metadata = {}) {
         const caption = document.createElement("div");
         caption.className = "msg-viz-caption";
         caption.innerHTML = `<strong>📏 Number Line:</strong> ${config.interval ? `<code>${escapeHtml(String(config.interval))}</code>` : `<code>[${escapeHtml(String(config.min !== undefined ? config.min : -5))}, ${escapeHtml(String(config.max !== undefined ? config.max : 5))}]</code>`}`;
-        const badge = document.createElement("span");
-        badge.className = "msg-viz-badge";
-        badge.textContent = "Verified Visual";
+        const badge = document.createElement("button");
+        badge.type = "button";
+        badge.className = "msg-viz-badge msg-viz-interactive-btn";
+        badge.title = "Explore interactive Number Line & Interval Model";
+        badge.setAttribute("aria-label", "Open interactive Number Line inspector");
+        badge.innerHTML = "📏 Number Line ↗";
+        badge.addEventListener("click", () => {
+          openNumberLineInspectorModal(config);
+        });
         infoRow.appendChild(caption);
         infoRow.appendChild(badge);
         vizCard.appendChild(canvas);
@@ -1611,9 +1617,15 @@ function appendMessage(role, text, images = null, metadata = {}) {
         caption.innerHTML = isTrigMode
           ? `<strong>📐 Right Triangle:</strong> <code>opposite=${escapeHtml(String(config.opp || config.a || 3))}, adjacent=${escapeHtml(String(config.adj || config.b || 4))}, hypotenuse=${escapeHtml(String(config.hyp || config.c || 5))} (angle θ at B)</code>`
           : `<strong>📐 Geometry:</strong> <code>${escapeHtml(String(config.type || "Triangle"))} (a=${escapeHtml(String(config.a !== undefined ? config.a : 3))}, b=${escapeHtml(String(config.b !== undefined ? config.b : 4))}, c=${escapeHtml(String(config.c !== undefined ? config.c : 5))})</code>`;
-        const badge = document.createElement("span");
-        badge.className = "msg-viz-badge";
-        badge.textContent = "Geometric Model";
+        const badge = document.createElement("button");
+        badge.type = "button";
+        badge.className = "msg-viz-badge msg-viz-interactive-btn";
+        badge.title = "Explore interactive Right Triangle & Trigonometry Model";
+        badge.setAttribute("aria-label", "Open interactive Right Triangle & Trigonometry inspector");
+        badge.innerHTML = "📐 Geometric Model ↗";
+        badge.addEventListener("click", () => {
+          openTrigInspectorModal(config);
+        });
         infoRow.appendChild(caption);
         infoRow.appendChild(badge);
         vizCard.appendChild(canvas);
@@ -1641,9 +1653,15 @@ function appendMessage(role, text, images = null, metadata = {}) {
         const caption = document.createElement("div");
         caption.className = "msg-viz-caption";
         caption.innerHTML = `<strong>📊 Distribution:</strong> <code>${escapeHtml(String(config.title || "Data Chart"))}</code>`;
-        const badge = document.createElement("span");
-        badge.className = "msg-viz-badge";
-        badge.textContent = "Probability / Stats";
+        const badge = document.createElement("button");
+        badge.type = "button";
+        badge.className = "msg-viz-badge msg-viz-interactive-btn";
+        badge.title = "Explore interactive Distribution & Statistics Model";
+        badge.setAttribute("aria-label", "Open interactive Chart and Statistics inspector");
+        badge.innerHTML = "📊 Distribution ↗";
+        badge.addEventListener("click", () => {
+          openChartInspectorModal(config);
+        });
         infoRow.appendChild(caption);
         infoRow.appendChild(badge);
         vizCard.appendChild(canvas);
@@ -4833,6 +4851,653 @@ if (memoryClearAllBtn) {
     }
   });
 }
+
+
+// =====================================
+// PYTHOS RIGHT TRIANGLE & TRIGONOMETRY INSPECTOR
+// =====================================
+const pythosTrigModal = document.getElementById("pythosTrigModal");
+const trigModalCloseBtn = document.getElementById("trigModalCloseBtn");
+const trigModalDoneBtn = document.getElementById("trigModalDoneBtn");
+const trigModalAskPythosBtn = document.getElementById("trigModalAskPythosBtn");
+const trigModalAngleSlider = document.getElementById("trigModalAngleSlider");
+const trigModalHypSlider = document.getElementById("trigModalHypSlider");
+
+function renderTrigModalCanvas(a, b, c, thetaDeg) {
+  const canvas = document.getElementById("trigModalCanvas");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const width = canvas.width;
+  const height = canvas.height;
+  ctx.clearRect(0, 0, width, height);
+
+  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+  const bgCol = isDark ? "#0b1120" : "#ffffff";
+  const strokeCol = isDark ? "#38bdf8" : "#0284c7";
+  const textCol = isDark ? "#e2e8f0" : "#1e293b";
+  const fillCol = isDark ? "rgba(56, 189, 248, 0.12)" : "rgba(2, 132, 199, 0.08)";
+  const arcCol = isDark ? "#fb923c" : "#ea580c";
+
+  ctx.fillStyle = bgCol;
+  ctx.fillRect(0, 0, width, height);
+
+  // Compute layout & scaling
+  const pad = 36;
+  const availW = width - 2 * pad;
+  const availH = height - 2 * pad;
+  const scale = Math.min(availW / Math.max(0.1, b), availH / Math.max(0.1, a));
+
+  // Vertices: C is right-angle at bottom-left, B is at bottom-right, A is at top-left
+  const C = { x: pad + 15, y: height - pad };
+  const B = { x: C.x + b * scale, y: C.y };
+  const A = { x: C.x, y: C.y - a * scale };
+
+  // Fill
+  ctx.fillStyle = fillCol;
+  ctx.beginPath();
+  ctx.moveTo(A.x, A.y);
+  ctx.lineTo(B.x, B.y);
+  ctx.lineTo(C.x, C.y);
+  ctx.closePath();
+  ctx.fill();
+
+  // Outline
+  ctx.strokeStyle = strokeCol;
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(A.x, A.y);
+  ctx.lineTo(B.x, B.y);
+  ctx.lineTo(C.x, C.y);
+  ctx.closePath();
+  ctx.stroke();
+
+  // Right-angle square at C
+  const sq = 14;
+  ctx.strokeStyle = strokeCol;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(C.x, C.y - sq);
+  ctx.lineTo(C.x + sq, C.y - sq);
+  ctx.lineTo(C.x + sq, C.y);
+  ctx.stroke();
+
+  // Arc for theta at B
+  const arcRadius = 26;
+  const angleAtB = Math.atan2(a * scale, b * scale);
+  ctx.strokeStyle = arcCol;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(B.x, B.y, arcRadius, Math.PI, Math.PI + angleAtB, false);
+  ctx.stroke();
+
+  // Theta label
+  ctx.font = "bold 14px system-ui, sans-serif";
+  ctx.fillStyle = arcCol;
+  ctx.textAlign = "right";
+  ctx.fillText("θ", B.x - arcRadius - 4, B.y - 6);
+
+  // Vertex labels
+  ctx.font = "bold 13px system-ui, sans-serif";
+  ctx.fillStyle = textCol;
+  ctx.textAlign = "center";
+  ctx.fillText("A", A.x, A.y - 10);
+  ctx.fillText("B", B.x + 12, B.y + 14);
+  ctx.fillText("C", C.x - 12, C.y + 14);
+
+  // Side dimension labels
+  ctx.font = "12px system-ui, sans-serif";
+  // Opposite (left leg: a)
+  ctx.textAlign = "right";
+  ctx.fillText(`opp = ${a.toFixed(2)}`, C.x - 8, (A.y + C.y) / 2);
+  // Adjacent (bottom leg: b)
+  ctx.textAlign = "center";
+  ctx.fillText(`adj = ${b.toFixed(2)}`, (B.x + C.x) / 2, C.y + 18);
+  // Hypotenuse (slant leg: c)
+  const hypMidX = (A.x + B.x) / 2 + 16;
+  const hypMidY = (A.y + B.y) / 2 - 8;
+  ctx.textAlign = "left";
+  ctx.fillText(`hyp = ${c.toFixed(2)}`, hypMidX, hypMidY);
+}
+
+function updateTrigInspectorUI() {
+  if (!trigModalAngleSlider || !trigModalHypSlider) return;
+
+  const thetaDeg = parseFloat(trigModalAngleSlider.value) || 45;
+  const hyp = parseFloat(trigModalHypSlider.value) || 2;
+
+  const thetaRad = (thetaDeg * Math.PI) / 180;
+  const opp = hyp * Math.sin(thetaRad);
+  const adj = hyp * Math.cos(thetaRad);
+  const compAngle = 90 - thetaDeg;
+
+  const angleVal = document.getElementById("trigModalAngleVal");
+  if (angleVal) angleVal.textContent = `${thetaDeg}°`;
+
+  const hypVal = document.getElementById("trigModalHypVal");
+  if (hypVal) hypVal.textContent = hyp.toFixed(2);
+
+  const radVal = document.getElementById("trigModalRadianVal");
+  if (radVal) {
+    let radFrac = "";
+    if (Math.abs(thetaDeg - 30) < 0.1) radFrac = " (π/6)";
+    else if (Math.abs(thetaDeg - 45) < 0.1) radFrac = " (π/4)";
+    else if (Math.abs(thetaDeg - 60) < 0.1) radFrac = " (π/3)";
+    radVal.textContent = `${thetaRad.toFixed(3)} rad${radFrac}`;
+  }
+
+  const sinVal = document.getElementById("trigModalSinVal");
+  if (sinVal) sinVal.textContent = Math.sin(thetaRad).toFixed(4);
+
+  const cosVal = document.getElementById("trigModalCosVal");
+  if (cosVal) cosVal.textContent = Math.cos(thetaRad).toFixed(4);
+
+  const tanVal = document.getElementById("trigModalTanVal");
+  if (tanVal) tanVal.textContent = Math.tan(thetaRad).toFixed(4);
+
+  const oppVal = document.getElementById("trigModalOppVal");
+  if (oppVal) oppVal.textContent = opp.toFixed(4);
+
+  const adjVal = document.getElementById("trigModalAdjVal");
+  if (adjVal) adjVal.textContent = adj.toFixed(4);
+
+  const compVal = document.getElementById("trigModalCompAngleVal");
+  if (compVal) compVal.textContent = `${compAngle.toFixed(0)}°`;
+
+  const pythagVal = document.getElementById("trigModalPythagVal");
+  if (pythagVal) {
+    const sumSq = opp * opp + adj * adj;
+    pythagVal.textContent = `c² = ${sumSq.toFixed(2)} (${hyp.toFixed(2)}²)`;
+  }
+
+  renderTrigModalCanvas(opp, adj, hyp, thetaDeg);
+}
+
+function openTrigInspectorModal(config = {}) {
+  if (!pythosTrigModal) return;
+
+  const rawOpp = parseFloat(config.opp !== undefined ? config.opp : config.a) || 1.7321;
+  const rawAdj = parseFloat(config.adj !== undefined ? config.adj : config.b) || 1.0;
+  const rawHyp = parseFloat(config.hyp !== undefined ? config.hyp : config.c) || Math.hypot(rawOpp, rawAdj);
+
+  let thetaDeg = Math.round((Math.atan2(rawOpp, rawAdj) * 180) / Math.PI);
+  if (thetaDeg < 1) thetaDeg = 1;
+  if (thetaDeg > 89) thetaDeg = 89;
+
+  if (trigModalAngleSlider) trigModalAngleSlider.value = thetaDeg;
+  if (trigModalHypSlider) {
+    const clampedHyp = Math.max(1, Math.min(25, Math.round(rawHyp * 2) / 2));
+    trigModalHypSlider.value = clampedHyp;
+  }
+
+  updateTrigInspectorUI();
+  pythosTrigModal.style.display = "flex";
+  if (trigModalAngleSlider) trigModalAngleSlider.focus();
+}
+
+function closeTrigInspectorModal() {
+  if (!pythosTrigModal) return;
+  pythosTrigModal.style.display = "none";
+}
+
+if (trigModalCloseBtn) trigModalCloseBtn.addEventListener("click", closeTrigInspectorModal);
+if (trigModalDoneBtn) trigModalDoneBtn.addEventListener("click", closeTrigInspectorModal);
+if (trigModalAngleSlider) trigModalAngleSlider.addEventListener("input", updateTrigInspectorUI);
+if (trigModalHypSlider) trigModalHypSlider.addEventListener("input", updateTrigInspectorUI);
+
+if (trigModalAskPythosBtn) {
+  trigModalAskPythosBtn.addEventListener("click", () => {
+    closeTrigInspectorModal();
+    const deg = trigModalAngleSlider ? trigModalAngleSlider.value : 60;
+    const hyp = trigModalHypSlider ? trigModalHypSlider.value : 2;
+    const promptText = `Can you explain the trigonometric properties of a right triangle with angle θ = ${deg}° and hypotenuse ${hyp}?`;
+    const messageInput = document.getElementById("messageInput");
+    if (messageInput) {
+      messageInput.value = promptText;
+      messageInput.focus();
+      messageInput.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+  });
+}
+
+if (pythosTrigModal) {
+  pythosTrigModal.addEventListener("click", (e) => {
+    if (e.target === pythosTrigModal) {
+      closeTrigInspectorModal();
+    }
+  });
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && pythosTrigModal && pythosTrigModal.style.display === "flex") {
+    closeTrigInspectorModal();
+  }
+});
+
+
+// =====================================
+// PYTHOS NUMBER LINE & INTERVAL INSPECTOR
+// =====================================
+const pythosNumberLineModal = document.getElementById("pythosNumberLineModal");
+const numLineModalCloseBtn = document.getElementById("numLineModalCloseBtn");
+const numLineDoneBtn = document.getElementById("numLineDoneBtn");
+const numLineAskPythosBtn = document.getElementById("numLineAskPythosBtn");
+const numLineLeftVal = document.getElementById("numLineLeftVal");
+const numLineRightVal = document.getElementById("numLineRightVal");
+const numLineLeftClosed = document.getElementById("numLineLeftClosed");
+const numLineLeftOpen = document.getElementById("numLineLeftOpen");
+const numLineRightClosed = document.getElementById("numLineRightClosed");
+const numLineRightOpen = document.getElementById("numLineRightOpen");
+
+function renderNumLineModalCanvas(min, max, leftVal, rightVal, leftClosed, rightClosed) {
+  const canvas = document.getElementById("numLineModalCanvas");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const width = canvas.width;
+  const height = canvas.height;
+  ctx.clearRect(0, 0, width, height);
+
+  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+  const bgCol = isDark ? "#0b1120" : "#ffffff";
+  const lineCol = isDark ? "#cbd5e1" : "#1e293b";
+  const highlightCol = isDark ? "#38bdf8" : "#0284c7";
+  const textCol = isDark ? "#94a3b8" : "#475569";
+
+  ctx.fillStyle = bgCol;
+  ctx.fillRect(0, 0, width, height);
+
+  const paddingX = 45;
+  const axisY = height / 2;
+  const scaleX = (val) => paddingX + ((val - min) / (max - min)) * (width - 2 * paddingX);
+
+  // Main axis line
+  ctx.strokeStyle = lineCol;
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(paddingX - 20, axisY);
+  ctx.lineTo(width - paddingX + 20, axisY);
+  ctx.stroke();
+
+  // Arrows
+  const arrowSize = 7;
+  ctx.fillStyle = lineCol;
+  ctx.beginPath();
+  ctx.moveTo(paddingX - 20, axisY);
+  ctx.lineTo(paddingX - 20 + arrowSize, axisY - arrowSize);
+  ctx.lineTo(paddingX - 20 + arrowSize, axisY + arrowSize);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(width - paddingX + 20, axisY);
+  ctx.lineTo(width - paddingX + 20 - arrowSize, axisY - arrowSize);
+  ctx.lineTo(width - paddingX + 20 - arrowSize, axisY + arrowSize);
+  ctx.closePath();
+  ctx.fill();
+
+  // Tick marks
+  ctx.font = "12px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  ctx.fillStyle = textCol;
+
+  const span = max - min;
+  const step = span <= 14 ? 1 : Math.ceil(span / 12);
+  for (let v = Math.ceil(min); v <= Math.floor(max); v += step) {
+    const cx = scaleX(v);
+    ctx.strokeStyle = lineCol;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(cx, axisY - 6);
+    ctx.lineTo(cx, axisY + 6);
+    ctx.stroke();
+    ctx.fillText(String(v), cx, axisY + 10);
+  }
+
+  // Draw interval segment
+  const aClamped = Math.max(min, Math.min(max, Math.min(leftVal, rightVal)));
+  const bClamped = Math.max(min, Math.min(max, Math.max(leftVal, rightVal)));
+  const lx = scaleX(aClamped);
+  const rx = scaleX(bClamped);
+
+  ctx.strokeStyle = highlightCol;
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.moveTo(lx, axisY);
+  ctx.lineTo(rx, axisY);
+  ctx.stroke();
+
+  // Left circle endpoint
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = highlightCol;
+  ctx.beginPath();
+  ctx.arc(lx, axisY, 6, 0, 2 * Math.PI);
+  if (leftClosed) {
+    ctx.fillStyle = highlightCol;
+    ctx.fill();
+  } else {
+    ctx.fillStyle = bgCol;
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  // Right circle endpoint
+  ctx.beginPath();
+  ctx.arc(rx, axisY, 6, 0, 2 * Math.PI);
+  if (rightClosed) {
+    ctx.fillStyle = highlightCol;
+    ctx.fill();
+  } else {
+    ctx.fillStyle = bgCol;
+    ctx.fill();
+    ctx.stroke();
+  }
+}
+
+function updateNumberLineInspectorUI() {
+  if (!numLineLeftVal || !numLineRightVal) return;
+
+  let a = parseFloat(numLineLeftVal.value) || -2;
+  let b = parseFloat(numLineRightVal.value) || 3;
+  if (a > b) {
+    const tmp = a;
+    a = b;
+    b = tmp;
+  }
+
+  const leftClosed = numLineLeftClosed ? numLineLeftClosed.checked : true;
+  const rightClosed = numLineRightClosed ? numLineRightClosed.checked : true;
+
+  const leftDisp = document.getElementById("numLineLeftDisp");
+  if (leftDisp) leftDisp.textContent = a;
+  const rightDisp = document.getElementById("numLineRightDisp");
+  if (rightDisp) rightDisp.textContent = b;
+
+  const intBracketLeft = leftClosed ? "[" : "(";
+  const intBracketRight = rightClosed ? "]" : ")";
+  const intervalStr = `${intBracketLeft}${a}, ${b}${intBracketRight}`;
+
+  const ineqLeft = leftClosed ? "≤" : "<";
+  const ineqRight = rightClosed ? "≤" : "<";
+  const inequalityStr = `${a} ${ineqLeft} x ${ineqRight} ${b}`;
+
+  const length = Math.abs(b - a);
+  const midpoint = (a + b) / 2;
+
+  const intElem = document.getElementById("numLineIntervalText");
+  if (intElem) intElem.textContent = intervalStr;
+  const ineqElem = document.getElementById("numLineInequalityText");
+  if (ineqElem) ineqElem.textContent = inequalityStr;
+  const lenElem = document.getElementById("numLineLengthText");
+  if (lenElem) lenElem.textContent = length.toFixed(2);
+  const midElem = document.getElementById("numLineMidpointText");
+  if (midElem) midElem.textContent = midpoint.toFixed(2);
+
+  const min = Math.min(-10, a - 2);
+  const max = Math.max(10, b + 2);
+  renderNumLineModalCanvas(min, max, a, b, leftClosed, rightClosed);
+}
+
+function openNumberLineInspectorModal(config = {}) {
+  if (!pythosNumberLineModal) return;
+
+  let left = -2;
+  let right = 3;
+  let leftClosed = true;
+  let rightClosed = true;
+
+  if (config.interval && typeof config.interval === "string") {
+    const intMatch = config.interval.match(/([\[\(])\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*([\]\)])/);
+    if (intMatch) {
+      leftClosed = intMatch[1] === "[";
+      left = parseFloat(intMatch[2]);
+      right = parseFloat(intMatch[3]);
+      rightClosed = intMatch[4] === "]";
+    }
+  } else if (config.min !== undefined && config.max !== undefined) {
+    left = parseFloat(config.min) || -2;
+    right = parseFloat(config.max) || 3;
+  }
+
+  if (numLineLeftVal) numLineLeftVal.value = left;
+  if (numLineRightVal) numLineRightVal.value = right;
+  if (numLineLeftClosed) numLineLeftClosed.checked = leftClosed;
+  if (numLineLeftOpen) numLineLeftOpen.checked = !leftClosed;
+  if (numLineRightClosed) numLineRightClosed.checked = rightClosed;
+  if (numLineRightOpen) numLineRightOpen.checked = !rightClosed;
+
+  updateNumberLineInspectorUI();
+  pythosNumberLineModal.style.display = "flex";
+  if (numLineLeftVal) numLineLeftVal.focus();
+}
+
+function closeNumberLineInspectorModal() {
+  if (!pythosNumberLineModal) return;
+  pythosNumberLineModal.style.display = "none";
+}
+
+if (numLineModalCloseBtn) numLineModalCloseBtn.addEventListener("click", closeNumberLineInspectorModal);
+if (numLineDoneBtn) numLineDoneBtn.addEventListener("click", closeNumberLineInspectorModal);
+if (numLineLeftVal) numLineLeftVal.addEventListener("input", updateNumberLineInspectorUI);
+if (numLineRightVal) numLineRightVal.addEventListener("input", updateNumberLineInspectorUI);
+if (numLineLeftClosed) numLineLeftClosed.addEventListener("change", updateNumberLineInspectorUI);
+if (numLineLeftOpen) numLineLeftOpen.addEventListener("change", updateNumberLineInspectorUI);
+if (numLineRightClosed) numLineRightClosed.addEventListener("change", updateNumberLineInspectorUI);
+if (numLineRightOpen) numLineRightOpen.addEventListener("change", updateNumberLineInspectorUI);
+
+if (numLineAskPythosBtn) {
+  numLineAskPythosBtn.addEventListener("click", () => {
+    closeNumberLineInspectorModal();
+    const intervalStr = document.getElementById("numLineIntervalText")?.textContent || "[-2, 3]";
+    const ineqStr = document.getElementById("numLineInequalityText")?.textContent || "-2 ≤ x ≤ 3";
+    const promptText = `Can you explain the interval ${intervalStr} and the solutions to ${ineqStr}?`;
+    const messageInput = document.getElementById("messageInput");
+    if (messageInput) {
+      messageInput.value = promptText;
+      messageInput.focus();
+      messageInput.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+  });
+}
+
+if (pythosNumberLineModal) {
+  pythosNumberLineModal.addEventListener("click", (e) => {
+    if (e.target === pythosNumberLineModal) {
+      closeNumberLineInspectorModal();
+    }
+  });
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && pythosNumberLineModal && pythosNumberLineModal.style.display === "flex") {
+    closeNumberLineInspectorModal();
+  }
+});
+
+// =====================================
+// PYTHOS DISTRIBUTION & STATISTICS INSPECTOR
+// =====================================
+const pythosChartModal = document.getElementById("pythosChartModal");
+const chartModalCloseBtn = document.getElementById("chartModalCloseBtn");
+const chartModalDoneBtn = document.getElementById("chartModalDoneBtn");
+const chartModalAskPythosBtn = document.getElementById("chartModalAskPythosBtn");
+
+let activeChartData = {
+  title: "Data Distribution",
+  labels: ["A", "B"],
+  values: [0.5, 0.5]
+};
+
+function renderChartModalCanvas(labels, values, title) {
+  const canvas = document.getElementById("chartModalCanvas");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const width = canvas.width;
+  const height = canvas.height;
+  ctx.clearRect(0, 0, width, height);
+
+  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+  const bgCol = isDark ? "#0b1120" : "#ffffff";
+  const barCol = isDark ? "#38bdf8" : "#0284c7";
+  const textCol = isDark ? "#94a3b8" : "#475569";
+  const titleCol = isDark ? "#e2e8f0" : "#1e293b";
+  const gridCol = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)";
+
+  ctx.fillStyle = bgCol;
+  ctx.fillRect(0, 0, width, height);
+
+  const padLeft = 45;
+  const padBottom = 40;
+  const padTop = 32;
+  const padRight = 25;
+
+  if (title) {
+    ctx.font = "bold 13px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillStyle = titleCol;
+    ctx.fillText(String(title), width / 2, 20);
+  }
+
+  const chartW = width - padLeft - padRight;
+  const chartH = height - padTop - padBottom;
+  const n = labels.length;
+  const maxVal = Math.max(...values, 1);
+  const barSpacing = chartW / Math.max(1, n);
+  const barWidth = Math.min(52, barSpacing * 0.65);
+
+  // Baseline
+  ctx.strokeStyle = isDark ? "#475569" : "#cbd5e1";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(padLeft, height - padBottom);
+  ctx.lineTo(width - padRight, height - padBottom);
+  ctx.stroke();
+
+  // Bars & labels
+  labels.forEach((label, i) => {
+    const val = values[i] !== undefined ? values[i] : 0;
+    const barH = (val / maxVal) * chartH;
+    const x = padLeft + i * barSpacing + (barSpacing - barWidth) / 2;
+    const y = height - padBottom - barH;
+
+    // Grid line behind bar
+    ctx.strokeStyle = gridCol;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padLeft, y);
+    ctx.lineTo(width - padRight, y);
+    ctx.stroke();
+
+    // Bar
+    ctx.fillStyle = barCol;
+    ctx.fillRect(x, y, barWidth, barH);
+
+    // Value on top
+    ctx.font = "bold 11px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillStyle = titleCol;
+    ctx.fillText(String(val), x + barWidth / 2, y - 5);
+
+    // Category label
+    ctx.font = "11px system-ui, sans-serif";
+    ctx.fillStyle = textCol;
+    ctx.fillText(String(label), x + barWidth / 2, height - padBottom + 16);
+  });
+}
+
+function updateChartInspectorUI() {
+  const { labels, values, title } = activeChartData;
+  const n = values.length;
+  const sum = values.reduce((acc, v) => acc + v, 0);
+  const mean = n > 0 ? sum / n : 0;
+  const max = n > 0 ? Math.max(...values) : 0;
+  const min = n > 0 ? Math.min(...values) : 0;
+
+  const countElem = document.getElementById("chartModalCount");
+  if (countElem) countElem.textContent = n;
+  const sumElem = document.getElementById("chartModalSum");
+  if (sumElem) sumElem.textContent = sum.toFixed(2);
+  const meanElem = document.getElementById("chartModalMean");
+  if (meanElem) meanElem.textContent = mean.toFixed(2);
+  const maxElem = document.getElementById("chartModalMax");
+  if (maxElem) maxElem.textContent = max.toFixed(2);
+  const minElem = document.getElementById("chartModalMin");
+  if (minElem) minElem.textContent = min.toFixed(2);
+
+  const breakdown = document.getElementById("chartModalBreakdown");
+  if (breakdown) {
+    let rowsHtml = `<table style="width: 100%; border-collapse: collapse; text-align: left;">
+      <thead>
+        <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-muted); font-size: 0.72rem;">
+          <th style="padding: 4px;">Category</th>
+          <th style="padding: 4px;">Value</th>
+          <th style="padding: 4px;">Relative Frequency</th>
+        </tr>
+      </thead>
+      <tbody>`;
+    labels.forEach((l, i) => {
+      const v = values[i] || 0;
+      const pct = sum > 0 ? ((v / sum) * 100).toFixed(1) + "%" : "0%";
+      rowsHtml += `
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
+          <td style="padding: 4px; font-weight: 600;">${escapeHtml(String(l))}</td>
+          <td style="padding: 4px;">${v}</td>
+          <td style="padding: 4px; color: var(--primary-color);">${pct}</td>
+        </tr>
+      `;
+    });
+    rowsHtml += `</tbody></table>`;
+    breakdown.innerHTML = rowsHtml;
+  }
+
+  renderChartModalCanvas(labels, values, title);
+}
+
+function openChartInspectorModal(config = {}) {
+  if (!pythosChartModal) return;
+
+  const labels = Array.isArray(config.labels) ? config.labels : ["A", "B"];
+  const values = Array.isArray(config.values) ? config.values.map(v => parseFloat(v) || 0) : [0.5, 0.5];
+  const title = config.title || "Data Distribution";
+
+  activeChartData = { labels, values, title };
+  updateChartInspectorUI();
+  pythosChartModal.style.display = "flex";
+}
+
+function closeChartInspectorModal() {
+  if (!pythosChartModal) return;
+  pythosChartModal.style.display = "none";
+}
+
+if (chartModalCloseBtn) chartModalCloseBtn.addEventListener("click", closeChartInspectorModal);
+if (chartModalDoneBtn) chartModalDoneBtn.addEventListener("click", closeChartInspectorModal);
+
+if (chartModalAskPythosBtn) {
+  chartModalAskPythosBtn.addEventListener("click", () => {
+    closeChartInspectorModal();
+    const promptText = `Can you analyze this statistical distribution: ${JSON.stringify(activeChartData.labels.map((l, i) => ({ category: l, value: activeChartData.values[i] })))}?`;
+    const messageInput = document.getElementById("messageInput");
+    if (messageInput) {
+      messageInput.value = promptText;
+      messageInput.focus();
+      messageInput.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+  });
+}
+
+if (pythosChartModal) {
+  pythosChartModal.addEventListener("click", (e) => {
+    if (e.target === pythosChartModal) {
+      closeChartInspectorModal();
+    }
+  });
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && pythosChartModal && pythosChartModal.style.display === "flex") {
+    closeChartInspectorModal();
+  }
+});
 
 // ===== INIT =====
 clearChatUI();

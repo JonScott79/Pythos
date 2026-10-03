@@ -2,6 +2,7 @@
 **Release Date:** October 3, 2026
 
 ### Added & Hardened
+- **Universal Interactive Visual Inspectors (`[GRAPH:]`, `[GEOMETRY:]`, `[NUMBER_LINE:]`, `[CHART:]`)**: Audited and upgraded all inline diagram badges into interactive exploration buttons. Shipped dedicated accessible inspector modals (Right Triangle & Trigonometry, Number Line & Intervals, Distribution & Statistics, Function Grapher) with real-time sliders, exact mathematical property panels, and "Ask Pythos" inquiry shortcuts.
 - **"Always Draw It Out First" STEM Pedagogical Engine**:
   - Modeled the foundational rule of college trigonometry and physics education. Pythos now proactively mounts interactive geometric right-triangle widgets (`[GEOMETRY: triangle ...]`) and physics visual models for reference angles, trigonometric function evaluations ($\tan 150^\circ$, $\csc(5\pi/4)$, $\sec(1050^\circ)$), and force setups without forcing the student to explicitly type "draw" or "sketch".
   - Built-in deduplication ensures interactive widgets are mounted at problem setup and conceptual explanations without spamming duplicate widgets across short conversational turns.
