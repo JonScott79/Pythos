@@ -1,3 +1,17 @@
+## Pythos 1.8.30
+**Release Date:** October 4, 2026
+
+### Added
+- **Centralized LANZAR Analytics Module (`js/analytics.js`)**: Implemented the standardized `Analytics.track()` API with client privacy filtering (protecting student inputs, formulas, keys, and tokens from analytics transmission) and dynamic asynchronous script injection for Google Analytics (`G-JFV7CSM9G9`) and Microsoft Clarity (`ynbuaomkmw`).
+- **LANZAR Standard File & Section Headers**: Documented responsibilities and architecture across all primary entry points (`app.js`, `index.html`, `changelog.html`, `license.html`, `nonprofit.html`, `dev-server.js`, `staticServer.js`) using standardized 37-character ASCII section banners.
+- **Standard Site Manifest & Humans Attribution**: Added `site.webmanifest` and `humans.txt` alongside `css/theme.css` design system tokens to align with LANZAR project specifications.
+
+### Changed
+- **Non-Blocking Head Scripts**: Refactored third-party vendor tracking tags in all HTML templates to use deferred loading via the centralized analytics layer, eliminating render-blocking overhead.
+
+### Fixed
+- **Version Link Accessibility**: Synchronized release anchor targets in `test-accessibility.js` ensuring 100% test pass rate across all 287 accessibility and DOM verification suites.
+
 ## Pythos 1.8.27
 **Release Date:** October 3, 2026
 

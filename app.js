@@ -1,3 +1,18 @@
+/*
+    app.js
+
+    Core frontend client application for Pythos AI STEM & Physics Tutor.
+
+    Responsibilities
+
+    - UI state orchestration and chat messaging lifecycle
+    - Firebase authentication and anonymous/authenticated session management
+    - LaTeX math formatting and zero-flash synchronous rendering
+    - Audio speech synthesizer and speech recognition
+    - Interactive visualization mounting and modal inspectors
+    - Client error handling, telemetry, and recovery boundaries
+*/
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
 import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, orderBy, serverTimestamp, getDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
@@ -19,9 +34,10 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// =========================
-// PYTHOS ENGINE STATE
-// =========================
+// =====================================
+// // PYTHOS ENGINE STATE
+//
+// =====================================
 const output = document.getElementById("output");
 const input = document.getElementById("userInput");
 const button = document.getElementById("submitBtn");
@@ -32,9 +48,10 @@ let currentUser = null;
 let currentChatId = null;
 let reportingEnabled = false;
 
-// =========================
-// API URL RESOLUTION
-// =========================
+// =====================================
+// // API URL RESOLUTION
+//
+// =====================================
 function getPythosApiBase() {
   if (window.location.protocol === "file:") {
     return "http://localhost:3006";
@@ -49,9 +66,10 @@ function getPythosApiBase() {
   return "";
 }
 
-// =========================
-// KATEX RENDERING & MATHEMATICAL EXTRACTION
-// =========================
+// =====================================
+// // KATEX RENDERING & MATHEMATICAL EXTRACTION
+//
+// =====================================
 
 /**
  * Converts a LaTeX mathematical expression to a clean, readable text representation,
@@ -312,9 +330,10 @@ function renderInputPreview() {
   renderMath(preview);
 }
 
-// ============================================================
-// DYNAMIC ROTATING WAIT-STATE SYSTEM
-// ============================================================
+// =====================================
+// // DYNAMIC ROTATING WAIT-STATE SYSTEM
+//
+// =====================================
 
 const WAIT_STATE_MESSAGES = {
   ARITHMETIC: [
@@ -390,9 +409,10 @@ function inferClientDomain(text) {
   return 'DEFAULT';
 }
 
-// ==========================================
-// CHAT VIEWPORT & SCROLL POLICY MANAGER
-// ==========================================
+// =====================================
+// // CHAT VIEWPORT & SCROLL POLICY MANAGER
+//
+// =====================================
 // Desired behavior:
 // 1. When a new assistant response begins (stream draft or finalized message):
 //    Position viewport at the TOP of that assistant response.
@@ -1128,9 +1148,10 @@ function renderInlineChart(canvas, config) {
   }
 }
 
-// ==========================================
-// HTML & DOM SANITIZATION UTILITIES
-// ==========================================
+// =====================================
+// // HTML & DOM SANITIZATION UTILITIES
+//
+// =====================================
 function escapeHtml(str) {
   if (str === null || str === undefined) return "";
   return String(str)
@@ -1922,9 +1943,10 @@ function clearChatUI() {
   }
 }
 
-// =========================
-// FIREBASE AUTHENTICATION
-// =========================
+// =====================================
+// // FIREBASE AUTHENTICATION
+//
+// =====================================
 const loginBtn = document.getElementById("loginBtn");
 const logoutBtn = document.getElementById("logoutBtn");
 const userInfo = document.getElementById("userInfo");
@@ -1965,9 +1987,10 @@ onAuthStateChanged(auth, (user) => {
   }
 });
 
-// =========================
-// FIRESTORE CHAT HISTORY
-// =========================
+// =====================================
+// // FIRESTORE CHAT HISTORY
+//
+// =====================================
 async function loadSidebarChats() {
   if (!currentUser) return;
   const listEl = document.getElementById("chatHistoryList");
@@ -2274,9 +2297,9 @@ async function saveChatState(userMessage, botReply) {
   }
 }
 
-// =========================
+// =====================================
 // EASTER EGG: DEEP THOUGHT
-// =========================
+// =====================================
 const DEEP_THOUGHT_PATTERNS = [
   /^(what('s|\s+is)\s+)?(the\s+)?meaning\s+of\s+life[\?\.\!]*$/i,
   /^(what('s|\s+is)\s+)?(the\s+)?answer\s+to\s+(the\s+ultimate\s+question\s+of\s+)?life[,]?\s*(the\s+)?universe[,]?\s*(and\s+)?(everything|all)[\?\.\!]*$/i,
@@ -2318,9 +2341,10 @@ function showDeepThoughtResponse() {
   scrollToMessageTop(div, false);
 }
 
-// =========================
-// DETERMINISTIC MATH ENGINE (mathjs)
-// =========================
+// =====================================
+// // DETERMINISTIC MATH ENGINE (mathjs)
+//
+// =====================================
 window.DeterministicMath = {
   // Evaluate raw mathematical expressions deterministically
   evaluate: function(expression) {
@@ -2373,9 +2397,10 @@ window.DeterministicMath = {
   }
 };
 
-// =========================
-// VISION & IMAGE UPLOAD HANDLING
-// =========================
+// =====================================
+// // VISION & IMAGE UPLOAD HANDLING
+//
+// =====================================
 // pendingImages declared in top-level state: Array of { base64: string, name: string }
 
 const pendingImagesStrip = document.getElementById("pendingImagesStrip");
@@ -2383,9 +2408,9 @@ const imageFileInput = document.getElementById("imageFileInput");
 const attachImgBtn = document.getElementById("attachImgBtn");
 const inputWrapper = document.querySelector(".input-wrapper");
 
-// ============================================================
+// =====================================
 // VISION CAPACITY TIMER (IMAGE BUTTON COOLDOWN)
-// ============================================================
+// =====================================
 let visionCooldownEndTime = 0;
 let visionCooldownTimer = null;
 let attachImgBtnOriginalHTML = null;
@@ -2949,9 +2974,10 @@ if (inputWrapper) {
 }
 
 
-// =========================
-// OLLAMA INTEGRATION & GENERATION CONTROL
-// =========================
+// =====================================
+// // OLLAMA INTEGRATION & GENERATION CONTROL
+//
+// =====================================
 let isProcessing = false;
 let activeAbortController = null;
 let activeStreamReader = null;
@@ -3511,7 +3537,9 @@ function addToPromptHistory(text) {
   savedDraft = "";
 }
 
-// ===== EVENTS =====
+// =====================================
+// EVENTS
+// =====================================
 button.addEventListener("click", () => {
   if (isProcessing) {
     stopGeneration();
@@ -3668,7 +3696,9 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-// ===== MATH INPUT GUIDE =====
+// =====================================
+// MATH INPUT GUIDE
+// =====================================
 const guideOverlay = document.getElementById("mathGuideOverlay");
 const helpBtn = document.getElementById("helpBtn");
 const mathGuideClose = document.getElementById("mathGuideClose");
@@ -3730,9 +3760,10 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-// =========================
-// FLOATING WINDOW UTILITIES
-// =========================
+// =====================================
+// // FLOATING WINDOW UTILITIES
+//
+// =====================================
 function makeDraggable(winEl, handleEl) {
   let isDragging = false;
   let offsetX = 0;
@@ -3817,9 +3848,10 @@ setupFloatingTool("toolUnitsBtn", "floatUnitsWindow", "unitsCloseBtn");
 setupFloatingTool("toolMatrixBtn", "floatMatrixWindow", "matrixCloseBtn");
 setupFloatingTool("toolEditorBtn", "floatEditorWindow", "editorCloseBtn");
 
-// =========================
-// VISUAL EQUATION EDITOR (MathLive)
-// =========================
+// =====================================
+// // VISUAL EQUATION EDITOR (MathLive)
+//
+// =====================================
 const mathField = document.getElementById("visualMathField");
 const editorStatusMsg = document.getElementById("editorStatusMsg");
 const editorModeToggle = document.getElementById("editorModeToggle");
@@ -3945,9 +3977,10 @@ document.getElementById("copyEqLaTeX").addEventListener("click", () => {
   showEditorStatus("LaTeX copied to clipboard!");
 });
 
-// =========================
-// UNIT CONVERTER LOGIC
-// =========================
+// =====================================
+// // UNIT CONVERTER LOGIC
+//
+// =====================================
 const unitsValueInput = document.getElementById("unitsValueInput");
 const unitsTargetInput = document.getElementById("unitsTargetInput");
 const unitsConvertBtn = document.getElementById("unitsConvertBtn");
@@ -3981,9 +4014,10 @@ unitsSendToPythos.addEventListener("click", () => {
   inputEl.dispatchEvent(new Event("input"));
 });
 
-// =========================
-// MATRIX CALCULATOR LOGIC
-// =========================
+// =====================================
+// // MATRIX CALCULATOR LOGIC
+//
+// =====================================
 const matrixAInput = document.getElementById("matrixAInput");
 const matrixBInput = document.getElementById("matrixBInput");
 const matrixResultArea = document.getElementById("matrixResultArea");
@@ -4061,9 +4095,10 @@ matrixSendToPythos.addEventListener("click", () => {
   inputEl.dispatchEvent(new Event("input"));
 });
 
-// =========================
-// SCIENTIFIC CALCULATOR LOGIC
-// =========================
+// =====================================
+// // SCIENTIFIC CALCULATOR LOGIC
+//
+// =====================================
 const calcDisplay = document.getElementById("calcDisplay");
 const calcHistory = document.getElementById("calcHistory");
 const calcDegRadBtn = document.getElementById("calcDegRad");
@@ -4161,9 +4196,10 @@ document.getElementById("calcSendToPythos").addEventListener("click", () => {
   inputEl.dispatchEvent(new Event("input"));
 });
 
-// =========================
-// FUNCTION GRAPHER LOGIC
-// =========================
+// =====================================
+// // FUNCTION GRAPHER LOGIC
+//
+// =====================================
 const graphCanvas = document.getElementById("graphCanvas");
 const graphCtx = graphCanvas.getContext("2d");
 const graphFuncInput = document.getElementById("graphFuncInput");
@@ -4325,9 +4361,10 @@ document.getElementById("graphSendToPythos").addEventListener("click", () => {
   askPythos(`Can you analyze and explain the behavior of the function f(x) = ${func}?`);
 });
 
-// =========================
-// CHECK MY WORK (STEP VERIFIER)
-// =========================
+// =====================================
+// // CHECK MY WORK (STEP VERIFIER)
+//
+// =====================================
 const checkEqInput = document.getElementById("checkEqInput");
 const checkVarInput = document.getElementById("checkVarInput");
 const checkAnsInput = document.getElementById("checkAnsInput");
@@ -4394,9 +4431,10 @@ checkAskPythosBtn.addEventListener("click", () => {
   }
 });
 
-// =========================
-// THEME SWITCHER (DARK / LIGHT MODE)
-// =========================
+// =====================================
+// // THEME SWITCHER (DARK / LIGHT MODE)
+//
+// =====================================
 const themeToggleBtn = document.getElementById("themeToggleBtn");
 const themeIconSun = document.getElementById("themeIconSun");
 const themeIconMoon = document.getElementById("themeIconMoon");
@@ -4445,9 +4483,10 @@ if (themeToggleBtn) {
   });
 }
 
-// =========================
-// VOICE INPUT (SPEECH-TO-TEXT)
-// =========================
+// =====================================
+// // VOICE INPUT (SPEECH-TO-TEXT)
+//
+// =====================================
 const voiceBtn = document.getElementById("voiceBtn");
 let recognition = null;
 let isRecording = false;
@@ -4504,9 +4543,9 @@ if (voiceBtn) {
   });
 }
 
-// =========================
+// =====================================
 // ACCESSIBILITY: SKIP LINKS & KEYBOARD FOCUS
-// =========================
+// =====================================
 document.querySelectorAll(".skip-link").forEach(link => {
   link.addEventListener("click", (e) => {
     const targetId = link.getAttribute("href").replace(/^#/, "");
@@ -4523,9 +4562,9 @@ document.querySelectorAll(".skip-link").forEach(link => {
   });
 });
 
-// =========================
+// =====================================
 // ACCESSIBILITY: INTERACTIVE LANGUAGE SELECTOR
-// =========================
+// =====================================
 const LANG_LOCALES = {
   en: { code: "en-US", name: "English", placeholder: "Speak to the Oracle, dictate, or ask a math question..." },
   es: { code: "es-MX", name: "Español", placeholder: "Habla con el Oráculo o haz una pregunta de matemáticas..." },
@@ -4571,9 +4610,9 @@ document.querySelectorAll(".lang-chip").forEach(chip => {
   });
 });
 
-// =========================
+// =====================================
 // BUG & ERROR REPORTING MODAL (Priority 1 & 6)
-// =========================
+// =====================================
 let activeReportContext = null;
 
 function openReportModal(context) {
@@ -4721,7 +4760,8 @@ async function checkReportingStatus() {
 }
 
 // =====================================
-// PYTHOS PERSONAL MEMORY MODAL
+// // PYTHOS PERSONAL MEMORY MODAL
+//
 // =====================================
 const memoryBtn = document.getElementById("memoryBtn");
 const pythosMemoryModal = document.getElementById("pythosMemoryModal");
@@ -5082,7 +5122,8 @@ document.addEventListener("keydown", (e) => {
 
 
 // =====================================
-// PYTHOS NUMBER LINE & INTERVAL INSPECTOR
+// // PYTHOS NUMBER LINE & INTERVAL INSPECTOR
+//
 // =====================================
 const pythosNumberLineModal = document.getElementById("pythosNumberLineModal");
 const numLineModalCloseBtn = document.getElementById("numLineModalCloseBtn");
@@ -5323,7 +5364,8 @@ document.addEventListener("keydown", (e) => {
 });
 
 // =====================================
-// PYTHOS DISTRIBUTION & STATISTICS INSPECTOR
+// // PYTHOS DISTRIBUTION & STATISTICS INSPECTOR
+//
 // =====================================
 const pythosChartModal = document.getElementById("pythosChartModal");
 const chartModalCloseBtn = document.getElementById("chartModalCloseBtn");
@@ -5510,7 +5552,9 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-// ===== INIT =====
+// =====================================
+// INIT
+// =====================================
 clearChatUI();
 checkReportingStatus();
 if (input) {

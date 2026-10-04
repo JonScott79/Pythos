@@ -1,6 +1,21 @@
+<!--
+    admin/index.html
+
+    Pythos Admin Sanctuary console for incident triaging, telemetry, and system review.
+
+    Responsibilities
+
+    - Firebase Google authentication and admin privilege verification
+    - Incident queue management and student bug report triaging
+    - Socratic verifier telemetry and feature flag control
+    - Markdown dossier and AI analysis bundle exporting
+-->
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <!-- =====================================
+       Metadata / SEO
+  ===================================== -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="../assets/favicon.png">
@@ -14,7 +29,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-  <style>
+  <!-- =====================================
+     Styles
+===================================== -->
+<style>
     :root {
       --bg-color: #fcfbf9;
       --surface-color: #ffffff;
@@ -589,7 +607,10 @@
     </div>
 
     <!-- Active Admin Console Dashboard -->
-    <div id="adminDashboard" style="display: none;">
+    <!-- =====================================
+     Main Dashboard
+===================================== -->
+  <div id="adminDashboard" style="display: none;">
 
       <!-- Header & Quick Toggles -->
       <div class="sanctuary-header">
@@ -696,6 +717,9 @@
   </main>
 
   <!-- Firebase Web SDK & Admin Script -->
+  <!-- =====================================
+     Scripts
+===================================== -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
     import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";

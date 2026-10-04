@@ -1,3 +1,15 @@
+/*
+    dev-server.js
+
+    Local development server for Pythos static assets and frontend testing.
+
+    Responsibilities
+
+    - HTTP server on port 3005
+    - Static file resolution with MIME type mapping
+    - Clean 404 and directory index resolution
+*/
+
 const http = require('http');
 const fs = require('fs');
 const path = require('path');

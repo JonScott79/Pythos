@@ -1,0 +1,10 @@
+/* TEAM */
+Project: Pythos | Free AI Mathematics & Physics Tutor
+Organization: LANZAR
+Site: https://pythos.lanzar.me
+
+/* SITE */
+Last update: 2026/10/04
+Standards: HTML5, CSS3, ES6+ Modules, KaTeX, Web Speech API
+Aesthetic: Clean Modern Academic / Mathematical Precision
+Philosophy: "Always draw it out first. Make STEM accessible to every student."

@@ -1,3 +1,13 @@
+/*
+    staticServer.js
+
+    Production static file server for Pythos workspace.
+
+    Responsibilities
+
+    - Lightweight static streaming with correct MIME headers
+*/
+
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
