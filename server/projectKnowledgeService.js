@@ -374,6 +374,31 @@ function detectProjectKnowledge(userText, conversationHistory = []) {
     };
   }
 
+    // 6b. TOOLS, SIM LAB, & FEEDBACK INTENT:
+  const isToolsOrFeedbackQuery =
+    /\b(?:(?:how\s+(?:do|can)\s+i|where\s+(?:do|can)\s+i|can\s+i)\s+(?:ask\s+for|request|suggest|propose|add|submit)|want\s+to\s+(?:ask\s+you\s+for|request|suggest|propose))\s+(?:a\s+)?(?:new\s+)?(?:tool|feature|simulation|instrument|model|simulator)\b/i.test(lower) ||
+    /\b(?:how\s+(?:do|can)\s+i|where\s+(?:do|can)\s+i)\s+(?:report|submit\s+a\s+report|give\s+feedback|leave\s+feedback|report\s+a\s+(?:bug|problem|issue|error))\b/i.test(lower) ||
+    /\b(?:what\s+tools\s+(?:do\s+you\s+have|are\s+there|can\s+i\s+use)|what\s+instruments\s+(?:do\s+you\s+have|can\s+i\s+use)|tell\s+me\s+about\s+your\s+tools|what\s+simulations\s+do\s+you\s+have|what\s+can\s+you\s+simulate)\b/i.test(lower);
+
+  if (isToolsOrFeedbackQuery) {
+    return {
+      isProjectKnowledge: true,
+      intent: 'TOOLS_AND_FEEDBACK',
+      sources: ['ABOUT'],
+      overrideContext: `[AUTHORITATIVE PYTHOS PLATFORM & TOOL KNOWLEDGE]
+- Tools & Instruments:
+  * Sim Lab ([ ⚛️ Sim Lab ] button above input): 17 classical STEM models (Projectile, Newton's Laws, Energy Transfer, Momentum, Hooke's Law, Waves, Circuits, Trigonometry, Calculus, Triangle, Circle, Normal Distribution, Gas Laws, Exponential Growth, Pendulum, Optics/Snell's Law, Buoyancy).
+  * Calculator (Calc button): Built-in scientific and CAS evaluation.
+  * Grapher (Graph button): 2D interactive function grapher.
+  * Visual Inspectors: Inline geometry, number line, and chart inspectors.
+- How Students Request New Tools or Report Issues:
+  * Click the 🚩 Report button located right underneath any AI message in the chat.
+  * Or simply type what tool, simulation, or feature you'd like added directly into the chat!
+  * Jon Scott and the LANZAR development team review all student requests directly to build new tools and improve Pythos.
+  * Never instruct users to open IT support tickets or wait for external email queues.`
+    };
+  }
+
   // 7. ABOUT PYTHOS & CREATOR / IDENTITY:
   // "What is Pythos?", "Who made you?", "Who created you?", "What are you designed to do?",
   // "What makes you different from other AI tutors?", "How does Pythos work?", "Are you a math tutor or a general AI?"

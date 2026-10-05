@@ -1548,6 +1548,28 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
     };
   }
 
+  // 0-tools. Tool Requests, Feature Suggestions, Bug Reports & Feedback
+  const isToolOrFeatureRequest = /\b(?:(?:how\s+(?:do|can)\s+i|where\s+(?:do|can)\s+i|can\s+i)\s+(?:ask\s+for|request|suggest|propose|add|submit)|want\s+to\s+(?:ask\s+(?:you\s+)?for|request|suggest|propose)|if\s+i\s+want\s+to\s+ask\s+(?:you\s+)?for)\s+(?:a\s+)?(?:new\s+)?(?:tool|feature|simulation|instrument|model|simulator)\b/i.test(clean) ||
+    /\b(?:how\s+(?:do|can)\s+i|where\s+(?:do|can)\s+i)\s+(?:report|submit\s+a\s+report|give\s+feedback|leave\s+feedback|report\s+a\s+(?:bug|problem|issue|error))\b/i.test(clean) ||
+    /\b(?:ask\s+(?:you\s+)?for\s+(?:a\s+)?(?:new\s+)?tool|request\s+(?:a\s+)?(?:new\s+)?tool)\b/i.test(clean);
+
+  if (isToolOrFeatureRequest) {
+    return {
+      type: 'PLATFORM_KNOWLEDGE',
+      subType: 'FEEDBACK_AND_TOOLS'
+    };
+  }
+
+  // 0-tools-inquiry. Platform Tools Inquiry (e.g. "what tools do you have", "what instruments can i use")
+  const isPlatformToolsInquiry = /\b(?:what\s+toolss+(?:do\s+you\s+have|are\s+there|can\s+i\s+use)|what\s+instrumentss+(?:do\s+you\s+have|can\s+i\s+use)|tell\s+me\s+about\s+your\s+tools|what\s+simulationss+do\s+you\s+have|what\s+can\s+you\s+simulate|show\s+(?:me\s+)?your\s+tools)\b/i.test(clean);
+
+  if (isPlatformToolsInquiry) {
+    return {
+      type: 'PLATFORM_KNOWLEDGE',
+      subType: 'PLATFORM_TOOLS'
+    };
+  }
+
   // 0e. Classical Projectile Motion Interactive Simulation Requests (e.g. "simulate projectile motion", "projectile trajectory")
   const projectileMatch = clean.match(/(?:simulate\s+projectile|interactive\s+projectile|projectile\s+motion|projectile\s+trajectory|ballistics?\s+simulation|projectile.*(?:with\s+sliders|sliders))/i);
   if (projectileMatch) {
@@ -2623,6 +2645,32 @@ Adjust the controls above to explore how launch angle $\\theta$ and velocity $v_
 
   if (intent.type === 'VIZ_SUBJECT_CLARIFICATION') {
     return intent.promptMessage;
+  }
+
+  if (intent.type === 'PLATFORM_KNOWLEDGE') {
+    if (intent.subType === 'FEEDBACK_AND_TOOLS') {
+      return `🏛️ **Requesting New Tools & Submitting Feedback on Pythos**
+
+You can request any new tool, simulation, or feature in one simple step:
+
+1. **Use the 🚩 Report Button**: Click the **Report** button right below any message in our chat. You can type whatever tool, feature, or physics model you'd like added and click **Submit Report**.
+2. **Tell Me Directly**: You can also just type your idea right here in our conversation (e.g., *"I'd love an optics simulation for thin lenses"* or *"Can you add a Doppler effect tool?"*).
+
+Jon Scott and the LANZAR development team review all student feedback and tool requests directly to build new instruments and improve Pythos. What tool or experiment are you thinking of?`;
+    }
+    if (intent.subType === 'PLATFORM_TOOLS') {
+      return `🏛️ **Pythos STEM Tools & Interactive Instruments**
+
+Pythos is equipped with a complete suite of verified mathematical and physical tools:
+
+1. **⚛️ Sim Lab (17 Classical STEM Simulations)**: Click the **Sim Lab** button above the input box to open our full laboratory shelf featuring Projectile Motion, Newton's Laws, Energy Transfer, Momentum & Collisions, Hooke's Law, Wave Mechanics, Electric Circuits, Unit Circle Trigonometry, Calculus Derivatives, Right Triangles, Circles, Normal Distribution, Ideal Gas Laws, Exponential Growth, Simple Pendulum, Geometric Optics & Snell's Law, and Archimedes' Buoyancy.
+2. **📈 2D Function Grapher (Graph)**: Plot and pan any continuous curve $f(x)$ with coordinate tracking.
+3. **🧮 Calculator (Calc)**: Integrated scientific calculator and computer algebra engine with virtual keypad.
+4. **📐 Interactive Visual Inspectors**: Dynamic right triangles, number lines & interval notation, and discrete distribution charts.
+5. **🧠 Personal Memory Settings**: Inspect and customize your learning preferences at any time.
+
+If you ever want a tool that isn't here yet, just hit the **🚩 Report** button below any message or let me know!`;
+    }
   }
 
   if (intent.type === 'CLASSICAL_MODEL_VIZ') {
