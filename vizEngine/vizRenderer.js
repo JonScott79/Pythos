@@ -382,6 +382,7 @@
           const newCalc = modelDef.compute(state);
           drawCanvas(newCalc);
           updateMetrics(newCalc);
+          container.__pythosInstrumentState = { state, calcResult: newCalc, spec, modelDef };
         });
 
         group.appendChild(labelRow);
@@ -401,6 +402,7 @@
         const initialCalc = modelDef.compute(state);
         drawCanvas(initialCalc);
         updateMetrics(initialCalc);
+        container.__pythosInstrumentState = { state, calcResult: initialCalc, spec, modelDef };
       });
     }
 
@@ -409,6 +411,7 @@
     const initialCalc = modelDef.compute(state);
     drawCanvas(initialCalc);
     updateMetrics(initialCalc);
+    container.__pythosInstrumentState = { state, calcResult: initialCalc, spec, modelDef };
 
     return true;
   }

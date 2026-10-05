@@ -114,6 +114,67 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
       const prevIsTerseOrGeneric = prevMsg && !prevHadImage &&
         /^(?:(?:can\s+you\s+)?(?:please\s+)?(?:help(?:\s+me)?|solve|check|work\s+out|look\s+at)\s+(?:this|my\s+work)|here\s+(?:is|'s)\s+(?:my\s+)?(?:problem|work|homework)|solve\s+this|what\s+is\s+this|check\s+this)[.?!]?$/i.test(prevMsg.content.trim());
 
+      // Extract explicit geometric diagram or function graph if rendered by assistant
+      const geomMatch = msg.content.match(/\[GEOMETRY:\s*([a-zA-Z]+),?\s*([^\]]+)\]/i);
+      if (geomMatch) {
+        const geomType = geomMatch[1].toLowerCase();
+        const geomParamsStr = geomMatch[2];
+        const geomVars = {};
+        const pairs = geomParamsStr.split(/,\s*/);
+        for (const p of pairs) {
+          const [k, v] = p.split('=');
+          if (k && v) geomVars[k.trim()] = isNaN(Number(v.trim())) ? v.trim() : Number(v.trim());
+        }
+        if (!currentActive) {
+          currentActive = {
+            domain: 'GEOMETRY',
+            subtype: 'RIGHT_TRIANGLE_GEOMETRY',
+            activeExpression: null,
+            knownVariables: geomVars,
+            unknownQuantities: [],
+            assumptions: [`Geometric ${geomType} diagram rendered in conversation`],
+            requiredMethod: 'Euclidean geometric relationships and trigonometry',
+            initialUserPrompt: prevMsg ? prevMsg.content : msg.content,
+            transcription: msg.content.slice(0, 300),
+            status: 'ACTIVE',
+            geometry: { type: geomType, parameters: geomVars },
+            currentStepEquation: null,
+            verifiedSolution: null,
+            isCompleted: false,
+            nextOperation: null
+          };
+        } else {
+          currentActive.geometry = { type: geomType, parameters: geomVars };
+          currentActive.knownVariables = { ...(currentActive.knownVariables || {}), ...geomVars };
+        }
+      }
+
+      const graphMatch = msg.content.match(/\[GRAPH:\s*([^\]]+)\]/i);
+      if (graphMatch) {
+        const graphExpr = graphMatch[1].trim();
+        if (!currentActive) {
+          currentActive = {
+            domain: 'ALGEBRA',
+            subtype: 'FUNCTION_GRAPH',
+            activeExpression: graphExpr,
+            knownVariables: { function: graphExpr },
+            unknownQuantities: [],
+            assumptions: [`Function graph ${graphExpr} rendered in conversation`],
+            requiredMethod: 'Function analysis and graphical interpretation',
+            initialUserPrompt: prevMsg ? prevMsg.content : msg.content,
+            transcription: msg.content.slice(0, 300),
+            status: 'ACTIVE',
+            currentStepEquation: null,
+            verifiedSolution: null,
+            isCompleted: false,
+            nextOperation: null
+          };
+        } else {
+          if (!currentActive.activeExpression) currentActive.activeExpression = graphExpr;
+          currentActive.knownVariables = { ...(currentActive.knownVariables || {}), function: graphExpr };
+        }
+      }
+
       if (!currentActive || prevHadImage || prevIsTerseOrGeneric) {
         const assistantCls = classifyProblem(msg.content);
         if (assistantCls && assistantCls.problemDomain !== 'UNKNOWN' && assistantCls.problemDomain !== 'OFF_TOPIC') {
@@ -165,6 +226,78 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
     const classification = classifyProblem(msg.content);
     const mathExpr = resolveReferentialContext(msg.content, messages.slice(0, i + 1));
     const trans = detectTopicTransitionIntent(msg.content);
+
+    // Extract simulation state if present in prompt
+    const simMatch = msg.content.match(/\[SIMULATION STATE - ([^\]]+)\]/i);
+    if (simMatch) {
+      const simTitle = simMatch[1].trim();
+      const settingsMatch = msg.content.match(/• Live Settings:\s*([^\n]+)/i);
+      const metricsMatch = msg.content.match(/• Calculated Values:\s*([^\n]+)/i);
+
+      const liveSettingsStr = settingsMatch ? settingsMatch[1].trim() : '';
+      const calculatedStr = metricsMatch ? metricsMatch[1].trim() : '';
+
+      const simVars = {};
+      if (liveSettingsStr) {
+        const pairs = liveSettingsStr.split(/,\s*(?=[a-zA-Z(θ])/);
+        for (const pair of pairs) {
+          const eqParts = pair.split('=');
+          if (eqParts.length === 2) {
+            const rawK = eqParts[0].trim();
+            const k = rawK.replace(/\s*\([^)]*\)/g, '').toLowerCase();
+            const v = eqParts[1].trim();
+            simVars[k] = v;
+            simVars[rawK] = v;
+          }
+        }
+      }
+      if (calculatedStr) {
+        const cPairs = calculatedStr.split(/,\s*(?=[a-zA-Z(θ])/);
+        for (const pair of cPairs) {
+          const colonParts = pair.split(/[:=]/);
+          if (colonParts.length === 2) {
+            const rawK = colonParts[0].trim();
+            const k = rawK.replace(/\s*\([^)]*\)/g, '').toLowerCase();
+            const v = colonParts[1].trim();
+            simVars[k] = v;
+            simVars[rawK] = v;
+          }
+        }
+      }
+
+      if (!currentActive) {
+        const isTrig = /circle|triangle|trigonometry|tangent|angle/i.test(simTitle);
+        const isCalc = /calculus|derivative|integral/i.test(simTitle);
+        currentActive = {
+          domain: isTrig ? 'TRIGONOMETRY' : (isCalc ? 'CALCULUS' : 'PHYSICS'),
+          subtype: 'SIMULATION_EXPERIMENT',
+          activeExpression: null,
+          knownVariables: simVars,
+          unknownQuantities: [],
+          assumptions: [`Active classical instrument in Sim Lab: ${simTitle}`],
+          requiredMethod: `Interactive simulation exploration of ${simTitle}`,
+          initialUserPrompt: msg.content,
+          transcription: msg.content.slice(0, 300),
+          status: 'ACTIVE',
+          simulation: {
+            modelName: simTitle,
+            settings: liveSettingsStr,
+            metrics: calculatedStr
+          },
+          currentStepEquation: null,
+          verifiedSolution: null,
+          isCompleted: false,
+          nextOperation: null
+        };
+      } else {
+        currentActive.simulation = {
+          modelName: simTitle,
+          settings: liveSettingsStr,
+          metrics: calculatedStr
+        };
+        currentActive.knownVariables = { ...(currentActive.knownVariables || {}), ...simVars };
+      }
+    }
 
     if (trans.type === 'RETURN_TO_ARCHIVED') {
       const target = (trans.target || '').toLowerCase();
@@ -456,6 +589,19 @@ function formatActiveProblemContext(state) {
     out += `- **Active Intermediate Step**: \`${act.currentStepEquation}\`\n`;
     if (act.nextOperation) {
       out += `- **Next Operation**: ${act.nextOperation}\n`;
+    }
+  }
+  if (act.geometry) {
+    const paramsStr = Object.entries(act.geometry.parameters).map(([k, v]) => `${k} = ${v}`).join(', ');
+    out += `- **Active Visual Diagram**: ${act.geometry.type.toUpperCase()} (${paramsStr})\n`;
+  }
+  if (act.simulation) {
+    out += `- **Active Simulation Experiment**: ${act.simulation.modelName}\n`;
+    if (act.simulation.settings) {
+      out += `- **Live Simulation Parameters**: ${act.simulation.settings}\n`;
+    }
+    if (act.simulation.metrics) {
+      out += `- **Live Calculated Readouts**: ${act.simulation.metrics}\n`;
     }
   }
   if (act.knownVariables && Object.keys(act.knownVariables).length > 0) {
@@ -750,10 +896,21 @@ function buildEffectivePrompt(messages = []) {
       continue;
     }
 
-    // Conversational follow-ups
-    if (/\b(?:what\s+was\s+the\s+answer|explain|what\s+about\s+at\s+x\s*=\s*\d+)\b/i.test(turnText)) {
-      effective += ' (' + turnText + ')';
+    // Conversational & simulation follow-ups (e.g. "what would my hypot. be?", "what if I double the angle?", "why did it hit the ground at 63 meters?")
+    if (/\b(?:what\s+was\s+the\s+answer|explain|what\s+about\s+at\s+x\s*=\s*\d+|what|why|how|can|is|does|where|if|hypot|angle|height|range|period|velocity|speed|radius)\b/i.test(turnText)) {
+      if (!effective.includes(turnText)) {
+        effective += ' (' + turnText + ')';
+      }
       continue;
+    }
+  }
+
+  // If base prompt has simulation state, ensure it is preserved with the latest follow-up question
+  if (basePrompt && basePrompt.includes('[SIMULATION STATE -') && userMsgs.length > 1) {
+    const simHeaderMatch = basePrompt.match(/(\[SIMULATION STATE - [^\]]+\][\s\S]*?)(?:\n\n[^\n]|$)/);
+    const simHeader = simHeaderMatch ? simHeaderMatch[1].trim() : '';
+    if (simHeader && !effective.startsWith(simHeader)) {
+      effective = `${simHeader}\n\n${effective}`;
     }
   }
 

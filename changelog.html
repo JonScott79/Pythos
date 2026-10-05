@@ -22,14 +22,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="assets/favicon.png">
-  <title>Pythos Release History &amp; Changelog | v1.8.31</title>
+  <title>Pythos Release History &amp; Changelog | v1.8.32</title>
   <meta name="description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://pythos.lanzar.me/changelog.html">
 
   <!-- OPEN GRAPH -->
-  <meta property="og:title" content="Pythos Release History &amp; Changelog | v1.8.19">
+  <meta property="og:title" content="Pythos Release History &amp; Changelog | v1.8.32">
   <meta property="og:description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta property="og:url" content="https://pythos.lanzar.me/changelog.html">
   <meta property="og:type" content="article">
@@ -41,7 +41,7 @@
 
   <!-- TWITTER CARD -->
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Pythos Release History &amp; Changelog | v1.8.19">
+  <meta name="twitter:title" content="Pythos Release History &amp; Changelog | v1.8.32">
   <meta name="twitter:description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="twitter:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
 
@@ -562,11 +562,46 @@
         <!-- ==================== RELEASE 1.8.28 ==================== -->
         <!-- ==================== RELEASE 1.8.29 ==================== -->
     <!-- ==================== RELEASE 1.8.31 ==================== -->
-    <article class="release-card" id="pythos-1-8-31">
+        <article class="release-card" id="pythos-1-8-32">
+      <div class="release-header">
+        <div class="release-title-wrap">
+          <h2 class="release-version">Pythos 1.8.32</h2>
+          <span class="release-badge">Latest Release</span>
+        </div>
+        <time class="release-date" datetime="2026-10-05">October 5, 2026</time>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header">
+          <span class="badge-added">New Feature</span>
+          <span class="section-title">Interactive Floating Simulation Context &amp; Multi-Turn Retention</span>
+        </div>
+        <ul class="change-list">
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Floating Simulation Context Attachment Chip:</strong> Queues active instrument state as an interactive chip above the chat input, allowing students to type custom questions with full simulation context rather than forcing pre-baked auto-submissions.</div>
+          </li>
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Multi-Turn Simulation State Retention (<code>server/contextManager.js</code>):</strong> Extracted live instrument sliders and calculated readouts directly into <code>activeProblemState.active.knownVariables</code>, preserving simulation context across follow-up turns.</div>
+          </li>
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Inspector Modal Unification:</strong> Upgraded Right Triangle Trigonometry, Number Line &amp; Inequalities, Function Grapher, and Statistical Distribution modals to attach interactive context chips instead of firing instant submissions.</div>
+          </li>
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Visual User Message Badges:</strong> Messages sent with simulation context render a high-contrast <code>🔬 &lt;Title&gt;: &lt;Details&gt;</code> badge directly inside the student's chat bubble.</div>
+          </li>
+        </ul>
+      </div>
+    </article>
+
+<article class="release-card" id="pythos-1-8-31">
       <div class="release-header">
         <div class="release-title-wrap">
           <h2 class="release-version">Pythos 1.8.31</h2>
-          <span class="release-badge">Latest Release</span>
+          <span class="release-badge"><span class="release-badge" style="display:none;">Latest Release</span>
         </div>
         <time class="release-date" datetime="2026-10-05">October 5, 2026</time>
       </div>

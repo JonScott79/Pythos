@@ -448,22 +448,75 @@
     if (!activeSimulation) return;
 
     const input = document.getElementById('userInput');
-    const promptText = activeSimulation.defaultPrompt;
+    const mount = document.getElementById('simLabInstrumentMount');
+    let promptText = activeSimulation.defaultPrompt;
+    const stateParts = [];
+    const metricsParts = [];
+
+    if (mount) {
+
+      // Priority 1: Direct reactive state attached to container
+      const instState = mount.__pythosInstrumentState;
+      if (instState && instState.state && instState.spec && instState.spec.variables) {
+        for (const [key, val] of Object.entries(instState.state)) {
+          const varDef = instState.spec.variables[key];
+          const label = varDef && varDef.label ? varDef.label : key;
+          const unit = varDef && varDef.unit ? ` ${varDef.unit}` : '';
+          stateParts.push(`${label} = ${val}${unit}`);
+        }
+        if (instState.calcResult && Array.isArray(instState.calcResult.metrics)) {
+          for (const m of instState.calcResult.metrics) {
+            if (m.label && m.formatted) {
+              metricsParts.push(`${m.label}: ${m.formatted}`);
+            }
+          }
+        }
+      } else {
+        // Priority 2: Fallback extraction from DOM elements
+        const sliderGroups = mount.querySelectorAll('.pythos-slider-group');
+        sliderGroups.forEach(group => {
+          const name = group.querySelector('.pythos-slider-name')?.textContent?.trim();
+          const badge = group.querySelector('.pythos-slider-val-badge')?.textContent?.trim();
+          if (name && badge) stateParts.push(`${name} = ${badge}`);
+        });
+        const metricCards = mount.querySelectorAll('.pythos-metric-card');
+        metricCards.forEach(card => {
+          const lbl = card.querySelector('.pythos-metric-label')?.textContent?.trim();
+          const val = card.querySelector('.pythos-metric-value')?.textContent?.trim();
+          if (lbl && val) metricsParts.push(`${lbl}: ${val}`);
+        });
+      }
+
+      if (stateParts.length > 0 || metricsParts.length > 0) {
+        let contextSummary = `[SIMULATION STATE - ${activeSimulation.title}]`;
+        if (stateParts.length > 0) {
+          contextSummary += `\n• Live Settings: ${stateParts.join(', ')}`;
+        }
+        if (metricsParts.length > 0) {
+          contextSummary += `\n• Calculated Values: ${metricsParts.join(', ')}`;
+        }
+        promptText = `${contextSummary}\n\n${activeSimulation.defaultPrompt}`;
+      }
+    }
 
     closeSimLab();
 
-    if (input) {
-      input.value = promptText;
-      input.focus();
-      // Auto-resize input
-      input.style.height = 'auto';
-      input.style.height = Math.min(input.scrollHeight, 180) + 'px';
+    const shortDetails = stateParts.length > 0 ? stateParts.join(', ') : (metricsParts.length > 0 ? metricsParts.join(', ') : '');
+    const contextSummary = `[SIMULATION STATE - ${activeSimulation.title}]` +
+      (stateParts.length > 0 ? `\n• Live Settings: ${stateParts.join(', ')}` : '') +
+      (metricsParts.length > 0 ? `\n• Calculated Values: ${metricsParts.join(', ')}` : '');
 
-      // Submit prompt to Pythos
-      const submitBtn = document.getElementById('submitBtn');
-      if (submitBtn) {
-        submitBtn.click();
-      }
+    if (typeof window.attachSimulationToInput === 'function') {
+      window.attachSimulationToInput({
+        type: 'sim',
+        title: activeSimulation.title,
+        details: shortDetails,
+        contextText: contextSummary,
+        defaultPrompt: activeSimulation.defaultPrompt
+      });
+    } else if (input) {
+      input.value = `${contextSummary}\n\n${activeSimulation.defaultPrompt}`;
+      input.focus();
     }
   }
 

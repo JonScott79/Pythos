@@ -1,3 +1,22 @@
+## Pythos 1.8.32
+**Release Date:** October 5, 2026
+
+### Added
+- **Interactive Floating Simulation Context Attachment Chip**:
+  - Queues interactive instrument state as a floating chip above the chat input box instead of blindly auto-submitting.
+  - Supports Sim Lab instruments and all inspector modals (Right Triangle Trigonometry, Number Line & Inequalities, Function Grapher, Statistical Distribution).
+  - Allows students to freely type custom questions while automatically attaching live parameter settings and calculated readouts.
+  - Single-click dismissal (`[✕]`) restores default prompt state; pressing Enter without typing submits verified pedagogical overview.
+  - High-contrast `.user-sim-context-badge` renders inside user message bubbles for clear visual context without cluttering the chat history.
+- **Multi-Turn Simulation State Retention (`server/contextManager.js`)**:
+  - Deep extraction of live instrument parameters and calculated metrics into `activeProblemState.active.simulation` and `knownVariables`.
+  - Preserves simulation context across follow-up queries and conversational windowing, ensuring Pythos retains context across multi-turn dialogues.
+
+### Fixed
+- **Sim Lab & Inspector Socratic Flow**:
+  - Eliminated abrupt auto-submission from instrument viewports and modals.
+  - Fully synchronized reactive slider updates directly to instrument container state (`__pythosInstrumentState`).
+
 ## Pythos 1.8.31
 **Release Date:** October 5, 2026
 

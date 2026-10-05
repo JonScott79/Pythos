@@ -44,6 +44,7 @@ const button = document.getElementById("submitBtn");
 
 let messages = [];
 let pendingImages = []; // Array of { base64: string, name: string }
+let pendingSimulationAttachment = null; // { type: string, title: string, details: string, contextText: string, defaultPrompt: string }
 let currentUser = null;
 let currentChatId = null;
 let reportingEnabled = false;
@@ -1252,6 +1253,24 @@ function appendMessage(role, text, images = null, metadata = {}) {
   const contentDiv = document.createElement("div");
   contentDiv.className = "message-content";
 
+  // If there is an attached simulation badge, display it at top of message
+  if (metadata && metadata.simAttachment) {
+    const badge = document.createElement("div");
+    badge.className = "user-sim-context-badge";
+    const iconSpan = document.createElement("span");
+    iconSpan.textContent = "🔬 ";
+    const strongTitle = document.createElement("strong");
+    strongTitle.textContent = metadata.simAttachment.title || "Simulation";
+    badge.appendChild(iconSpan);
+    badge.appendChild(strongTitle);
+    if (metadata.simAttachment.details) {
+      const textSpan = document.createElement("span");
+      textSpan.textContent = `: ${metadata.simAttachment.details}`;
+      badge.appendChild(textSpan);
+    }
+    contentDiv.appendChild(badge);
+  }
+
   // Filter out any raw TikZ or raw SVG blocks if LLM accidentally emits them
   let sanitized = text
     .replace(/\\begin\{tikzpicture\}[\s\S]*?\\end\{tikzpicture\}/gi, "")
@@ -2246,6 +2265,12 @@ async function loadChat(chatId) {
       messages.forEach(msg => {
         if (msg.role === "assistant" && msg.isDeepThought) {
           showDeepThoughtResponse();
+        } else if (msg.role === "user" && typeof msg.content === "string" && msg.content.startsWith("[SIMULATION STATE - ")) {
+          const simMatch = msg.content.match(/^\[SIMULATION STATE - ([^\]]+)\]/);
+          const simTitle = simMatch ? simMatch[1] : "Simulation";
+          const questionParts = msg.content.split("\n\nUser Question: ");
+          const displayText = questionParts.length > 1 ? questionParts.slice(1).join("\n\nUser Question: ") : msg.content;
+          appendMessage(msg.role, displayText, msg.images || null, { simAttachment: { title: simTitle } });
         } else {
           appendMessage(msg.role, msg.content, msg.images || null);
         }
@@ -2445,6 +2470,10 @@ window.DeterministicMath = {
 // pendingImages declared in top-level state: Array of { base64: string, name: string }
 
 const pendingImagesStrip = document.getElementById("pendingImagesStrip");
+const pendingSimAttachmentStrip = document.getElementById("pendingSimAttachmentStrip");
+const pendingSimChip = document.getElementById("pendingSimChip");
+const pendingSimDetails = document.getElementById("pendingSimDetails");
+const pendingSimCloseBtn = document.getElementById("pendingSimCloseBtn");
 const imageFileInput = document.getElementById("imageFileInput");
 const attachImgBtn = document.getElementById("attachImgBtn");
 const inputWrapper = document.querySelector(".input-wrapper");
@@ -2830,6 +2859,53 @@ async function compressAndResizeImage(sourceFile, maxDimension = 1600, quality =
   };
 }
 
+function updatePendingSimulationAttachmentUI() {
+  const strip = document.getElementById("pendingSimAttachmentStrip");
+  const chip = document.getElementById("pendingSimChip");
+  const details = document.getElementById("pendingSimDetails");
+  const inputEl = document.getElementById("userInput");
+  if (!strip) return;
+
+  if (!pendingSimulationAttachment) {
+    strip.style.display = "none";
+    strip.classList.remove("active");
+    if (inputEl && inputEl.dataset.simPlaceholderSet === "true") {
+      inputEl.placeholder = "Ask a math or physics question, or attach a photo...";
+      delete inputEl.dataset.simPlaceholderSet;
+    }
+    return;
+  }
+
+  strip.style.display = "flex";
+  strip.classList.add("active");
+  if (chip) {
+    chip.textContent = `🔬 ${pendingSimulationAttachment.title || "Lab State"}`;
+  }
+  if (details) {
+    details.textContent = pendingSimulationAttachment.details || "";
+  }
+  if (inputEl && !inputEl.value.trim()) {
+    inputEl.placeholder = `Ask a question about ${pendingSimulationAttachment.title || "this instrument"} (or press Enter for overview)...`;
+    inputEl.dataset.simPlaceholderSet = "true";
+  }
+}
+
+if (pendingSimCloseBtn) {
+  pendingSimCloseBtn.addEventListener("click", () => {
+    pendingSimulationAttachment = null;
+    updatePendingSimulationAttachmentUI();
+  });
+}
+
+window.attachSimulationToInput = function(attachmentData) {
+  pendingSimulationAttachment = attachmentData;
+  updatePendingSimulationAttachmentUI();
+  const inputEl = document.getElementById("userInput");
+  if (inputEl) {
+    inputEl.focus();
+  }
+};
+
 function updatePendingImagesUI() {
   if (!pendingImagesStrip) return;
   pendingImagesStrip.innerHTML = "";
@@ -3138,7 +3214,8 @@ function isVisionIntent(text, hasAttachedImage = false) {
 
 async function askPythos(userText) {
   const hasPendingImages = pendingImages.length > 0;
-  if ((!userText || !userText.trim()) && !hasPendingImages) return;
+  const hasPendingSim = pendingSimulationAttachment !== null;
+  if ((!userText || !userText.trim()) && !hasPendingImages && !hasPendingSim) return;
   if (isProcessing) return; // Block spam
   isProcessing = true;
 
@@ -3149,6 +3226,17 @@ async function askPythos(userText) {
   }
   if (!cleanText && hasPendingImages) {
     cleanText = "Please inspect and help me with this problem.";
+  }
+  if (!cleanText && hasPendingSim) {
+    cleanText = pendingSimulationAttachment.defaultPrompt || `Can you explain the current setup of ${pendingSimulationAttachment.title || "this simulation"}?`;
+  }
+
+  // Snapshot simulation attachment for this turn
+  let activeSimAttachment = null;
+  if (hasPendingSim) {
+    activeSimAttachment = pendingSimulationAttachment;
+    pendingSimulationAttachment = null;
+    updatePendingSimulationAttachmentUI();
   }
 
   // Client-side vision intent determination: Does this specific turn require vision reasoning?
@@ -3190,7 +3278,11 @@ async function askPythos(userText) {
   setInputLocked(true);
 
   // Append user message to history
-  const userMsgObj = { role: "user", content: cleanText };
+  let promptTextToSend = cleanText;
+  if (activeSimAttachment && activeSimAttachment.contextText) {
+    promptTextToSend = `${activeSimAttachment.contextText}\n\nUser Question: ${cleanText}`;
+  }
+  const userMsgObj = { role: "user", content: promptTextToSend };
   if (imagesToSend.length > 0) {
     userMsgObj.images = imagesToSend;
   }
@@ -3203,7 +3295,9 @@ async function askPythos(userText) {
       messages.splice(idx, 1);
     }
   };
-  appendMessage("user", cleanText, dataUrlsToDisplay.length > 0 ? dataUrlsToDisplay : null);
+  appendMessage("user", cleanText, dataUrlsToDisplay.length > 0 ? dataUrlsToDisplay : null, {
+    simAttachment: activeSimAttachment ? { title: activeSimAttachment.title, details: activeSimAttachment.details } : null
+  });
   input.value = "";
   autoResizeInput();
   if (charCounter) charCounter.style.display = "none";
@@ -4401,7 +4495,20 @@ document.getElementById("toolGraphBtn").addEventListener("click", () => {
 
 document.getElementById("graphSendToPythos").addEventListener("click", () => {
   const func = graphFuncInput.value;
-  askPythos(`Can you analyze and explain the behavior of the function f(x) = ${func}?`);
+  const contextSummary = `[SIMULATION STATE - Function Grapher]\n• Live Settings: f(x) = ${func}`;
+  const defaultPrompt = `Can you analyze and explain the behavior of the function f(x) = ${func}?`;
+
+  if (typeof window.attachSimulationToInput === "function") {
+    window.attachSimulationToInput({
+      type: "graph",
+      title: "Function Grapher",
+      details: `f(x) = ${func}`,
+      contextText: contextSummary,
+      defaultPrompt: defaultPrompt
+    });
+  } else {
+    askPythos(defaultPrompt);
+  }
 });
 
 // =====================================
@@ -5137,14 +5244,29 @@ if (trigModalAskPythosBtn) {
     closeTrigInspectorModal();
     const deg = trigModalAngleSlider ? trigModalAngleSlider.value : 60;
     const hyp = trigModalHypSlider ? trigModalHypSlider.value : 2;
-    const promptText = `Can you explain the trigonometric properties of a right triangle with angle θ = ${deg}° and hypotenuse ${hyp}?`;
-    const inputElem = document.getElementById("userInput") || document.getElementById("messageInput");
-    const sendButton = document.getElementById("submitBtn") || document.getElementById("sendBtn");
-    if (inputElem) {
-      inputElem.value = promptText;
-      inputElem.focus();
-      inputElem.dispatchEvent(new Event("input", { bubbles: true }));
-      if (sendButton) setTimeout(() => sendButton.click(), 60);
+    const rad = ((deg * Math.PI) / 180).toFixed(3);
+    const opp = (hyp * Math.sin((deg * Math.PI) / 180)).toFixed(2);
+    const adj = (hyp * Math.cos((deg * Math.PI) / 180)).toFixed(2);
+    const contextSummary = `[SIMULATION STATE - Right Triangle Trigonometry]\n• Live Settings: θ = ${deg}°, Hypotenuse = ${hyp}\n• Calculated Values: Radians = ${rad} rad, Opposite = ${opp}, Adjacent = ${adj}`;
+    const defaultPrompt = `Can you explain the trigonometric properties of a right triangle with angle θ = ${deg}° and hypotenuse ${hyp}?`;
+
+    if (typeof window.attachSimulationToInput === "function") {
+      window.attachSimulationToInput({
+        type: "trig",
+        title: "Right Triangle Trigonometry",
+        details: `θ = ${deg}°, hyp = ${hyp}, opp = ${opp}, adj = ${adj}`,
+        contextText: contextSummary,
+        defaultPrompt: defaultPrompt
+      });
+    } else {
+      const inputElem = document.getElementById("userInput") || document.getElementById("messageInput");
+      const sendButton = document.getElementById("submitBtn") || document.getElementById("sendBtn");
+      if (inputElem) {
+        inputElem.value = defaultPrompt;
+        inputElem.focus();
+        inputElem.dispatchEvent(new Event("input", { bubbles: true }));
+        if (sendButton) setTimeout(() => sendButton.click(), 60);
+      }
     }
   });
 }
@@ -5380,14 +5502,26 @@ if (numLineAskPythosBtn) {
     closeNumberLineInspectorModal();
     const intervalStr = document.getElementById("numLineIntervalText")?.textContent || "[-2, 3]";
     const ineqStr = document.getElementById("numLineInequalityText")?.textContent || "-2 ≤ x ≤ 3";
-    const promptText = `Can you explain the interval ${intervalStr} and the solutions to ${ineqStr}?`;
-    const inputElem = document.getElementById("userInput") || document.getElementById("messageInput");
-    const sendButton = document.getElementById("submitBtn") || document.getElementById("sendBtn");
-    if (inputElem) {
-      inputElem.value = promptText;
-      inputElem.focus();
-      inputElem.dispatchEvent(new Event("input", { bubbles: true }));
-      if (sendButton) setTimeout(() => sendButton.click(), 60);
+    const contextSummary = `[SIMULATION STATE - Number Line & Inequalities]\n• Live Settings: Interval = ${intervalStr}, Inequality = ${ineqStr}`;
+    const defaultPrompt = `Can you explain the interval ${intervalStr} and the solutions to ${ineqStr}?`;
+
+    if (typeof window.attachSimulationToInput === "function") {
+      window.attachSimulationToInput({
+        type: "numline",
+        title: "Number Line & Inequalities",
+        details: `${ineqStr} (${intervalStr})`,
+        contextText: contextSummary,
+        defaultPrompt: defaultPrompt
+      });
+    } else {
+      const inputElem = document.getElementById("userInput") || document.getElementById("messageInput");
+      const sendButton = document.getElementById("submitBtn") || document.getElementById("sendBtn");
+      if (inputElem) {
+        inputElem.value = defaultPrompt;
+        inputElem.focus();
+        inputElem.dispatchEvent(new Event("input", { bubbles: true }));
+        if (sendButton) setTimeout(() => sendButton.click(), 60);
+      }
     }
   });
 }
@@ -5569,14 +5703,27 @@ if (chartModalDoneBtn) chartModalDoneBtn.addEventListener("click", closeChartIns
 if (chartModalAskPythosBtn) {
   chartModalAskPythosBtn.addEventListener("click", () => {
     closeChartInspectorModal();
-    const promptText = `Can you analyze this statistical distribution: ${JSON.stringify(activeChartData.labels.map((l, i) => ({ category: l, value: activeChartData.values[i] })))}?`;
-    const inputElem = document.getElementById("userInput") || document.getElementById("messageInput");
-    const sendButton = document.getElementById("submitBtn") || document.getElementById("sendBtn");
-    if (inputElem) {
-      inputElem.value = promptText;
-      inputElem.focus();
-      inputElem.dispatchEvent(new Event("input", { bubbles: true }));
-      if (sendButton) setTimeout(() => sendButton.click(), 60);
+    const distData = JSON.stringify(activeChartData.labels.map((l, i) => ({ category: l, value: activeChartData.values[i] })));
+    const contextSummary = `[SIMULATION STATE - Statistical Distribution]\n• Calculated Values: ${distData}`;
+    const defaultPrompt = `Can you analyze this statistical distribution: ${distData}?`;
+
+    if (typeof window.attachSimulationToInput === "function") {
+      window.attachSimulationToInput({
+        type: "chart",
+        title: "Statistical Distribution",
+        details: `${activeChartData.labels.length} categories`,
+        contextText: contextSummary,
+        defaultPrompt: defaultPrompt
+      });
+    } else {
+      const inputElem = document.getElementById("userInput") || document.getElementById("messageInput");
+      const sendButton = document.getElementById("submitBtn") || document.getElementById("sendBtn");
+      if (inputElem) {
+        inputElem.value = defaultPrompt;
+        inputElem.focus();
+        inputElem.dispatchEvent(new Event("input", { bubbles: true }));
+        if (sendButton) setTimeout(() => sendButton.click(), 60);
+      }
     }
   });
 }

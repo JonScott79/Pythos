@@ -1665,6 +1665,85 @@
     }
 
     /* Pending Image Upload Preview Strip */
+    
+    /* Floating Simulation / Lab Context Attachment Chip */
+    .pending-sim-strip {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 6px 12px;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.12), rgba(129, 140, 248, 0.12));
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      border-radius: 8px;
+      font-size: 0.82rem;
+      color: #38bdf8;
+      animation: fadeInSimChip 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .pending-sim-strip.active {
+      display: flex;
+    }
+    .pending-sim-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+    .pending-sim-chip {
+      background: rgba(56, 189, 248, 0.25);
+      border: 1px solid rgba(56, 189, 248, 0.5);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 0.78rem;
+      color: #38bdf8;
+      flex-shrink: 0;
+    }
+    .pending-sim-details {
+      color: #cbd5e1;
+      font-size: 0.78rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .pending-sim-close {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      cursor: pointer;
+      font-size: 1.1rem;
+      line-height: 1;
+      padding: 2px 6px;
+      border-radius: 4px;
+      transition: color 0.15s, background 0.15s;
+      flex-shrink: 0;
+    }
+    .pending-sim-close:hover {
+      color: #f43f5e;
+      background: rgba(244, 63, 94, 0.15);
+    }
+    .user-sim-context-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.76rem;
+      font-weight: 600;
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 4px;
+      padding: 3px 8px;
+      margin-bottom: 8px;
+    }
+    @keyframes fadeInSimChip {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
     .pending-images-strip {
       display: none;
       gap: 10px;
@@ -3308,7 +3387,7 @@
           <a href="nonprofit.html">Mission &amp; Roadmap</a>
           <a href="license.html">License</a>
           <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" title="Official Facebook Page" aria-label="Official Facebook Page">Facebook</a>
-          <a href="changelog.html#pythos-1-8-31" title="View Changelog" aria-label="Version 1.8.31 Release Notes">v1.8.31</a>
+          <a href="changelog.html#pythos-1-8-32" title="View Changelog" aria-label="Version 1.8.32 Release Notes">v1.8.32</a>
         </nav>
       </div>
     </aside>
@@ -3326,7 +3405,7 @@
         <header class="header">
           <img class="header-avatar" src="assets/pythos_avatar.jpg" alt="Pythos Oracle" width="40" height="40" />
           <div class="header-info">
-            <h1>PYTHOS <a href="changelog.html#pythos-1-8-31" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.31)" aria-label="Version 1.8.31 Release Notes">v1.8.31</a></h1>
+            <h1>PYTHOS <a href="changelog.html#pythos-1-8-32" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.32)" aria-label="Version 1.8.32 Release Notes">v1.8.32</a></h1>
             <p>Mathematics & Physics Oracle</p>
           </div>
           <button id="themeToggleBtn" class="theme-toggle-btn" title="Toggle Dark/Light Mode" aria-label="Toggle Dark and Light Theme">
@@ -3397,6 +3476,16 @@
           <div id="pendingImagesStrip" class="pending-images-strip" role="region" aria-label="Attached images for upcoming message" data-clarity-mask="true">
             <!-- Dynamically populated thumbnails -->
           </div>
+
+          <!-- PENDING SIMULATION / LAB ATTACHMENT STRIP -->
+          <div id="pendingSimAttachmentStrip" class="pending-sim-strip" role="region" aria-label="Attached simulation context for upcoming message" style="display:none;">
+            <div class="pending-sim-info">
+              <span class="pending-sim-chip" id="pendingSimChip">🔬 Lab State</span>
+              <span class="pending-sim-details" id="pendingSimDetails">Instrument details</span>
+            </div>
+            <button type="button" id="pendingSimCloseBtn" class="pending-sim-close" title="Remove attached simulation context" aria-label="Remove attached simulation context">&times;</button>
+          </div>
+
 
           <!-- HIDDEN FILE INPUT (Supports standard web formats and iPhone HEIC/HEIF) -->
           <input type="file" id="imageFileInput" accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp,.bmp,image/heic,image/heif" style="display:none;" aria-hidden="true" multiple />
