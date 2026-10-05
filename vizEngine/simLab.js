@@ -396,8 +396,8 @@
 
     activeSimulation = item;
 
-    if (shelfView) shelfView.style.display = 'none';
-    if (activeView) activeView.style.display = 'flex';
+    if (shelfView) { shelfView.style.setProperty('display', 'none', 'important'); }
+    if (activeView) { activeView.style.setProperty('display', 'flex', 'important'); }
     if (titleEl) {
       titleEl.innerHTML = `
         <span class="sim-lab-active-icon">${item.icon}</span>
@@ -439,8 +439,8 @@
     const activeView = document.getElementById('simLabActiveView');
     const mount = document.getElementById('simLabInstrumentMount');
 
-    if (activeView) activeView.style.display = 'none';
-    if (shelfView) shelfView.style.display = 'flex';
+    if (activeView) { activeView.style.setProperty('display', 'none', 'important'); }
+    if (shelfView) { shelfView.style.setProperty('display', 'flex', 'important'); }
     if (mount) mount.innerHTML = '';
   }
 
