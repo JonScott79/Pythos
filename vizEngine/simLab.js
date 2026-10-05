@@ -408,6 +408,7 @@
 
     if (!mount) return;
     mount.innerHTML = '';
+    mount.className = 'sim-lab-mount-container';
 
     const renderer = window.PythosVizRenderer;
     if (!renderer) {
@@ -441,7 +442,10 @@
 
     if (activeView) { activeView.style.setProperty('display', 'none', 'important'); }
     if (shelfView) { shelfView.style.setProperty('display', 'flex', 'important'); }
-    if (mount) mount.innerHTML = '';
+    if (mount) {
+      mount.innerHTML = '';
+      mount.className = 'sim-lab-mount-container';
+    }
   }
 
   function handleAskPythos() {

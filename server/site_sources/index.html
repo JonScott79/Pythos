@@ -2078,9 +2078,11 @@
 
     .pythos-viz-canvas {
       width: 100%;
+      max-height: 270px;
       height: auto;
       display: block;
       aspect-ratio: 640 / 300;
+      object-fit: contain;
     }
 
     .pythos-viz-metrics-row {
@@ -2119,11 +2121,11 @@
     .pythos-viz-controls-panel {
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 8px;
       background: var(--bg-color);
       border: 1px solid var(--border-color);
       border-radius: 8px;
-      padding: 12px 14px;
+      padding: 10px 12px;
       box-sizing: border-box;
     }
 
@@ -2132,21 +2134,22 @@
       .pythos-viz-instrument.pythos-viz-wide .pythos-viz-controls-panel {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 12px;
+        gap: 10px;
       }
     }
 
     .pythos-slider-group {
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 3px;
+      padding: 1px 0;
     }
 
     .pythos-slider-label-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 0.8rem;
+      font-size: 0.78rem;
     }
 
     .pythos-slider-name {
@@ -2155,11 +2158,11 @@
     }
 
     .pythos-slider-val-badge {
-      font-size: 0.75rem;
+      font-size: 0.74rem;
       font-weight: 700;
       color: var(--primary-color);
       background: var(--sidebar-hover);
-      padding: 2px 6px;
+      padding: 1px 6px;
       border-radius: 4px;
       border: 1px solid var(--border-color);
       font-family: monospace;
@@ -2169,18 +2172,19 @@
       -webkit-appearance: none;
       appearance: none;
       width: 100%;
-      height: 6px;
+      height: 5px;
       background: var(--border-color);
       border-radius: 3px;
       outline: none;
+      margin: 3px 0;
       transition: background 0.15s;
     }
 
     .pythos-classical-slider::-webkit-slider-thumb {
       -webkit-appearance: none;
       appearance: none;
-      width: 16px;
-      height: 16px;
+      width: 15px;
+      height: 15px;
       border-radius: 50%;
       background: var(--primary-color);
       cursor: pointer;
@@ -2190,8 +2194,8 @@
     }
 
     .pythos-classical-slider::-moz-range-thumb {
-      width: 16px;
-      height: 16px;
+      width: 15px;
+      height: 15px;
       border-radius: 50%;
       background: var(--primary-color);
       cursor: pointer;
@@ -2460,8 +2464,8 @@
       border-radius: 16px;
       width: 96%;
       max-width: 1040px;
-      height: 88vh;
-      max-height: 840px;
+      height: 90vh;
+      max-height: 860px;
       display: flex;
       flex-direction: column;
       box-shadow: 0 24px 64px rgba(0, 0, 0, 0.35);
@@ -2849,16 +2853,47 @@
     }
 
     .sim-lab-mount-container {
-      flex: 1;
+      flex: 1 1 0%;
       min-height: 0;
-      overflow-y: auto;
+      height: 100%;
+      overflow-y: auto !important;
       overflow-x: hidden;
       overscroll-behavior: contain;
-      padding: 16px 20px 24px;
+      padding: 10px 18px 24px;
       display: flex;
       flex-direction: column;
+      box-sizing: border-box;
       scrollbar-width: thin;
       scrollbar-color: var(--primary-color) rgba(0, 0, 0, 0.25);
+    }
+
+    /* Seamless Sim Lab integration: eliminate outer duplicate card box */
+    .sim-lab-mount-container.pythos-viz-instrument,
+    .sim-lab-mount-container .pythos-viz-instrument {
+      margin: 0;
+      padding: 2px 4px 16px;
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      border-radius: 0;
+      width: 100%;
+      box-sizing: border-box;
+      flex: 1 0 auto;
+      min-height: min-content;
+    }
+
+    .sim-lab-mount-container .pythos-viz-header {
+      padding-bottom: 6px;
+      margin-bottom: 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .sim-lab-mount-container .pythos-viz-title {
+      font-size: 1.05rem;
+    }
+
+    .sim-lab-mount-container .pythos-viz-tag {
+      font-size: 0.62rem;
     }
 
     .sim-lab-mount-container::-webkit-scrollbar {
