@@ -394,7 +394,7 @@ function detectProjectKnowledge(userText, conversationHistory = []) {
 - How Students Request New Tools or Report Issues:
   * Click the 🚩 Report button located right underneath any AI message in the chat.
   * Or simply type what tool, simulation, or feature you'd like added directly into the chat!
-  * Jon Scott and the LANZAR development team review all student requests directly to build new tools and improve Pythos.
+  * Jon and the LANZAR team review all student requests directly to build new tools and improve Pythos.
   * Never instruct users to open IT support tickets or wait for external email queues.`
     };
   }

@@ -2656,7 +2656,7 @@ You can request any new tool, simulation, or feature in one simple step:
 1. **Use the 🚩 Report Button**: Click the **Report** button right below any message in our chat. You can type whatever tool, feature, or physics model you'd like added and click **Submit Report**.
 2. **Tell Me Directly**: You can also just type your idea right here in our conversation (e.g., *"I'd love an optics simulation for thin lenses"* or *"Can you add a Doppler effect tool?"*).
 
-Jon Scott and the LANZAR development team review all student feedback and tool requests directly to build new instruments and improve Pythos. What tool or experiment are you thinking of?`;
+Jon and the LANZAR team review all student feedback and tool requests directly to build new instruments and improve Pythos. What tool or experiment are you thinking of?`;
     }
     if (intent.subType === 'PLATFORM_TOOLS') {
       return `🏛️ **Pythos STEM Tools & Interactive Instruments**
