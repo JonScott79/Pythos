@@ -2300,21 +2300,50 @@ async function saveChatState(userMessage, botReply) {
 // =====================================
 // EASTER EGG: DEEP THOUGHT
 // =====================================
-const DEEP_THOUGHT_PATTERNS = [
-  /^(what('s|\s+is)\s+)?(the\s+)?meaning\s+of\s+life[\?\.\!]*$/i,
-  /^(what('s|\s+is)\s+)?(the\s+)?answer\s+to\s+(the\s+ultimate\s+question\s+of\s+)?life[,]?\s*(the\s+)?universe[,]?\s*(and\s+)?(everything|all)[\?\.\!]*$/i,
-  /^(what('s|\s+is)\s+)?(the\s+)?ultimate\s+answer(\s+to\s+(the\s+ultimate\s+question\s+of\s+)?life[,]?\s*(the\s+)?universe[,]?\s*(and\s+)?(everything|all))?[\?\.\!]*$/i,
-  /^what('s|\s+is)\s+the\s+(meaning|purpose|point)\s+of\s+(life|existence)[\?\.\!]*$/i,
-  /^(what\s+is\s+)?the\s+ultimate\s+question\s+of\s+life[\?\.\!]*$/i,
-  /^hitchhiker('?s)?(\s+guide)?[\?\.\!]*$/i,
-  /^deep\s+thought[\?\.\!]*$/i
-];
+const MATH_OPERATOR_REGEX = /[+\-*/^=<>%√]/;
+const MATH_KEYWORD_REGEX = /\b(solve|calculate|compute|derive|differentiate|integrate|factor|factors|prime|graph|plot|simplify|evaluate|expand|proof|prove|equation|formula|polynomial|matrix|vector|limit|function|sin|cos|tan|log|ln|dx|dy|algebra|calculus|geometry|physics|velocity|acceleration|force|mass|momentum|energy|work|joules|meters|seconds|degrees|radians|pi|number|even|odd|composite|divisible)\b/i;
+const STEM_EXCLUSIONS = /\b(half[\-\s]life|life[\-\s]cycle|cellular\s+life|marine\s+life|plant\s+life|animal\s+life|battery\s+life|shelf\s+life|wildlife)\b/i;
 
 function isDeepThoughtQuestion(text) {
-  const clean = text.trim().toLowerCase();
-  // Don't trigger on math/physics problems that happen to mention these words in equations
-  if (/\d\s*[\+\-\*\/\=]\s*\d/.test(clean) && clean.length < 20) return false;
-  return DEEP_THOUGHT_PATTERNS.some(pattern => pattern.test(clean));
+  if (!text) return false;
+  const clean = text.trim().toLowerCase().replace(/['"`’‘]/g, "'");
+
+  // STRICT MATH & TUTORING PROTECTION:
+  // If the query contains any math operators, math keywords, or science topics, NEVER hijack it.
+  if (MATH_OPERATOR_REGEX.test(clean)) return false;
+  if (MATH_KEYWORD_REGEX.test(clean)) return false;
+  if (STEM_EXCLUSIONS.test(clean)) return false;
+
+  // Standalone numbers or student answers (like '42', 'answer is 42', 'it is 42', '42 kg') must NEVER trigger.
+  if (/^(\d+|forty[\-\s]two)(\s*(m|cm|mm|km|s|sec|kg|g|n|j|w|hz|v|deg|rad))?[\?\.\!]*$/i.test(clean)) return false;
+  if (/\b(answer\s+is|got|result\s+is|equals?|is\s+it)\s+(\d+|forty[\-\s]two)\b/i.test(clean)) return false;
+  if (/^(what|why)\s+is\s+(\d+|forty[\-\s]two)[\?\.\!]*$/i.test(clean)) return false;
+
+  // 1. Adams / Hitchhiker explicit canon
+  if (/\bhitchhiker('?s)?(\s+guide)?\b/i.test(clean)) return true;
+  if (/\bdeep\s+thought\b/i.test(clean)) return true;
+  if (/\bdon'?t\s+panic\b/i.test(clean)) return true;
+
+  // 2. The Great / Ultimate Question & Answer (in the context of life/universe/everything)
+  if (/\b(great|ultimate)\s+(question|answer)\b/i.test(clean) && /\b(life|universe|everything)\b/i.test(clean)) return true;
+
+  // 3. Life, Universe, and Everything
+  if (/\blife[,\s]+(the\s+)?universe[,\s]+(and\s+)?everything\b/i.test(clean)) return true;
+  if (/\b(universe|everything)\b/i.test(clean) && /\b(meaning|question|answer)\b/i.test(clean) && /\blife\b/i.test(clean)) return true;
+
+  // 4. "Question of life" or "Answer to life/everything/universe"
+  if (/\bquestion\s+(of|to|behind|for)\s+(life|existence)\b/i.test(clean)) return true;
+  if (/\banswer\s+(to|of|for|behind)\s+(life|everything|the\s+universe)\b/i.test(clean)) return true;
+
+  // 5. Meaning / Purpose / Point / Secret of life & existence
+  if (/\b(meaning|purpose|point|secret|reason|mystery)\s+(of|for|behind)\s+(life|living|existence|our\s+existence|human\s+existence|it\s+all)\b/i.test(clean)) return true;
+  if (/\bwhat\s+is\s+life\s+(all\s+)?about\b/i.test(clean)) return true;
+  if (/\bwhat('s|\s+is)\s+the\s+meaning\s+of\s+it\s+all\b/i.test(clean)) return true;
+
+  // 6. Existential questions: "Why are we here?", "Why do we exist?"
+  if (/^why\s+(are\s+we\s+here|do\s+we\s+exist|do\s+we\s+live|were\s+we\s+created|are\s+we\s+alive)[\?\.\!]*$/i.test(clean)) return true;
+
+  return false;
 }
 
 function fakeThinkingDelay(ms) {
@@ -2333,9 +2362,12 @@ function showDeepThoughtResponse() {
   div.setAttribute("data-clarity-mask", "true");
   div.innerHTML = `
     <div class="dt-header">PYTHOS // DEEP THOUGHT MODE</div>
-    <div class="dt-quote">“The Answer to the Ultimate Question of Life, the Universe, and Everything.”</div>
-    <div class="dt-author">— Deep Thought</div>
+    <div class="dt-quote">"The answer to the great question... of Life, the Universe and Everything... is forty-two."</div>
+    <div class="dt-author">— Deep Thought, <em>The Hitchhiker's Guide to the Galaxy</em></div>
     <div class="dt-answer">42</div>
+    <div class="dt-subquote" style="text-align: center; font-size: 0.85rem; opacity: 0.8; font-style: italic; line-height: 1.5; margin-top: 12px; color: #a0ffc8;">
+      "I think the problem, to be quite honest with you, is that you've never actually known what the question is."
+    </div>
   `;
   output.appendChild(div);
   scrollToMessageTop(div, false);
@@ -3171,13 +3203,15 @@ async function askPythos(userText) {
   if (preview) preview.style.display = "none";
 
   // ===== EASTER EGG: Deep Thought =====
-  if (isDeepThoughtQuestion(userText)) {
-    await fakeThinkingDelay(2500);
+  if (isDeepThoughtQuestion(cleanText)) {
+    await fakeThinkingDelay(1800);
     showDeepThoughtResponse();
-    const eggContent = "“The Answer to the Ultimate Question of Life, the Universe, and Everything.”\n\n— Deep Thought\n\n42";
+    const eggContent = "\"The answer to the great question... of Life, the Universe and Everything... is forty-two.\"\n\n— Deep Thought, The Hitchhiker's Guide to the Galaxy\n\n42\n\n\"I think the problem, to be quite honest with you, is that you've never actually known what the question is.\"";
     messages.push({ role: "assistant", content: eggContent, isDeepThought: true });
-    await saveChatState(userText, eggContent);
-    setTimeout(() => setInputLocked(false), 1000);
+    await saveChatState(cleanText, eggContent);
+    isProcessing = false;
+    setInputLocked(false);
+    activeThinkingElement = null;
     return;
   }
 
