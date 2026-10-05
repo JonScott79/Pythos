@@ -219,6 +219,7 @@
     const closeBtn = document.getElementById('simLabCloseBtn');
     const backBtn = document.getElementById('simLabBackBtn');
     const askBtn = document.getElementById('simLabAskBtn');
+    const resetBtn = document.getElementById('simLabResetBtn');
     const searchInput = document.getElementById('simLabSearchInput');
     const tabs = document.querySelectorAll('.sim-tab');
 
@@ -289,6 +290,17 @@
     if (askBtn) {
       askBtn.addEventListener('click', () => {
         handleAskPythos();
+      });
+    }
+
+    // Reset Simulation Button
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        const mount = document.getElementById('simLabInstrumentMount');
+        const instReset = mount ? mount.querySelector('.pythos-viz-reset-btn') : null;
+        if (instReset) {
+          instReset.click();
+        }
       });
     }
 

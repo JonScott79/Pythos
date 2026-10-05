@@ -2831,6 +2831,27 @@
       gap: 8px;
     }
 
+    .sim-lab-reset-nav-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: var(--surface-color);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 5px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .sim-lab-reset-nav-btn:hover {
+      background: var(--chat-ai-bg);
+      border-color: var(--primary-color);
+      color: var(--primary-color);
+    }
+
     .sim-lab-ask-btn {
       display: inline-flex;
       align-items: center;
@@ -2865,6 +2886,46 @@
       box-sizing: border-box;
       scrollbar-width: thin;
       scrollbar-color: var(--primary-color) rgba(0, 0, 0, 0.25);
+    }
+
+    /* Seamless Sim Lab integration: eliminate outer duplicate card box and redundant headers */
+    .sim-lab-mount-container .pythos-viz-header {
+      display: none !important;
+    }
+
+    .sim-lab-mount-container .pythos-viz-canvas {
+      max-height: 215px !important;
+      width: 100%;
+      aspect-ratio: 640 / 280;
+      object-fit: contain;
+    }
+
+    .sim-lab-mount-container .pythos-viz-stage-col {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .sim-lab-mount-container .pythos-viz-metrics-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(95px, 1fr));
+      gap: 6px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .sim-lab-mount-container .pythos-viz-metric-card {
+      padding: 5px 8px;
+      gap: 1px;
+    }
+
+    .sim-lab-mount-container .pythos-metric-label {
+      font-size: 0.64rem;
+      font-weight: 600;
+    }
+
+    .sim-lab-mount-container .pythos-metric-value {
+      font-size: 0.86rem;
     }
 
     /* Seamless Sim Lab integration: eliminate outer duplicate card box */
@@ -4352,7 +4413,11 @@
               <h3 id="simLabActiveTitle" class="sim-lab-active-name">Simulation Name</h3>
             </div>
             <div class="sim-lab-active-actions">
-              <button id="simLabAskBtn" class="sim-lab-ask-btn" title="Ask Pythos about this simulation">
+              <button id="simLabResetBtn" class="sim-lab-reset-nav-btn" type="button" title="Reset simulation variables to default state" aria-label="Reset Simulation">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+                <span>Reset</span>
+              </button>
+              <button id="simLabAskBtn" class="sim-lab-ask-btn" type="button" title="Ask Pythos about this simulation">
                 <span>Ask Pythos</span>
                 <span class="sim-lab-ask-bubble">💬</span>
               </button>
