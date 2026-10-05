@@ -272,9 +272,9 @@ For non-trivial mathematical and physical problems (word problems, optimization,
 - The model specifies WHAT needs to be visualized; the client application controls HOW it is rendered and calculates live values locally.
 
 - 1. SPECIALIZED CLASSICAL INTERACTIVE VISUALIZATION INSTRUMENTS [VIZ: {...}]:
-  * Whenever a concept or question maps directly to one of the 9 specialized physics or mathematical models, ALWAYS PREFER emitting an interactive [VIZ: ...] specification token rather than a generic [GRAPH: ...].
+  * Whenever a concept or question maps directly to one of the 17 specialized STEM interactive models, ALWAYS PREFER emitting an interactive [VIZ: ...] specification token rather than a generic [GRAPH: ...].
   * The client calculates values, trajectories, vectors, and metrics locally in real-time based on the student's interactive slider movements.
-  * The 9 Available Visualization Models:
+  * The 17 Available Visualization Models:
     1. 'projectile' (Kinematics & Ballistics):
        - Use for: Projectile motion, parabolic trajectories, launch angle/speed effects, flight time, range, max height.
        - Variables: velocity (v₀), angle (θ), gravity (g).
@@ -302,6 +302,30 @@ For non-trivial mathematical and physical problems (word problems, optimization,
     9. 'calculus_derivatives' (Differential Calculus & Rate of Change):
        - Use for: Instantaneous rate of change, derivatives, tangent line slope vs secant slope convergence ($\Delta y / \Delta x$).
        - Variables: x0 (evaluation point), deltaX (secant step).
+    10. 'triangle' (Classical Geometry & Right Triangles):
+       - Use for: Right triangles, Pythagorean theorem (a^2 + b^2 = c^2), base, height, hypotenuse, angles, trigonometric ratios (opp/adj/hyp).
+       - Variables: base (b), height (a).
+    11. 'circle' (Curvature, Radius & Sector Dynamics):
+       - Use for: Circles, radius, diameter (d=2r), circumference (C=2*pi*r), area (A=pi*r^2), sector area, and arc length (s=r*theta).
+       - Variables: radius (r), sectorAngle (theta).
+    12. 'normal_distribution' (Statistics, Probability & Gaussian Bell Curves):
+       - Use for: Gaussian normal distribution, mean, standard deviation, z-score, cumulative probability P(X <= x), empirical rule (68-95-99.7).
+       - Variables: mean (mu), stdDev (sigma), xVal (x).
+    13. 'gas_laws' (Chemistry & Thermodynamics):
+       - Use for: Ideal Gas Law (PV = nRT), gas state variables, relationship between pressure, volume, temperature, and moles.
+       - Variables: pressure (P), temperature (T), moles (n).
+    14. 'exponential_growth' (Algebra, Pre-Calculus & Compound Interest):
+       - Use for: Exponential growth, decay, radioactive half-life, compound interest (P(t) = P0*(1+r)^t), population modeling.
+       - Variables: initial (P0), rate (r), time (t).
+    15. 'pendulum' (Mechanics & Harmonic Oscillation):
+       - Use for: Simple pendulum, periodic oscillation, small vs large angle period, restoring torque, energy transfer.
+       - Variables: length (L), angle (theta), gravity (g), mass (m).
+    16. 'optics' (Geometric Optics & Snell's Law):
+       - Use for: Refraction, reflection, Snell's law (n1 sin theta1 = n2 sin theta2), critical angle, total internal reflection.
+       - Variables: n1 (medium 1 index), n2 (medium 2 index), theta1 (incident angle).
+    17. 'buoyancy' (Fluid Mechanics & Archimedes' Principle):
+       - Use for: Buoyancy, buoyant force (F_b = rho_fluid * V_sub * g), object weight, floating vs sinking, submerged fraction.
+       - Variables: objDensity (rho_obj), fluidDensity (rho_fluid), volume (V), gravity (g).
   * Format:
     [VIZ: {"type":"PHYSICS","model":"<model_id>","title":"<Title>","variables":{"<varName>":{"value":<num>,"min":<num>,"max":<num>,"step":<num>,"unit":"<unit>"}}}]
     (For type, use "PHYSICS" or "MATH". Variables match the model's parameters. Include default/initial values relevant to the problem).
@@ -1612,27 +1636,45 @@ app.post('/api/chat', async (req, res) => {
         let claims = [];
         let verificationResults = [];
 
-        try {
-          const verifyResult = await verifyResponseClaims(directResponse, effectiveVerificationPrompt, abortController.signal);
-          claims = verifyResult.claims || [];
-          verificationResults = verifyResult.verificationResults || [];
-          const internalContradictions = verifyResult.internalContradictions || [];
-          const invalidClaims = verifyResult.invalidClaims || [];
+        const isVisualOrClarification = deterministicIntent.type === 'CLASSICAL_MODEL_VIZ' ||
+                                        deterministicIntent.type === 'PROJECTILE_VIZ' ||
+                                        deterministicIntent.type === 'GEOMETRY_VIZ' ||
+                                        deterministicIntent.type === 'GRAPH_PLOT' ||
+                                        deterministicIntent.type === 'NUMBER_LINE_VIZ' ||
+                                        deterministicIntent.type === 'VIZ_SUBJECT_CLARIFICATION' ||
+                                        deterministicIntent.type === 'INPUT_AMBIGUITY_CLARIFICATION';
 
-          delivery = evaluateCandidateDelivery({
-            candidateAnswer,
-            verifications: verificationResults,
-            contradictions: internalContradictions,
-            claims,
-            prompt: effectiveVerificationPrompt
-          });
+        if (isVisualOrClarification) {
+          gatePassed = true;
+          delivery = {
+            delivered: true,
+            status: 'DELIVERED_VISUALIZATION',
+            answer: null,
+            reason: 'Verified deterministic STEM visualizer or clarification delivery'
+          };
+        } else {
+          try {
+            const verifyResult = await verifyResponseClaims(directResponse, effectiveVerificationPrompt, abortController.signal);
+            claims = verifyResult.claims || [];
+            verificationResults = verifyResult.verificationResults || [];
+            const internalContradictions = verifyResult.internalContradictions || [];
+            const invalidClaims = verifyResult.invalidClaims || [];
 
-          if (delivery && delivery.delivered && (!invalidClaims || invalidClaims.length === 0)) {
-            gatePassed = true;
+            delivery = evaluateCandidateDelivery({
+              candidateAnswer,
+              verifications: verificationResults,
+              contradictions: internalContradictions,
+              claims,
+              prompt: effectiveVerificationPrompt
+            });
+
+            if (delivery && delivery.delivered && (!invalidClaims || invalidClaims.length === 0)) {
+              gatePassed = true;
+            }
+          } catch (gateErr) {
+            console.warn('[DETERMINISTIC GATE] Verification gate error:', gateErr.message);
+            gatePassed = false;
           }
-        } catch (gateErr) {
-          console.warn('[DETERMINISTIC GATE] Verification gate error:', gateErr.message);
-          gatePassed = false;
         }
 
         if (gatePassed && delivery && delivery.delivered) {

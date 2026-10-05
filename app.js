@@ -1701,7 +1701,16 @@ function appendMessage(role, text, images = null, metadata = {}) {
       if (!vizContainer) return;
 
       const renderTruthfulFailure = (reason) => {
-        const isTriangle = rawJson && /(?:triangle|trigonometry|theta|sin|cos|tan)/i.test(rawJson);
+        let isTriangle = false;
+        try {
+          const parsed = JSON.parse(rawJson);
+          if (parsed && (parsed.model === 'triangle' || parsed.model === 'trigonometry')) {
+            isTriangle = true;
+          }
+        } catch (e) {}
+        if (!isTriangle && rawJson) {
+          isTriangle = /(?:\btriangle\b|\btrigonometr|\btheta\b|\bsin\b|\bcos\b|\btan\b)/i.test(rawJson);
+        }
         const titleMsg = isTriangle ? '📐 Interactive Triangle Unavailable' : '⚠️ Interactive Visualization Unavailable';
         const bodyMsg = isTriangle
           ? "The interactive triangle isn't available right now, but I can still walk you through the triangle step by step. The verified mathematical solution below remains valid and accurate."

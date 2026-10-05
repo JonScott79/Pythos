@@ -1134,7 +1134,7 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   }
 
   // Simpson's Paradox Conceptual Query (e.g. "Explain Simpson's paradox with hospital treatment success rates")
-  if (/simpson(?:'s)?\s+paradox/i.test(clean)) {
+  if (/simpson(?:'?s)?\s+paradox/i.test(clean)) {
     return {
       type: 'SIMPSONS_PARADOX_CONCEPTUAL',
       result: 'SIMPSONS_PARADOX',
@@ -1330,6 +1330,135 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
     }
   }
 
+  // 0b2. Universal Interactive STEM Visualizer & Slider Tool Dispatcher
+  // Handles generic requests and specific subject requests across Geometry, Statistics, Chemistry, Physics, and Calculus
+  if (/^(?:open|show|give\s+me|display|launch|can\s+you\s+(?:open|show))\s+(?:a\s+|an\s+)?(?:interactive\s+)?(?:chart|diagram|tool|model|visualizer)\s*(?:with\s+sliders)?\??$/i.test(clean) ||
+      /^(?:charts?|diagrams?|visualizers?|simulations?)\s+with\s+sliders\??$/i.test(clean)) {
+    return {
+      type: 'VIZ_SUBJECT_CLARIFICATION',
+      promptMessage: `🏛️ **Pythos Interactive STEM Instruments**\n\nI can open an interactive chart with sliders for you across any subject! What topic would you like to explore?\n\n- **Geometry:** Right Triangle (Pythagorean Theorem), Circle & Sector Arc\n- **Physics:** Projectile Motion, Newton's Laws, Energy Conservation, Collisions & Momentum, Springs (Hooke's Law), Pendulum, Wave Mechanics, Optics (Snell's Law), Buoyancy (Archimedes), Ohm's Law Circuits\n- **Math & Calculus:** Unit Circle Trigonometry, Calculus Derivatives & Tangents, Exponential Growth & Decay\n- **Chemistry:** Ideal Gas Laws (PV = nRT)\n- **Statistics:** Normal Distribution & Gaussian Bell Curve\n\nJust tell me what topic to open (e.g. *"open a triangle with sliders"* or *"show me a normal distribution"*)!`
+    };
+  }
+
+  // A. Triangle with Sliders & Interactive Geometry
+  const wantsTriangleSliders = /(?:interactive\s+(?:right\s+)?triangle|(?:right\s+)?triangle.*(?:with\s+sliders|interactive|sliders))/i.test(clean) ||
+                               /(?:open|show|launch|display|give\s+me|can\s+you\s+open)\s+(?:a\s+|an\s+)?(?:interactive\s+)?(?:right\s+)?triangle/i.test(clean);
+  if (wantsTriangleSliders) {
+    const customVars = {};
+    let promptIntro = null;
+
+    const twoLegs = clean.match(/(?:legs|sides|base\s+and\s+height|height\s+and\s+base)?\s*(\d+(?:\.\d+)?)\s*(?:and|,)\s*(\d+(?:\.\d+)?)/i);
+    const baseMatch = clean.match(/base\s*(?:of|=|is)?\s*(\d+(?:\.\d+)?)/i);
+    const heightMatch = clean.match(/height\s*(?:of|=|is)?\s*(\d+(?:\.\d+)?)/i);
+
+    if (baseMatch && heightMatch) {
+      customVars.base = parseFloat(baseMatch[1]);
+      customVars.height = parseFloat(heightMatch[1]);
+    } else if (twoLegs) {
+      customVars.base = parseFloat(twoLegs[1]);
+      customVars.height = parseFloat(twoLegs[2]);
+    } else {
+      const singleSide = clean.match(/(?:side|leg|base|height|hypotenuse)\s*(?:of|=|is)?\s*(\d+(?:\.\d+)?)/i) ||
+                         clean.match(/(?:with\s+)(\d+(?:\.\d+)?)(?:\s*(?:cm|m|units))?/i);
+      if (singleSide) {
+        const val = parseFloat(singleSide[1]);
+        customVars.base = val;
+        customVars.height = Math.max(1, Math.round(val * 0.75 * 10) / 10);
+        promptIntro = `📐 **Interactive Right Triangle**\n\nI've loaded the interactive right triangle with a base of \$${val}\$. Is \$${val}\$ your base, height, or hypotenuse? If you have another side, height, or angle from your problem, let me know—or drag the sliders below to adjust it in real time!`;
+      }
+    }
+
+    return {
+      type: 'CLASSICAL_MODEL_VIZ',
+      model: 'triangle',
+      customVars,
+      promptIntro
+    };
+  }
+
+  // B. Circle & Sector Geometry with Sliders
+  const wantsCircleSliders = /(?:circle|sector|radius).*(?:with\s+sliders|interactive|sliders)/i.test(clean) ||
+                             /(?:open|show|launch|display|give\s+me)\s+(?:a\s+|an\s+)?(?:interactive\s+)?circle/i.test(clean);
+  if (wantsCircleSliders) {
+    const customVars = {};
+    const radiusMatch = clean.match(/radius\s*(?:of|=|is)?\s*(\d+(?:\.\d+)?)/i);
+    if (radiusMatch) {
+      customVars.radius = parseFloat(radiusMatch[1]);
+    }
+    return {
+      type: 'CLASSICAL_MODEL_VIZ',
+      model: 'circle',
+      customVars
+    };
+  }
+
+  // C. Normal Distribution / Bell Curve
+  const wantsNormalDist = /(?:normal\s+distribution|bell\s+curve|gaussian\s+distribution|gaussian\s+curve|standard\s+deviation\s+curve)/i.test(clean);
+  if (wantsNormalDist) {
+    const customVars = {};
+    const meanMatch = clean.match(/mean\s*(?:of|=|is)?\s*(-?\d+(?:\.\d+)?)/i);
+    const stdMatch = clean.match(/(?:std(?:\s+dev)?|standard\s+deviation|sigma)\s*(?:of|=|is)?\s*(\d+(?:\.\d+)?)/i);
+    if (meanMatch) customVars.mean = parseFloat(meanMatch[1]);
+    if (stdMatch) customVars.stdDev = parseFloat(stdMatch[1]);
+    return {
+      type: 'CLASSICAL_MODEL_VIZ',
+      model: 'normal_distribution',
+      customVars
+    };
+  }
+
+  // D. Gas Laws (PV = nRT)
+  const wantsGasLaws = /(?:gas\s+laws?|ideal\s+gas|\bpv\s*=\s*nrt\b|charles(?:'?s)?\s+law|boyle(?:'?s)?\s+law|piston\s+simulation)/i.test(clean);
+  if (wantsGasLaws) {
+    const customVars = {};
+    const pMatch = clean.match(/pressure\s*(?:of|=|is)?\s*(\d+(?:\.\d+)?)/i);
+    const tMatch = clean.match(/temp(?:erature)?\s*(?:of|=|is)?\s*(\d+(?:\.\d+)?)/i);
+    if (pMatch) customVars.pressure = parseFloat(pMatch[1]);
+    if (tMatch) customVars.temperature = parseFloat(tMatch[1]);
+    return {
+      type: 'CLASSICAL_MODEL_VIZ',
+      model: 'gas_laws',
+      customVars
+    };
+  }
+
+
+  // F. Simple Pendulum & Oscillation
+  const wantsPendulum = /(?:(?:simulate\s+(?:a\s+)?)?pendulum|simple\s+pendulum|pendulum\s+(?:simulation|oscillator|motion)|swinging\s+pendulum|pendulum.*(?:with\s+sliders|sliders))/i.test(clean);
+  if (wantsPendulum) {
+    return {
+      type: 'CLASSICAL_MODEL_VIZ',
+      model: 'pendulum'
+    };
+  }
+
+  // G. Geometric Optics & Snell's Law
+  const wantsOptics = /(?:(?:simulate\s+)?(?:geometric\s+)?optics|optics\s+(?:simulation|model)|snell(?:'?s)?\s+law|refraction\s+(?:simulation|model)|total\s+internal\s+reflection|optics.*(?:with\s+sliders|sliders)|refraction.*(?:with\s+sliders|sliders))/i.test(clean);
+  if (wantsOptics) {
+    return {
+      type: 'CLASSICAL_MODEL_VIZ',
+      model: 'optics'
+    };
+  }
+
+  // H. Buoyancy & Archimedes' Principle
+  const wantsBuoyancy = /(?:(?:simulate\s+(?:a\s+)?)?buoyanc(?:y|e)|archimedes(?:'?s)?\s+principle|buoyanc(?:y|e)\s+(?:simulation|model)|floating\s+and\s+sinking|buoyancy.*(?:with\s+sliders|sliders))/i.test(clean);
+  if (wantsBuoyancy) {
+    return {
+      type: 'CLASSICAL_MODEL_VIZ',
+      model: 'buoyancy'
+    };
+  }
+
+  // E. Exponential Growth & Compound Interest
+  const wantsExpGrowth = /(?:exponential\s+(?:growth|decay|curve)|compound\s+interest|population\s+growth\s+simulation)/i.test(clean);
+  if (wantsExpGrowth) {
+    return {
+      type: 'CLASSICAL_MODEL_VIZ',
+      model: 'exponential_growth'
+    };
+  }
+
   // 0c. Geometric Figure Visualization Requests
   // Numerical: e.g. "show a right triangle with legs 3 and 4", "triangle with sides 3, 4, 5"
   // Qualitative: e.g. "can you show me on a triangle?", "show me on a right triangle", "i want to see the actual triangle and how this works", "draw a triangle"
@@ -1420,7 +1549,7 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   }
 
   // 0e. Classical Projectile Motion Interactive Simulation Requests (e.g. "simulate projectile motion", "projectile trajectory")
-  const projectileMatch = clean.match(/(?:simulate\s+projectile|interactive\s+projectile|projectile\s+motion|projectile\s+trajectory|ballistics?\s+simulation)/i);
+  const projectileMatch = clean.match(/(?:simulate\s+projectile|interactive\s+projectile|projectile\s+motion|projectile\s+trajectory|ballistics?\s+simulation|projectile.*(?:with\s+sliders|sliders))/i);
   if (projectileMatch) {
     return {
       type: 'PROJECTILE_VIZ',
@@ -1433,7 +1562,7 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   }
 
   // 0f. Newton's Second Law & Incline (e.g. "relationship between force and acceleration", "how does force affect acceleration", "f = ma", "simulate newtons second law")
-  const newtonMatch = clean.match(/(?:newton(?:'s)?\s+(?:second\s+law|laws?)|incline(?:d)?\s+plane|\bf\s*=\s*ma\b|force\s+(?:and|vs\.?|affect(?:s)?|relationship(?:\s+between)?)\s+(?:the\s+)?acceleration|acceleration\s+(?:and|vs\.?|when(?:\s+i)?\s+(?:increase|change|decrease))\s+(?:the\s+)?force)/i);
+  const newtonMatch = clean.match(/(?:newton(?:'?s)?\s+(?:second\s+law|laws?)|incline(?:d)?\s+plane|\bf\s*=\s*ma\b|force\s+(?:and|vs\.?|affect(?:s)?|relationship(?:\s+between)?)\s+(?:the\s+)?acceleration|acceleration\s+(?:and|vs\.?|when(?:\s+i)?\s+(?:increase|change|decrease))\s+(?:the\s+)?force)/i);
   if (newtonMatch) {
     // Check if a fixed mass was specified (e.g. "fixed mass of 2 kg", "mass 5kg")
     const massMatch = clean.match(/(?:mass\s*(?:of|=|is)?\s*)(\d+(?:\.\d+)?)\s*(?:kg|kilograms?)?/i);
@@ -1464,7 +1593,7 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   }
 
   // 0i. Hooke's Law & Springs (e.g. "simulate hooke's law", "spring simulation", "harmonic oscillator")
-  const hookeMatch = clean.match(/(?:hooke(?:'s)?\s+law|spring\s+oscillator|harmonic\s+oscillator)/i);
+  const hookeMatch = clean.match(/(?:(?:simulate\s+)?hooke(?:'?s)?\s+law|spring\s+(?:oscillator|simulation)|harmonic\s+oscillator|hooke.*(?:with\s+sliders|sliders)|spring.*(?:with\s+sliders|sliders))/i);
   if (hookeMatch) {
     return {
       type: 'CLASSICAL_MODEL_VIZ',
@@ -1473,7 +1602,7 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   }
 
   // 0j. Wave Mechanics (e.g. "simulate waves", "wave propagation", "wave mechanics")
-  const waveMatch = clean.match(/(?:simulate\s+waves?|wave\s+propagation|wave\s+mechanics|harmonic\s+wave)/i);
+  const waveMatch = clean.match(/(?:simulate\s+waves?|wave\s+propagation|wave\s+mechanics|harmonic\s+wave|wave.*(?:with\s+sliders|sliders))/i);
   if (waveMatch) {
     return {
       type: 'CLASSICAL_MODEL_VIZ',
@@ -1482,7 +1611,7 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   }
 
   // 0k. Circuits & Ohm's Law (e.g. "simulate circuit", "ohm's law simulation", "dc circuit")
-  const circuitMatch = clean.match(/(?:simulate\s+(?:a\s+)?circuit|ohm(?:'s)?\s+law\s+simulation|dc\s+circuit)/i);
+  const circuitMatch = clean.match(/(?:simulate\s+(?:a\s+)?(?:circuit|ohm(?:'?s)?\s+law)|ohm(?:'?s)?\s+law(?:\s+simulation)?|dc\s+circuit|circuit.*(?:with\s+sliders|sliders)|ohm.*(?:with\s+sliders|sliders))/i);
   if (circuitMatch) {
     return {
       type: 'CLASSICAL_MODEL_VIZ',
@@ -1491,7 +1620,7 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   }
 
   // 0l. Unit Circle Trigonometry (e.g. "unit circle", "trigonometry simulation", "unit circle simulation")
-  const trigMatch = clean.match(/(?:unit\s+circle|trigonometry\s+simulation|pythagorean\s+circle)/i);
+  const trigMatch = clean.match(/(?:unit\s+circle|trigonometry\s+simulation|pythagorean\s+circle|unit\s+circle.*(?:with\s+sliders|sliders)|trigonometry.*(?:with\s+sliders|sliders))/i);
   if (trigMatch) {
     return {
       type: 'CLASSICAL_MODEL_VIZ',
@@ -1500,7 +1629,7 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   }
 
   // 0m. Differential Calculus & Derivatives (e.g. "simulate derivative", "tangent line simulation", "calculus derivative")
-  const calcMatch = clean.match(/(?:tangent\s+line\s+simulation|derivative\s+simulation|secant\s+to\s+tangent)/i);
+  const calcMatch = clean.match(/(?:tangent\s+line\s+simulation|derivative\s+simulation|secant\s+to\s+tangent|derivative.*(?:with\s+sliders|sliders)|tangent.*(?:with\s+sliders|sliders))/i);
   if (calcMatch) {
     return {
       type: 'CLASSICAL_MODEL_VIZ',
@@ -2199,7 +2328,7 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   }
 
   // 3j. Simpson's Paradox Conceptual Query (e.g. "Explain Simpson's paradox with hospital treatment success rates")
-  if (/explain\s+simpson(?:'s)?\s+paradox.*?hospital/i.test(clean)) {
+  if (/explain\s+simpson(?:'?s)?\s+paradox.*?hospital/i.test(clean)) {
     return {
       type: 'SIMPSONS_PARADOX_CONCEPTUAL',
       result: 'SIMPSONS_PARADOX',
@@ -2492,6 +2621,10 @@ Under uniform gravitational acceleration $g$, the horizontal and vertical motion
 Adjust the controls above to explore how launch angle $\\theta$ and velocity $v_0$ affect flight time $T = \\frac{2 v_0 \\sin\\theta}{g}$, maximum height $H = \\frac{(v_0 \\sin\\theta)^2}{2g}$, and total range $R = \\frac{v_0^2 \\sin(2\\theta)}{g}$.`;
   }
 
+  if (intent.type === 'VIZ_SUBJECT_CLARIFICATION') {
+    return intent.promptMessage;
+  }
+
   if (intent.type === 'CLASSICAL_MODEL_VIZ') {
     function loadModel(name) {
       try {
@@ -2509,13 +2642,29 @@ Adjust the controls above to explore how launch angle $\\theta$ and velocity $v_
       waves: loadModel('waves'),
       circuits: loadModel('circuits'),
       trigonometry: loadModel('trigonometry'),
-      calculus_derivatives: loadModel('calculus_derivatives')
+      calculus_derivatives: loadModel('calculus_derivatives'),
+      triangle: loadModel('triangle'),
+      circle: loadModel('circle'),
+      normal_distribution: loadModel('normal_distribution'),
+      gas_laws: loadModel('gas_laws'),
+      exponential_growth: loadModel('exponential_growth'),
+      pendulum: loadModel('pendulum'),
+      optics: loadModel('optics'),
+      buoyancy: loadModel('buoyancy')
     };
 
     const modelMod = modelMap[intent.model];
     if (modelMod && modelMod.defaultConfig) {
       // Clone variables to avoid mutating base singleton
       const vars = JSON.parse(JSON.stringify(modelMod.defaultConfig.variables));
+      if (intent.customVars && typeof intent.customVars === 'object') {
+        for (const [k, v] of Object.entries(intent.customVars)) {
+          if (vars[k] && typeof v === 'number' && !isNaN(v)) {
+            vars[k].value = v;
+            vars[k].default = v;
+          }
+        }
+      }
       if (intent.model === 'newtons_laws' && intent.customMass) {
         if (vars.mass) {
           vars.mass.value = intent.customMass;
@@ -2538,7 +2687,10 @@ Adjust the controls above to explore how launch angle $\\theta$ and velocity $v_
         variables: vars
       };
 
-      return `🏛️ **Classical Mathematical Instrument: ${modelMod.defaultConfig.title}**\n\n${modelMod.defaultConfig.description}\n\n[VIZ: ${JSON.stringify(spec)}]\n\nExplore this model using the interactive controls above. Observe how changing the input parameters instantaneously updates the physical system and its metrics.`;
+      const intro = intent.promptIntro || `🏛️ **Classical Mathematical Instrument: ${modelMod.defaultConfig.title}**\n\n${modelMod.defaultConfig.description}`;
+      const footer = intent.promptFooter || `Explore this model using the interactive controls above. Observe how changing the input parameters instantaneously updates the system and its metrics.`;
+
+      return `${intro}\n\n[VIZ: ${JSON.stringify(spec)}]\n\n${footer}`;
     }
   }
 

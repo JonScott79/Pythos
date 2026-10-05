@@ -22,25 +22,66 @@
 
   const models = {};
 
+  const GLOBAL_MAP = {
+    projectile: 'PythosProjectileModel',
+    newtons_laws: 'PythosNewtonsLawsModel',
+    energy_transfer: 'PythosEnergyTransferModel',
+    momentum: 'PythosMomentumModel',
+    hookes_law: 'PythosHookesLawModel',
+    waves: 'PythosWavesModel',
+    circuits: 'PythosCircuitsModel',
+    trigonometry: 'PythosTrigonometryModel',
+    calculus_derivatives: 'PythosCalculusModel',
+    triangle: 'PythosTriangleModel',
+    circle: 'PythosCircleModel',
+    normal_distribution: 'PythosNormalDistributionModel',
+    gas_laws: 'PythosGasLawsModel',
+    exponential_growth: 'PythosExponentialGrowthModel',
+    pendulum: 'PythosPendulumModel',
+    optics: 'PythosOpticsModel',
+    buoyancy: 'PythosBuoyancyModel'
+  };
+
   function registerModel(modelDef) {
     if (modelDef && modelDef.modelId) {
       models[modelDef.modelId.toLowerCase()] = modelDef;
     }
   }
 
-  // Auto-register models if loaded in global/window scope
-  if (typeof window !== 'undefined') {
-    if (window.PythosProjectileModel) registerModel(window.PythosProjectileModel);
-    if (window.PythosNewtonsLawsModel) registerModel(window.PythosNewtonsLawsModel);
-    if (window.PythosEnergyTransferModel) registerModel(window.PythosEnergyTransferModel);
-    if (window.PythosMomentumModel) registerModel(window.PythosMomentumModel);
-    if (window.PythosHookesLawModel) registerModel(window.PythosHookesLawModel);
-    if (window.PythosWavesModel) registerModel(window.PythosWavesModel);
-    if (window.PythosCircuitsModel) registerModel(window.PythosCircuitsModel);
-    if (window.PythosTrigonometryModel) registerModel(window.PythosTrigonometryModel);
-    if (window.PythosCalculusModel) registerModel(window.PythosCalculusModel);
+  function getModel(id) {
+    if (!id) return null;
+    const key = id.toLowerCase();
+    if (models[key]) return models[key];
+    if (typeof window !== 'undefined') {
+      const gName = GLOBAL_MAP[key];
+      if (gName && window[gName]) {
+        registerModel(window[gName]);
+        return models[key];
+      }
+      for (const [k, v] of Object.entries(window)) {
+        if (k.startsWith('Pythos') && k.endsWith('Model') && v && v.modelId) {
+          registerModel(v);
+          if (v.modelId.toLowerCase() === key) return models[key];
+        }
+      }
+    }
+    return null;
   }
 
+  function syncAllModels() {
+    if (typeof window === 'undefined') return;
+    for (const [key, gName] of Object.entries(GLOBAL_MAP)) {
+      if (window[gName]) registerModel(window[gName]);
+    }
+    for (const [k, v] of Object.entries(window)) {
+      if (k.startsWith('Pythos') && k.endsWith('Model') && v && v.modelId) {
+        registerModel(v);
+      }
+    }
+  }
+
+  syncAllModels();
+  
   /**
    * Mounts an interactive visualization instrument into a target DOM container.
    * @param {HTMLElement} container - The wrapper element
@@ -49,7 +90,7 @@
   function renderInstrument(container, spec) {
     if (!container || !spec) return false;
 
-    const modelDef = models[spec.model.toLowerCase()];
+    const modelDef = getModel(spec.model);
     if (!modelDef) {
       container.innerHTML = `<div class="viz-render-fail">Unknown visualization model: ${spec.model}</div>`;
       return false;
@@ -374,6 +415,11 @@
 
   return {
     registerModel,
+    getModel,
+    getModels: () => {
+      syncAllModels();
+      return Object.assign({}, models);
+    },
     renderInstrument
   };
 }));

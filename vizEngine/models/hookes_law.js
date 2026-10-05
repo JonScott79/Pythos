@@ -49,9 +49,9 @@
   };
 
   function compute(vars) {
-    const k = Number(vars.stiffness !== undefined ? vars.stiffness : 50);
-    const x = Number(vars.displacement !== undefined ? vars.displacement : 0.25);
-    const m = Number(vars.mass !== undefined ? vars.mass : 2);
+    const k = Number(vars.stiffness !== undefined ? vars.stiffness : (vars.k !== undefined ? vars.k : 50));
+    const x = Number(vars.displacement !== undefined ? vars.displacement : (vars.x !== undefined ? vars.x : 0.25));
+    const m = Number(vars.mass !== undefined ? vars.mass : (vars.m !== undefined ? vars.m : 2));
 
     // Restoring force: F = -k * x
     const restoringForce = -k * x;

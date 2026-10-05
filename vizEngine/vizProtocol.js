@@ -30,7 +30,15 @@
     'waves',
     'circuits',
     'trigonometry',
-    'calculus_derivatives'
+    'calculus_derivatives',
+    'triangle',
+    'circle',
+    'normal_distribution',
+    'gas_laws',
+    'exponential_growth',
+    'pendulum',
+    'optics',
+    'buoyancy'
   ]);
 
   /**
