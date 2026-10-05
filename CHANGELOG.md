@@ -1,3 +1,26 @@
+## Pythos 1.8.31
+**Release Date:** October 5, 2026
+
+### Added
+- **PhET-Style Classical Simulation Lab (`vizEngine/simLab.js`)**:
+  - Direct access toolbar button (`[ ⚛️ Sim Lab ]`) integrated adjacent to Function Grapher.
+  - Interactive shelf catalog showcasing all 17 classical STEM instruments with real-time keyword search.
+  - Category filtration tabs: `All (17)`, `Physics (10)`, `Chemistry (1)`, and `Math (6)`.
+  - Full-stage active experiment view featuring real-time responsive parameter sliders, instant canvas re-render, and the **"Ask Pythos" 💬** Socratic dialog bridge.
+  - High-contrast classical dark theme scrollbars with `overscroll-behavior: contain`.
+- **3 New Physical Simulation Models (All 17 Models Complete)**:
+  - **Simple Harmonic Pendulum (`pendulum.js`)**: Interactive length $L$, release angle $\theta$, local gravity $g$, and mass $m$. Features real-time period $T = 2\pi\sqrt{L/g}$ with Borda large-angle correction, restoring torque $\tau = -mgL\sin\theta$, and dynamic potential/kinetic energy metrics.
+  - **Geometric Optics & Snell's Law (`optics.js`)**: Refraction across media boundaries ($n_1\sin\theta_1 = n_2\sin\theta_2$) with Air, Water, Glass, and Diamond presets, ray diagrams, angle arcs, and Total Internal Reflection (TIR) with critical angle detection.
+  - **Archimedes' Buoyancy & Upthrust (`buoyancy.js`)**: Hydrostatic upthrust ($F_b = \rho_f V g$), real-time waterline display, submerged fraction, density presets (Wood, Ice, Water, Aluminum, Steel, Gold), and opposing gravity/buoyancy vector balances.
+
+### Fixed
+- **Hooke's Law & Deterministic Router Invariance**:
+  - Added apostrophe-invariant pattern matching in `server/deterministicRouter.js` for classical laws (`hooke(?:'?s)?\s+law`, `newton(?:'?s)?`, `boyle(?:'?s)?`, `charles(?:'?s)?`, etc.).
+  - Mapped variable aliases ($k, x, m \to$ stiffness, displacement, mass) in `vizEngine/models/hookes_law.js`.
+  - Eliminated false-positive `"📐 Interactive Triangle Unavailable"` error cards in `app.js` by enforcing strict word boundaries on trigonometric query triggers.
+- **Single-Stage Viewport Switching**:
+  - Eliminated nested flexbox height constraint conflicts between the catalog shelf and active experiment stage, ensuring simulations open in 100% full-screen modal view without window splitting.
+
 ## Pythos 1.8.30
 **Release Date:** October 4, 2026
 

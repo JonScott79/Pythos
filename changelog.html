@@ -22,7 +22,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="assets/favicon.png">
-  <title>Pythos Release History &amp; Changelog | v1.8.29</title>
+  <title>Pythos Release History &amp; Changelog | v1.8.31</title>
   <meta name="description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
@@ -532,7 +532,7 @@
         <a href="nonprofit.html" class="nav-link">Mission &amp; Roadmap</a>
         <a href="license.html" class="nav-link">License</a>
         <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" class="nav-link">Facebook</a>
-        <a href="changelog.html#pythos-1-8-29" class="nav-link active" aria-current="page">v1.8.29</a>
+        <a href="changelog.html#pythos-1-8-31" class="nav-link active" aria-current="page">v1.8.31</a>
       </div>
     </div>
 
@@ -561,11 +561,55 @@
     <!-- RELEASE v1.8.29 -->
         <!-- ==================== RELEASE 1.8.28 ==================== -->
         <!-- ==================== RELEASE 1.8.29 ==================== -->
+    <!-- ==================== RELEASE 1.8.31 ==================== -->
+    <article class="release-card" id="pythos-1-8-31">
+      <div class="release-header">
+        <div class="release-title-wrap">
+          <h2 class="release-version">Pythos 1.8.31</h2>
+          <span class="release-badge">Latest Release</span>
+        </div>
+        <time class="release-date" datetime="2026-10-05">October 5, 2026</time>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header">
+          <span class="badge-added">New Feature</span>
+          <span class="section-title">PhET-Style Classical Simulation Lab &amp; Expanded Physics Suite</span>
+        </div>
+        <ul class="change-list">
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>PhET-Style Classical Sim Lab (<code>vizEngine/simLab.js</code>):</strong> Launched a dedicated, interactive simulation laboratory modal accessed via the new <code>[ ⚛️ Sim Lab ]</code> toolbar button. Features a shelf catalog of all 17 interactive STEM instruments, category filter tabs (<code>All</code>, <code>Physics</code>, <code>Chemistry</code>, <code>Math</code>), real-time search, custom high-contrast dark scrollbars, and the <strong>"Ask Pythos" 💬</strong> Socratic bridge.</div>
+          </li>
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Simple Harmonic Pendulum (<code>pendulum.js</code>):</strong> Interactive pendulum arm with mass bob, release angle, and uniform gravity. Computes real-time period $T = 2\pi\sqrt{L/g}$ with Borda correction, restoring torque, and kinetic/potential energy transformations.</div>
+          </li>
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Geometric Optics &amp; Snell's Law (<code>optics.js</code>):</strong> Planar boundary refraction ($n_1\sin\theta_1 = n_2\sin\theta_2$) with media refractive indices (Air, Water, Glass, Diamond), incident and refracted rays, normal line, angle arcs, and automatic Total Internal Reflection (TIR) detection.</div>
+          </li>
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Archimedes' Buoyancy &amp; Upthrust (<code>buoyancy.js</code>):</strong> Hydrostatic displacement and buoyant force ($F_b = \rho_f V g$) simulation featuring water tank visualization, waterline display, submerged fraction, density presets, and net force vector equilibrium.</div>
+          </li>
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Hooke's Law &amp; Router Hardening:</strong> Added apostrophe-invariant pattern matching in <code>server/deterministicRouter.js</code>, mapped $k, x, m$ aliases in <code>hookes_law.js</code>, and eliminated false-positive triangle error cards in <code>app.js</code>.</div>
+          </li>
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Single-Stage Viewport Architecture:</strong> Re-architected shelf and experiment view switching with authoritative display properties, guaranteeing 100% full-screen modal view without window splitting.</div>
+          </li>
+        </ul>
+      </div>
+    </article>
+
     <article class="release-card" id="pythos-1-8-29">
       <div class="release-header">
         <div class="release-title-wrap">
           <h2 class="release-version">Pythos 1.8.29</h2>
-          <span class="release-badge">Latest Release</span>
+          <span class="release-badge" style="display:none;">Latest Release</span>
         </div>
         <time class="release-date" datetime="2026-10-03">October 3, 2026</time>
       </div>
@@ -1696,7 +1740,7 @@
 
   <footer>
     <div>🏛️ Pythos — Free AI Mathematics &amp; Physics Education Initiative. Developed by LANZAR.</div>
-    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-8-29" style="color:var(--primary-color); text-decoration:none;">v1.8.26</a></div>
+    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-8-31" style="color:var(--primary-color); text-decoration:none;">v1.8.31</a></div>
   </footer>
 
   <script>
