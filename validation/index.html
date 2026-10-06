@@ -780,6 +780,7 @@
         <div class="meta-item"><span>Current Release Version:</span> <strong>Pythos v1.8.34</strong></div>
         <div class="meta-item"><span>Validation Campaign:</span> <strong>Deterministic &amp; Candidate-Rejection Recovery Stress Validation (50K Benchmark)</strong></div>
         <div class="meta-item"><span>PRNG Stream Seed:</span> <strong><code>1732050808</code></strong></div>
+        <div class="meta-item"><span>Campaign Commit:</span> <strong><code>4cdb7ee</code></strong></div>
         <div class="meta-item"><span>Last Validated:</span> <strong>October 3, 2026</strong></div>
       </div>
 
@@ -1190,6 +1191,10 @@
 
       <div class="callout" style="margin-top: 14px;">
         <strong>Environmental / Infrastructure Context (Local Model OOM Event):</strong> During an intermediate 110,000-problem benchmark attempt using a locally hosted 7B model (<code>qwen2.5-coder:7b</code> via Ollama on laptop hardware), the local runtime experienced an Out-Of-Memory (OOM) operating system termination (exit code <code>-536870904</code>). This was strictly an environmental and resource failure of running multi-gigabyte local LLM inference under heavy continuous load on constrained laptop hardware—not a mathematical failure of the Pythos verification stack (zero mathematical errors were delivered prior to the OS crash). The campaign was subsequently restructured as a 100% remote online validation campaign using Groq Cloud, completing all 110,000 problems with 132.1 MB peak memory. The crashed run's checkpoints and diagnostic logs are archived in <code>preserved-crashed-local-run/</code>.
+      </div>
+
+      <div class="callout" style="margin-top: 14px;">
+        <strong>Documentation Correction &amp; Alignment Notice (October 6, 2026):</strong> Between releases v1.8.27 and v1.8.33, the "Current Validation" headline panel reflected the bumped software release version, but its underlying 50,000-problem summary table and 12-domain breakdown inadvertently displayed the metrics from the earlier v1.8.16 (Task #6) campaign (<code>20,602</code> verified, <code>29,398</code> safely withheld, PRNG seed <code>1618033988</code>). An external peer audit identified that the headline card duplicated the historical Task #6 row below it. On October 6, 2026, the primary validation display was corrected and aligned with the authoritative v1.8.25+ Recovery Stress Validation campaign (commit <code>4cdb7ee</code>, PRNG seed <code>1732050808</code>: <code>21,733</code> verified correct, <code>28,267</code> safely withheld, zero escapes, and 2,920 / 2,920 certified recoveries). In keeping with Pythos's open engineering standards, we document this editorial fix openly rather than quietly overwriting historical records.
       </div>
 
       <div class="callout" style="margin-top: 14px;">
