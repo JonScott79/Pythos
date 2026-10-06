@@ -25,7 +25,8 @@ const {
   detectTopicTransitionIntent,
   extractActiveProblemState,
   formatActiveProblemContext,
-  buildBoundedConversationContext
+  buildBoundedConversationContext,
+  buildEffectivePrompt
 } = require('./server/contextManager');
 
 const {
@@ -260,6 +261,17 @@ test('7.2: Handles messages with undefined content safely', () => {
   const res = buildBoundedConversationContext(messages);
   assert(res && res.messagesForModel);
   assert.strictEqual(res.messagesForModel.length, 3);
+});
+
+test('7.3: buildEffectivePrompt safely extracts practice problem without TDZ ReferenceError', () => {
+  const messages = [
+    { role: 'user', content: 'using sketches find the exact value of sec(cot(-36.23))' },
+    { role: 'assistant', content: "Here's another practice problem with the same kind of right-triangle and sketch setup:\n\nUsing a sketch, find the exact value of $\\csc(\\cot(-28.45))$.\n\nDon't solve it all at once if you're unsure" },
+    { role: 'user', content: 'show me how to do this on a right triangle' }
+  ];
+  const effective = buildEffectivePrompt(messages);
+  assert(effective && typeof effective === 'string');
+  assert(effective.includes('exact value') || effective.includes('csc'));
 });
 
 console.log(`\n====================================================`);

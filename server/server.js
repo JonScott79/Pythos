@@ -1641,9 +1641,14 @@ app.post('/api/chat', async (req, res) => {
       if (directResponse) {
         // Deterministic solution is a CANDIDATE, never an unverified delivery!
         const candidateAnswer = extractCandidateAnswer(directResponse);
-        const effectiveVerificationPrompt = (contextManager.buildEffectivePrompt && Array.isArray(messages))
-          ? contextManager.buildEffectivePrompt(messages)
-          : (lastUserMsg ? lastUserMsg.content : '');
+        let effectiveVerificationPrompt = (lastUserMsg ? lastUserMsg.content : '');
+        try {
+          if (contextManager.buildEffectivePrompt && Array.isArray(messages)) {
+            effectiveVerificationPrompt = contextManager.buildEffectivePrompt(messages);
+          }
+        } catch (ctxErr) {
+          console.warn('[CONTEXT] buildEffectivePrompt failed in deterministic gate:', ctxErr.message);
+        }
 
         let gatePassed = false;
         let delivery = null;
@@ -2393,9 +2398,14 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
       message: { role: 'assistant', content: finalContent },
       done: true
     };
-    const effectiveVerificationPrompt = (contextManager.buildEffectivePrompt && Array.isArray(messages))
-      ? contextManager.buildEffectivePrompt(messages)
-      : (lastUserMsg ? lastUserMsg.content : '');
+    let effectiveVerificationPrompt = (lastUserMsg ? lastUserMsg.content : '');
+    try {
+      if (contextManager.buildEffectivePrompt && Array.isArray(messages)) {
+        effectiveVerificationPrompt = contextManager.buildEffectivePrompt(messages);
+      }
+    } catch (ctxErr) {
+      console.warn('[CONTEXT] buildEffectivePrompt failed in post-verification:', ctxErr.message);
+    }
     let { claims, internalContradictions, verificationResults, invalidClaims } = await verifyResponseClaims(
       finalContent,
       effectiveVerificationPrompt,

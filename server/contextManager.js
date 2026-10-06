@@ -737,20 +737,6 @@ function buildEffectivePrompt(messages = []) {
     return 'Generate practice problem: ' + latestUser;
   }
 
-  // 1c. If previous assistant response was a practice problem, base prompt is the practice problem
-  for (let pi = messages.length - 2; pi >= 0; pi--) {
-    const prevMsg = messages[pi];
-    if (prevMsg && prevMsg.role === 'assistant' && (prevMsg.content.includes('practice problem') || prevMsg.content.includes('Using a sketch, find the exact value') || prevMsg.content.includes('Don\'t solve it yet'))) {
-      const pMatch = prevMsg.content.match(/(?:Using\s+(?:a\s+)?sketch(?:es)?.*?find\s+the\s+exact\s+value\s+of\s+)?\$?(\\[a-zA-Z]+(?:\([^)]+\))+)\$?|Solve\s+for\s+\$?[a-zA-Z]\$?:?\s*\$\$?([^$\n]+)\$\$?|Find\s+the\s+derivative.*?for:\s*\$\$?([^$\n]+)\$\$?|find\s+the\s+exact\s+value\s+of\s+\$?([^$\n.]+)\$?|[Ss]olve\s+for\s+\$?[a-zA-Z]\$?.*?\$\$?([^$\n]+)\$\$?|find\s+its\s+acceleration/i);
-      if (pMatch) {
-        const extractedProblem = pMatch[0].trim();
-        basePrompt = extractedProblem;
-        effective = basePrompt;
-        break;
-      }
-    }
-  }
-
   // 2. Identify base problem
   let basePrompt = firstUser;
   for (let i = 0; i < userMsgs.length - 1; i++) {
@@ -764,6 +750,20 @@ function buildEffectivePrompt(messages = []) {
   }
 
   let effective = basePrompt;
+
+  // 1c. If previous assistant response was a practice problem, base prompt is the practice problem
+  for (let pi = messages.length - 2; pi >= 0; pi--) {
+    const prevMsg = messages[pi];
+    if (prevMsg && prevMsg.role === 'assistant' && (prevMsg.content.includes('practice problem') || prevMsg.content.includes('Using a sketch, find the exact value') || prevMsg.content.includes('Don\'t solve it yet'))) {
+      const pMatch = prevMsg.content.match(/(?:Using\s+(?:a\s+)?sketch(?:es)?.*?find\s+the\s+exact\s+value\s+of\s+)?\$?(\\[a-zA-Z]+(?:\([^)]+\))+)\$?|Solve\s+for\s+\$?[a-zA-Z]\$?:?\s*\$\$?([^$\n]+)\$\$?|Find\s+the\s+derivative.*?for:\s*\$\$?([^$\n]+)\$\$?|find\s+the\s+exact\s+value\s+of\s+\$?([^$\n.]+)\$?|[Ss]olve\s+for\s+\$?[a-zA-Z]\$?.*?\$\$?([^$\n]+)\$\$?|find\s+its\s+acceleration/i);
+      if (pMatch) {
+        const extractedProblem = pMatch[0].trim();
+        basePrompt = extractedProblem;
+        effective = basePrompt;
+        break;
+      }
+    }
+  }
 
   for (let i = 1; i < userMsgs.length; i++) {
     const turnText = userMsgs[i].content.trim();
