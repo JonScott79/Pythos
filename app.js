@@ -2291,7 +2291,7 @@ async function loadChat(chatId) {
       });
       messages.forEach(msg => {
         if (msg.role === "assistant" && msg.isDeepThought) {
-          showDeepThoughtResponse();
+          showDeepThoughtResponse(msg.dtLocale || "en");
         } else if (msg.role === "user" && typeof msg.content === "string" && msg.content.startsWith("[SIMULATION STATE - ")) {
           const simMatch = msg.content.match(/^\[SIMULATION STATE - ([^\]]+)\]/);
           const simTitle = simMatch ? simMatch[1] : "Simulation";
@@ -2361,50 +2361,212 @@ async function saveChatState(userMessage, botReply) {
 // =====================================
 // DEEP THOUGHT
 // =====================================
-const MATH_OPERATOR_REGEX = /[+\-*/^=<>%√]/;
+const DEEP_THOUGHT_LOCALES = {
+  en: {
+    header: "PYTHOS // DEEP THOUGHT MODE",
+    quote: '"The answer to the great question... of Life, the Universe and Everything... is forty-two."',
+    author: "— Deep Thought, <em>The Hitchhiker's Guide to the Galaxy</em>",
+    subquote: '"I think the problem, to be quite honest with you, is that you\'ve never actually known what the question is."'
+  },
+  es: {
+    header: "PYTHOS // MODO PENSAMIENTO PROFUNDO",
+    quote: '«La respuesta a la gran pregunta... sobre la vida, el universo y todo lo demás... es cuarenta y dos.»',
+    author: "— Pensamiento Profundo, <em>Guía del autoestopista galáctico</em>",
+    subquote: '«El problema, si le soy sincero, es que ustedes jamás supieron cuál era la pregunta.»'
+  },
+  fr: {
+    header: "PYTHOS // MODE PENSÉES PROFONDES",
+    quote: '« La réponse à la grande question sur la vie, l\'univers et le reste... est quarante-deux. »',
+    author: "— Pensées Profondes, <em>Le Guide du voyageur galactique</em>",
+    subquote: '« Je crois que le problème, pour être tout à fait franc, c\'est que vous n\'avez jamais vraiment su quelle était la question. »'
+  },
+  de: {
+    header: "PYTHOS // DEEP THOUGHT MODUS",
+    quote: '„Die Antwort auf die große Frage nach dem Leben, dem Universum und dem ganzen Rest... lautet zweiundvierzig.“',
+    author: "— Deep Thought, <em>Per Anhalter durch die Galaxis</em>",
+    subquote: '„Ich glaube, das Problem liegt ganz einfach darin, dass ihr eigentlich nie gewusst habt, wie die Frage überhaupt lautete.“'
+  },
+  pt: {
+    header: "PYTHOS // MODO PENSADOR PROFUNDO",
+    quote: '«A resposta para a Grande Questão sobre a Vida, o Universo e Tudo Mais... é quarenta e dois.»',
+    author: "— Pensador Profundo, <em>O Guia do Mochileiro das Galáxias</em>",
+    subquote: '«O problema, para ser bem honesto, é que vocês nunca souberam qual era a pergunta de fato.»'
+  },
+  it: {
+    header: "PYTHOS // MODALITÀ PENSIERO PROFONDO",
+    quote: '«La risposta alla Grande Domanda sulla Vita, l\'Universo e Tutto Quanto... è quarantadue.»',
+    author: "— Pensiero Profondo, <em>Guida galattica per autostoppisti</em>",
+    subquote: '«Il problema, a esser del tutto franchi, è che non avete mai saputo quale fosse la domanda.»'
+  },
+  ru: {
+    header: "PYTHOS // РЕЖИМ ДУМАТЕЛЯ",
+    quote: '«Ответ на Главный вопрос жизни, Вселенной и всего такого... это сорок два.»',
+    author: "— Думатель, <em>«Автостопом по галактике»</em>",
+    subquote: '«По-моему, вся загвоздка в том, что вы так толком и не знали, в чём состоит вопрос.»'
+  },
+  zh: {
+    header: "PYTHOS // 深思模式",
+    quote: '“关于生命、宇宙以及一切的终极问题的答案……是四十二。”',
+    author: "—— 深思，<em>《银河系漫游指南》</em>",
+    subquote: '“老实说，我认为真正的问题在于……你们根本不知道真正的问题是什么。”'
+  },
+  ja: {
+    header: "PYTHOS // ディープ・ソート・モード",
+    quote: '「生命、宇宙、そして万物についての究極の疑問の答えは……四十二です」',
+    author: "—— ディープ・ソート、<em>『銀河ヒッチハイク・ガイド』</em>",
+    subquote: '「率直に申し上げて問題は、みなさんがその問いが何であるかを正確にご存じなかったことにあると思います」'
+  },
+  ko: {
+    header: "PYTHOS // 깊은 생각 모드",
+    quote: '“삶, 우주, 그리고 모든 것에 대한 궁극적인 질문의 답은... 42입니다.”',
+    author: "— 깊은 생각, <em>《은하수를 여행하는 히치하이커를 위한 안내서》</em>",
+    subquote: '“솔직히 말씀드리면, 진짜 문제는 당신들이 질문이 무엇이었는지 전혀 몰랐다는 데 있다고 봅니다.”'
+  },
+  ar: {
+    header: "PYTHOS // وضع الفكر العميق",
+    quote: '«الجواب على السؤال العظيم... عن الحياة، والكون وكل شيء... هو اثنان وأربعون.»',
+    author: "— الفكر العميق، <em>دليل المسافر إلى المجرة</em>",
+    subquote: '«أعتقد أن المشكلة، لكي أكون صادقاً تماماً معك، هي أنكم لم تعرفوا قط ما هو السؤال.»'
+  }
+};
+
+const MATH_OPERATOR_REGEX = /[+*/^=<>%√]|(?:\b\d+\s*-\s*\d+\b)|(?:\s+-\s+)/;
 const MATH_KEYWORD_REGEX = /\b(solve|calculate|compute|derive|differentiate|integrate|factor|factors|prime|graph|plot|simplify|evaluate|expand|proof|prove|equation|formula|polynomial|matrix|vector|limit|function|sin|cos|tan|log|ln|dx|dy|algebra|calculus|geometry|physics|velocity|acceleration|force|mass|momentum|energy|work|joules|meters|seconds|degrees|radians|pi|number|even|odd|composite|divisible)\b/i;
 const STEM_EXCLUSIONS = /\b(half[\-\s]life|life[\-\s]cycle|cellular\s+life|marine\s+life|plant\s+life|animal\s+life|battery\s+life|shelf\s+life|wildlife)\b/i;
 
-function isDeepThoughtQuestion(text) {
-  if (!text) return false;
+function detectDeepThoughtLocale(text) {
+  if (!text) return null;
   const clean = text.trim().toLowerCase().replace(/['"`’‘]/g, "'");
 
   // STRICT MATH & TUTORING PROTECTION:
   // If the query contains any math operators, math keywords, or science topics, NEVER hijack it.
-  if (MATH_OPERATOR_REGEX.test(clean)) return false;
-  if (MATH_KEYWORD_REGEX.test(clean)) return false;
-  if (STEM_EXCLUSIONS.test(clean)) return false;
+  if (MATH_OPERATOR_REGEX.test(clean)) return null;
+  if (MATH_KEYWORD_REGEX.test(clean)) return null;
+  if (STEM_EXCLUSIONS.test(clean)) return null;
 
   // Standalone numbers or student answers (like '42', 'answer is 42', 'it is 42', '42 kg') must NEVER trigger.
-  if (/^(\d+|forty[\-\s]two)(\s*(m|cm|mm|km|s|sec|kg|g|n|j|w|hz|v|deg|rad))?[\?\.\!]*$/i.test(clean)) return false;
-  if (/\b(answer\s+is|got|result\s+is|equals?|is\s+it)\s+(\d+|forty[\-\s]two)\b/i.test(clean)) return false;
-  if (/^(what|why)\s+is\s+(\d+|forty[\-\s]two)[\?\.\!]*$/i.test(clean)) return false;
+  if (/^(\d+|forty[\-\s]two|cuarenta\s+y\s+dos|quarante[\-\s]deux|zweiundvierzig|42)(\s*(m|cm|mm|km|s|sec|kg|g|n|j|w|hz|v|deg|rad))?[\?\.\!]*$/i.test(clean)) return null;
+  if (/\b(answer\s+is|got|result\s+is|equals?|is\s+it)\s+(\d+|forty[\-\s]two)\b/i.test(clean)) return null;
+  if (/^(what|why)\s+is\s+(\d+|forty[\-\s]two)[\?\.\!]*$/i.test(clean)) return null;
 
-  // 1. Adams / Hitchhiker explicit canon
-  if (/\bhitchhiker('?s)?(\s+guide)?\b/i.test(clean)) return true;
-  if (/\bdeep\s+thought\b/i.test(clean)) return true;
-  if (/\bdon'?t\s+panic\b/i.test(clean)) return true;
+  // 1. Spanish
+  if (/\b(autoestopista\s+gal[aá]ctico|gu[ií]a\s+del\s+autoestopista|pensamiento\s+profundo|no\s+te\s+asustes)\b/i.test(clean) ||
+      /\b(que\s+no\s+cunda\s+el\s+p[aá]nico)\b/i.test(clean) ||
+      /\b(sentido|significado|prop[oó]sito|raz[oó]n|secreto)\s+de\s+(la\s+)?(vida|existencia)\b/i.test(clean) ||
+      /\b(vida[,\s]+(el\s+)?universo\s+y\s+todo\s+lo\s+dem[aá]s)\b/i.test(clean) ||
+      (/\b(la\s+gran\s+pregunta|la\s+respuesta\s+definitiva)\b/i.test(clean) && /\b(vida|universo)\b/i.test(clean)) ||
+      /\bqu[eé]\s+es\s+la\s+vida\b/i.test(clean) ||
+      /\bpor\s*qu[eé]\s+(estamos\s+aqu[ií]|existimos|vivimos)\b/i.test(clean)) {
+    return "es";
+  }
 
-  // 2. The Great / Ultimate Question & Answer (in the context of life/universe/everything)
-  if (/\b(great|ultimate)\s+(question|answer)\b/i.test(clean) && /\b(life|universe|everything)\b/i.test(clean)) return true;
+  // 2. French
+  if (/\b(guide\s+du\s+voyageur\s+galactique|h2g2|pens[eé]es\s+profondes|pas\s+de\s+panique)\b/i.test(clean) ||
+      /\b(sens|but|signification|myst[eè]re)\s+de\s+la\s+vie\b/i.test(clean) ||
+      /\bla\s+vie[,\s]+(l['’]univers\s+et\s+(tout\s+)?le\s+reste)\b/i.test(clean) ||
+      (/\b(la\s+grande\s+question|la\s+r[eé]ponse\s+ultime)\b/i.test(clean) && /\b(vie|univers)\b/i.test(clean)) ||
+      /\bqu['’]est[\-\s]ce\s+que\s+la\s+vie\b/i.test(clean) ||
+      /\bpourquoi\s+(existons[\-\s]nous|sommes[\-\s]nous\s+l[aà]|vivons[\-\s]nous)\b/i.test(clean)) {
+    return "fr";
+  }
 
-  // 3. Life, Universe, and Everything
-  if (/\blife[,\s]+(the\s+)?universe[,\s]+(and\s+)?everything\b/i.test(clean)) return true;
-  if (/\b(universe|everything)\b/i.test(clean) && /\b(meaning|question|answer)\b/i.test(clean) && /\blife\b/i.test(clean)) return true;
+  // 3. German
+  if (/\b(per\s+anhalter\s+durch\s+die\s+galaxis|keine\s+panik)\b/i.test(clean) ||
+      /\b(sinn|zweck|geheimnis)\s+des\s+lebens\b/i.test(clean) ||
+      /\bdas\s+leben[,\s]+(das\s+)?universum\s+und\s+(der\s+ganze\s+rest|alles)\b/i.test(clean) ||
+      (/\b(die\s+gro[ßs]e\s+frage|die\s+ultimative\s+frage|die\s+antwort)\b/i.test(clean) && /\b(leben|universum)\b/i.test(clean)) ||
+      /\bwas\s+ist\s+das\s+leben\b/i.test(clean) ||
+      /\bwarum\s+(sind\s+wir\s+hier|existieren\s+wir|leben\s+wir)\b/i.test(clean)) {
+    return "de";
+  }
 
-  // 4. "Question of life" or "Answer to life/everything/universe"
-  if (/\bquestion\s+(of|to|behind|for)\s+(life|existence)\b/i.test(clean)) return true;
-  if (/\banswer\s+(to|of|for|behind)\s+(life|everything|the\s+universe)\b/i.test(clean)) return true;
+  // 4. Portuguese
+  if (/\b(mochileiro\s+das\s+gal[aá]xias|pensador\s+profundo|n[aã]o\s+(entre\s+em\s+)?p[aâ]nico)\b/i.test(clean) ||
+      /\b(sentido|significado|prop[oó]sito|raz[aã]o)\s+da\s+vida\b/i.test(clean) ||
+      /\ba\s+vida[,\s]+(o\s+)?universo\s+e\s+tudo\s+mais\b/i.test(clean) ||
+      (/\b(a\s+grande\s+quest[aã]o|a\s+resposta\s+definitiva)\b/i.test(clean) && /\b(vida|universo)\b/i.test(clean)) ||
+      /\bo\s+que\s+[eé]\s+a\s+vida\b/i.test(clean) ||
+      /\bpor\s*que\s+(existimos|estamos\s+aqui|vivemos)\b/i.test(clean)) {
+    return "pt";
+  }
 
-  // 5. Meaning / Purpose / Point / Secret of life & existence
-  if (/\b(meaning|purpose|point|secret|reason|mystery)\s+(of|for|behind)\s+(life|living|existence|our\s+existence|human\s+existence|it\s+all)\b/i.test(clean)) return true;
-  if (/\bwhat\s+is\s+life\s+(all\s+)?about\b/i.test(clean)) return true;
-  if (/\bwhat('s|\s+is)\s+the\s+meaning\s+of\s+it\s+all\b/i.test(clean)) return true;
+  // 5. Italian
+  if (/\b(guida\s+galattica\s+per\s+autostoppisti|pensiero\s+profondo|niente\s+panico)\b/i.test(clean) ||
+      /\b(senso|significato|scopo)\s+della\s+vita\b/i.test(clean) ||
+      /\bla\s+vita[,\s]+(l['’]universo\s+e\s+tutto\s+quanto)\b/i.test(clean) ||
+      (/\b(la\s+grande\s+domanda|la\s+risposta\s+definitiva)\b/i.test(clean) && /\b(vida|universo)\b/i.test(clean)) ||
+      /\bche\s+cos['’][eè]\s+la\s+vida\b/i.test(clean) ||
+      /\bche\s+cos['’][eè]\s+la\s+vita\b/i.test(clean) ||
+      /\bperch[eé]\s+(esistiamo|siamo\s+qui|viviamo)\b/i.test(clean)) {
+    return "it";
+  }
 
-  // 6. Existential questions: "Why are we here?", "Why do we exist?"
-  if (/^why\s+(are\s+we\s+here|do\s+we\s+exist|do\s+we\s+live|were\s+we\s+created|are\s+we\s+alive)[\?\.\!]*$/i.test(clean)) return true;
+  // 6. Russian
+  if (/(автостопом\s+по\s+галактике|думатель|без\s+паники|не\s+паникуй)/i.test(clean) ||
+      /(смысл|цель|суть|тайна)\s+жизни/i.test(clean) ||
+      /(жизнь[,\s]+(вселенная|вселенной)\s+и\s+(вс[её]|всего)\s+(такого|остального))/i.test(clean) ||
+      /(главный\s+вопрос|ответ\s+на\s+вопрос).*(жизни|вселенной)/i.test(clean) ||
+      /(в\s+ч[её]м\s+смысл\s+жизни|что\s+такое\s+жизнь)/i.test(clean) ||
+      /(зачем|почему)\s+(мы\s+здесь|мы\s+живем|мы\s+живём|мы\s+существуем)/i.test(clean)) {
+    return "ru";
+  }
 
-  return false;
+  // 7. Chinese
+  if (/(银河系漫游指南|银河漫游指南|深思|不要慌|别慌)/.test(clean) ||
+      /(生命|人生|活着)的(意义|本质|真谛|目的)/.test(clean) ||
+      /(生命[，,\s]*宇宙以及一切|宇宙以及一切的终极答案)/.test(clean) ||
+      /(终极问题|终极答案).*(生命|宇宙)/.test(clean) ||
+      /(人为什么活着|我们为什么存在|为什么我们在这里)/.test(clean)) {
+    return "zh";
+  }
+
+  // 8. Japanese
+  if (/(銀河ヒッチハイク|ディープ・ソート|ディープソート|パニックになるな)/.test(clean) ||
+      /(人生|生命|生きる)(の)?(意味|目的|真理)/.test(clean) ||
+      /(生命[、,\s]*宇宙[、,\s]*そして万物)/.test(clean) ||
+      /(究極の疑問|究極の問い|究極の答え)/.test(clean) ||
+      /(なぜ私たちは存在するのか|何のために生きるのか|生きる意味とは)/.test(clean)) {
+    return "ja";
+  }
+
+  // 9. Korean
+  if (/(히치하이커를\s+위한\s+안내서|깊은\s+생각|당황하지\s+마)/.test(clean) ||
+      /(삶|인생|생명)의\s*(의미|목적|이유)/.test(clean) ||
+      /(삶[,\s]*우주[,\s]*그리고\s*모든\s*것)/.test(clean) ||
+      /(궁극적인?\s*질문|궁극의\s*답)/.test(clean) ||
+      /(우리는\s*왜\s*(존재하는가|여기\s*있는가|살아가는가))/.test(clean)) {
+    return "ko";
+  }
+
+  // 10. Arabic
+  if (/(دليل\s+المسافر\s+إلى\s+المجرة|الفكر\s+العميق|لا\s+داعي\s+للذعر)/.test(clean) ||
+      /(معنى|هدف|سر|غاية)\s+الحياة/.test(clean) ||
+      /(الحياة\s+والكون\s+وكل\s+شيء|السؤال\s+الأعظم|الجواب\s+النهائي)/.test(clean) ||
+      /(لماذا\s+نحن\s+هنا|لماذا\s+نوجد|ما\s+هو\s+معنى\s+الحياة)/.test(clean)) {
+    return "ar";
+  }
+
+  // 11. English
+  if (/\bhitchhiker('?s)?(\s+guide)?\b/i.test(clean) ||
+      /\bdeep\s+thought\b/i.test(clean) ||
+      /\bdon'?t\s+panic\b/i.test(clean) ||
+      (/\b(great|ultimate)\s+(question|answer)\b/i.test(clean) && /\b(life|universe|everything)\b/i.test(clean)) ||
+      /\blife[,\s]+(the\s+)?universe[,\s]+(and\s+)?everything\b/i.test(clean) ||
+      (/\b(universe|everything)\b/i.test(clean) && /\b(meaning|question|answer)\b/i.test(clean) && /\blife\b/i.test(clean)) ||
+      /\bquestion\s+(of|to|behind|for)\s+(life|existence)\b/i.test(clean) ||
+      /\banswer\s+(to|of|for|behind)\s+(life|everything|the\s+universe)\b/i.test(clean) ||
+      /\b(meaning|purpose|point|secret|reason|mystery)\s+(of|for|behind)\s+(life|living|existence|our\s+existence|human\s+existence|it\s+all)\b/i.test(clean) ||
+      /\bwhat\s+is\s+life\s+(all\s+)?about\b/i.test(clean) ||
+      /\bwhat('s|\s+is)\s+the\s+meaning\s+of\s+it\s+all\b/i.test(clean) ||
+      /^why\s+(are\s+we\s+here|do\s+we\s+exist|do\s+we\s+live|were\s+we\s+created|are\s+we\s+alive)[\?\.\!]*$/i.test(clean)) {
+    return "en";
+  }
+
+  return null;
+}
+
+function isDeepThoughtQuestion(text) {
+  return detectDeepThoughtLocale(text) !== null;
 }
 
 function fakeThinkingDelay(ms) {
@@ -2417,26 +2579,23 @@ function fakeThinkingDelay(ms) {
   });
 }
 
-function showDeepThoughtResponse() {
+function showDeepThoughtResponse(localeKey = "en") {
+  const loc = DEEP_THOUGHT_LOCALES[localeKey] || DEEP_THOUGHT_LOCALES.en;
   const div = document.createElement("div");
   div.className = "message assistant deep-thought";
   div.setAttribute("data-clarity-mask", "true");
   div.innerHTML = `
-    <div class="dt-header">PYTHOS // DEEP THOUGHT MODE</div>
-    <div class="dt-quote">"The answer to the great question... of Life, the Universe and Everything... is forty-two."</div>
-    <div class="dt-author">— Deep Thought, <em>The Hitchhiker's Guide to the Galaxy</em></div>
+    <div class="dt-header">${loc.header}</div>
+    <div class="dt-quote">${loc.quote}</div>
+    <div class="dt-author">${loc.author}</div>
     <div class="dt-answer">42</div>
     <div class="dt-subquote" style="text-align: center; font-size: 0.85rem; opacity: 0.8; font-style: italic; line-height: 1.5; margin-top: 12px; color: #a0ffc8;">
-      "I think the problem, to be quite honest with you, is that you've never actually known what the question is."
+      ${loc.subquote}
     </div>
   `;
   output.appendChild(div);
   scrollToMessageTop(div, true);
 }
-
-// =====================================
-// // DETERMINISTIC MATH ENGINE (mathjs)
-//
 // =====================================
 window.DeterministicMath = {
   // Evaluate raw mathematical expressions deterministically
@@ -3333,11 +3492,16 @@ async function askPythos(userText) {
   if (preview) preview.style.display = "none";
 
   // ===== Deep Thought =====
-  if (isDeepThoughtQuestion(cleanText)) {
+  const dtLocale = detectDeepThoughtLocale(cleanText);
+  if (dtLocale) {
     await fakeThinkingDelay(1800);
-    showDeepThoughtResponse();
-    const deepThoughtContent = "\"The answer to the great question... of Life, the Universe and Everything... is forty-two.\"\n\n— Deep Thought, The Hitchhiker's Guide to the Galaxy\n\n42\n\n\"I think the problem, to be quite honest with you, is that you've never actually known what the question is.\"";
-    messages.push({ role: "assistant", content: deepThoughtContent, isDeepThought: true });
+    showDeepThoughtResponse(dtLocale);
+    const loc = DEEP_THOUGHT_LOCALES[dtLocale] || DEEP_THOUGHT_LOCALES.en;
+    const cleanQuote = loc.quote.replace(/[«»“”„"]/g, '"');
+    const cleanSubquote = loc.subquote.replace(/[«»“”„"]/g, '"');
+    const cleanAuthor = loc.author.replace(/<\/?em>/g, '');
+    const deepThoughtContent = `${cleanQuote}\n\n${cleanAuthor}\n\n42\n\n${cleanSubquote}`;
+    messages.push({ role: "assistant", content: deepThoughtContent, isDeepThought: true, dtLocale: dtLocale });
     await saveChatState(cleanText, deepThoughtContent);
     isProcessing = false;
     setInputLocked(false);
