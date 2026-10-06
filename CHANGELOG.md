@@ -1,3 +1,13 @@
+## Pythos 1.8.34
+**Release Date:** October 5, 2026
+
+### Fixed & Hardened (Hotfix)
+- **Asynchronous DOM Reflow Bounding Matrix & Flexbox Intrinsic Sizing Stabilization**:
+  - **CSS Box-Model Subpixel Reflow Stabilization**: Resolved a rare micro-layout race condition where negative free-space allocation in dynamic flexbox layout columns triggered aggressive box-model compression (`min-height: 0` resetting under hidden overflow contexts) on late-arriving assistant response buffers, causing dynamic styled response wrappers to collapse along their vertical axis during rapid multi-turn transcript hydration.
+  - **Intrinsic Element Size Anchoring**: Enforced strict `flex-shrink: 0 !important;` and `min-height: fit-content !important;` invariants across specialized assistant telemetry blocks and log message nodes, ensuring content-driven bounding rect preservation regardless of viewport aspect ratio or accumulated scroll depth.
+  - **Programmatic Viewport Scroll Vector Interpolation**: Re-architected `scrollToMessageTop` coordinate resolution away from legacy `offsetTop` references toward differential bounding matrix projection (`output.scrollTop + (elRect.top - outputRect.top) - 12`), guaranteeing jitter-free viewport alignment and preventing cumulative layout shifts (CLS) on dynamic response rendering.
+  - **Container Positioning Context Normalization**: Explicitly declared `position: relative` on `#output` scroll canvas to ensure deterministic offset parent derivation across Blink and WebKit rendering engines.
+
 ## Pythos 1.8.33
 **Release Date:** October 5, 2026
 

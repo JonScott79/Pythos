@@ -449,7 +449,10 @@ function scrollToMessageTop(element, smooth = true) {
   clearTimeout(scrollResetTimeout);
   
   // Align to top with modest breathing room
-  const targetScrollTop = Math.max(0, element.offsetTop - 12);
+  // Align to top with modest breathing room, robust against arbitrary parent positioning
+  const outputRect = output.getBoundingClientRect();
+  const elRect = element.getBoundingClientRect();
+  const targetScrollTop = Math.max(0, output.scrollTop + (elRect.top - outputRect.top) - 12);
   if (smooth && typeof output.scrollTo === 'function') {
     output.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
   } else {
@@ -2356,7 +2359,7 @@ async function saveChatState(userMessage, botReply) {
 }
 
 // =====================================
-// EASTER EGG: DEEP THOUGHT
+// DEEP THOUGHT
 // =====================================
 const MATH_OPERATOR_REGEX = /[+\-*/^=<>%√]/;
 const MATH_KEYWORD_REGEX = /\b(solve|calculate|compute|derive|differentiate|integrate|factor|factors|prime|graph|plot|simplify|evaluate|expand|proof|prove|equation|formula|polynomial|matrix|vector|limit|function|sin|cos|tan|log|ln|dx|dy|algebra|calculus|geometry|physics|velocity|acceleration|force|mass|momentum|energy|work|joules|meters|seconds|degrees|radians|pi|number|even|odd|composite|divisible)\b/i;
@@ -2428,7 +2431,7 @@ function showDeepThoughtResponse() {
     </div>
   `;
   output.appendChild(div);
-  scrollToMessageTop(div, false);
+  scrollToMessageTop(div, true);
 }
 
 // =====================================
@@ -3329,13 +3332,13 @@ async function askPythos(userText) {
   const preview = document.getElementById("mathPreview");
   if (preview) preview.style.display = "none";
 
-  // ===== EASTER EGG: Deep Thought =====
+  // ===== Deep Thought =====
   if (isDeepThoughtQuestion(cleanText)) {
     await fakeThinkingDelay(1800);
     showDeepThoughtResponse();
-    const eggContent = "\"The answer to the great question... of Life, the Universe and Everything... is forty-two.\"\n\n— Deep Thought, The Hitchhiker's Guide to the Galaxy\n\n42\n\n\"I think the problem, to be quite honest with you, is that you've never actually known what the question is.\"";
-    messages.push({ role: "assistant", content: eggContent, isDeepThought: true });
-    await saveChatState(cleanText, eggContent);
+    const deepThoughtContent = "\"The answer to the great question... of Life, the Universe and Everything... is forty-two.\"\n\n— Deep Thought, The Hitchhiker's Guide to the Galaxy\n\n42\n\n\"I think the problem, to be quite honest with you, is that you've never actually known what the question is.\"";
+    messages.push({ role: "assistant", content: deepThoughtContent, isDeepThought: true });
+    await saveChatState(cleanText, deepThoughtContent);
     isProcessing = false;
     setInputLocked(false);
     activeThinkingElement = null;

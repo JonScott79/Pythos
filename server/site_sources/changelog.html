@@ -562,11 +562,45 @@
         <!-- ==================== RELEASE 1.8.28 ==================== -->
         <!-- ==================== RELEASE 1.8.29 ==================== -->
     <!-- ==================== RELEASE 1.8.31 ==================== -->
-                <article class="release-card" id="pythos-1-8-33">
+                        <article class="release-card" id="pythos-1-8-34">
+      <div class="release-header">
+        <div class="release-title-wrap">
+          <h2 class="release-version">Pythos 1.8.34</h2>
+          <span class="release-badge">Latest Release</span>
+        </div>
+        <time class="release-date" datetime="2026-10-05">October 5, 2026</time>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header">
+          <span class="badge-fixed">Hotfix</span>
+          <span class="section-title">Asynchronous DOM Reflow Bounding Matrix &amp; Viewport Scroll Reconciliation</span>
+        </div>
+        <ul class="change-list">
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>CSS Box-Model Subpixel Reflow Stabilization:</strong> Resolved an intrinsic layout hysteresis edge-case where negative free-space allocation in dynamic flexbox layout columns triggered aggressive box-model compression (<code>min-height: 0</code> resetting under hidden overflow contexts) on late-arriving assistant response buffers during multi-turn sessions.</div>
+          </li>
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Intrinsic Element Size Anchoring:</strong> Enforced strict <code>flex-shrink: 0 !important;</code> and <code>min-height: fit-content !important;</code> invariants across specialized assistant response wrappers, guaranteeing complete bounding rect preservation.</div>
+          </li>
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Programmatic Viewport Scroll Vector Interpolation:</strong> Re-engineered <code>scrollToMessageTop</code> coordinate resolution using differential bounding matrix projection relative to the active scroll parent viewport, eliminating layout shifts and anchoring viewports seamlessly.</div>
+          </li>
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Container Positioning Normalization:</strong> Added explicit <code>position: relative</code> to the primary chat scroll container (<code>#output</code>) to enforce deterministic offset parent resolution across modern browser engines.</div>
+          </li>
+        </ul>
+      </div>
+    </article>
+
+    <article class="release-card" id="pythos-1-8-33">
       <div class="release-header">
         <div class="release-title-wrap">
           <h2 class="release-version">Pythos 1.8.33</h2>
-          <span class="release-badge">Latest Release</span>
         </div>
         <time class="release-date" datetime="2026-10-05">October 5, 2026</time>
       </div>
