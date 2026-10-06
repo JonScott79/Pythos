@@ -14,6 +14,11 @@
     - Enlarged range slider thumbs from 15px to 24px with expanded hit areas and smooth pan-y touch actions.
     - Added full ARIA accessibility to interactive sliders (`aria-label`, `aria-valuemin`, `aria-valuemax`, `aria-valuenow`, `aria-valuetext`).
     - Standardized input font size to `16px` on mobile screens to prevent unwanted browser auto-zoom upon focusing text fields.
+  - **Firebase Session Continuation on Login (Fee Optimization)**:
+    - Automatically resumes the user's latest conversation upon login/page reload instead of allocating a new Firestore document on every session.
+    - Slashes Firebase document write/create operations while preserving seamless continuity for students.
+    - Students can start a fresh conversation at any time by clicking the **+ New Chat** button.
+    - Replaced redundant Firestore collection re-fetches on chat switching with in-memory active state updates, saving Firestore read operations.
 
 ## Pythos 1.8.32
 **Release Date:** October 5, 2026

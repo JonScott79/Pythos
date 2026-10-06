@@ -2003,7 +2003,7 @@ onAuthStateChanged(auth, (user) => {
     logoutBtn.style.display = "block";
     userName.textContent = user.displayName;
     userAvatar.src = user.photoURL;
-    loadSidebarChats();
+    loadSidebarChats(true);
   } else {
     currentUser = null;
     loginBtn.style.display = "block";
@@ -2019,7 +2019,19 @@ onAuthStateChanged(auth, (user) => {
 // // FIRESTORE CHAT HISTORY
 //
 // =====================================
-async function loadSidebarChats() {
+function updateActiveSidebarChat(chatId) {
+  document.querySelectorAll("#chatHistoryList .chat-item-wrapper").forEach((wrap) => {
+    const item = wrap.querySelector(".chat-item");
+    if (!item) return;
+    if (chatId && wrap.getAttribute("data-chat-id") === chatId) {
+      item.classList.add("active");
+    } else {
+      item.classList.remove("active");
+    }
+  });
+}
+
+async function loadSidebarChats(autoResumeLatest = false) {
   if (!currentUser) return;
   const listEl = document.getElementById("chatHistoryList");
   listEl.innerHTML = "<em>Loading past sessions...</em>";
@@ -2034,6 +2046,8 @@ async function loadSidebarChats() {
       return;
     }
 
+    let latestValidChatId = null;
+
     snapshot.forEach(docSnap => {
       const data = docSnap.data();
       const chatId = docSnap.id;
@@ -2045,9 +2059,14 @@ async function loadSidebarChats() {
                              (data.testArtifact === true);
       if (isTestArtifact) return;
 
+      if (!latestValidChatId) {
+        latestValidChatId = chatId;
+      }
+
       // Wrapper
       const wrapper = document.createElement("div");
       wrapper.className = "chat-item-wrapper";
+      wrapper.setAttribute("data-chat-id", chatId);
 
       // Chat title
       const titleEl = document.createElement("div");
@@ -2086,6 +2105,11 @@ async function loadSidebarChats() {
       wrapper.appendChild(actions);
       listEl.appendChild(wrapper);
     });
+
+    // Auto-resume previous conversation when logging in or reloading page to save Firebase fees
+    if (autoResumeLatest && !currentChatId && latestValidChatId) {
+      await loadChat(latestValidChatId);
+    }
   } catch (e) {
     console.error(e);
     listEl.innerHTML = "<em>Failed to load chats</em>";
@@ -2276,7 +2300,7 @@ async function loadChat(chatId) {
         }
       });
     }
-    loadSidebarChats(); // Refresh to update active state
+    updateActiveSidebarChat(chatId);
     closeMobileSidebar();
   } catch(e) {
     console.error("Error loading chat", e);
@@ -2286,7 +2310,7 @@ async function loadChat(chatId) {
 document.getElementById("newChatBtn").addEventListener("click", () => {
   currentChatId = null;
   clearChatUI();
-  loadSidebarChats();
+  updateActiveSidebarChat(null);
   closeMobileSidebar();
 });
 
