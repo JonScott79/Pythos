@@ -1591,6 +1591,11 @@
       border: 1px solid var(--border-color);
       border-radius: 6px;
       display: block;
+      max-width: 100%;
+      width: 100%;
+      height: auto;
+      aspect-ratio: 400 / 260;
+      box-sizing: border-box;
     }
 
     .graph-hint {
@@ -3296,7 +3301,7 @@
       opacity: 1;
     }
 
-    /* Mobile Responsive Optimizations */
+    /* Mobile Responsive Optimizations & Touch Accessibility Audit */
     @media (max-width: 768px) {
       .sidebar {
         position: fixed;
@@ -3314,6 +3319,10 @@
       }
       .sidebar-close-btn {
         display: inline-flex !important;
+        min-width: 44px !important;
+        min-height: 44px !important;
+        align-items: center !important;
+        justify-content: center !important;
       }
       .sidebar-header {
         display: flex;
@@ -3323,7 +3332,7 @@
       .toolbox-bar {
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
-        padding-bottom: 4px;
+        padding-bottom: 6px;
         scrollbar-width: none;
       }
       .toolbox-bar::-webkit-scrollbar {
@@ -3331,10 +3340,23 @@
       }
       .tool-btn {
         flex-shrink: 0;
+        min-height: 40px !important;
+        padding: 6px 12px !important;
+        font-size: 0.8rem !important;
       }
       .message {
-        max-width: 92%;
-        font-size: 0.88rem;
+        max-width: 95% !important;
+        font-size: 0.9rem;
+        padding: 10px 12px;
+        word-break: break-word;
+      }
+      .message.assistant.has-wide-viz {
+        max-width: 100% !important;
+        width: 100% !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        padding: 8px 6px !important;
+        box-sizing: border-box !important;
       }
       .katex-display {
         overflow-x: auto;
@@ -3343,21 +3365,353 @@
         -webkit-overflow-scrolling: touch;
       }
       .msg-actions {
-        opacity: 0.85;
+        opacity: 0.95;
       }
+      .input-wrapper {
+        padding: 6px 8px;
+      }
+      /* Prevent unwanted mobile browser auto-zoom on form inputs */
+      input[type="text"],
+      input[type="number"],
+      input[type="search"],
+      textarea,
+      select,
+      math-field {
+        font-size: 16px !important;
+      }
+
+      /* Floating Tool Windows: Fits within mobile viewport without horizontal breakout */
       .floating-window {
-        max-width: calc(100vw - 20px) !important;
-        max-height: 85vh !important;
-        left: 10px !important;
-        right: 10px !important;
+        width: calc(100vw - 16px) !important;
+        max-width: calc(100vw - 16px) !important;
+        left: 8px !important;
+        right: 8px !important;
         top: 50% !important;
         transform: translateY(-50%) !important;
+        max-height: 90vh !important;
+        display: flex !important;
+        flex-direction: column !important;
+        border-radius: 12px !important;
+        box-sizing: border-box !important;
+        overflow: hidden !important;
       }
       .window-header {
         cursor: default;
+        padding: 10px 14px;
+        flex-shrink: 0;
       }
-      .input-wrapper {
-        padding: 4px 6px;
+      .window-body {
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        max-height: calc(90vh - 54px) !important;
+        padding: 10px 12px 16px !important;
+        box-sizing: border-box !important;
+        flex: 1 1 auto !important;
+      }
+      .win-btn {
+        min-height: 38px !important;
+        padding: 6px 10px !important;
+      }
+      .win-btn.win-close {
+        min-width: 38px !important;
+        min-height: 38px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+      }
+      .graph-canvas {
+        max-width: 100% !important;
+        width: 100% !important;
+        height: auto !important;
+        aspect-ratio: 400 / 260 !important;
+        box-sizing: border-box !important;
+      }
+      .palette-grid {
+        grid-template-columns: repeat(4, 1fr) !important;
+        gap: 5px !important;
+      }
+      .palette-btn {
+        min-height: 42px !important;
+        padding: 6px 4px !important;
+      }
+      .custom-math-field {
+        font-size: 1.05rem !important;
+        min-height: 44px !important;
+      }
+      .calc-keypad {
+        gap: 4px !important;
+      }
+      .calc-key {
+        min-height: 42px !important;
+        font-size: 0.95rem !important;
+      }
+      .calc-display {
+        font-size: 1.35rem !important;
+      }
+
+      /* Classical Sim Lab PhET-Style Modal Mobile Overhaul */
+      .sim-lab-overlay {
+        padding: 0 !important;
+        align-items: stretch !important;
+        justify-content: stretch !important;
+      }
+      .sim-lab-modal {
+        width: 100% !important;
+        max-width: 100% !important;
+        height: 100% !important;
+        height: 100dvh !important;
+        max-height: 100% !important;
+        border-radius: 0 !important;
+        border: none !important;
+        box-shadow: none !important;
+      }
+      .sim-lab-header {
+        padding: 10px 12px !important;
+        gap: 8px !important;
+        flex-direction: column !important;
+        align-items: stretch !important;
+      }
+      .sim-lab-header-actions {
+        width: 100% !important;
+        justify-content: space-between !important;
+        gap: 8px !important;
+      }
+      .sim-lab-tabs {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        scrollbar-width: none !important;
+        max-width: calc(100% - 46px) !important;
+        flex: 1 1 auto !important;
+      }
+      .sim-lab-tabs::-webkit-scrollbar {
+        display: none !important;
+      }
+      .sim-tab {
+        padding: 6px 10px !important;
+        font-size: 0.74rem !important;
+        min-height: 38px !important;
+        flex-shrink: 0 !important;
+      }
+      .sim-lab-close {
+        min-width: 38px !important;
+        min-height: 38px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        font-size: 1.3rem !important;
+      }
+      .sim-lab-search-bar {
+        padding: 8px 12px !important;
+      }
+      .sim-lab-search-bar input {
+        font-size: 16px !important;
+        padding: 8px 12px 8px 36px !important;
+      }
+      .sim-lab-grid {
+        grid-template-columns: 1fr !important;
+        padding: 10px 12px 24px !important;
+        gap: 10px !important;
+      }
+      .sim-lab-card {
+        padding: 12px 14px !important;
+      }
+
+      /* Sim Lab Active Experiment View Navigation - 2-row clean reflow */
+      .sim-lab-active-nav {
+        flex-wrap: wrap !important;
+        padding: 8px 12px !important;
+        gap: 8px !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+      }
+      .sim-lab-back-btn {
+        padding: 6px 10px !important;
+        font-size: 0.78rem !important;
+        min-height: 38px !important;
+      }
+      .sim-lab-active-actions {
+        gap: 6px !important;
+        margin-left: auto !important;
+      }
+      .sim-lab-reset-nav-btn {
+        padding: 6px 10px !important;
+        font-size: 0.76rem !important;
+        min-height: 38px !important;
+      }
+      .sim-lab-ask-btn {
+        padding: 6px 12px !important;
+        font-size: 0.78rem !important;
+        min-height: 38px !important;
+      }
+      .sim-lab-active-info {
+        width: 100% !important;
+        flex: 1 1 100% !important;
+        order: 3 !important;
+        margin-top: 2px !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        white-space: nowrap !important;
+      }
+      .sim-lab-active-name {
+        font-size: 0.88rem !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        white-space: nowrap !important;
+      }
+
+      /* Mount Container and Canvas inside Sim Lab */
+      .sim-lab-mount-container {
+        padding: 8px 10px 20px !important;
+        -webkit-overflow-scrolling: touch !important;
+      }
+      .sim-lab-mount-container.pythos-viz-instrument,
+      .sim-lab-mount-container .pythos-viz-instrument {
+        padding: 2px 0 14px !important;
+      }
+      .sim-lab-mount-container .pythos-viz-canvas {
+        width: 100% !important;
+        max-width: 100% !important;
+        height: auto !important;
+        aspect-ratio: 640 / 300 !important;
+        max-height: 195px !important;
+        object-fit: contain !important;
+      }
+      .sim-lab-mount-container .pythos-viz-metrics-row {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 6px !important;
+      }
+      .sim-lab-mount-container .pythos-viz-metric-card {
+        padding: 6px 8px !important;
+      }
+      .sim-lab-mount-container .pythos-metric-value {
+        font-size: 0.88rem !important;
+        word-break: break-all !important;
+      }
+
+      /* Interactive Range Sliders: Touch Target Ergonomics */
+      .pythos-classical-slider {
+        height: 8px !important;
+        margin: 8px 0 !important;
+        touch-action: pan-y !important;
+      }
+      .pythos-classical-slider::-webkit-slider-thumb {
+        width: 24px !important;
+        height: 24px !important;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.4) !important;
+      }
+      .pythos-classical-slider::-moz-range-thumb {
+        width: 24px !important;
+        height: 24px !important;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.4) !important;
+      }
+      .pythos-slider-group {
+        padding: 4px 0 !important;
+        gap: 4px !important;
+      }
+      .pythos-slider-label-row {
+        font-size: 0.82rem !important;
+      }
+      .pythos-slider-val-badge {
+        font-size: 0.78rem !important;
+        padding: 2px 6px !important;
+      }
+      .pythos-viz-controls-panel {
+        padding: 8px 10px !important;
+        gap: 6px !important;
+      }
+
+      /* Inline Interactive Instruments inside Chat Messages */
+      .pythos-viz-instrument {
+        padding: 10px 8px !important;
+        margin: 8px 0 !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+        border-radius: 8px !important;
+      }
+      .pythos-viz-instrument.pythos-viz-wide {
+        padding: 10px 8px !important;
+      }
+      .pythos-viz-header {
+        gap: 8px !important;
+        padding-bottom: 6px !important;
+        margin-bottom: 8px !important;
+      }
+      .pythos-viz-title {
+        font-size: 1.02rem !important;
+      }
+      .pythos-viz-subtitle {
+        font-size: 0.68rem !important;
+      }
+      .pythos-viz-reset-btn {
+        padding: 6px 10px !important;
+        min-height: 36px !important;
+      }
+      .pythos-viz-canvas {
+        width: 100% !important;
+        max-width: 100% !important;
+        height: auto !important;
+        aspect-ratio: 640 / 300 !important;
+        max-height: 185px !important;
+        object-fit: contain !important;
+      }
+      .pythos-viz-metrics-row {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 6px !important;
+      }
+
+      /* Inspector Modals (Trigonometry, Number Line, Charts, Stats, Report) */
+      .report-modal-overlay {
+        padding: 8px !important;
+        align-items: center !important;
+        justify-content: center !important;
+      }
+      .report-modal-card {
+        width: calc(100vw - 16px) !important;
+        max-width: 100% !important;
+        max-height: 92vh !important;
+        border-radius: 12px !important;
+        box-sizing: border-box !important;
+        overflow: hidden !important;
+      }
+      .report-modal-header {
+        padding: 12px 14px !important;
+      }
+      .report-modal-body {
+        padding: 12px 14px 18px !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        max-height: calc(92vh - 60px) !important;
+        gap: 12px !important;
+        box-sizing: border-box !important;
+      }
+      #trigModalCanvas,
+      #numLineModalCanvas,
+      #chartModalCanvas {
+        max-width: 100% !important;
+        width: 100% !important;
+        height: auto !important;
+        object-fit: contain !important;
+      }
+      .math-guide {
+        max-width: calc(100vw - 16px) !important;
+        max-height: 90vh !important;
+      }
+      .math-guide-header {
+        padding: 14px 16px !important;
+      }
+      .math-guide-body {
+        padding: 14px 16px !important;
+      }
+      .pending-sim-close {
+        min-width: 32px;
+        min-height: 32px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .check-run-btn {
+        min-height: 42px !important;
+        font-size: 0.9rem !important;
       }
     }
 
@@ -3539,7 +3893,7 @@
           <a href="nonprofit.html">Mission &amp; Roadmap</a>
           <a href="license.html">License</a>
           <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" title="Official Facebook Page" aria-label="Official Facebook Page">Facebook</a>
-          <a href="changelog.html#pythos-1-8-32" title="View Changelog" aria-label="Version 1.8.32 Release Notes">v1.8.32</a>
+          <a href="changelog.html#pythos-1-8-33" title="View Changelog" aria-label="Version 1.8.33 Release Notes">v1.8.33</a>
         </nav>
       </div>
     </aside>
@@ -3557,7 +3911,7 @@
         <header class="header">
           <img class="header-avatar" src="assets/pythos_avatar.jpg" alt="Pythos Oracle" width="40" height="40" />
           <div class="header-info">
-            <h1>PYTHOS <a href="changelog.html#pythos-1-8-32" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.32)" aria-label="Version 1.8.32 Release Notes">v1.8.32</a></h1>
+            <h1>PYTHOS <a href="changelog.html#pythos-1-8-33" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.32)" aria-label="Version 1.8.33 Release Notes">v1.8.33</a></h1>
             <p>Mathematics & Physics Oracle</p>
           </div>
           <button id="themeToggleBtn" class="theme-toggle-btn" title="Toggle Dark/Light Mode" aria-label="Toggle Dark and Light Theme">

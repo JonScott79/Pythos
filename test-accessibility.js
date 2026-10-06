@@ -165,9 +165,10 @@ assert(appJs.includes('LANG_LOCALES') && appJs.includes('aria-pressed'), 'Langua
 
 // 4. VERSION LINK & CHANGELOG ANCHOR AUDIT
 console.log('\n--- Auditing Version Links & Changelog Integrity ---');
-assert(indexHtml.includes('href="changelog.html#pythos-1-8-32"'), 'Version link points to #pythos-1-8-32 anchor');
-assert(changelogHtml.includes('id="pythos-1-8-32"'), 'Changelog has target anchor id="pythos-1-8-32"');
-assert(changelogHtml.includes('id="pythos-1-8-31"'), 'Changelog has target anchor id="pythos-1-8-31"');
+assert(indexHtml.includes('href="changelog.html#pythos-1-8-33"'), 'Version link points to #pythos-1-8-33 anchor');
+assert(changelogHtml.includes('id="pythos-1-8-33"'), 'Changelog has target anchor id="pythos-1-8-33"');
+assert(changelogHtml.includes('id="pythos-1-8-32"'), 'Changelog retains previous release anchor id="pythos-1-8-32"');
+assert(changelogHtml.includes('id="pythos-1-8-31"'), 'Changelog retains previous release anchor id="pythos-1-8-31"');
 assert(changelogHtml.includes('id="pythos-1-8-29"'), 'Changelog retains previous release anchor id="pythos-1-8-29"');
 assert(changelogHtml.includes('id="pythos-1-8-27"'), 'Changelog has target anchor id="pythos-1-8-27"');
 assert(changelogHtml.includes('id="pythos-1-8-26"'), 'Changelog retains previous release anchor id="pythos-1-8-26"');
@@ -203,7 +204,7 @@ assert(changelogHtml.includes('id="pythos-1-6-1"'), 'Changelog retains previous 
 assert(changelogHtml.includes('id="pythos-1-6-0"'), 'Changelog retains previous release anchor id="pythos-1-6-0"');
 assert(changelogHtml.includes('id="pythos-1-5-0"'), 'Changelog retains previous release anchor id="pythos-1-5-0"');
 assert(changelogHtml.includes('class="back-btn"') && changelogHtml.includes('href="index.html"'), 'Changelog has back-link to workspace');
-assert(indexHtml.includes('aria-label="Version 1.8.32 Release Notes"'), 'Version links have accessible screen reader names');
+assert(indexHtml.includes('aria-label="Version 1.8.33 Release Notes"'), 'Version links have accessible screen reader names');
 
 // 5. CONVERSATION HISTORY AUDIT
 console.log('\n--- Auditing Conversation History Filtering ---');
@@ -273,6 +274,20 @@ assert(manifestContent.name && manifestContent.icons && manifestContent.icons.le
 assert(fs.existsSync(path.join(ROOT_DIR, 'llms.txt')), 'llms.txt exists');
 const llmsContent = fs.readFileSync(path.join(ROOT_DIR, 'llms.txt'), 'utf8');
 assert(llmsContent.includes('Pythos') && llmsContent.includes('Study Guides'), 'llms.txt provides structured AI crawler documentation');
+
+// 8. MOBILE VIEWPORT COMPATIBILITY & TOUCH ACCESSIBILITY AUDIT
+console.log('\n--- Auditing Mobile Viewport Compatibility & Touch Accessibility ---');
+assert(indexHtml.includes('@media (max-width: 768px)'), 'index.html includes @media (max-width: 768px) responsive block');
+assert(indexHtml.includes('font-size: 16px !important'), 'Enforces 16px font-size on mobile text inputs to prevent mobile browser auto-zoom');
+assert(indexHtml.includes('.floating-window') && indexHtml.includes('calc(100vw - 16px) !important'), 'Floating tool windows are strictly bounded to mobile viewport width');
+assert(indexHtml.includes('.graph-canvas') && indexHtml.includes('max-width: 100%'), 'Function Grapher canvas is bounded by responsive max-width');
+assert(indexHtml.includes('.sim-lab-overlay') && indexHtml.includes('padding: 0 !important'), 'Sim Lab overlay uses zero padding on mobile for edge-to-edge sheet');
+assert(indexHtml.includes('.sim-lab-modal') && indexHtml.includes('width: 100% !important') && indexHtml.includes('height: 100dvh !important'), 'Sim Lab modal expands to 100% mobile viewport with dynamic viewport height');
+assert(indexHtml.includes('.sim-lab-active-nav') && indexHtml.includes('flex-wrap: wrap !important'), 'Sim Lab active navigation enables flex-wrap to prevent button clipping on mobile');
+assert(indexHtml.includes('.pythos-classical-slider::-webkit-slider-thumb') && indexHtml.includes('width: 24px !important'), 'Range sliders have touch-accessible thumbs (>=24px) on mobile');
+const vizRendererCode = fs.readFileSync(path.join(ROOT_DIR, 'vizEngine', 'vizRenderer.js'), 'utf8');
+assert(vizRendererCode.includes('aria-label') && vizRendererCode.includes('aria-valuenow') && vizRendererCode.includes('aria-valuetext'), 'Simulation model sliders expose comprehensive ARIA screen reader properties');
+assert(indexHtml.includes('.report-modal-card') && indexHtml.includes('calc(100vw - 16px) !important'), 'Inspector modals are bounded to mobile screen bounds');
 
 console.log('\n============================================================');
 console.log(`AUDIT RESULTS: ${passedTests}/${totalTests} TESTS PASSED (${failedTests} failures)`);

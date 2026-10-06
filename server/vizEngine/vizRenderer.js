@@ -371,10 +371,18 @@
         slider.max = v.max;
         slider.step = v.step;
         slider.value = state[key];
+        slider.setAttribute("aria-label", v.label || key);
+        slider.setAttribute("aria-valuemin", v.min);
+        slider.setAttribute("aria-valuemax", v.max);
+        slider.setAttribute("aria-valuenow", state[key]);
+        slider.setAttribute("aria-valuetext", `${state[key]} ${v.unit}`);
+        slider.setAttribute("data-var-key", key);
 
         slider.addEventListener("input", (e) => {
           const val = Number(e.target.value);
           state[key] = val;
+          slider.setAttribute("aria-valuenow", val);
+          slider.setAttribute("aria-valuetext", `${val} ${v.unit}`);
           const badge = group.querySelector(`#badge-${key}`);
           if (badge) badge.textContent = `${val} ${v.unit}`;
 

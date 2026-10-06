@@ -562,11 +562,49 @@
         <!-- ==================== RELEASE 1.8.28 ==================== -->
         <!-- ==================== RELEASE 1.8.29 ==================== -->
     <!-- ==================== RELEASE 1.8.31 ==================== -->
+                <article class="release-card" id="pythos-1-8-33">
+      <div class="release-header">
+        <div class="release-title-wrap">
+          <h2 class="release-version">Pythos 1.8.33</h2>
+          <span class="release-badge">Latest Release</span>
+        </div>
+        <time class="release-date" datetime="2026-10-05">October 5, 2026</time>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header">
+          <span class="badge-added">Mobile &amp; A11y Overhaul</span>
+          <span class="section-title">Full Mobile Compatibility &amp; Touch Accessibility Audit</span>
+        </div>
+        <ul class="change-list">
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Edge-to-Edge PhET Sim Lab Sheet:</strong> Converted the Sim Lab modal on viewports &le; 768px (tested on Samsung Galaxy S21 Ultra ~384px-412px) to a native 100% full-screen sheet with zero wasted margins.</div>
+          </li>
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Active Lab Navigation 2-Row Reflow:</strong> Added responsive flex wrapping so Back, Reset, Ask Pythos, and the simulation title neatly stack in 2 rows without overflowing screen edges.</div>
+          </li>
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Bounded Responsive Canvases:</strong> Added strict aspect-ratio and max-width scaling to all 17 simulation models, Function Grapher (<code>#graphCanvas</code>), and Inspector Modals, guaranteeing zero box overflow.</div>
+          </li>
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Floating Tool Window Mobilization:</strong> Bounded all tool windows (Grapher, Calculator, Step Verifier, Converter, Matrix, Equation Builder) to <code>calc(100vw - 16px)</code> with touch-scrollable bodies.</div>
+          </li>
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Touch Ergonomics &amp; ARIA Compliance:</strong> Upgraded interactive slider thumbs to 24px with full ARIA semantics (<code>aria-label</code>, <code>aria-valuenow</code>, <code>aria-valuetext</code>) and prevented mobile input auto-zoom with 16px font sizing.</div>
+          </li>
+        </ul>
+      </div>
+    </article>
+
         <article class="release-card" id="pythos-1-8-32">
       <div class="release-header">
         <div class="release-title-wrap">
           <h2 class="release-version">Pythos 1.8.32</h2>
-          <span class="release-badge">Latest Release</span>
         </div>
         <time class="release-date" datetime="2026-10-05">October 5, 2026</time>
       </div>

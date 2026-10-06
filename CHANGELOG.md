@@ -1,3 +1,20 @@
+## Pythos 1.8.33
+**Release Date:** October 5, 2026
+
+### Added & Overhauled
+- **Full Mobile Viewport Compatibility Audit & Overhaul (Samsung Galaxy S21 Ultra & Modern Smartphones)**:
+  - **Full-Bleed PhET-Style Simulation Lab**: Re-architected Sim Lab modal (`#simLabModal`) on screens $\le 768$px as an edge-to-edge full-bleed sheet ($100\%$ width/height/100dvh, zero border radius) to maximize usable viewport.
+  - **Sim Lab Active Navigation 2-Row Reflow**: Replaced fixed 1-line nav with responsive `flex-wrap` layout. Row 1 houses the Back button (`< All Sims`) and action buttons (`[ ↺ Reset ]` + `[ Ask Pythos 💬 ]`), while Row 2 displays the full simulation title and category badge, completely eliminating horizontal clipping on 384px-412px viewports.
+  - **Responsive Canvases & Stage Fitting**: Added universal responsive constraints (`max-width: 100% !important; height: auto !important; aspect-ratio: 640 / 300`) preventing interactive physics instruments from overflowing their containers.
+  - **Floating Tool Window Mobile Hardening**: Constrained all 6 floating tools (Function Grapher, Scientific Calculator, Step Verifier, Unit Converter, Matrix Calculator, Equation Builder) to `width: calc(100vw - 16px) !important; left: 8px !important; right: 8px !important;` with smooth touch-scrolling bodies (`-webkit-overflow-scrolling: touch`).
+  - **Function Grapher Canvas Fix**: Enforced responsive aspect-ratio (`400 / 260`) and `max-width: 100%` on `#graphCanvas` to eliminate the 400px fixed width breakout on mobile viewports.
+  - **Visual Equation Builder Mobile Palette**: Reflowed template palette from 6 squeezed columns to 4 touch-ergonomic columns with $\ge 42$px touch targets.
+  - **Inspector Modals Containment**: Bounded Right Triangle, Number Line, Chart, and Stats inspector modals to `max-width: calc(100vw - 16px)` and `max-height: 92vh` with scrollable bodies.
+  - **Touch Accessibility & WCAG Compliance**:
+    - Enlarged range slider thumbs from 15px to 24px with expanded hit areas and smooth pan-y touch actions.
+    - Added full ARIA accessibility to interactive sliders (`aria-label`, `aria-valuemin`, `aria-valuemax`, `aria-valuenow`, `aria-valuetext`).
+    - Standardized input font size to `16px` on mobile screens to prevent unwanted browser auto-zoom upon focusing text fields.
+
 ## Pythos 1.8.32
 **Release Date:** October 5, 2026
 

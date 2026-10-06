@@ -1,15 +1,24 @@
-﻿<!DOCTYPE html>
+<!--
+    changelog.html
+
+    Comprehensive release history, version milestones, and feature log for Pythos.
+
+    Responsibilities
+
+    - Documenting version milestones, pedagogical hardening, and algorithmic enhancements
+    - Anchored navigation for historical release tracking
+-->
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- Microsoft Clarity Tracking (Asynchronous & Privacy-Masked) -->
-  <script type="text/javascript">
-    (function(c,l,a,r,i,t,y){
-      c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
-      t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
-      y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
-    })(window, document, "clarity", "script", "ynbuaomkmw");
-  </script>
+  <!-- =====================================
+       Analytics (LANZAR Standard)
+  ===================================== -->
+  <script defer src="js/analytics.js"></script>
 
+  <!-- =====================================
+       Metadata / SEO
+  ===================================== -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="assets/favicon.png">
@@ -523,7 +532,7 @@
         <a href="nonprofit.html" class="nav-link">Mission &amp; Roadmap</a>
         <a href="license.html" class="nav-link">License</a>
         <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" class="nav-link">Facebook</a>
-        <a href="changelog.html#pythos-1-8-27" class="nav-link active" aria-current="page">v1.8.27</a>
+        <a href="changelog.html#pythos-1-8-31" class="nav-link active" aria-current="page">v1.8.31</a>
       </div>
     </div>
 
@@ -549,12 +558,191 @@
     </header>
 
                                                                                     <!-- RELEASE v1.8.16 -->
-    <!-- RELEASE v1.8.27 -->
+    <!-- RELEASE v1.8.29 -->
+        <!-- ==================== RELEASE 1.8.28 ==================== -->
+        <!-- ==================== RELEASE 1.8.29 ==================== -->
+    <!-- ==================== RELEASE 1.8.31 ==================== -->
+                <article class="release-card" id="pythos-1-8-33">
+      <div class="release-header">
+        <div class="release-title-wrap">
+          <h2 class="release-version">Pythos 1.8.33</h2>
+          <span class="release-badge">Latest Release</span>
+        </div>
+        <time class="release-date" datetime="2026-10-05">October 5, 2026</time>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header">
+          <span class="badge-added">Mobile &amp; A11y Overhaul</span>
+          <span class="section-title">Full Mobile Compatibility &amp; Touch Accessibility Audit</span>
+        </div>
+        <ul class="change-list">
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Edge-to-Edge PhET Sim Lab Sheet:</strong> Converted the Sim Lab modal on viewports &le; 768px (tested on Samsung Galaxy S21 Ultra ~384px-412px) to a native 100% full-screen sheet with zero wasted margins.</div>
+          </li>
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Active Lab Navigation 2-Row Reflow:</strong> Added responsive flex wrapping so Back, Reset, Ask Pythos, and the simulation title neatly stack in 2 rows without overflowing screen edges.</div>
+          </li>
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Bounded Responsive Canvases:</strong> Added strict aspect-ratio and max-width scaling to all 17 simulation models, Function Grapher (<code>#graphCanvas</code>), and Inspector Modals, guaranteeing zero box overflow.</div>
+          </li>
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Floating Tool Window Mobilization:</strong> Bounded all tool windows (Grapher, Calculator, Step Verifier, Converter, Matrix, Equation Builder) to <code>calc(100vw - 16px)</code> with touch-scrollable bodies.</div>
+          </li>
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Touch Ergonomics &amp; ARIA Compliance:</strong> Upgraded interactive slider thumbs to 24px with full ARIA semantics (<code>aria-label</code>, <code>aria-valuenow</code>, <code>aria-valuetext</code>) and prevented mobile input auto-zoom with 16px font sizing.</div>
+          </li>
+        </ul>
+      </div>
+    </article>
+
+        <article class="release-card" id="pythos-1-8-32">
+      <div class="release-header">
+        <div class="release-title-wrap">
+          <h2 class="release-version">Pythos 1.8.32</h2>
+        </div>
+        <time class="release-date" datetime="2026-10-05">October 5, 2026</time>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header">
+          <span class="badge-added">New Feature</span>
+          <span class="section-title">Interactive Floating Simulation Context &amp; Multi-Turn Retention</span>
+        </div>
+        <ul class="change-list">
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Floating Simulation Context Attachment Chip:</strong> Queues active instrument state as an interactive chip above the chat input, allowing students to type custom questions with full simulation context rather than forcing pre-baked auto-submissions.</div>
+          </li>
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Multi-Turn Simulation State Retention (<code>server/contextManager.js</code>):</strong> Extracted live instrument sliders and calculated readouts directly into <code>activeProblemState.active.knownVariables</code>, preserving simulation context across follow-up turns.</div>
+          </li>
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Inspector Modal Unification:</strong> Upgraded Right Triangle Trigonometry, Number Line &amp; Inequalities, Function Grapher, and Statistical Distribution modals to attach interactive context chips instead of firing instant submissions.</div>
+          </li>
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Visual User Message Badges:</strong> Messages sent with simulation context render a high-contrast <code>🔬 &lt;Title&gt;: &lt;Details&gt;</code> badge directly inside the student's chat bubble.</div>
+          </li>
+        </ul>
+      </div>
+    </article>
+
+<article class="release-card" id="pythos-1-8-31">
+      <div class="release-header">
+        <div class="release-title-wrap">
+          <h2 class="release-version">Pythos 1.8.31</h2>
+          <span class="release-badge"><span class="release-badge" style="display:none;">Latest Release</span>
+        </div>
+        <time class="release-date" datetime="2026-10-05">October 5, 2026</time>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header">
+          <span class="badge-added">New Feature</span>
+          <span class="section-title">PhET-Style Classical Simulation Lab &amp; Expanded Physics Suite</span>
+        </div>
+        <ul class="change-list">
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>PhET-Style Classical Sim Lab (<code>vizEngine/simLab.js</code>):</strong> Launched a dedicated, interactive simulation laboratory modal accessed via the new <code>[ ⚛️ Sim Lab ]</code> toolbar button. Features a shelf catalog of all 17 interactive STEM instruments, category filter tabs (<code>All</code>, <code>Physics</code>, <code>Chemistry</code>, <code>Math</code>), real-time search, custom high-contrast dark scrollbars, and the <strong>"Ask Pythos" 💬</strong> Socratic bridge.</div>
+          </li>
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Simple Harmonic Pendulum (<code>pendulum.js</code>):</strong> Interactive pendulum arm with mass bob, release angle, and uniform gravity. Computes real-time period $T = 2\pi\sqrt{L/g}$ with Borda correction, restoring torque, and kinetic/potential energy transformations.</div>
+          </li>
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Geometric Optics &amp; Snell's Law (<code>optics.js</code>):</strong> Planar boundary refraction ($n_1\sin\theta_1 = n_2\sin\theta_2$) with media refractive indices (Air, Water, Glass, Diamond), incident and refracted rays, normal line, angle arcs, and automatic Total Internal Reflection (TIR) detection.</div>
+          </li>
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Archimedes' Buoyancy &amp; Upthrust (<code>buoyancy.js</code>):</strong> Hydrostatic displacement and buoyant force ($F_b = \rho_f V g$) simulation featuring water tank visualization, waterline display, submerged fraction, density presets, and net force vector equilibrium.</div>
+          </li>
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Hooke's Law &amp; Router Hardening:</strong> Added apostrophe-invariant pattern matching in <code>server/deterministicRouter.js</code>, mapped $k, x, m$ aliases in <code>hookes_law.js</code>, and eliminated false-positive triangle error cards in <code>app.js</code>.</div>
+          </li>
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Single-Stage Viewport Architecture:</strong> Re-architected shelf and experiment view switching with authoritative display properties, guaranteeing 100% full-screen modal view without window splitting.</div>
+          </li>
+        </ul>
+      </div>
+    </article>
+
+    <article class="release-card" id="pythos-1-8-29">
+      <div class="release-header">
+        <div class="release-title-wrap">
+          <h2 class="release-version">Pythos 1.8.29</h2>
+          <span class="release-badge" style="display:none;">Latest Release</span>
+        </div>
+        <time class="release-date" datetime="2026-10-03">October 3, 2026</time>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header">
+          <span class="badge-added">Enhanced</span>
+          <span class="section-title">Maximized Full-Bleed Display &amp; Expanded Visual Workspace</span>
+        </div>
+        <ul class="change-list">
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Zero Dead Margin Layout:</strong> Reclaimed all unused border margins by converting <code>.app-container</code> and <code>.main-area</code> into a full-bleed edge-to-edge workspace that utilizes 100% of the display window.</div>
+          </li>
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Expanded Simulation Grid:</strong> Mathematical and physics instruments now default to wide mode with side-by-side 2D interactive canvases and parameter control panels, eliminating vertical crowding.</div>
+          </li>
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Spacious Reading &amp; Derivation Bounds:</strong> Expanded message and welcome cards to allow complex multi-step KaTeX mathematical solutions and starter pill arrays to lay out horizontally without unnecessary wrapping.</div>
+          </li>
+        </ul>
+      </div>
+    </article>
+
+    <article class="release-card" id="pythos-1-8-28">
+      <div class="release-header">
+        <div class="release-title-wrap">
+          <h2 class="release-version">Pythos 1.8.28</h2>
+        </div>
+        <time class="release-date" datetime="2026-10-03">October 3, 2026</time>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header">
+          <span class="badge-added">Added</span>
+          <span class="section-title">Smart Responsive Viewport Zoom (80% on Laptop Screens)</span>
+        </div>
+        <ul class="change-list">
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Adaptive 80% Viewport Scaling:</strong> Automatically sets CSS zoom to 80% with synchronized 125vh visual height bounding on compact laptop and desktop screens (viewport height &le; 850px, e.g. 1366&times;768, 1440&times;900, and scaled high-DPI laptops).</div>
+          </li>
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Expanded Breathing Room for Instruments:</strong> Ensures the Interactive Right Triangle Inspector, 2D Classical Ballistics & Projectile Motion simulator, dynamic parameter sliders, and step-by-step KaTeX mathematical derivations fit completely on screen without vertical clipping.</div>
+          </li>
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Seamless Large Display Fidelity:</strong> Full-size desktop monitors (&gt;850px viewable height) and mobile handheld viewports continue to render at native 100% scale without disruption.</div>
+          </li>
+        </ul>
+      </div>
+    </article>
+
     <article class="release-card" id="pythos-1-8-27">
       <div class="release-header">
         <div class="release-title-wrap">
           <h2 class="release-version">Pythos 1.8.27</h2>
-          <span class="release-badge">Latest Release</span>
         </div>
         <time class="release-date" datetime="2026-10-03">October 3, 2026</time>
       </div>
@@ -587,18 +775,6 @@
       <div class="section-group">
         <div class="section-header added">⚡ WHAT'S NEW &amp; HARDENED</div>
         <ul class="feature-list">
-    <!-- RELEASE v1.8.26 -->
-    <article class="release-card" id="pythos-1-8-26">
-      <div class="release-header">
-        <div class="release-title-wrap">
-          <h2 class="release-version">Pythos 1.8.26</h2>
-        </div>
-        <time class="release-date" datetime="2026-10-03">October 3, 2026</time>
-      </div>
-
-      <div class="section-group">
-        <div class="section-header added">⚡ WHAT'S NEW &amp; HARDENED</div>
-        <ul class="feature-list">
           <li><strong>Verified-Truth Recovery System</strong>: Added an authoritative recovery path for cases where a generated mathematical candidate is rejected but Pythos already possesses independently verified truth from a deterministic router, preflight tool, or trusted mathematical model. Pythos can reconstruct a safe response from that truth instead of unnecessarily withholding it.</li>
           <li><strong>Mandatory Recovery Re-Verification</strong>: Recovered responses remain subject to the verification and delivery gates. Recovery never bypasses mathematical verification; it changes the source of the candidate response.</li>
           <li><strong>Fail-Closed Recovery Boundary</strong>: When trusted truth is unavailable, ambiguous, or unsupported, Pythos continues to withhold rather than fabricate a result.</li>
@@ -615,7 +791,6 @@
           The 2,920 / 2,920 result measures the recovery subsystem specifically: when Pythos rejects an invalid candidate and independently verified truth is available, the tested recovery path successfully reconstructed a mathematically correct response in every tested recovery case. It is not a claim that every mathematical problem is solvable or that Pythos is universally accurate.
         </p>
       </div>
-    </article>
     </article>
 
     <!-- RELEASE v1.8.25 -->
@@ -1625,7 +1800,7 @@
 
   <footer>
     <div>🏛️ Pythos — Free AI Mathematics &amp; Physics Education Initiative. Developed by LANZAR.</div>
-    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-8-27" style="color:var(--primary-color); text-decoration:none;">v1.8.26</a></div>
+    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-8-31" style="color:var(--primary-color); text-decoration:none;">v1.8.31</a></div>
   </footer>
 
   <script>
