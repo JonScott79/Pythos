@@ -75,7 +75,7 @@ runTest('Meta description honesty: No stale 110,000 claims in meta tags', () => 
 
 // Test 6: Documentation correction notice present
 runTest('Transparency callout: Documentation correction notice is present on the page', () => {
-  assert(valHtml.includes('Documentation Correction &amp; Alignment Notice (October 6, 2026)'), 'Correction notice must be published');
+  assert(valHtml.includes('Documentation Correction &amp; Alignment Notice'), 'Correction notice must be published');
 });
 
 console.log('\n====================================================');

@@ -774,14 +774,14 @@
 
     <!-- CURRENT VALIDATION PANEL -->
     <section class="section-card" aria-labelledby="currentValidationHeading">
-      <h2 id="currentValidationHeading">🛡️ Current Validation (v1.8.34 — Production Recovery Stress Validation)</h2>
+      <h2 id="currentValidationHeading">🛡️ Current Validation — Deterministic &amp; Recovery Stress Benchmark (50K)</h2>
 
       <div class="meta-bar">
-        <div class="meta-item"><span>Current Release Version:</span> <strong>Pythos v1.8.34</strong></div>
-        <div class="meta-item"><span>Validation Campaign:</span> <strong>Deterministic &amp; Candidate-Rejection Recovery Stress Validation (50K Benchmark)</strong></div>
+        <div class="meta-item"><span>Current App Release:</span> <strong>Pythos v1.8.34</strong></div>
+        <div class="meta-item"><span>Last Validated Engine:</span> <strong>v1.8.25+ (commit <code>4cdb7ee</code>)</strong></div>
+        <div class="meta-item"><span>Campaign Type:</span> <strong>Deterministic Fault-Injection &amp; Recovery Stress</strong></div>
         <div class="meta-item"><span>PRNG Stream Seed:</span> <strong><code>1732050808</code></strong></div>
-        <div class="meta-item"><span>Campaign Commit:</span> <strong><code>4cdb7ee</code></strong></div>
-        <div class="meta-item"><span>Last Validated:</span> <strong>October 3, 2026</strong></div>
+        <div class="meta-item"><span>Runtime Telemetry:</span> <strong>26.9s (Offline, $0.00 cloud tokens)</strong></div>
       </div>
 
       <div class="callout">
@@ -1194,11 +1194,11 @@
       </div>
 
       <div class="callout" style="margin-top: 14px;">
-        <strong>Documentation Correction &amp; Alignment Notice (October 6, 2026):</strong> Between releases v1.8.27 and v1.8.33, the "Current Validation" headline panel reflected the bumped software release version, but its underlying 50,000-problem summary table and 12-domain breakdown inadvertently displayed the metrics from the earlier v1.8.16 (Task #6) campaign (<code>20,602</code> verified, <code>29,398</code> safely withheld, PRNG seed <code>1618033988</code>). An external peer audit identified that the headline card duplicated the historical Task #6 row below it. On October 6, 2026, the primary validation display was corrected and aligned with the authoritative v1.8.25+ Recovery Stress Validation campaign (commit <code>4cdb7ee</code>, PRNG seed <code>1732050808</code>: <code>21,733</code> verified correct, <code>28,267</code> safely withheld, zero escapes, and 2,920 / 2,920 certified recoveries). In keeping with Pythos's open engineering standards, we document this editorial fix openly rather than quietly overwriting historical records.
+        <strong>Documentation Correction &amp; Alignment Notice (October 2026):</strong> Between releases v1.8.27 and v1.8.33, the "Current Validation" headline panel reflected the bumped software release version, but its underlying 50,000-problem summary table and 12-domain breakdown inadvertently displayed the metrics from the earlier v1.8.16 (Task #6) campaign (<code>20,602</code> verified, <code>29,398</code> safely withheld, PRNG seed <code>1618033988</code>). An independent reader review identified that the headline card duplicated the historical Task #6 row below it. In October 2026, the primary validation display was clarified: the headline metrics now explicitly represent the v1.8.25+ Deterministic &amp; Recovery Stress Validation campaign (commit <code>4cdb7ee</code>, PRNG seed <code>1732050808</code>: <code>21,733</code> verified correct, <code>28,267</code> safely withheld, zero escapes, and 2,920 / 2,920 certified recoveries under a 10% fault-injection cohort). In keeping with Pythos's open engineering standards, we document this editorial correction openly rather than quietly overwriting historical records.
       </div>
 
       <div class="callout" style="margin-top: 14px;">
-        <strong>Engineering Integrity Notice:</strong> While Pythos achieved zero incorrect delivered answers and zero verification escapes across this fresh 50,000-problem blind validation campaign, finite benchmarks do not constitute a mathematical proof of universal correctness across all conceivable future inputs. Pythos is engineered to systematically verify candidate mathematical reasoning and safely withhold answers whenever proof or confidence is incomplete.
+        <strong>Engineering Integrity Notice:</strong> While Pythos achieved zero incorrect delivered answers and zero verification escapes across this 50,000-problem deterministic recovery stress campaign, finite benchmarks do not constitute a mathematical proof of universal correctness across all conceivable future inputs. Pythos is engineered to systematically verify candidate mathematical reasoning and safely withhold answers whenever proof or confidence is incomplete.
       </div>
     </section>
 
