@@ -43,6 +43,14 @@ const testCases = [
   {
     input: "Can you help me understand why x^2 + 16 is not (x+4)^2?",
     expectedType: null
+  },
+  {
+    input: "Use a right triangle to write the following expression as an algebraic expression. tangent left parenthesis cosine Superscript negative 1 Baseline 4 x right parenthesis Question content area bottom",
+    expectedType: null
+  },
+  {
+    input: "cosine left parenthesis sine Superscript negative 1 Baseline StartFraction 9 Over x EndFraction right parenthesis Question content area bottom",
+    expectedType: null
   }
 ];
 

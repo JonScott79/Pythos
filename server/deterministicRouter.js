@@ -1461,11 +1461,19 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
 
   // 0c. Geometric Figure Visualization Requests
   // Numerical: e.g. "show a right triangle with legs 3 and 4", "triangle with sides 3, 4, 5"
-  // Qualitative: e.g. "can you show me on a triangle?", "show me on a right triangle", "i want to see the actual triangle and how this works", "draw a triangle"
-  const triangleMatch = clean.match(/(?:right\s+triangle|triangle).*?(?:legs|sides)?\s*(\d+(?:\.\d+)?)\s*(?:and|,)\s*(\d+(?:\.\d+)?)(?:\s*(?:,|and|\s+)+\s*(\d+(?:\.\d+)?))?/i);
-  const isQualitativeTriangle = !triangleMatch && (
-    /(?:show|draw|illustrate|see|view|display|plot)(?:.*?)(?:on\s+a\s+|a\s+|the\s+)?(?:right\s+)?triangle/i.test(clean) ||
-    /(?:right\s+)?triangle.*?(?:how\s+this\s+works|opposite|adjacent|hypotenuse|ratio|trig|work)/i.test(clean) ||
+  // Qualitative: e.g. "can you show me on a triangle?", "show me on a right triangle", "draw a triangle"
+  const isAlgebraicOrInverseTrig = /(?:write|express|simplify|evaluate|find|solve|compute|convert).*?(?:algebraic|expression|inverse|exact\s+value)/i.test(clean) ||
+    /\balgebraic\s+expression\b/i.test(clean) ||
+    /(?:arc(?:sin|cos|tan|sec|csc|cot)|(?:sin|cos|tan|sec|csc|cot)\s*(?:[-⁻^]1|\^(-1)|superscript\s+negative\s+1))/i.test(clean) ||
+    /(?:tangent|cosine|sine|secant|cosecant|cotangent)\s+(?:left\s+parenthesis|superscript)/i.test(clean) ||
+    /\b(?:StartFraction|EndFraction)\b/i.test(clean);
+
+  const triangleMatch = !isAlgebraicOrInverseTrig && clean.match(/(?:right\s+triangle|triangle).*?(?:legs|sides)?\s*(\d+(?:\.\d+)?)\s*(?:and|,)\s*(\d+(?:\.\d+)?)(?:\s*(?:,|and|\s+)+\s*(\d+(?:\.\d+)?))?/i);
+  const isQualitativeTriangle = !isAlgebraicOrInverseTrig && !triangleMatch && (
+    /(?:show|draw|illustrate|see|view|display|plot|sketch)\s+(?:me\s+)?(?:on\s+a\s+|a\s+|the\s+)?(?:right\s+)?triangle/i.test(clean) ||
+    /(?:can\s+you\s+)?(?:show|draw|display|illustrate)\s+(?:me\s+)?(?:how\s+a\s+right\s+triangle\s+works|the\s+trig\s+ratios)/i.test(clean) ||
+    /(?:right\s+)?triangle.*?(?:how\s+this\s+works|how\s+it\s+works)/i.test(clean) ||
+    /(?:see|show|view|draw|display|sketch)\s+(?:.*?)(?:right\s+)?triangle/i.test(clean) ||
     (/(?:show|see|view|draw)\s+(?:me\s+)?(?:how\s+this\s+works|how\s+it\s+works)/i.test(clean) && Array.isArray(conversationHistory) && conversationHistory.some(m => /(?:triangle|tan|sin|cos|trig|opposite|hypo)/i.test(m.content || '')))
   );
 
@@ -1511,8 +1519,10 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
     }
     const hasTrigContext = isQualitativeTriangle || /(?:trig|ratio|opposite|adjacent|hypotenuse|sin|cos|tan)/i.test(clean) || (Array.isArray(conversationHistory) && conversationHistory.some(m => /(?:tan|sin|cos|trig|opposite|adjacent|hypo)/i.test(m.content || '')));
 
-    const isPerimeter = /\bperimeter\b/i.test(clean);
-    const isArea = /\barea\b/i.test(clean);
+    // Strip web platform boilerplate like "Question content area bottom", "content area" before checking for geometric area
+    const cleanWithoutAreaBoilerplate = clean.replace(/\b(?:question\s+)?content\s+area(?:\s+bottom)?\b/gi, '');
+    const isPerimeter = /\bperimeter\b/i.test(cleanWithoutAreaBoilerplate);
+    const isArea = !!triangleMatch && (/\b(?:find|calculate|compute|what\s+is|determine|get)\s+(?:the\s+)?area\b/i.test(cleanWithoutAreaBoilerplate) || /\barea\s*(?:=|is|\?)\b/i.test(cleanWithoutAreaBoilerplate));
     const expectedVal = isPerimeter ? (a + b + c) : (isArea ? (0.5 * a * b) : c);
     const formattedVal = isPerimeter ? `perimeter = ${expectedVal}` : (isArea ? `area = ${expectedVal}` : `c = ${c}`);
 
