@@ -874,6 +874,89 @@
       color: var(--text-main);
     }
 
+    /* Verified Derivation Audit Contract UX */
+    .pythos-audit-details {
+      margin-top: 10px;
+      padding: 8px 12px;
+      border: 1px solid rgba(22, 101, 52, 0.2);
+      border-radius: 6px;
+      background: rgba(240, 253, 244, 0.6);
+      font-size: 0.84rem;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+
+    [data-theme="dark"] .pythos-audit-details {
+      background: rgba(20, 83, 45, 0.15);
+      border-color: rgba(74, 222, 128, 0.2);
+    }
+
+    .pythos-audit-details[open] {
+      background: var(--surface-color);
+      border-color: #16a34a;
+    }
+
+    .pythos-audit-summary {
+      cursor: pointer;
+      font-weight: 600;
+      color: #15803d;
+      outline: none;
+      user-select: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    [data-theme="dark"] .pythos-audit-summary {
+      color: #4ade80;
+    }
+
+    .pythos-audit-summary:hover {
+      text-decoration: underline;
+    }
+
+    .pythos-audit-body {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px dashed var(--border-color);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .pythos-audit-step {
+      padding: 6px 8px;
+      border-radius: 4px;
+      background: var(--chat-ai-bg);
+      border: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .pythos-audit-step-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.76rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .pythos-audit-step-expr {
+      font-family: monospace, sans-serif;
+      font-size: 0.85rem;
+      color: var(--text-main);
+    }
+
+    .pythos-audit-step-meta {
+      font-size: 0.74rem;
+      color: var(--text-muted);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
     /* Report Modal Styles */
     .report-modal-overlay {
       display: none;

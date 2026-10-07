@@ -627,7 +627,7 @@ function extractClaims(text, userPrompt = '') {
         variable: match[4].trim(),
         lower_limit: match[1].trim(),
         upper_limit: match[2].trim(),
-        proposed_value: match[5].trim().replace(/\\/g, '')
+        proposed_value: match[5].trim().replace(/\\/g, '').replace(/[.,;:]+$/, '')
       }
     });
   }
@@ -637,7 +637,7 @@ function extractClaims(text, userPrompt = '') {
   while ((match = derivRegex.exec(text)) !== null) {
     let cleanExpr = (match[2] || match[3] || match[4] || match[5] || '').trim().replace(/[{}]/g, '');
     cleanExpr = cleanExpr.replace(/^(?:differentiate|find\s+the\s+derivative\s+of|calculate\s+the\s+derivative\s+of|what\s+is\s+the\s+derivative\s+of|compute\s+the\s+derivative\s+of)\s+/i, '').trim();
-    const propVal = match[6].trim().replace(/[{}]/g, '');
+    const propVal = match[6].trim().replace(/[{}]/g, '').replace(/[.,;:]+$/, '');
 
     claims.push({
       domain: 'calculus',
@@ -663,7 +663,7 @@ function extractClaims(text, userPrompt = '') {
         expression: match[3].trim(),
         variable: match[1].trim(),
         target: match[2].trim(),
-        proposed_value: match[4].trim()
+        proposed_value: match[4].trim().replace(/[.,;:]+$/, '')
       }
     });
   }
@@ -2193,11 +2193,114 @@ async function runDeterministicVerification(claim, userPrompt = '') {
  * Extracts claims, checks consistency, and executes deterministic verification on content.
  * Used for initial response audit and mandatory post-revision re-verification.
  */
+/**
+ * Synthesizes a claim and its deterministic verification result into a rich,
+ * reproducible step-level audit record (Step Verification Contract).
+ *
+ * @param {Object} claim - The extracted claim
+ * @param {Object} verification - The verification result from MathJS or SymPy
+ * @param {number} stepIndex - Zero-based index of this step in the derivation
+ * @returns {Object} Structured step verification audit
+ */
+function synthesizeVerificationStepAudit(claim, verification, stepIndex = 0) {
+  if (!claim) return null;
+
+  const data = claim.data || {};
+  const rawClaim = claim.raw_match || '';
+
+  // Determine the expression evaluated
+  let expressionEvaluated = data.expression || '';
+  if (!expressionEvaluated && claim.claim_type === 'definite_integral') {
+    expressionEvaluated = `\\int_{${data.lower_limit || '?'}}^{${data.upper_limit || '?'}} ${data.integrand || ''} d${data.variable || 'x'}`;
+  } else if (!expressionEvaluated && claim.claim_type === 'derivative') {
+    expressionEvaluated = `\\frac{d}{d${data.variable || 'x'}}[${data.expression || ''}]`;
+  } else if (!expressionEvaluated && claim.claim_type === 'limit') {
+    expressionEvaluated = `\\lim_{${data.variable || 'x'} \\to ${data.target || '0'}} ${data.expression || ''}`;
+  } else if (!expressionEvaluated) {
+    expressionEvaluated = rawClaim;
+  }
+
+  // Determine engine & method
+  const engine = verification?.engine || (claim.domain === 'arithmetic' ? 'mathjs' : (verification?.actual_derivative || verification?.transformed_integrand || verification?.solutions ? 'sympy' : 'deterministic'));
+  const claimType = claim.claim_type || claim.domain || 'evaluation';
+  const verificationMethod = `${engine}:${claimType}`;
+
+  // Build assumptions
+  const assumptions = {
+    domain: data.domain || 'real',
+    variables: data.variable ? [data.variable] : (data.variables || ['x']),
+    tolerance: typeof data.tolerance === 'number' ? data.tolerance : 0.0001,
+    isApproximate: Boolean(data.is_approximate)
+  };
+  if (data.constraints && Array.isArray(data.constraints)) {
+    assumptions.constraints = data.constraints;
+  }
+
+  // Determine proposed & expected
+  const proposedVal = verification?.proposed_value !== undefined
+    ? verification.proposed_value
+    : (verification?.proposed_derivative !== undefined
+      ? verification.proposed_derivative
+      : (data.proposed_value !== undefined ? data.proposed_value : null));
+
+  const expectedVal = verification?.exact_value !== undefined
+    ? verification.exact_value
+    : (verification?.actual_derivative !== undefined
+      ? verification.actual_derivative
+      : (verification?.solutions ? verification.solutions.join(', ') : null));
+
+  // Compute discrepancy / residual
+  let discrepancy = null;
+  if (proposedVal !== null && expectedVal !== null) {
+    if (typeof proposedVal === 'number' && typeof expectedVal === 'number') {
+      discrepancy = Math.abs(proposedVal - expectedVal);
+    } else if (String(proposedVal).trim() !== String(expectedVal).trim()) {
+      discrepancy = `Residual: claimed "${proposedVal}" vs expected "${expectedVal}"`;
+    } else {
+      discrepancy = 0;
+    }
+  }
+
+  const isVerified = Boolean(verification && verification.verified === true);
+  const verdict = isVerified
+    ? 'VERIFIED'
+    : (verification?.status || (verification?.verified === false ? 'REJECTED' : 'OUT_OF_SCOPE'));
+
+  let rejectionRationale = null;
+  if (!isVerified) {
+    rejectionRationale = verification?.details ||
+                         verification?.reason ||
+                         verification?.error_type ||
+                         `Step claim was rejected by ${engine} verification.`;
+  }
+
+  return {
+    stepIndex,
+    claimType,
+    domain: claim.domain || 'general',
+    rawClaim,
+    expressionEvaluated,
+    verificationMethod,
+    engine,
+    assumptions,
+    checkedState: {
+      proposed: proposedVal,
+      expected: expectedVal,
+      discrepancy,
+      isExactMatch: Boolean(isVerified && (verification?.is_exact || discrepancy === 0))
+    },
+    verdict,
+    rejectionRationale
+  };
+}
+
 async function verifyResponseClaims(content, userQueryText, abortSignal) {
   const claims = extractClaims(content, userQueryText || '');
   const internalContradictions = auditInternalConsistency(claims);
   const verificationResults = [];
   const invalidClaims = [];
+
+  const verificationAudit = [];
 
   for (let ci = 0; ci < claims.length; ci++) {
     if (abortSignal && abortSignal.aborted) break;
@@ -2205,6 +2308,10 @@ async function verifyResponseClaims(content, userQueryText, abortSignal) {
     const verification = await runDeterministicVerification(claim, userQueryText || '');
     if (verification) {
       verificationResults.push(verification);
+      const auditStep = synthesizeVerificationStepAudit(claim, verification, ci);
+      if (auditStep) {
+        verificationAudit.push(auditStep);
+      }
     }
     if (verification && verification.verified === false && verification.status !== 'UNKNOWN') {
       invalidClaims.push({ claim, verification, claimIndex: ci });
@@ -2215,7 +2322,8 @@ async function verifyResponseClaims(content, userQueryText, abortSignal) {
     claims,
     internalContradictions,
     verificationResults,
-    invalidClaims
+    invalidClaims,
+    verificationAudit
   };
 }
 
@@ -2308,6 +2416,7 @@ module.exports = {
   auditInternalConsistency,
   runDeterministicVerification,
   checkPromptClaimFidelity,
+  synthesizeVerificationStepAudit,
   verifyResponseClaims,
   getPythonExecutable,
   getCasTelemetry

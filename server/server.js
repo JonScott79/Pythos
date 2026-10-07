@@ -601,7 +601,7 @@ app.get('/health/ready', async (req, res) => {
 });
 
 const learningStore = require('./learningStore');
-const { runDeterministicVerification, extractClaims, auditInternalConsistency, verifyResponseClaims, extractCandidateAnswer, evaluateCandidateDelivery } = require('./verificationBridge');
+const { runDeterministicVerification, extractClaims, auditInternalConsistency, verifyResponseClaims, extractCandidateAnswer, evaluateCandidateDelivery, synthesizeVerificationStepAudit } = require('./verificationBridge');
 const {
   analyzeDeterministicIntent,
   extractPreflightDeterministicFacts,
@@ -1654,6 +1654,7 @@ app.post('/api/chat', async (req, res) => {
         let delivery = null;
         let claims = [];
         let verificationResults = [];
+        let verificationAudit = [];
 
         const isVisualOrClarification = deterministicIntent.type === 'CLASSICAL_MODEL_VIZ' ||
                                         deterministicIntent.type === 'PROJECTILE_VIZ' ||
@@ -1677,6 +1678,7 @@ app.post('/api/chat', async (req, res) => {
             const verifyResult = await verifyResponseClaims(directResponse, effectiveVerificationPrompt, abortController.signal);
             claims = verifyResult.claims || [];
             verificationResults = verifyResult.verificationResults || [];
+            verificationAudit = verifyResult.verificationAudit || [];
             const internalContradictions = verifyResult.internalContradictions || [];
             const invalidClaims = verifyResult.invalidClaims || [];
 
@@ -1710,6 +1712,7 @@ app.post('/api/chat', async (req, res) => {
               latencyMs: Date.now() - startTime,
               claims,
               verification: verificationResults,
+              verificationAudit,
               model: 'pythos-deterministic-router',
               deterministic: true,
               deliveryStatus: delivery.status,
@@ -1729,6 +1732,7 @@ app.post('/api/chat', async (req, res) => {
             },
             claims,
             verification: verificationResults,
+            verificationAudit,
             deterministic: true,
             deliveryStatus: delivery.status,
             deliveredAnswer: delivery.answer,
@@ -2406,7 +2410,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
     } catch (ctxErr) {
       console.warn('[CONTEXT] buildEffectivePrompt failed in post-verification:', ctxErr.message);
     }
-    let { claims, internalContradictions, verificationResults, invalidClaims } = await verifyResponseClaims(
+    let { claims, internalContradictions, verificationResults, invalidClaims, verificationAudit } = await verifyResponseClaims(
       finalContent,
       effectiveVerificationPrompt,
       abortController.signal
@@ -2417,9 +2421,16 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
 
       try {
         const feedbackLines = [];
-        invalidClaims.forEach(({ claim, verification }, i) => {
-          feedbackLines.push(`- Step ${i + 1} Error: ${verification.error_type || verification.status}: ${verification.details || verification.reason}`);
-        });
+        if (Array.isArray(verificationAudit) && verificationAudit.length > 0) {
+          verificationAudit.filter(step => step.verdict !== 'VERIFIED').forEach(step => {
+            feedbackLines.push(`- Step ${step.stepIndex + 1} (${step.verificationMethod}): Evaluated ${step.expressionEvaluated || step.rawClaim}. Expected: ${step.checkedState.expected ?? 'valid mathematical deduction'}, but received ${step.checkedState.proposed ?? 'unverified value'}. ${step.rejectionRationale || ''}`);
+          });
+        }
+        if (feedbackLines.length === 0) {
+          invalidClaims.forEach(({ claim, verification }, i) => {
+            feedbackLines.push(`- Step ${i + 1} Error: ${verification.error_type || verification.status}: ${verification.details || verification.reason}`);
+          });
+        }
         internalContradictions.forEach((ic, i) => {
           feedbackLines.push(`- Internal Contradiction ${i + 1}: ${ic.details}`);
         });
@@ -2462,6 +2473,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           internalContradictions = revAudit.internalContradictions;
           verificationResults = revAudit.verificationResults;
           invalidClaims = revAudit.invalidClaims;
+          verificationAudit = revAudit.verificationAudit;
 
           console.log(`[VERIFIER] Post-revision verification complete: ${claims.length} claims extracted, ${invalidClaims.length} invalid, ${internalContradictions.length} contradictions.`);
         }
@@ -2708,6 +2720,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
       ollamaResponse.privacySafeUid = privacySafeUid;
       ollamaResponse.claims = claims || [];
       ollamaResponse.verification = verificationResults;
+      ollamaResponse.verificationAudit = verificationAudit || [];
       if (classification) {
         ollamaResponse.classification = {
           domain: classification.problemDomain,
@@ -2744,6 +2757,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           learnerState: learnerState?.state || null,
           claims: claims || [],
           verification: verificationResults,
+          verificationAudit: verificationAudit || [],
           model: ollamaResponse.model,
           provider: ollamaResponse.provider,
           reasoningPath: ollamaResponse.reasoningPath,

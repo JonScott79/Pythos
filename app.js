@@ -1844,6 +1844,60 @@ function appendMessage(role, text, images = null, metadata = {}) {
     contentDiv.appendChild(detailsEl);
   }
 
+  // Verified Derivation Step Audit Contract Badge & Inspector
+  if (role === "assistant" && Array.isArray(metadata.verificationAudit) && metadata.verificationAudit.length > 0) {
+    const auditSteps = metadata.verificationAudit;
+    const verifiedCount = auditSteps.filter(s => s.verdict === "VERIFIED").length;
+    const totalCount = auditSteps.length;
+
+    const auditDetails = document.createElement("details");
+    auditDetails.className = "pythos-audit-details";
+
+    const auditSummary = document.createElement("summary");
+    auditSummary.className = "pythos-audit-summary";
+    const statusIcon = verifiedCount === totalCount ? "🛡️" : "⚠️";
+    auditSummary.innerHTML = "<span>" + statusIcon + "</span> <span>Verified Derivation (" + verifiedCount + "/" + totalCount + " step" + (totalCount > 1 ? "s" : "") + " certified)</span>";
+
+    const auditBody = document.createElement("div");
+    auditBody.className = "pythos-audit-body";
+
+    auditSteps.forEach(step => {
+      const stepEl = document.createElement("div");
+      stepEl.className = "pythos-audit-step";
+
+      const isStepOk = step.verdict === "VERIFIED";
+      const icon = isStepOk ? "✅" : "❌";
+      const engineLabel = escapeHtml(step.verificationMethod || step.engine || "verified");
+      const expr = escapeHtml(step.expressionEvaluated || step.rawClaim || "");
+      const expected = step.checkedState && step.checkedState.expected !== null && step.checkedState.expected !== undefined ? escapeHtml(String(step.checkedState.expected)) : "";
+      const proposed = step.checkedState && step.checkedState.proposed !== null && step.checkedState.proposed !== undefined ? escapeHtml(String(step.checkedState.proposed)) : "";
+      const domain = step.assumptions && step.assumptions.domain ? escapeHtml(String(step.assumptions.domain)) : "real";
+      const discrepancy = step.checkedState && step.checkedState.discrepancy !== null && step.checkedState.discrepancy !== undefined ? escapeHtml(String(step.checkedState.discrepancy)) : "";
+
+      let metaHtml = "<span><strong>Assumptions:</strong> " + domain + " domain</span>";
+      if (expected) metaHtml += "<span><strong>Expected:</strong> " + expected + "</span>";
+      if (proposed && proposed !== expected) metaHtml += "<span><strong>Proposed:</strong> " + proposed + "</span>";
+      if (discrepancy && discrepancy !== "0") metaHtml += "<span style=\"color:#dc2626;\"><strong>Diff:</strong> " + discrepancy + "</span>";
+
+      let stepInner = "<div class=\"pythos-audit-step-header\">"
+        + "<span>" + icon + " Step " + (step.stepIndex + 1) + " (" + escapeHtml(step.verdict) + ")</span>"
+        + "<span style=\"font-size:0.72rem; color:var(--text-muted); font-family:monospace;\">" + engineLabel + "</span>"
+        + "</div>"
+        + "<div class=\"pythos-audit-step-expr\">" + expr + "</div>"
+        + "<div class=\"pythos-audit-step-meta\">" + metaHtml + "</div>";
+
+      if (step.rejectionRationale) {
+        stepInner += "<div style=\"font-size:0.75rem; color:#dc2626; margin-top:2px;\">" + escapeHtml(step.rejectionRationale) + "</div>";
+      }
+      stepEl.innerHTML = stepInner;
+      auditBody.appendChild(stepEl);
+    });
+
+    auditDetails.appendChild(auditSummary);
+    auditDetails.appendChild(auditBody);
+    contentDiv.appendChild(auditDetails);
+  }
+
   div.appendChild(contentDiv);
 
   // Action buttons container (Copy + optional Report a Problem)
@@ -3587,6 +3641,7 @@ async function askPythos(userText) {
       let lineBuffer = "";
       let metaClaims = [];
       let metaVerification = [];
+      let metaVerificationAudit = [];
       let metaModel = "pythos:latest";
       let metaWithheld = false;
       let metaWithholdingReason = null;
@@ -3664,6 +3719,7 @@ async function askPythos(userText) {
             if (verificationTimer) { clearTimeout(verificationTimer); verificationTimer = null; }
             if (ev.claims) metaClaims = ev.claims;
             if (ev.verification) metaVerification = ev.verification;
+            if (ev.verificationAudit) metaVerificationAudit = ev.verificationAudit;
             if (ev.model) metaModel = ev.model;
             if (ev.withheld) metaWithheld = true;
             if (ev.withholdingReason) metaWithholdingReason = ev.withholdingReason;
@@ -3705,6 +3761,7 @@ async function askPythos(userText) {
           if (ev.type === "verified") {
             if (ev.claims) metaClaims = ev.claims;
             if (ev.verification) metaVerification = ev.verification;
+            if (ev.verificationAudit) metaVerificationAudit = ev.verificationAudit;
             if (ev.model) metaModel = ev.model;
           }
         } catch (_) {}
@@ -3727,6 +3784,7 @@ async function askPythos(userText) {
           question: cleanText,
           claims: metaClaims,
           verification: metaVerification,
+          verificationAudit: metaVerificationAudit,
           model: metaModel,
           stoppedByUser: true
         });
@@ -3745,6 +3803,7 @@ async function askPythos(userText) {
           question: cleanText,
           claims: metaClaims,
           verification: metaVerification,
+          verificationAudit: metaVerificationAudit,
           model: metaModel,
           withheld: metaWithheld,
           withholdingReason: metaWithholdingReason,
@@ -3798,6 +3857,7 @@ async function askPythos(userText) {
           question: cleanText,
           claims: data.claims || [],
           verification: data.verification || [],
+          verificationAudit: data.verificationAudit || [],
           model: data.model || "pythos:latest",
           withheld: data.withheld || false,
           withholdingReason: data.withholdingReason || null,
