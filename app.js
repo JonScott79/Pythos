@@ -4196,7 +4196,20 @@ function setupFloatingTool(toggleBtnId, windowId, closeBtnId) {
   if (header) makeDraggable(win, header);
 
   function openTool() {
-    win.style.display = "flex";
+    // Close other open floating tools on mobile & desktop
+    document.querySelectorAll(".floating-window").forEach(other => {
+      if (other !== win) {
+        other.style.setProperty("display", "none", "important");
+        other.classList.remove("active");
+        const otherBtn = document.querySelector(`[aria-controls="${other.id}"]`);
+        if (otherBtn) {
+          otherBtn.classList.remove("active");
+          otherBtn.setAttribute("aria-expanded", "false");
+        }
+      }
+    });
+    win.style.setProperty("display", "flex", "important");
+    win.classList.add("active");
     toggleBtn.classList.add("active");
     toggleBtn.setAttribute("aria-expanded", "true");
     
@@ -4208,14 +4221,15 @@ function setupFloatingTool(toggleBtnId, windowId, closeBtnId) {
   }
 
   function closeTool() {
-    win.style.display = "none";
+    win.style.setProperty("display", "none", "important");
+    win.classList.remove("active");
     toggleBtn.classList.remove("active");
     toggleBtn.setAttribute("aria-expanded", "false");
     toggleBtn.focus();
   }
 
   toggleBtn.addEventListener("click", () => {
-    const isVisible = win.style.display !== "none";
+    const isVisible = win.classList.contains("active") || (win.style.display !== "none" && window.getComputedStyle(win).display !== "none");
     if (isVisible) {
       closeTool();
     } else {

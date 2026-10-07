@@ -3481,11 +3481,18 @@
         top: 50% !important;
         transform: translateY(-50%) !important;
         max-height: 90vh !important;
-        display: flex !important;
         flex-direction: column !important;
         border-radius: 12px !important;
         box-sizing: border-box !important;
         overflow: hidden !important;
+      }
+      .floating-window[style*="display: none"],
+      .floating-window:not(.active):not([style*="display: flex"]) {
+        display: none !important;
+      }
+      .floating-window.active,
+      .floating-window[style*="display: flex"] {
+        display: flex !important;
       }
       .window-header {
         cursor: default;
