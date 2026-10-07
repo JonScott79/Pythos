@@ -1844,61 +1844,8 @@ function appendMessage(role, text, images = null, metadata = {}) {
     contentDiv.appendChild(detailsEl);
   }
 
-  // Verified Derivation Step Audit Contract Badge & Inspector
-  if (role === "assistant" && Array.isArray(metadata.verificationAudit) && metadata.verificationAudit.length > 0) {
-    const auditSteps = metadata.verificationAudit;
-    const verifiedCount = auditSteps.filter(s => s.verdict === "VERIFIED").length;
-    const totalCount = auditSteps.length;
-
-    const auditDetails = document.createElement("details");
-    auditDetails.className = "pythos-audit-details";
-
-    const auditSummary = document.createElement("summary");
-    auditSummary.className = "pythos-audit-summary";
-    const statusIcon = verifiedCount === totalCount ? "🛡️" : "⚠️";
-    auditSummary.innerHTML = "<span>" + statusIcon + "</span> <span>Verified Derivation (" + verifiedCount + "/" + totalCount + " step" + (totalCount > 1 ? "s" : "") + " certified)</span>";
-
-    const auditBody = document.createElement("div");
-    auditBody.className = "pythos-audit-body";
-
-    auditSteps.forEach(step => {
-      const stepEl = document.createElement("div");
-      stepEl.className = "pythos-audit-step";
-
-      const isStepOk = step.verdict === "VERIFIED";
-      const icon = isStepOk ? "✅" : "❌";
-      const engineLabel = escapeHtml(step.verificationMethod || step.engine || "verified");
-      const expr = escapeHtml(step.expressionEvaluated || step.rawClaim || "");
-      const expected = step.checkedState && step.checkedState.expected !== null && step.checkedState.expected !== undefined ? escapeHtml(String(step.checkedState.expected)) : "";
-      const proposed = step.checkedState && step.checkedState.proposed !== null && step.checkedState.proposed !== undefined ? escapeHtml(String(step.checkedState.proposed)) : "";
-      const domain = step.assumptions && step.assumptions.domain ? escapeHtml(String(step.assumptions.domain)) : "real";
-      const discrepancy = step.checkedState && step.checkedState.discrepancy !== null && step.checkedState.discrepancy !== undefined ? escapeHtml(String(step.checkedState.discrepancy)) : "";
-
-      let metaHtml = "<span><strong>Assumptions:</strong> " + domain + " domain</span>";
-      if (expected) metaHtml += "<span><strong>Expected:</strong> " + expected + "</span>";
-      if (proposed && proposed !== expected) metaHtml += "<span><strong>Proposed:</strong> " + proposed + "</span>";
-      if (discrepancy && discrepancy !== "0") metaHtml += "<span style=\"color:#dc2626;\"><strong>Diff:</strong> " + discrepancy + "</span>";
-
-      let stepInner = "<div class=\"pythos-audit-step-header\">"
-        + "<span>" + icon + " Step " + (step.stepIndex + 1) + " (" + escapeHtml(step.verdict) + ")</span>"
-        + "<span style=\"font-size:0.72rem; color:var(--text-muted); font-family:monospace;\">" + engineLabel + "</span>"
-        + "</div>"
-        + "<div class=\"pythos-audit-step-expr\">" + expr + "</div>"
-        + "<div class=\"pythos-audit-step-meta\">" + metaHtml + "</div>";
-
-      if (step.rejectionRationale) {
-        stepInner += "<div style=\"font-size:0.75rem; color:#dc2626; margin-top:2px;\">" + escapeHtml(step.rejectionRationale) + "</div>";
-      }
-      stepEl.innerHTML = stepInner;
-      auditBody.appendChild(stepEl);
-    });
-
-    auditDetails.appendChild(auditSummary);
-    auditDetails.appendChild(auditBody);
-    contentDiv.appendChild(auditDetails);
-  }
-
   div.appendChild(contentDiv);
+
 
   // Action buttons container (Copy + optional Report a Problem)
   const actionRow = document.createElement("div");
@@ -1937,6 +1884,66 @@ function appendMessage(role, text, images = null, metadata = {}) {
     }, 1500);
   });
   actionRow.appendChild(copyBtn);
+  // Verified Derivation Step Audit Button – subtle action button matching Report and Copy (bottom-left)
+  if (role === "assistant" && Array.isArray(metadata.verificationAudit) && metadata.verificationAudit.length > 0) {
+    const auditSteps = metadata.verificationAudit;
+    const verifiedCount = auditSteps.filter(s => s.verdict === "VERIFIED").length;
+    const totalCount = auditSteps.length;
+    const stepLabel = totalCount === 1 ? "1 step" : `${totalCount} steps`;
+
+    const auditBtn = document.createElement("button");
+    auditBtn.className = "msg-audit-btn";
+    auditBtn.title = "Inspect verified derivation audit steps";
+    auditBtn.setAttribute("aria-label", "Inspect verified derivation audit steps");
+    auditBtn.innerHTML = `🛡️ <span>Verified (${stepLabel})</span>`;
+
+    // Audit Panel (rendered below actionRow, toggled on click)
+    const auditPanel = document.createElement("div");
+    auditPanel.className = "pythos-audit-panel";
+    auditPanel.style.display = "none";
+
+    let stepsHtml = "";
+    auditSteps.forEach(step => {
+      const isStepOk = step.verdict === "VERIFIED";
+      const icon = isStepOk ? "✅" : "❌";
+      const engineLabel = escapeHtml(step.verificationMethod || step.engine || "verified");
+      const expr = escapeHtml(step.expressionEvaluated || step.rawClaim || "");
+      const expected = step.checkedState && step.checkedState.expected !== null && step.checkedState.expected !== undefined ? escapeHtml(String(step.checkedState.expected)) : "";
+      const proposed = step.checkedState && step.checkedState.proposed !== null && step.checkedState.proposed !== undefined ? escapeHtml(String(step.checkedState.proposed)) : "";
+      const domain = step.assumptions && step.assumptions.domain ? escapeHtml(String(step.assumptions.domain)) : "real";
+      const discrepancy = step.checkedState && step.checkedState.discrepancy !== null && step.checkedState.discrepancy !== undefined ? escapeHtml(String(step.checkedState.discrepancy)) : "";
+
+      let metaHtml = `<span><strong>Assumptions:</strong> ${domain} domain</span>`;
+      if (expected) metaHtml += `<span><strong>Expected:</strong> ${expected}</span>`;
+      if (proposed && proposed !== expected) metaHtml += `<span><strong>Proposed:</strong> ${proposed}</span>`;
+      if (discrepancy && discrepancy !== "0") metaHtml += `<span style="color:#dc2626;"><strong>Diff:</strong> ${discrepancy}</span>`;
+
+      let stepInner = `<div class="pythos-audit-step-header">`
+        + `<span>${icon} Step ${step.stepIndex + 1} (${escapeHtml(step.verdict)})</span>`
+        + `<span style="font-size:0.72rem; color:var(--text-muted); font-family:monospace;">${engineLabel}</span>`
+        + `</div>`
+        + `<div class="pythos-audit-step-expr">${expr}</div>`
+        + `<div class="pythos-audit-step-meta">${metaHtml}</div>`;
+
+      if (step.rejectionRationale) {
+        stepInner += `<div style="font-size:0.75rem; color:#dc2626; margin-top:2px;">${escapeHtml(step.rejectionRationale)}</div>`;
+      }
+      stepsHtml += `<div class="pythos-audit-step">${stepInner}</div>`;
+    });
+
+    auditPanel.innerHTML = `<div style="font-size:0.75rem; font-weight:600; color:#15803d; margin-bottom:6px; display:flex; align-items:center; gap:5px;"><span>🛡️ Verified Derivation Audit</span><span style="font-size:0.7rem; color:var(--text-muted); font-weight:normal;">(${verifiedCount}/${totalCount} certified)</span></div><div class="pythos-audit-body">${stepsHtml}</div>`;
+
+    auditBtn.addEventListener("click", () => {
+      const isVisible = auditPanel.style.display !== "none";
+      auditPanel.style.display = isVisible ? "none" : "block";
+      auditBtn.classList.toggle("active", !isVisible);
+    });
+
+    // Place Verified button on the left of actionRow
+    actionRow.insertBefore(auditBtn, actionRow.firstChild);
+    div.appendChild(auditPanel);
+  }
+
   div.appendChild(actionRow);
 
   // Pre-render math and attach accessibility attributes in memory before mounting to visible DOM
