@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pythos College Flyer - Free AI Math & Physics Oracle</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800;900&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #ffffff;
+      --card-bg: #f8fafc;
+      --card-border: #e2e8f0;
+      --text-main: #0f172a;
+      --text-muted: #475569;
+      --accent-blue: #0284c7;
+      --accent-navy: #0f172a;
+      --accent-gold: #b45309;
+      --gold-bg: #fef3c7;
+      --accent-green: #15803d;
+      --border-outer: #0f172a;
+    }
+
+    body.dark-mode {
+      --bg: #0b1120;
+      --card-bg: #131c31;
+      --card-border: #263352;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent-blue: #38bdf8;
+      --accent-navy: #f8fafc;
+      --accent-gold: #fbbf24;
+      --gold-bg: rgba(251, 191, 36, 0.12);
+      --accent-green: #4ade80;
+      --border-outer: #38bdf8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: #e2e8f0;
+      font-family: 'Outfit', -apple-system, sans-serif;
+      color: var(--text-main);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px 10px;
+    }
+
+    /* Print Controls Toolbar */
+    .toolbar {
+      background: #0f172a;
+      color: #fff;
+      padding: 12px 24px;
+      border-radius: 40px;
+      margin-bottom: 20px;
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+      z-index: 100;
+    }
+
+    .btn {
+      background: #0284c7;
+      color: #fff;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 20px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.15s ease;
+    }
+
+    .btn:hover {
+      background: #0369a1;
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: #334155;
+    }
+
+    .btn-secondary:hover {
+      background: #475569;
+    }
+
+    /* 8.5 x 11 Standard US Letter Flyer Container */
+    .page {
+      width: 8.5in;
+      min-height: 11in;
+      background: var(--bg);
+      padding: 0.35in 0.4in 0.25in;
+      box-shadow: 0 15px 35px rgba(0,0,0,0.15);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      border: 3px double var(--border-outer);
+    }
+
+    /* Header Section */
+    .flyer-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 2px solid var(--card-border);
+      padding-bottom: 12px;
+      margin-bottom: 12px;
+    }
+
+    .header-branding {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .avatar-img {
+      width: 68px;
+      height: 68px;
+      border-radius: 50%;
+      border: 3px solid var(--accent-gold);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+      object-fit: cover;
+    }
+
+    .title-group h1 {
+      font-family: 'Cinzel', serif;
+      font-size: 2.1rem;
+      letter-spacing: 2px;
+      color: var(--accent-navy);
+      line-height: 1;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+    }
+
+    .title-group p {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--accent-gold);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+    }
+
+    .header-badge {
+      background: var(--gold-bg);
+      border: 1.5px solid var(--accent-gold);
+      color: var(--accent-gold);
+      padding: 6px 14px;
+      border-radius: 30px;
+      font-weight: 700;
+      font-size: 0.82rem;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      text-align: right;
+    }
+
+    /* Hero Catchphrase */
+    .hero-banner {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      color: #ffffff;
+      padding: 14px 18px;
+      border-radius: 12px;
+      text-align: center;
+      margin-bottom: 14px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-banner::after {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 12px;
+      pointer-events: none;
+    }
+
+    .hero-banner h2 {
+      font-family: 'Cinzel', serif;
+      font-size: 1.45rem;
+      font-weight: 800;
+      letter-spacing: 1px;
+      margin-bottom: 4px;
+      color: #f8fafc;
+    }
+
+    .hero-banner p {
+      font-size: 0.92rem;
+      color: #38bdf8;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+
+    /* 3 Targeted Audiences Grid */
+    .audiences-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .audience-card {
+      background: var(--card-bg);
+      border: 1.5px solid var(--card-border);
+      border-radius: 10px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .audience-card.featured {
+      border-color: var(--accent-blue);
+      background: rgba(2, 132, 199, 0.04);
+    }
+
+    .audience-icon {
+      font-size: 1.4rem;
+      margin-bottom: 6px;
+    }
+
+    .audience-card h3 {
+      font-family: 'Cinzel', serif;
+      font-size: 0.96rem;
+      font-weight: 700;
+      color: var(--accent-navy);
+      margin-bottom: 6px;
+      line-height: 1.2;
+    }
+
+    .audience-card p {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      line-height: 1.35;
+      font-weight: 500;
+    }
+
+    .audience-card ul {
+      margin-top: 8px;
+      list-style: none;
+      padding-left: 0;
+    }
+
+    .audience-card li {
+      font-size: 0.75rem;
+      color: var(--text-main);
+      margin-bottom: 4px;
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      font-weight: 600;
+    }
+
+    .audience-card li::before {
+      content: "✔";
+      color: var(--accent-green);
+      font-size: 0.7rem;
+    }
+
+    /* Key Features Strip */
+    .features-band {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .feat-box {
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 8px;
+      text-align: center;
+      background: var(--card-bg);
+    }
+
+    .feat-box strong {
+      display: block;
+      font-size: 0.76rem;
+      font-weight: 700;
+      color: var(--accent-navy);
+      margin-bottom: 2px;
+    }
+
+    .feat-box span {
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      line-height: 1.2;
+      display: block;
+    }
+
+    /* Bottom Action Area: QR & Call To Action */
+    .cta-container {
+      display: grid;
+      grid-template-columns: 140px 1fr 140px;
+      gap: 16px;
+      align-items: center;
+      background: var(--card-bg);
+      border: 2px dashed var(--accent-gold);
+      border-radius: 12px;
+      padding: 12px 16px;
+      margin-bottom: 12px;
+    }
+
+    .qr-block {
+      text-align: center;
+    }
+
+    .qr-img {
+      width: 125px;
+      height: 125px;
+      border-radius: 8px;
+      border: 2px solid #0f172a;
+      display: block;
+      margin: 0 auto 4px;
+    }
+
+    .qr-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--accent-navy);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .cta-text {
+      text-align: left;
+    }
+
+    .cta-text h4 {
+      font-family: 'Cinzel', serif;
+      font-size: 1.22rem;
+      color: var(--accent-navy);
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+
+    .url-highlight {
+      font-family: 'Outfit', monospace;
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: var(--accent-blue);
+      letter-spacing: 1px;
+      margin-bottom: 6px;
+      display: inline-block;
+    }
+
+    .cta-text p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      line-height: 1.35;
+      font-weight: 500;
+    }
+
+    .free-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .pill {
+      background: var(--gold-bg);
+      color: var(--accent-gold);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 12px;
+      border: 1px solid var(--accent-gold);
+    }
+
+    .flyer-art-thumb {
+      width: 130px;
+      height: 140px;
+      border-radius: 10px;
+      object-fit: cover;
+      border: 2px solid var(--accent-gold);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    }
+
+    /* Tear-Off Tabs for Campus Bulletin Boards */
+    .tear-off-section {
+      border-top: 2px dashed #94a3b8;
+      padding-top: 8px;
+      position: relative;
+    }
+
+    .tear-off-hint {
+      text-align: center;
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    .tear-off-tabs {
+      display: grid;
+      grid-template-columns: repeat(9, 1fr);
+      gap: 4px;
+    }
+
+    .tab {
+      border-right: 1px dashed #94a3b8;
+      border-left: 1px dashed #94a3b8;
+      padding: 6px 2px 2px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-end;
+      height: 1.1in;
+      background: var(--card-bg);
+      border-radius: 4px;
+    }
+
+    .tab:first-child {
+      border-left: 2px dashed #94a3b8;
+    }
+    .tab:last-child {
+      border-right: 2px dashed #94a3b8;
+    }
+
+    .tab-qr {
+      width: 38px;
+      height: 38px;
+      margin-bottom: 4px;
+      border: 1px solid #0f172a;
+      border-radius: 3px;
+    }
+
+    .tab-url {
+      font-size: 0.62rem;
+      font-weight: 800;
+      color: var(--accent-navy);
+      transform: rotate(-90deg);
+      white-space: nowrap;
+      margin-top: 14px;
+      letter-spacing: 0.5px;
+    }
+
+    .tab-tag {
+      font-size: 0.52rem;
+      color: var(--accent-gold);
+      font-weight: 700;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+
+    /* Print Formatting Rules */
+    @media print {
+      body {
+        background: transparent !important;
+        padding: 0 !important;
+        color: #000 !important;
+      }
+
+      .toolbar {
+        display: none !important;
+      }
+
+      .page {
+        width: 100% !important;
+        height: 100% !important;
+        min-height: 100vh !important;
+        padding: 0.2in 0.25in !important;
+        box-shadow: none !important;
+        border: 2px solid #000 !important;
+        page-break-after: avoid !important;
+        page-break-inside: avoid !important;
+      }
+
+      /* Force light ink-friendly mode during print */
+      body.dark-mode .page {
+        --bg: #ffffff !important;
+        --card-bg: #f8fafc !important;
+        --card-border: #cbd5e1 !important;
+        --text-main: #000000 !important;
+        --text-muted: #334155 !important;
+        --accent-navy: #000000 !important;
+        --accent-blue: #0369a1 !important;
+        --accent-gold: #92400e !important;
+        --gold-bg: #fef3c7 !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Floating Print Control Toolbar -->
+  <div class="toolbar">
+    <button class="btn" onclick="window.print()">
+      🖨️ Print Flyer (Ctrl + P)
+    </button>
+    <button class="btn btn-secondary" onclick="toggleTheme()">
+      🌓 Toggle Print / Poster Theme
+    </button>
+    <span style="font-size: 0.85rem; color: #cbd5e1;">Standard 8.5" x 11" US Letter • 1 Page</span>
+  </div>
+
+  <!-- The 8.5" x 11" US Letter Printable Page -->
+  <div class="page" id="flyerPage">
+
+    <!-- Top Branding Header -->
+    <header class="flyer-header">
+      <div class="header-branding">
+        <img src="assets/pythos_avatar.jpg" alt="Pythos Oracle" class="avatar-img">
+        <div class="title-group">
+          <h1>PYTHOS</h1>
+          <p>Mathematics & Physics Oracle</p>
+        </div>
+      </div>
+      <div class="header-badge">
+        100% Free Forever<br>
+        Zero Ads • Zero Paywalls
+      </div>
+    </header>
+
+    <!-- Punchy Hero Banner -->
+    <section class="hero-banner">
+      <h2>TIRED OF AI HALLUCINATING YOUR MATH HOMEWORK?</h2>
+      <p>Meet the first AI mathematics tutor backed by deterministic Computer Algebra verification.</p>
+    </section>
+
+    <!-- 3 Targeted Audiences Grid -->
+    <section class="audiences-grid">
+      
+      <!-- 1. STEM Students & Classes -->
+      <div class="audience-card featured">
+        <div class="audience-icon">🎓</div>
+        <h3>For Your Class & Homework</h3>
+        <p>ChatGPT and generic bots guess math answers and make up confident derivations. Pythos verifies every step before you see it.</p>
+        <ul>
+          <li>Calculus, Trig, & Linear Algebra</li>
+          <li>Never get bogus signs or wrong steps</li>
+          <li>Interactive PhET-style physics simulations</li>
+          <li>Upload photos of worksheets or hand-drawn graphs</li>
+        </ul>
+      </div>
+
+      <!-- 2. Math Lab & Tutors -->
+      <div class="audience-card">
+        <div class="audience-icon">📐</div>
+        <h3>For the Math Lab & Tutors</h3>
+        <p>An AI co-tutor designed for educators. Guides students step-by-step without doing the thinking for them.</p>
+        <ul>
+          <li>True Socratic dialogue & step hints</li>
+          <li>Catches student algebra errors instantly</li>
+          <li>Inspectable derivation audit receipts</li>
+          <li>Perfect for 24/7 student after-hours support</li>
+        </ul>
+      </div>
+
+      <!-- 3. Veterans & Returning Students -->
+      <div class="audience-card">
+        <div class="audience-icon">🎖️</div>
+        <h3>Veterans & Returning Learners</h3>
+        <p>Getting back into STEM or college math after service or time away? Pythos offers patient, non-judgmental guidance.</p>
+        <ul>
+          <li>Builds from algebra to university calculus</li>
+          <li>Zero subscriptions, credit cards, or timers</li>
+          <li>Accessible on any phone, tablet, or laptop</li>
+          <li>Created as a free non-profit initiative by Lanzar</li>
+        </ul>
+      </div>
+
+    </section>
+
+    <!-- Key Features Band -->
+    <section class="features-band">
+      <div class="feat-box">
+        <strong>🛡️ SymPy & Math.js CAS</strong>
+        <span>Dual computer algebra engines verify every calculation</span>
+      </div>
+      <div class="feat-box">
+        <strong>🔬 Interactive Sim Lab</strong>
+        <span>Hands-on projectile motion, unit circle, and kinematics</span>
+      </div>
+      <div class="feat-box">
+        <strong>📸 Camera / Paste OCR</strong>
+        <span>Snap homework worksheets or textbook diagrams</span>
+      </div>
+      <div class="feat-box">
+        <strong>📜 Inspectable Proofs</strong>
+        <span>Click "Verified" on any answer to audit the math receipts</span>
+      </div>
+    </section>
+
+    <!-- Big Action Block: QR Code & URL -->
+    <section class="cta-container">
+      <div class="qr-block">
+        <img src="assets/pythos_qr.png" alt="Scan QR Code" class="qr-img">
+        <div class="qr-label">Scan to Try Now</div>
+      </div>
+      <div class="cta-text">
+        <h4>Instant Free Access on Mobile & Web:</h4>
+        <div class="url-highlight">https://pythos.lanzar.me</div>
+        <p>No account required to start. Open in any browser, type or photograph your math problem, and get verified, step-by-step guidance.</p>
+        <div class="free-pills">
+          <span class="pill">✔ 100% Free Forever</span>
+          <span class="pill">✔ No Download Required</span>
+          <span class="pill">✔ Works on iPhone & Android</span>
+          <span class="pill">✔ Open-Source Community</span>
+        </div>
+      </div>
+      <img src="assets/flyer_art.jpg" alt="Pythos Classical Art" class="flyer-art-thumb">
+    </section>
+
+    <!-- Tear-off Strip for Bulletin Boards -->
+    <section class="tear-off-section">
+      <div class="tear-off-hint">✂ Cut or Perforate Along Lines Below for Campus Bulletin Boards ✂</div>
+      <div class="tear-off-tabs">
+        <div class="tab">
+          <span class="tab-url">pythos.lanzar.me</span>
+          <img src="assets/pythos_qr.png" class="tab-qr" alt="QR">
+          <span class="tab-tag">Free Math</span>
+        </div>
+        <div class="tab">
+          <span class="tab-url">pythos.lanzar.me</span>
+          <img src="assets/pythos_qr.png" class="tab-qr" alt="QR">
+          <span class="tab-tag">Free Math</span>
+        </div>
+        <div class="tab">
+          <span class="tab-url">pythos.lanzar.me</span>
+          <img src="assets/pythos_qr.png" class="tab-qr" alt="QR">
+          <span class="tab-tag">Free Math</span>
+        </div>
+        <div class="tab">
+          <span class="tab-url">pythos.lanzar.me</span>
+          <img src="assets/pythos_qr.png" class="tab-qr" alt="QR">
+          <span class="tab-tag">Free Math</span>
+        </div>
+        <div class="tab">
+          <span class="tab-url">pythos.lanzar.me</span>
+          <img src="assets/pythos_qr.png" class="tab-qr" alt="QR">
+          <span class="tab-tag">Free Math</span>
+        </div>
+        <div class="tab">
+          <span class="tab-url">pythos.lanzar.me</span>
+          <img src="assets/pythos_qr.png" class="tab-qr" alt="QR">
+          <span class="tab-tag">Free Math</span>
+        </div>
+        <div class="tab">
+          <span class="tab-url">pythos.lanzar.me</span>
+          <img src="assets/pythos_qr.png" class="tab-qr" alt="QR">
+          <span class="tab-tag">Free Math</span>
+        </div>
+        <div class="tab">
+          <span class="tab-url">pythos.lanzar.me</span>
+          <img src="assets/pythos_qr.png" class="tab-qr" alt="QR">
+          <span class="tab-tag">Free Math</span>
+        </div>
+        <div class="tab">
+          <span class="tab-url">pythos.lanzar.me</span>
+          <img src="assets/pythos_qr.png" class="tab-qr" alt="QR">
+          <span class="tab-tag">Free Math</span>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <script>
+    function toggleTheme() {
+      document.body.classList.toggle('dark-mode');
+    }
+  </script>
+</body>
+</html>
