@@ -2,6 +2,15 @@
 **Release Date:** October 6, 2026
 
 ### Added & Enhanced
+
+- **50,000-Problem Recovery Stress Validation Campaign**:
+  - Validated engine across 12 STEM & hardening domains with PRNG seed `2236067977`.
+  - Delivered 22,722 verified-correct answers (45.44%), safely withheld 27,278 (54.56%), 0 incorrect delivered, 0 verification escapes.
+  - 10% fault-injection cohort: 5,000 catches (100%), 2,920 / 2,920 certified truth recoveries (100.00%).
+  - Telemetry: 71.1s total runtime, 260 MB peak RSS, $0.00 cloud tokens.
+- **Deterministic Geometry Router & Mobile Fixes**:
+  - Prioritized calculation over visual rendering for Pythagorean hypotenuse queries (Geometry & Trig domain: 4,200 / 4,200 verified correct).
+  - Fixed mobile calculator lockup on page load.
 - **Step-Level Verification Audit Contract (`VerificationStepAudit`)**:
   - Transformed mathematical verification into a structured, reproducible data contract emitted over the wire on streaming NDJSON and JSON endpoints.
   - Telemetry per step: `expressionEvaluated`, `verificationMethod`, `engine` (`sympy` / `mathjs`), `assumptions` (domain, tolerance), `checkedState` (proposed, expected, discrepancy), and `rejectionRationale`.

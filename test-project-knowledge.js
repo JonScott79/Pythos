@@ -79,8 +79,8 @@ for (const q of validationQueries) {
     assert(ctx.includes('Mathematical Validation Record'), 'Context must contain Validation title');
     assert(ctx.includes('/validation/'), 'Context must reference /validation/ URL');
     assert(ctx.includes('50,000'), 'Context must contain live benchmark count 50,000');
-    assert(ctx.includes('20,602'), 'Context must contain live verified count 20,602');
-    assert(ctx.includes('29,398'), 'Context must contain live withheld count 29,398');
+    assert(ctx.includes('22,722'), 'Context must contain live verified count 22,722');
+    assert(ctx.includes('27,278'), 'Context must contain live withheld count 27,278');
   });
 }
 
@@ -218,8 +218,8 @@ for (const q of releaseQueries) {
     assert(res.sources.includes('CHANGELOG'));
 
     const ctx = buildProjectKnowledgeContext(q);
-    assert(ctx.includes('Pythos 1.8.27'), 'Context must contain latest version 1.8.27');
-    assert(ctx.includes('October 3, 2026'), 'Context must contain release date');
+    assert(ctx.includes('Pythos 1.8.35'), 'Context must contain latest version 1.8.35');
+    assert(ctx.includes('October 6, 2026'), 'Context must contain release date');
     // Token efficiency check: latest release extracted should be under 500 tokens
     assert(ctx.length < 4500, `Changelog context should be compact (< 4500 chars), got ${ctx.length}`);
   });
@@ -397,14 +397,14 @@ runTest('Authoritative source reads from filesystem, not hardcoded strings', () 
   assert(valSource !== null);
   assert.strictEqual(valSource.id, 'VALIDATION');
   assert(valSource.text.includes('50,000'));
-  assert(valSource.text.includes('20,602'));
-  assert(valSource.text.includes('29,398'));
+  assert(valSource.text.includes('22,722'));
+  assert(valSource.text.includes('27,278'));
   // zero withheld in 110k campaign
   assert(valSource.mtime instanceof Date);
 
   const changelogSource = getAuthoritativeSource('CHANGELOG');
   assert(changelogSource !== null);
-  assert(changelogSource.text.includes('Pythos 1.8.27'));
+  assert(changelogSource.text.includes('Pythos 1.8.35'));
 });
 
 // =========================================================================

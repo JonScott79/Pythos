@@ -36,7 +36,7 @@ function runTest(name, fn) {
 const valHtml = fs.readFileSync('validation/index.html', 'utf8');
 const serverValHtml = fs.readFileSync('server/site_sources/validation/index.html', 'utf8');
 const indexHtml = fs.readFileSync('index.html', 'utf8');
-const summaryJson = JSON.parse(fs.readFileSync('campaign_v1825_50k_rerun/campaign_summary.json', 'utf8'));
+const summaryJson = JSON.parse(fs.readFileSync('campaign_v1835_50k/campaign_summary.json', 'utf8'));
 
 // Test 1: File synchronization
 runTest('Source mirroring: validation/index.html mirrors server/site_sources/validation/index.html', () => {
@@ -48,7 +48,7 @@ runTest('Data fidelity: Current validation metrics match latest 50k campaign sum
   assert(valHtml.includes(summaryJson.seed.toString()), 'PRNG seed must match campaign summary');
   assert(valHtml.includes(summaryJson.totals.correct.toLocaleString()), 'Verified correct count must match');
   assert(valHtml.includes(summaryJson.totals.withheld.toLocaleString()), 'Safely withheld count must match');
-  assert(valHtml.includes('4cdb7ee'), 'Commit hash for benchmark must be present');
+  assert(valHtml.includes('6107f75'), 'Commit hash for benchmark must be present');
 });
 
 // Test 3: No duplicate counts between Current and Task #6
@@ -57,6 +57,8 @@ runTest('No duplicate campaign collision: Current headline counts distinct from 
   assert(currentMatch, 'Must find current verified correct count');
   const currentCount = currentMatch[1].replace(/,/g, '');
   assert.notStrictEqual(currentCount, '20602', 'Current headline count must not duplicate Task #6 count (20,602)');
+  assert.notStrictEqual(currentCount, '21733', 'Current headline count must not duplicate v1.8.25 count (21,733)');
+  assert.strictEqual(currentCount, '22722', 'Current headline count must match v1.8.35 count (22,722)');
 });
 
 // Test 4: Version alignment
