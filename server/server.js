@@ -656,27 +656,40 @@ async function executeGroqVisionCall(provider, { messages, visionSystemPrompt, o
 
   const targetModel = provider.model || process.env.OLLAMA_VISION_MODEL || OLLAMA_VISION_MODEL;
   const visionConversation = messages.filter(m => m.role !== 'system');
+  // Bound conversational history to recent turns to keep total tokens safely within Groq TPM limits
+  const boundedTurns = visionConversation.slice(-6);
   const formattedMessages = [
     { role: 'system', content: visionSystemPrompt },
-    ...visionConversation.map(m => {
+    ...boundedTurns.map(m => {
       if (m.images && m.images.length > 0) {
         const contentParts = [{ type: 'text', text: m.content || 'Please analyze this image' }];
         m.images.forEach(b64 => {
           let cleanB64 = b64;
+          let mimeType = 'image/jpeg';
           if (typeof cleanB64 === 'string') {
-            if (cleanB64.includes('base64,')) {
+            if (cleanB64.startsWith('data:')) {
+              const match = /^data:([^;]+);base64,(.+)$/.exec(cleanB64);
+              if (match) {
+                mimeType = match[1];
+                cleanB64 = match[2];
+              }
+            } else if (cleanB64.includes('base64,')) {
               cleanB64 = cleanB64.split('base64,')[1];
             }
             cleanB64 = cleanB64.trim();
           }
+          const validation = visionExtractor.validateBase64Image(cleanB64);
+          if (validation && validation.valid && validation.format) {
+            mimeType = `image/${validation.format}`;
+          }
           contentParts.push({
             type: 'image_url',
-            image_url: { url: `data:image/jpeg;base64,${cleanB64}` }
+            image_url: { url: `data:${mimeType};base64,${cleanB64}` }
           });
         });
         return { role: m.role, content: contentParts };
       }
-      return { role: m.role, content: m.content };
+      return { role: m.role, content: (m.content && m.content.trim().length > 0) ? m.content : ' ' };
     })
   ];
 
