@@ -17,7 +17,7 @@
 const assert = require('assert');
 const path = require('path');
 
-const basePath = 'C:/Projects/lanzar/pythos';
+const basePath = __dirname;
 const deterministicRouter = require(path.join(basePath, 'server/deterministicRouter'));
 const verificationBridge = require(path.join(basePath, 'server/verificationBridge'));
 const contextManager = require(path.join(basePath, 'server/contextManager'));
@@ -277,6 +277,60 @@ runTest('F3: Contradictory geometric candidate is safely withheld by delivery ga
   });
 
   assert.strictEqual(delivery.delivered, false, 'Delivery gate failed to block contradiction!');
+});
+
+
+// -----------------------------------------------------------------------------
+// GROUP G: Inverse Trig & Web-Platform Algebraic Protection (Pearson / WebAssign)
+// -----------------------------------------------------------------------------
+console.log('\n--- GROUP G: INVERSE TRIG & WEB-PLATFORM ALGEBRAIC PROTECTION ---');
+
+runTest('G1: Pearson screen-reader inverse trig prompt must not trigger dummy triangle area', () => {
+  const prompt = 'Use a right triangle to write the following expression as an algebraic expression. Assume that x is positive and that the given inverse trigonometric function is defined for the expression in x. tangent left parenthesis cosine Superscript negative 1 Baseline 4 x right parenthesis Question content area bottom Part 1 tangent left parenthesis cosine Superscript negative 1 Baseline 4 x right parenthesisequals enter your response here (Simplify your answer, including any radicals. Use integers or fractions for any numbers in the expression. Rationalize all denominators.)';
+  const intent = deterministicRouter.analyzeDeterministicIntent(prompt, []);
+  if (intent) {
+    throw new Error(`Inverse trig hijacked by deterministic intent ${intent.type}: ${intent.formatted || intent.expression}`);
+  }
+});
+
+runTest('G2: Pearson fractional inverse trig prompt must not trigger triangle area', () => {
+  const prompt = 'Use a right triangle to write the following expression as an algebraic expression. Assume that x is positive and that the given inverse trigonometric function is defined for the expression in x. cosine left parenthesis sine Superscript negative 1 Baseline StartFraction 9 Over x EndFraction right parenthesis Question content area bottom Part 1 cosine left parenthesis sine Superscript negative 1 Baseline StartFraction 9 Over x EndFraction right parenthesisequals';
+  const intent = deterministicRouter.analyzeDeterministicIntent(prompt, []);
+  if (intent) {
+    throw new Error(`Fractional inverse trig hijacked by deterministic intent ${intent.type}`);
+  }
+});
+
+runTest('G3: Textbook inverse trig "Write tan(cos^-1(4x)) as an algebraic expression" must bypass deterministic router', () => {
+  const prompt = 'Use a right triangle to write tan(cos^-1(4x)) as an algebraic expression in x.';
+  const intent = deterministicRouter.analyzeDeterministicIntent(prompt, []);
+  if (intent) {
+    throw new Error(`Textbook inverse trig hijacked by deterministic intent ${intent.type}`);
+  }
+});
+
+runTest('G4: Arcsin expression "Express sec(arcsin(x/5)) in terms of x" must bypass deterministic geometry', () => {
+  const prompt = 'Express sec(arcsin(x/5)) in terms of x using a reference right triangle.';
+  const intent = deterministicRouter.analyzeDeterministicIntent(prompt, []);
+  if (intent) {
+    throw new Error(`Arcsin expression hijacked by deterministic intent ${intent.type}`);
+  }
+});
+
+runTest('G5: Web platform boilerplate containing "content area" must never trigger geometric area on non-geometric queries', () => {
+  const prompt = 'Simplify (2x + 3)(x - 4). Question content area bottom enter your response here';
+  const intent = deterministicRouter.analyzeDeterministicIntent(prompt, []);
+  if (intent && (intent.type === 'GEOMETRY_VIZ' || intent.isArea)) {
+    throw new Error(`Web boilerplate 'content area' triggered geometric area calculation!`);
+  }
+});
+
+runTest('G6: Numerical right-triangle inverse trig "cot(arcsin(9/41))" must not hijack to dummy 3-4-5 area', () => {
+  const prompt = 'Use a right triangle to find the exact value of cot(sin^-1(9/41))';
+  const intent = deterministicRouter.analyzeDeterministicIntent(prompt, []);
+  if (intent && intent.type === 'GEOMETRY_VIZ' && intent.isArea) {
+    throw new Error(`Inverse trig evaluation hijacked to geometric area!`);
+  }
 });
 
 // -----------------------------------------------------------------------------

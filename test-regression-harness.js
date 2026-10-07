@@ -10,6 +10,7 @@
  * 5. Student Privacy Sanitization (Priority 9 PII tests)
  * 6. Progressive Tutoring, Notation & Math-First Routing (6 tests)
  * 7. Structured Visualization Token Parsing (Priority 4 visual tests)
+ * 8. Deterministic Fast-Path Hardening & Web-Platform Trig Protection
  */
 
 const { execSync } = require('child_process');
@@ -388,6 +389,23 @@ runSuite("Revised Response Re-Verification Integrity Suite", () => {
     stdio: 'pipe'
   });
   console.log(out.trim());
+});
+
+
+// 25. Deterministic Router & Fast-Path Hardening (Inverse-Trig & Web Boilerplate Protection)
+runSuite("Deterministic Fast-Path Hardening & Inverse-Trig Web Boilerplate Protection", () => {
+  const out1 = execSync('node test-deterministic-router.js', {
+    cwd: __dirname,
+    encoding: 'utf-8',
+    stdio: 'pipe'
+  });
+  const out2 = execSync('node test-deterministic-fastpath-hardening.js', {
+    cwd: __dirname,
+    encoding: 'utf-8',
+    stdio: 'pipe'
+  });
+  console.log(out1.trim());
+  console.log(out2.trim());
 });
 
 console.log(`\n${colors.bold}${colors.green}====================================================${colors.reset}`);
