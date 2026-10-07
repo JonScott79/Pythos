@@ -1,3 +1,21 @@
+## Pythos 1.8.35
+**Release Date:** October 6, 2026
+
+### Added & Enhanced
+- **Step-Level Verification Audit Contract (`VerificationStepAudit`)**:
+  - Transformed mathematical verification into a structured, reproducible data contract emitted over the wire on streaming NDJSON and JSON endpoints.
+  - Telemetry per step: `expressionEvaluated`, `verificationMethod`, `engine` (`sympy` / `mathjs`), `assumptions` (domain, tolerance), `checkedState` (proposed, expected, discrepancy), and `rejectionRationale`.
+- **Interactive UI Derivation Inspector**:
+  - Added subtle, accessible `🛡️ Verified (N steps)` badge on the bottom-right corner of assistant responses matching Report and Copy styling.
+  - Toggles a clean step-level audit panel displaying exact expressions tested and certifying CAS engine tags.
+- **Targeted Socratic Revision Prompting**:
+  - Revision loops now inject granular step-level failure diagnostics directly into prompt revisions, preventing blind retries and guiding students Socratically with mathematical precision.
+
+### Fixed & Hardened
+- **Multimodal Vision Resiliency**:
+  - Integrated magic-byte MIME sniffing for uploaded and pasted screenshots, ensuring PNG, WebP, and JPEG files are transmitted with exact Content-Type headers to prevent upstream vision model decode rejections.
+  - Bounded conversational history on vision inference turns to prevent token-per-minute (TPM) quota exhaustion on free-tier inference gateways.
+
 ## Pythos 1.8.34
 **Release Date:** October 5, 2026
 

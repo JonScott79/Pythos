@@ -24,7 +24,7 @@
   <link rel="icon" type="image/png" href="../assets/favicon.png">
   
   <title>Mathematical Validation | Pythos</title>
-  <meta name="description" content="Pythos mathematical validation record: 50,000 problems tested across 12 domains, 21,733 verified correct, 0 incorrect answers delivered. We test the math and publish the results.">
+  <meta name="description" content="Pythos mathematical validation record: 50,000 problems tested across 12 domains, 21,733 verified correct, 0 incorrect answers delivered. Published results.">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://pythos.lanzar.me/validation/">
@@ -719,7 +719,7 @@
         <a href="../nonprofit.html" class="nav-link">Mission & Roadmap</a>
         <a href="../license.html" class="nav-link">License</a>
         <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" class="nav-link">Facebook</a>
-        <a href="../changelog.html#pythos-1-8-34" class="nav-link">v1.8.34</a>
+        <a href="../changelog.html#pythos-1-8-35" class="nav-link">v1.8.35</a>
       </div>
     </div>
     <div class="nav-right">
@@ -777,7 +777,7 @@
       <h2 id="currentValidationHeading">🛡️ Current Validation — Deterministic &amp; Recovery Stress Benchmark (50K)</h2>
 
       <div class="meta-bar">
-        <div class="meta-item"><span>Current App Release:</span> <strong>Pythos v1.8.34</strong></div>
+        <div class="meta-item"><span>Current App Release:</span> <strong>Pythos v1.8.35</strong></div>
         <div class="meta-item"><span>Last Validated Engine:</span> <strong>v1.8.25+ (commit <code>4cdb7ee</code>)</strong></div>
         <div class="meta-item"><span>Campaign Type:</span> <strong>Deterministic Fault-Injection &amp; Recovery Stress</strong></div>
         <div class="meta-item"><span>PRNG Stream Seed:</span> <strong><code>1732050808</code></strong></div>
@@ -1288,7 +1288,41 @@
         <strong>Historical Scope &amp; Verification Evolution:</strong> The historical benchmarks documented below record Pythos's empirical evolution from the early v1.8.4 deterministic verifier through the Task #5 and #6 hardening milestones to the current v1.8.25+ verified-truth recovery architecture. Subsequent Pythos releases have expanded the verification architecture beyond this milestone—incorporating <em>vision verification</em> for geometric diagrams and textbook photos, alongside <em>verified backup-brain recovery</em>. Newer capabilities build directly on the frozen benchmark foundation without altering historical evidence.
       </div>
 
-      <h3>Open Development &amp; Source Code</h3>
+      <!-- STEP-LEVEL VERIFICATION AUDIT CONTRACTS -->
+        <div style="margin-top: 30px; margin-bottom: 30px; padding: 20px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--chat-ai-bg);">
+          <h3 style="margin-top: 0; display: flex; align-items: center; gap: 8px;">
+            <span>🛡️</span> Step-Level Verification Audit Contracts (<code>VerificationStepAudit</code>)
+          </h3>
+          <p>
+            Introduced in <strong>v1.8.35</strong>, Pythos elevates internal claim audits into a first-class, inspectable telemetry contract. Rather than treating verification as an internal binary pass/fail decision, every mathematical derivation emits an array of structured step audit objects across streaming NDJSON and synchronous JSON endpoints:
+          </p>
+          <ul style="padding-left: 20px; font-size: 0.9rem; line-height: 1.8; color: var(--text-main);">
+            <li><strong><code>expressionEvaluated</code>:</strong> The exact symbolic statement, differential expression, or rational arithmetic problem tested.</li>
+            <li><strong><code>verificationMethod</code> &amp; <code>engine</code>:</strong> The deterministic computer algebra system (<code>sympy:derivative</code>, <code>sympy:integral</code>, <code>mathjs:arithmetic</code>).</li>
+            <li><strong><code>assumptions</code>:</strong> Mathematical domain constraints applied during evaluation (e.g. $x \in \mathbb{R}$, positive roots, floating-point error margins $\epsilon &lt; 0.005$).</li>
+            <li><strong><code>checkedState</code>:</strong> Proposed derivation state vs. deterministic ground truth, tracking exact quantitative discrepancy ($\Delta = 0$).</li>
+            <li><strong><code>rejectionRationale</code>:</strong> Granular diagnostic rationale feeding the targeted Socratic revision loop when an initial step fails.</li>
+          </ul>
+          <p style="font-size: 0.9rem; margin-top: 10px;">
+            This contract is also directly inspectable in the web application: clicking the <strong>🛡️ Verified</strong> button on the bottom-right of any solved problem expands the real-time CAS proof receipt.
+          </p>
+          <div style="margin-top: 12px; background: #0f172a; color: #e2e8f0; padding: 14px; border-radius: 6px; font-family: monospace; font-size: 0.8rem; overflow-x: auto;">
+<pre style="margin: 0;">{
+  "stepIndex": 0,
+  "claimType": "derivative",
+  "domain": "calculus",
+  "expressionEvaluated": "\\frac{d}{dx}[x^3 - 4x^2 + 5x - 7]",
+  "verificationMethod": "sympy:derivative",
+  "engine": "sympy",
+  "assumptions": { "domain": "real", "tolerance": 0.0001, "isApproximate": false },
+  "checkedState": { "proposed": "3*x**2 - 8*x + 5", "expected": "3*x**2 - 8*x + 5", "discrepancy": 0, "isExactMatch": true },
+  "verdict": "VERIFIED",
+  "rejectionRationale": null
+}</pre>
+          </div>
+        </div>
+
+        <h3>Open Development &amp; Source Code</h3>
       <p>
         Pythos is developed openly in the public interest. The official GitHub repository contains the full application source code, multi-tier deterministic verification architecture, automated test suites, and complete development history:
       </p>
@@ -1318,7 +1352,7 @@
       <a href="../nonprofit.html">Mission & Roadmap</a> &bull;
       <a href="https://github.com/JonScott79/Pythos" target="_blank" rel="noopener noreferrer">GitHub</a> &bull;
       <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer">Facebook</a> &bull;
-      <a href="../changelog.html#pythos-1-8-34">v1.8.34</a>
+      <a href="../changelog.html#pythos-1-8-35">v1.8.35</a>
     </div>
   </footer>
 

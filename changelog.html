@@ -22,14 +22,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="assets/favicon.png">
-  <title>Pythos Release History &amp; Changelog | v1.8.32</title>
+  <title>Pythos Release History &amp; Changelog | v1.8.35</title>
   <meta name="description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://pythos.lanzar.me/changelog.html">
 
   <!-- OPEN GRAPH -->
-  <meta property="og:title" content="Pythos Release History &amp; Changelog | v1.8.32">
+  <meta property="og:title" content="Pythos Release History &amp; Changelog | v1.8.35">
   <meta property="og:description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta property="og:url" content="https://pythos.lanzar.me/changelog.html">
   <meta property="og:type" content="article">
@@ -41,7 +41,7 @@
 
   <!-- TWITTER CARD -->
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Pythos Release History &amp; Changelog | v1.8.32">
+  <meta name="twitter:title" content="Pythos Release History &amp; Changelog | v1.8.35">
   <meta name="twitter:description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="twitter:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
 
@@ -532,7 +532,7 @@
         <a href="nonprofit.html" class="nav-link">Mission &amp; Roadmap</a>
         <a href="license.html" class="nav-link">License</a>
         <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" class="nav-link">Facebook</a>
-        <a href="changelog.html#pythos-1-8-31" class="nav-link active" aria-current="page">v1.8.31</a>
+        <a href="changelog.html#pythos-1-8-35" class="nav-link active" aria-current="page">v1.8.35</a>
       </div>
     </div>
 
@@ -562,11 +562,59 @@
         <!-- ==================== RELEASE 1.8.28 ==================== -->
         <!-- ==================== RELEASE 1.8.29 ==================== -->
     <!-- ==================== RELEASE 1.8.31 ==================== -->
-                        <article class="release-card" id="pythos-1-8-34">
+                        <article class="release-card" id="pythos-1-8-35">
+      <div class="release-header">
+        <div class="release-title-wrap">
+          <h2 class="release-version">Pythos 1.8.35</h2>
+          <span class="release-badge">Latest Release</span>
+        </div>
+        <time class="release-date" datetime="2026-10-06">October 6, 2026</time>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header">
+          <span class="badge-added">Feature</span>
+          <span class="section-title">Step-Level Verification Audit Contract &amp; Derivation Inspector</span>
+        </div>
+        <ul class="change-list">
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>First-Class VerificationStepAudit Telemetry Contract:</strong> Transformed mathematical verification from an internal binary pass/fail decision into a structured, step-level data contract emitted across streaming NDJSON and JSON responses. Each derivation step now carries the evaluated expression, the certifying engine (<code>Math.js</code> or <code>SymPy CAS</code>), mathematical domain assumptions ($x \in \mathbb{R}$, positive roots, branch cuts, error tolerance), and the exact verified comparison state.</div>
+          </li>
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Interactive Derivation Proof Receipt:</strong> Added a subtle, accessible <strong>🛡️ Verified (N steps)</strong> badge on the bottom-right corner of assistant responses matching Report and Copy styling. Students and educators can click it to inspect the real-time CAS proof audit without cluttering the chat flow.</div>
+          </li>
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Targeted Socratic Revision Injection:</strong> Enhanced the automated revision loop to inject pinpoint mathematical failure diagnostics (e.g. expected CAS truth vs. candidate discrepancy) directly into revision prompts, eliminating blind retries and maintaining deterministic accuracy.</div>
+          </li>
+        </ul>
+      </div>
+
+      <div class="section-group">
+        <div class="section-header">
+          <span class="badge-fixed">Hardening</span>
+          <span class="section-title">Multimodal Vision Payload MIME Sniffing &amp; Token Bounding</span>
+        </div>
+        <ul class="change-list">
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Magic-Byte MIME Sniffing:</strong> Implemented server-side binary format sniffing across clipboard paste and phone photo uploads, ensuring PNG, WebP, and JPEG images carry accurate Content-Type headers rather than forcing JPEG mime types on upstream vision models.</div>
+          </li>
+          <li class="change-item">
+            <span class="change-bullet"></span>
+            <div><strong>Multi-Turn Vision Token Bounding:</strong> Automatically bounds conversational history to recent turns on multimodal requests, eliminating upstream rate limit (HTTP 429) spikes on long homework sessions while preserving necessary conversational context.</div>
+          </li>
+        </ul>
+      </div>
+    </article>
+
+    <article class="release-card" id="pythos-1-8-34">
       <div class="release-header">
         <div class="release-title-wrap">
           <h2 class="release-version">Pythos 1.8.34</h2>
-          <span class="release-badge">Latest Release</span>
+          
         </div>
         <time class="release-date" datetime="2026-10-05">October 5, 2026</time>
       </div>
@@ -1838,7 +1886,7 @@
 
   <footer>
     <div>🏛️ Pythos — Free AI Mathematics &amp; Physics Education Initiative. Developed by LANZAR.</div>
-    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-8-31" style="color:var(--primary-color); text-decoration:none;">v1.8.31</a></div>
+    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-8-35" style="color:var(--primary-color); text-decoration:none;">v1.8.35</a></div>
   </footer>
 
   <script>

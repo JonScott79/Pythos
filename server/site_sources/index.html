@@ -759,10 +759,13 @@
     .msg-actions {
       display: flex;
       justify-content: flex-end;
+      align-items: center;
+      gap: 6px;
       margin-top: 4px;
       opacity: 0;
       transition: opacity 0.2s;
     }
+
 
     .message:hover .msg-actions {
       opacity: 1;
@@ -874,6 +877,91 @@
       color: var(--text-main);
     }
 
+    /* Verified Derivation Audit Contract UX */
+    .msg-audit-btn {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      padding: 2px 6px;
+      cursor: pointer;
+      color: var(--text-muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.72rem;
+      font-family: 'Inter', sans-serif;
+      transition: all 0.15s;
+    }
+
+    .msg-audit-btn:hover,
+    .msg-audit-btn.active {
+      background: rgba(22, 163, 74, 0.08);
+      color: #16a34a;
+      border-color: rgba(22, 163, 74, 0.4);
+    }
+
+    [data-theme="dark"] .msg-audit-btn:hover,
+    [data-theme="dark"] .msg-audit-btn.active {
+      background: rgba(74, 222, 128, 0.12);
+      color: #4ade80;
+      border-color: rgba(74, 222, 128, 0.4);
+    }
+
+    .pythos-audit-panel {
+      margin-top: 8px;
+      padding: 10px 14px;
+      border: 1px solid rgba(22, 101, 52, 0.2);
+      border-radius: 6px;
+      background: rgba(240, 253, 244, 0.6);
+      font-size: 0.84rem;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+
+    [data-theme="dark"] .pythos-audit-panel {
+      background: rgba(20, 83, 45, 0.15);
+      border-color: rgba(74, 222, 128, 0.2);
+    }
+
+    .pythos-audit-body {
+      margin-top: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .pythos-audit-step {
+      padding: 6px 8px;
+      border-radius: 4px;
+      background: var(--chat-ai-bg);
+      border: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .pythos-audit-step-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.76rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .pythos-audit-step-expr {
+      font-family: monospace, sans-serif;
+      font-size: 0.85rem;
+      color: var(--text-main);
+    }
+
+    .pythos-audit-step-meta {
+      font-size: 0.74rem;
+      color: var(--text-muted);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
     /* Report Modal Styles */
     .report-modal-overlay {
       display: none;
@@ -3897,7 +3985,7 @@
           <a href="nonprofit.html">Mission &amp; Roadmap</a>
           <a href="license.html">License</a>
           <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" title="Official Facebook Page" aria-label="Official Facebook Page">Facebook</a>
-          <a href="changelog.html#pythos-1-8-34" title="View Changelog" aria-label="Version 1.8.34 Release Notes">v1.8.34</a>
+          <a href="changelog.html#pythos-1-8-35" title="View Changelog" aria-label="Version 1.8.35 Release Notes">v1.8.35</a>
         </nav>
       </div>
     </aside>
@@ -3915,7 +4003,7 @@
         <header class="header">
           <img class="header-avatar" src="assets/pythos_avatar.jpg" alt="Pythos Oracle" width="40" height="40" />
           <div class="header-info">
-            <h1>PYTHOS <a href="changelog.html#pythos-1-8-34" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.34)" aria-label="Version 1.8.34 Release Notes">v1.8.34</a></h1>
+            <h1>PYTHOS <a href="changelog.html#pythos-1-8-35" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.35)" aria-label="Version 1.8.35 Release Notes">v1.8.35</a></h1>
             <p>Mathematics & Physics Oracle</p>
           </div>
           <button id="themeToggleBtn" class="theme-toggle-btn" title="Toggle Dark/Light Mode" aria-label="Toggle Dark and Light Theme">
