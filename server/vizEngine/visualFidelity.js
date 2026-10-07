@@ -238,9 +238,13 @@ function extractRightTriangleParameters(text, conversationHistory = [], activePr
     if (verifyTrigTriangleModel(candidate)) return candidate;
   }
 
-  // 6. Qualitative trig / triangle request -> default classical 3-4-5 reference triangle
-  if (/(?:triangle|trig|ratio|tangent|sine|cosine|tan|sin|cos|sec|cot|csc)/i.test(combined)) {
-    return { opp: 3, adj: 4, hyp: 5, angleLabel: 'θ' };
+  // 6. Qualitative trig / triangle request -> default classical 3-4-5 reference triangle ONLY for qualitative visual requests
+  // Do NOT default to 3-4-5 if numbers or calculations (hypotenuse, perimeter, area) were asked!
+  if (!/(?:legs|sides)?s*(?:0|zero)/i.test(combined) && !/(?:find|calculate|compute|what is)s+(?:thes+)?(?:hypotenuse|perimeter|area)/i.test(combined)) {
+    if (/(?:show|draw|illustrate|see|view|display|plot|sketch).*?(?:triangle)/i.test(combined) ||
+        /(?:hows+(?:as+rights+triangles+works|thiss+works))/i.test(combined)) {
+      return { opp: 3, adj: 4, hyp: 5, angleLabel: 'θ' };
+    }
   }
 
   return null;

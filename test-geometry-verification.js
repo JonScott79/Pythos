@@ -131,8 +131,9 @@ async function runTests() {
     const intent = deterministicRouter.analyzeDeterministicIntent(prompt);
     const resp = deterministicRouter.buildDeterministicResponse(intent);
     const claims = verificationBridge.extractClaims(resp, prompt);
-    assert.strictEqual(claims.length, 1);
-    const verRes = await verificationBridge.runDeterministicVerification(claims[0], prompt);
+    const geomClaim = claims.find(c => c.claim_type === 'right_triangle_geometry');
+    assert.ok(geomClaim, 'Must extract right_triangle_geometry claim');
+    const verRes = await verificationBridge.runDeterministicVerification(geomClaim, prompt);
     assert.strictEqual(verRes.verified, true);
     assert.strictEqual(verRes.status, 'VERIFIED');
   });

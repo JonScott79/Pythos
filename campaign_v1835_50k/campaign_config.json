@@ -1,0 +1,71 @@
+{
+  "campaign": "PYTHOS_v1835_50K",
+  "commit": "0af3bd8916d6d2de353f12b1fd00da151dd2d2cc",
+  "version": "1.8.35",
+  "seed": 2236067977,
+  "mode": "Deterministic & Candidate-Rejection Production Stress Validation",
+  "totalProblems": 50000,
+  "recoveryCohortSize": 5000,
+  "domains": [
+    {
+      "name": "ARITHMETIC",
+      "count": 4200,
+      "hasTrustedTruth": true
+    },
+    {
+      "name": "FRACTIONS",
+      "count": 4200,
+      "hasTrustedTruth": true
+    },
+    {
+      "name": "LINEAR_EQUATIONS",
+      "count": 4200,
+      "hasTrustedTruth": true
+    },
+    {
+      "name": "SYSTEMS_OF_EQUATIONS",
+      "count": 4200,
+      "hasTrustedTruth": true
+    },
+    {
+      "name": "QUADRATICS",
+      "count": 4200,
+      "hasTrustedTruth": false
+    },
+    {
+      "name": "FUNCTIONS",
+      "count": 4200,
+      "hasTrustedTruth": false
+    },
+    {
+      "name": "GEOMETRY_TRIG",
+      "count": 4200,
+      "hasTrustedTruth": true
+    },
+    {
+      "name": "CALCULUS",
+      "count": 4200,
+      "hasTrustedTruth": false
+    },
+    {
+      "name": "PROBABILITY_STATS",
+      "count": 4200,
+      "hasTrustedTruth": false
+    },
+    {
+      "name": "PHYSICS",
+      "count": 4200,
+      "hasTrustedTruth": true
+    },
+    {
+      "name": "ADVERSARIAL_TRICK",
+      "count": 4000,
+      "hasTrustedTruth": false
+    },
+    {
+      "name": "MULTI_TURN",
+      "count": 4000,
+      "hasTrustedTruth": true
+    }
+  ]
+}

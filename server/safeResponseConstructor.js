@@ -63,7 +63,7 @@ function constructSafeVerifiedResponse({
         '',
         `[GEOMETRY: triangle, a=${referenceTriangle.opp}, b=${referenceTriangle.adj}, c=${referenceTriangle.hyp}, right_angle=C, opp=${referenceTriangle.opp}, adj=${referenceTriangle.adj}, hyp=${referenceTriangle.hyp}, theta=true]`,
         '',
-        `*Orientation note:* Reference triangle side lengths are strictly positive Euclidean distances ($adjacent = ${referenceTriangle.adj}$, $opposite = ${referenceTriangle.opp}$, $hypotenuse = ${referenceTriangle.hyp}$). Any negative signs indicate quadrant orientation.`,
+        `*Orientation note:* Reference triangle side lengths are strictly positive Euclidean distances ($adjacent = ${referenceTriangle.adj}$, $opposite = ${referenceTriangle.opp}$, $hypotenuse = ${referenceTriangle.hyp}$). Any negative signs indicate quadrant orientation.`,,
         '',
         `### 3. Outer Function Evaluation:`,
         `- Problem: Evaluate $${outerFunction}(${evaluatedInner.numericValue})$`,
@@ -110,6 +110,23 @@ function constructSafeVerifiedResponse({
     // 2a. Preflight Geometry Triangle
     if (preflightToolResult.tool === 'render_geometry_triangle') {
       const { opp, adj, hyp, token, angleLabel = 'θ', orientationNote } = preflightToolResult;
+
+      const detIntent = analyzeDeterministicIntent(userPrompt, messages);
+      if (detIntent) {
+        if (detIntent.result === 'IMPOSSIBLE' || detIntent.result === 'AMBIGUOUS' || detIntent.result === 'UNDEFINED' || detIntent.result === 'DIV_BY_ZERO') {
+          return null;
+        }
+        if (detIntent.isPerimeter || detIntent.isArea || detIntent.isHypotenuse) {
+          const detResponse = buildDeterministicResponse(detIntent);
+          if (detResponse && typeof detResponse === 'string' && detResponse.trim()) {
+            return {
+              content: detResponse.trim(),
+              source: 'DETERMINISTIC_ROUTER',
+              title: `Deterministic Solution (${detIntent.type || 'CALCULATION'})`
+            };
+          }
+        }
+      }
       const lines = [
         `Here is the verified right-triangle model:`,
         '',
@@ -120,7 +137,9 @@ function constructSafeVerifiedResponse({
         '',
         token || `[GEOMETRY: triangle, a=${opp}, b=${adj}, c=${hyp}, right_angle=C, opp=${opp}, adj=${adj}, hyp=${hyp}, theta=true]`,
         '',
-        orientationNote || `*Orientation note:* Geometric side lengths represent positive Euclidean distances ($adjacent = ${adj}$, $opposite = ${opp}$, $hypotenuse = ${hyp}$). Any negative signs indicate quadrant orientation.`
+        orientationNote || `*Orientation note:* Geometric side lengths represent positive Euclidean distances ($adjacent = ${adj}$, $opposite = ${opp}$, $hypotenuse = ${hyp}$). Any negative signs indicate quadrant orientation.`,
+        '',
+        `$\\boxed{${hyp}}$$`
       ];
 
       return {

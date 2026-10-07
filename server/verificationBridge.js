@@ -1233,7 +1233,7 @@ function extractClaims(text, userPrompt = '') {
   }
 
   // Fallback to geometric tag construction if present: [GEOMETRY: triangle, a=..., b=..., c=...]
-  const geomTagMatch = text.match(/\[GEOMETRY:\s*triangle[^\ signal]*\ba=([0-9.]+)[^\ signal]*\bb=([0-9.]+)[^\ signal]*\bc=([0-9.]+)/i);
+  const geomTagMatch = text.match(/\[GEOMETRY:\s*triangle[^\]]*\ba=([0-9.]+)[^\]]*\bb=([0-9.]+)[^\]]*\bc=([0-9.]+)/i);
   if (geomTagMatch) {
     const a = parseFloat(geomTagMatch[1]);
     const b = parseFloat(geomTagMatch[2]);

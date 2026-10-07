@@ -1341,8 +1341,9 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   }
 
   // A. Triangle with Sliders & Interactive Geometry
-  const wantsTriangleSliders = /(?:interactive\s+(?:right\s+)?triangle|(?:right\s+)?triangle.*(?:with\s+sliders|interactive|sliders))/i.test(clean) ||
-                               /(?:open|show|launch|display|give\s+me|can\s+you\s+open)\s+(?:a\s+|an\s+)?(?:interactive\s+)?(?:right\s+)?triangle/i.test(clean);
+  const wantsTriangleSliders = (/(?:interactive\s+(?:right\s+)?triangle|(?:right\s+)?triangle.*(?:with\s+sliders|interactive|sliders))/i.test(clean) ||
+                               /(?:open|show|launch|display|give\s+me|can\s+you\s+open)\s+(?:a\s+|an\s+)?interactive\s+(?:right\s+)?triangle/i.test(clean)) &&
+                               !/(?:legs|sides)\s+\d+/i.test(clean);
   if (wantsTriangleSliders) {
     const customVars = {};
     let promptIntro = null;
@@ -1523,6 +1524,7 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
     const cleanWithoutAreaBoilerplate = clean.replace(/\b(?:question\s+)?content\s+area(?:\s+bottom)?\b/gi, '');
     const isPerimeter = /\bperimeter\b/i.test(cleanWithoutAreaBoilerplate);
     const isArea = !!triangleMatch && (/\b(?:find|calculate|compute|what\s+is|determine|get)\s+(?:the\s+)?area\b/i.test(cleanWithoutAreaBoilerplate) || /\barea\s*(?:=|is|\?)\b/i.test(cleanWithoutAreaBoilerplate));
+    const isHypotenuse = (/\b(?:find|calculate|compute|what\s+is|determine|get|length\s+of)\s+(?:the\s+)?hypotenuse\b/i.test(cleanWithoutAreaBoilerplate) || /\bhypotenuse\s*(?:=|is|\?)\b/i.test(cleanWithoutAreaBoilerplate));
     const expectedVal = isPerimeter ? (a + b + c) : (isArea ? (0.5 * a * b) : c);
     const formattedVal = isPerimeter ? `perimeter = ${expectedVal}` : (isArea ? `area = ${expectedVal}` : `c = ${c}`);
 
@@ -1533,9 +1535,10 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
       b,
       c,
       right_angle: 'C',
-      isTrigExplanation: hasTrigContext && !isPerimeter && !isArea,
+      isTrigExplanation: hasTrigContext && !isPerimeter && !isArea && !isHypotenuse,
       isPerimeter,
       isArea,
+      isHypotenuse,
       opp: a,
       adj: b,
       hyp: c,
@@ -2557,6 +2560,20 @@ Here is the right triangle with base $${opp}$ and height $${adj}$:
 $$\\text{Area} = \\frac{1}{2} \\times \\text{base} \\times \\text{height} = \\frac{1}{2}(${opp})(${adj}) = ${area}$$
 
 $$\\boxed{${area}}$$`;
+    }
+
+    if (intent.isHypotenuse) {
+      return `📐 **Right-Triangle Hypotenuse Calculation**
+
+Here is the right triangle with legs $a = ${opp}$ and $b = ${adj}$:
+
+[GEOMETRY: triangle, a=${opp}, b=${adj}, c=${hyp}, right_angle=C, opp=${opp}, adj=${adj}, hyp=${hyp}]
+
+### Pythagorean Theorem:
+For any right triangle with perpendicular legs $a$ and $b$, the hypotenuse $c$ satisfies:
+$$c = \\sqrt{a^2 + b^2} = \\sqrt{${opp}^2 + ${adj}^2} = \\sqrt{${opp * opp + adj * adj}} = ${hyp}$$
+
+$$\\boxed{${hyp}}$$`;
     }
 
     if (intent.isTrigExplanation) {
