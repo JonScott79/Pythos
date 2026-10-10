@@ -4969,12 +4969,12 @@ const savedTheme = localStorage.getItem("pythos_theme") || (window.matchMedia("(
 applyTheme(savedTheme);
 
 
-const exportNotesBtn = document.getElementById("exportNotesBtn");
+const exportNotesBtn = document.getElementById("exportNotesBtn") || document.getElementById("toolExportNotesBtn");
 if (exportNotesBtn) {
   exportNotesBtn.addEventListener("click", exportLessonNotes);
 }
 const toolExportNotesBtn = document.getElementById("toolExportNotesBtn");
-if (toolExportNotesBtn) {
+if (toolExportNotesBtn && toolExportNotesBtn !== exportNotesBtn) {
   toolExportNotesBtn.addEventListener("click", exportLessonNotes);
 }
 
