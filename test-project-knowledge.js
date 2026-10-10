@@ -219,7 +219,7 @@ for (const q of releaseQueries) {
 
     const ctx = buildProjectKnowledgeContext(q);
     assert(ctx.includes('Pythos 1.8.36'), 'Context must contain latest version 1.8.35');
-    assert(ctx.includes('October 6, 2026'), 'Context must contain release date');
+    assert(ctx.includes('October 9, 2026'), 'Context must contain release date');
     // Token efficiency check: latest release extracted should be under 500 tokens
     assert(ctx.length < 4500, `Changelog context should be compact (< 4500 chars), got ${ctx.length}`);
   });
