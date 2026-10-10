@@ -1363,6 +1363,7 @@ function exportLessonNotes() {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+window.exportLessonNotes = exportLessonNotes;
 
 function appendMessage(role, text, images = null, metadata = {}) {
   const welcomeCard = document.getElementById("welcomeOracleCard");
