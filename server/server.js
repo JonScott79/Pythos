@@ -3079,34 +3079,103 @@ app.post('/api/learning/record', studentAuthMiddleware, async (req, res) => {
 // =====================================
 function prepareTextForSpeech(raw) {
   if (!raw || typeof raw !== 'string') return '';
-  return raw
-    .replace(/\[IMAGE_ATTACHED\]/g, '')
-    .replace(/\[(?:GRAPH|GEOMETRY|NUMBER_LINE):[^\]]*\]/gi, '')
-    .replace(/%%%[A-Z0-9_]+%%%/g, '')
-    .replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, '$1 over $2')
-    .replace(/\\sqrt\{([^{}]+)\}/g, 'the square root of $1')
-    .replace(/\^2\b/g, ' squared')
-    .replace(/\^3\b/g, ' cubed')
-    .replace(/\^([a-zA-Z0-9]+)/g, ' to the power of $1')
-    .replace(/\\cdot|\\times/g, ' times ')
-    .replace(/\\pm/g, ' plus or minus ')
-    .replace(/\\approx/g, ' approximately ')
-    .replace(/\\neq/g, ' is not equal to ')
-    .replace(/\\leq/g, ' is less than or equal to ')
-    .replace(/\\geq/g, ' is greater than or equal to ')
-    .replace(/\\theta/g, 'theta')
-    .replace(/\\pi/g, 'pi')
-    .replace(/\\alpha/g, 'alpha')
-    .replace(/\\beta/g, 'beta')
-    .replace(/\\Delta/g, 'delta')
-    .replace(/\\infty/g, 'infinity')
-    .replace(/\\int/g, 'the integral of ')
-    .replace(/d\/dx/g, 'the derivative with respect to x of ')
-    .replace(/dy\/dx/g, 'd y d x')
-    .replace(/\\/g, '')
-    .replace(/[$#*`_~]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+
+  let text = raw;
+
+  // 1. Remove code blocks and non-spoken UI tokens
+  text = text.replace(/```[\s\S]*?```/g, ' [code block omitted] ');
+  text = text.replace(/`([^`]+)`/g, '$1');
+  text = text.replace(/\[IMAGE_ATTACHED\]/g, '');
+  text = text.replace(/\[(?:GRAPH|GEOMETRY|NUMBER_LINE):[^\]]*\]/gi, '');
+  text = text.replace(/%%%[A-Z0-9_]+%%%/g, '');
+
+  // 2. Strip KaTeX/LaTeX display environments & wrappers
+  text = text.replace(/\\begin\{[^{}]*\}([\s\S]*?)\\end\{[^{}]*\}/g, '$1');
+  text = text.replace(/\\boxed\{([^{}]*)\}/g, '$1');
+  text = text.replace(/\\text\{([^{}]*)\}/g, '$1');
+  text = text.replace(/\\left|\\right/g, '');
+
+  // 3. Resolve inner radicals, roots & powers FIRST before outer fractions
+  text = text.replace(/\\sqrt\[([^{}]+)\]\{([^{}]+)\}/g, 'the $1 root of $2');
+  text = text.replace(/\\sqrt\{([^{}]+)\}/g, 'the square root of $1');
+  text = text.replace(/\^\{2\}\b|\^2\b/g, ' squared');
+  text = text.replace(/\^\{3\}\b|\^3\b/g, ' cubed');
+  text = text.replace(/\^\{([^{}]+)\}/g, ' to the power of $1');
+  text = text.replace(/\^([a-zA-Z0-9.]+)/g, ' to the power of $1');
+
+  // 4. Fractions (inner then outer)
+  for (let i = 0; i < 3; i++) {
+    text = text.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, '$1 over $2');
+  }
+
+  // 5. Common mathematical functions & operations
+  text = text.replace(/\\cdot|\\times/g, ' times ');
+  text = text.replace(/\\pm/g, ' plus or minus ');
+  text = text.replace(/\\approx/g, ' approximately equals ');
+  text = text.replace(/\\neq/g, ' does not equal ');
+  text = text.replace(/\\leq/g, ' is less than or equal to ');
+  text = text.replace(/\\geq/g, ' is greater than or equal to ');
+  text = text.replace(/\\le\b/g, ' is less than or equal to ');
+  text = text.replace(/\\ge\b/g, ' is greater than or equal to ');
+  text = text.replace(/\\in\b/g, ' in ');
+  text = text.replace(/\\subset\b/g, ' subset of ');
+
+  // 6. Calculus & Derivatives
+  text = text.replace(/d([a-zA-Z])\/d([a-zA-Z])\b/g, 'd $1 d $2');
+  text = text.replace(/d\/d([a-zA-Z])\b/g, 'derivative with respect to $1 of ');
+  text = text.replace(/\\int_\{([^{}]+)\}\^\{([^{}]+)\}/g, 'integral from $1 to $2 of ');
+  text = text.replace(/\\int\b/g, 'the integral of ');
+  text = text.replace(/\\sum_\{([^{}]+)\}\^\{([^{}]+)\}/g, 'sum from $1 to $2 of ');
+  text = text.replace(/\\sum\b/g, 'the sum of ');
+  text = text.replace(/\\lim_\{([^{}]+)\}/g, 'limit as $1 of ');
+
+  // 7. Greek letters & Constants
+  text = text.replace(/\\theta/g, 'theta');
+  text = text.replace(/\\pi/g, 'pi');
+  text = text.replace(/\\alpha/g, 'alpha');
+  text = text.replace(/\\beta/g, 'beta');
+  text = text.replace(/\\gamma/g, 'gamma');
+  text = text.replace(/\\Delta|\\delta/g, 'delta');
+  text = text.replace(/\\lambda/g, 'lambda');
+  text = text.replace(/\\sigma/g, 'sigma');
+  text = text.replace(/\\omega/g, 'omega');
+  text = text.replace(/\\phi/g, 'phi');
+  text = text.replace(/\\mu/g, 'mu');
+  text = text.replace(/\\infty/g, 'infinity');
+
+  // 8. Standard function notation like f(x) -> f of x
+  text = text.replace(/\b([fgh])\(([a-zA-Z0-9])\)/g, '$1 of $2');
+  text = text.replace(/\b([fgh])'\(([a-zA-Z0-9])\)/g, '$1 prime of $2');
+  text = text.replace(/\b([fgh])'/g, '$1 prime');
+
+  // 9. Trigonometric functions
+  text = text.replace(/\\sin\b/g, 'sine of ');
+  text = text.replace(/\\cos\b/g, 'cosine of ');
+  text = text.replace(/\\tan\b/g, 'tangent of ');
+  text = text.replace(/\\csc\b/g, 'cosecant of ');
+  text = text.replace(/\\sec\b/g, 'secant of ');
+  text = text.replace(/\\cot\b/g, 'cotangent of ');
+
+  // 10. Conversational arithmetic symbols when surrounded by numbers/variables
+  text = text.replace(/([a-zA-Z0-9])\s*\*\s*([a-zA-Z0-9])/g, '$1 times $2');
+  text = text.replace(/([a-zA-Z0-9])\s*\/\s*([a-zA-Z0-9])/g, '$1 over $2');
+  text = text.replace(/([a-zA-Z0-9])\s*\+\s*([a-zA-Z0-9])/g, '$1 plus $2');
+  text = text.replace(/([a-zA-Z0-9])\s*=\s*([a-zA-Z0-9])/g, '$1 equals $2');
+  text = text.replace(/([a-zA-Z0-9])\s*-\s*([a-zA-Z0-9])/g, '$1 minus $2');
+
+  // 11. Eliminate remaining LaTeX commands and bare backslashes
+  text = text.replace(/\\[a-zA-Z]+/g, ' ');
+  text = text.replace(/\\/g, ' ');
+
+  // 12. Strip bare Markdown formatting and symbols that TTS spells out as "carat", "slash", "star"
+  text = text.replace(/[*_#~`^]/g, ' ');
+  text = text.replace(/[{}\[\]|]/g, ' ');
+  text = text.replace(/\$/g, ' ');
+
+  // 13. Clean multiple spaces and normalize
+  text = text.replace(/\s+/g, ' ').trim();
+
+  return text;
 }
 
 app.post('/api/voice/speak', async (req, res) => {
