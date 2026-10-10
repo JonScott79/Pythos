@@ -38,19 +38,34 @@ const FACT_PATTERNS = [
       if (/\b(?:if|suppose|imagine|pretend|assuming)\s+(?:my\s+name|i\s+am|i\s+were|i\s+was)\b/i.test(text)) {
         return null;
       }
+      // Correction pattern: "Don't call me X, call me Y" or "Don't call me X, just call me Y"
+      const correctionMatch = text.match(/\b(?:don'?t\s+call\s+me|never\s+call\s+me|stop\s+calling\s+me)\b.*?\b(?:(?:please|just)\s+)?call\s+me\s+([A-Za-z]{2,15})\b/i);
+      if (correctionMatch) {
+        const rawName = correctionMatch[1];
+        const banned = [
+          'solving', 'doing', 'taking', 'asking', 'working', 'struggling',
+          'confused', 'ready', 'back', 'just', 'not', 'here', 'now', 'fine', 'good',
+          'that', 'this', 'it', 'names', 'anything', 'something', 'again'
+        ];
+        if (!banned.includes(rawName.toLowerCase())) {
+          return rawName.charAt(0).toUpperCase() + rawName.slice(1).toLowerCase();
+        }
+      }
+
       // 4. Negation guard: "My name is NOT Bob", "I am not Bob", "Don't call me Bob"
       if (/\b(?:my\s+name\s+is\s+not|i\s+am\s+not|i'?m\s+not|don'?t\s+call\s+me|never\s+call\s+me)\b/i.test(text)) {
         return null;
       }
 
       // 5. Direct explicit preferred-name instruction
-      const match = text.match(/\b(?:please\s+call\s+me|call\s+me|my\s+name\s+is|i\s+am|i'm)\s+([A-Z][a-z]{1,15})\b/i);
+      const match = text.match(/\b(?:(?:please|just|you\s+can)\s+call\s+me|call\s+me|my\s+name\s+is|i\s+am|i'm)\s+([A-Za-z]{2,15})\b/i);
       if (!match) return null;
 
       const name = match[1];
       const banned = [
         'solving', 'doing', 'taking', 'asking', 'working', 'struggling',
-        'confused', 'ready', 'back', 'just', 'not', 'here', 'now', 'fine', 'good'
+        'confused', 'ready', 'back', 'just', 'not', 'here', 'now', 'fine', 'good',
+        'that', 'this', 'it', 'names', 'anything', 'something', 'again'
       ];
       if (banned.includes(name.toLowerCase())) return null;
 

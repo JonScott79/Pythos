@@ -1907,14 +1907,31 @@ app.post('/api/chat', async (req, res) => {
 
   // Student Personal Memory Injection (<= 150 tokens)
   let memoryContext = '';
+  let studentPreferredName = null;
   if (studentUid) {
     try {
       const studentProfile = await memoryService.getStudentMemoryProfile(studentUid);
       if (studentProfile) {
         memoryContext = memoryService.formatMemoryContext(studentProfile, classification);
+        if (studentProfile.identity && studentProfile.identity.preferredName) {
+          studentPreferredName = studentProfile.identity.preferredName;
+        }
       }
     } catch (memErr) {
       console.warn('[MEMORY] Error injecting student memory context:', memErr.message);
+    }
+  }
+
+  // Synchronously detect immediate preferred name override/declaration from current message
+  if (lastUserMsg && typeof lastUserMsg.content === 'string') {
+    try {
+      const immediateCandidates = memoryExtractor.extractCandidates(lastUserMsg.content);
+      const nameCand = immediateCandidates.find(c => c.category === 'identity' && c.facet === 'preferredName');
+      if (nameCand && nameCand.value) {
+        studentPreferredName = nameCand.value;
+      }
+    } catch (candErr) {
+      // Non-blocking fallback
     }
   }
 
@@ -1922,6 +1939,7 @@ app.post('/api/chat', async (req, res) => {
   const identityContext = buildTrustedIdentityContext({
     isAuthenticated: Boolean(studentUid),
     displayName: studentDisplayName,
+    preferredName: studentPreferredName,
     uid: studentUid
   });
 

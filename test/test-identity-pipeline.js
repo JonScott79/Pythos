@@ -297,6 +297,51 @@ assert.ok(authContext.includes('DO NOT repeatedly or mechanically insert their n
 
 console.log('  Status: ✅ PASSED (Prompt guards against hallucination and repetitive name spam)\n');
 
+// ----------------------------------------------------------------------
+// Test 8: First-Name Extraction & Preferred-Name Priority
+// ----------------------------------------------------------------------
+console.log('▶ [TEST 8] First-Name Extraction & Preferred-Name Priority');
+
+const { extractFirstName } = require('../server/identityContext');
+const memoryExtractor = require('../server/memoryExtractor');
+
+// 8a: Extract first name from Google OAuth display name
+assert.strictEqual(extractFirstName('Jon Scott'), 'Jon');
+assert.strictEqual(extractFirstName('Jonathan David Scott'), 'Jonathan');
+assert.strictEqual(extractFirstName('Maria'), 'Maria');
+
+// 8b: Context with Google OAuth full name addresses student strictly by first name
+const googleContext = buildTrustedIdentityContext({
+  isAuthenticated: true,
+  displayName: 'Jon Scott',
+  uid: 'uid_jon_123'
+});
+assert.ok(googleContext.includes('Address As: Jon'));
+assert.ok(googleContext.includes('NEVER full name "Jon Scott"'));
+assert.ok(googleContext.includes('answer "Jon"'));
+
+// 8c: When student specifies preferred name, context reverts to preferred name
+const preferredContext = buildTrustedIdentityContext({
+  isAuthenticated: true,
+  displayName: 'Jon Scott',
+  preferredName: 'Johnny',
+  uid: 'uid_jon_123'
+});
+assert.ok(preferredContext.includes('Address As: Johnny'));
+assert.ok(preferredContext.includes('NEVER full name "Jon Scott"'));
+assert.ok(preferredContext.includes('answer "Johnny"'));
+
+// 8d: Memory extractor handles conversational correction and direct requests
+const extractedFromCorrection = memoryExtractor.extractCandidates("Don't call me Jon Scott, call me Johnny.");
+const candCorrection = extractedFromCorrection.find(c => c.category === 'identity' && c.facet === 'preferredName');
+assert.strictEqual(candCorrection?.value, 'Johnny');
+
+const extractedFromDirect = memoryExtractor.extractCandidates("Just call me Jon.");
+const candDirect = extractedFromDirect.find(c => c.category === 'identity' && c.facet === 'preferredName');
+assert.strictEqual(candDirect?.value, 'Jon');
+
+console.log('  Status: ✅ PASSED (Pythos addresses by first name and reverts to requested preferred name)\n');
+
 console.log('================================================================');
-console.log('ALL 7 IDENTITY PIPELINE REGRESSION SUITES PASSED (100% GREEN)');
+console.log('ALL 8 IDENTITY PIPELINE REGRESSION SUITES PASSED (100% GREEN)');
 console.log('================================================================');

@@ -12,6 +12,7 @@
     4. Provide clear behavioral guidelines to the inference model:
        - Accurately answer name queries ("what's my name?", "who am I?").
        - Maintain natural conversation in general tutoring without repetitive name-dropping.
+       - Strictly address student by first name or preferred name (never full or last name).
        - Strictly forbid inventing or guessing names when unauthenticated or unnamed.
 */
 
@@ -27,10 +28,24 @@ function sanitizeDisplayName(name) {
   if (typeof name !== 'string') return '';
   return name
     .replace(/[\r\n\t]/g, ' ')
-    .replace(/[<>{}[\]]/g, '')
+    .replace(/[<>{}\[\]]/g, '')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 60);
+}
+
+/**
+ * Extracts first name from a full display name string.
+ *
+ * @param {string} name
+ * @returns {string}
+ */
+function extractFirstName(name) {
+  if (typeof name !== 'string') return '';
+  const sanitized = sanitizeDisplayName(name);
+  if (!sanitized) return '';
+  const parts = sanitized.split(/\s+/);
+  return parts[0] || sanitized;
 }
 
 /**
@@ -39,6 +54,7 @@ function sanitizeDisplayName(name) {
  * @param {Object} identity
  * @param {boolean} identity.isAuthenticated - Whether request has a verified Firebase token
  * @param {string|null} [identity.displayName] - Canonical display name from token or verified profile
+ * @param {string|null} [identity.preferredName] - Learned student preferred name
  * @param {string|null} [identity.uid] - Verified Firebase user UID
  * @returns {string} Formatted context block to append to the system prompt
  */
@@ -52,13 +68,18 @@ function buildTrustedIdentityContext(identity) {
     );
   }
 
-  const name = sanitizeDisplayName(identity.displayName);
-  if (name) {
+  const fullName = sanitizeDisplayName(identity.displayName);
+  const firstName = extractFirstName(fullName);
+  const preferredName = sanitizeDisplayName(identity.preferredName);
+  const callAs = preferredName || firstName;
+
+  if (fullName || preferredName) {
     return (
       `\n\n# STUDENT IDENTITY CONTEXT (TRUSTED METADATA)\n` +
       `- Status: Authenticated Account\n` +
-      `- Account Name: ${name}\n` +
-      `- Guidelines: If asked "what's my name?" or about identity, answer accurately using their Account Name (${name}). In ordinary tutoring, speak naturally—DO NOT repeatedly or mechanically insert their name into every response.\n`
+      `- Account Name: ${fullName || firstName}\n` +
+      `- Address As: ${callAs} (Use ONLY first name or preferred name; NEVER full name "${fullName}").\n` +
+      `- Guidelines: If asked "what's my name?", answer "${callAs}". DO NOT repeatedly or mechanically insert their name into every response.\n`
     );
   }
 
@@ -72,5 +93,6 @@ function buildTrustedIdentityContext(identity) {
 
 module.exports = {
   sanitizeDisplayName,
+  extractFirstName,
   buildTrustedIdentityContext
 };
