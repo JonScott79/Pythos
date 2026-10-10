@@ -1,3 +1,22 @@
+## Pythos 1.8.36
+**Release Date:** October 9, 2026
+
+### Added & Enhanced
+
+- **Personal Student Memory & Milestone Tracking**:
+  - Integrated deterministic milestone extraction into `memoryExtractor.js` and `memoryService.js` to track upcoming academic events (exams, quizzes, midterms, finals).
+  - Automatically schedules empathetic follow-up directives (e.g. *"How was the Calc test?"*) into session prompt snapshots once test dates pass, resolving milestones upon completion.
+- **Episodic Conversation Search Tool (`search_conversation_history`)**:
+  - Added new allowlisted tool in `toolController.js` enabling Pythos to search and recall past conversation turns in Firestore under student UIDs.
+  - Formats past exchanges into structured computational context with pedagogical directives for natural conversational continuity.
+- **"Ancient Greek Professor" Speech Synthesis (Tuned Onyx)**:
+  - Added `/api/voice/speak` endpoint powered by OpenAI `tts-1-hd` with tuned `onyx` voice at measured, scholarly cadence (`speed: 0.93x`, `pitch: 0.92`).
+  - Added math-to-speech text normalizer (`prepareTextForSpeech`) translating raw LaTeX equations and symbols into natural, readable spoken prose.
+  - Multi-language fallback: Automatically binds to browser `window.speechSynthesis` with native voice selection matching `LANG_LOCALES` (Spanish, French, German, Japanese, etc.) for zero-cost global accessibility.
+- **Interactive Study Notes Export & Feedback Controls**:
+  - Added 1-click **Export Lesson Notes** header button generating downloadable Markdown study sheets (`Pythos_Study_Notes_[Date].md`) from current tutoring dialogues.
+  - Integrated inline **Thumbs-Up** (affirmation) and **Thumbs-Down** (confusing / problem report) feedback buttons on all assistant response bubbles.
+
 ## Pythos 1.8.35
 **Release Date:** October 6, 2026
 

@@ -192,6 +192,22 @@ async function recordMemoryCandidate(uid, candidate) {
     const itemId = `mem_${candidate.category}_${candidate.facet}`.toLowerCase().replace(/[^a-z0-9_]/g, '_');
     const existingDoc = await itemsCol.doc(itemId).get();
 
+    // Special handling for milestones completion
+    if (candidate.category === 'milestones' && candidate.value?.status === 'completed') {
+      if (existingDoc.exists) {
+        await itemsCol.doc(itemId).update({
+          'value.status': 'completed',
+          status: 'completed',
+          resolvedAt: nowIso,
+          updatedAt: nowIso
+        });
+        _profileCache.delete(uid);
+        await recompileProfileSnapshot(uid);
+        return { ...existingDoc.data(), status: 'completed' };
+      }
+      return null;
+    }
+
     let record;
     if (existingDoc.exists) {
       const current = existingDoc.data();
@@ -283,6 +299,7 @@ async function recompileProfileSnapshot(uid) {
     const activeWeaknesses = [];
     const strengths = [];
     const masteredConcepts = [];
+    const activeMilestones = [];
 
     snap.forEach(d => {
       const item = d.data();
@@ -292,6 +309,15 @@ async function recompileProfileSnapshot(uid) {
         identity[item.facet] = item.value;
       } else if (item.category === 'preferences') {
         preferences[item.facet] = item.value;
+      } else if (item.category === 'milestones') {
+        if (item.value && item.value.status !== 'completed') {
+          activeMilestones.push({
+            facet: item.facet,
+            ...(typeof item.value === 'object' ? item.value : { description: item.value }),
+            confidence: item.confidence,
+            lastObservedAt: item.lastObservedAt || item.createdAt
+          });
+        }
       } else if (item.category === 'learning') {
         if (item.facet === 'recurringMistake' || item.facet === 'weakness') {
           activeWeaknesses.push({
@@ -314,6 +340,9 @@ async function recompileProfileSnapshot(uid) {
       updatedAt: new Date().toISOString(),
       identity,
       preferences,
+      milestones: {
+        activeMilestones: activeMilestones.slice(0, 2)
+      },
       learning: {
         activeWeaknesses: activeWeaknesses.slice(0, 3), // Max 3 active traps
         strengths: strengths.slice(0, 5),
@@ -350,6 +379,15 @@ function formatMemoryContext(profile, classification = null) {
   if (profile.identity?.gradeLevel || profile.identity?.course) {
     const course = [profile.identity.gradeLevel, profile.identity.course].filter(Boolean).join(', ');
     lines.push(`- Course/Level: ${course}`);
+  }
+
+  // Academic Milestones / Check-ins
+  const milestones = profile.milestones?.activeMilestones || [];
+  if (milestones.length > 0) {
+    for (const m of milestones) {
+      const desc = m.description || `${m.subject || ''} ${m.eventType || 'test'} (${m.timeframe || ''})`.trim();
+      lines.push(`- Academic Milestone: Student mentioned an upcoming/recent: "${desc}". Warmly check in on how it went (e.g., "How was the ${m.subject || ''} ${m.eventType || 'test'}?") if the date has passed, or encourage them if they are preparing for it.`);
+    }
   }
 
   // Preferences

@@ -816,6 +816,49 @@
       flex-shrink: 0;
     }
 
+    /* Voice, Feedback, & Study Notes Export Buttons */
+    .msg-speak-btn {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      padding: 2px 7px;
+      cursor: pointer;
+      color: var(--text-muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.72rem;
+      transition: all 0.15s;
+    }
+    .msg-speak-btn:hover, .msg-speak-btn.playing {
+      background: rgba(16, 185, 129, 0.08);
+      color: var(--primary-color);
+      border-color: var(--primary-color);
+    }
+    .msg-feedback-btn {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      padding: 2px 5px;
+      cursor: pointer;
+      font-size: 0.72rem;
+      display: inline-flex;
+      align-items: center;
+      transition: all 0.15s;
+    }
+    .msg-feedback-btn:hover {
+      background: var(--surface-color);
+      border-color: var(--primary-color);
+    }
+    .msg-feedback-btn.active {
+      border-color: var(--primary-color);
+      background: rgba(16, 185, 129, 0.12);
+    }
+    .export-notes-btn {
+      margin-right: 6px;
+    }
+
+
     /* Safe Withholding UX & Secondary Clarification Control */
     .pythos-withholding-details {
       margin-top: 12px;
@@ -3992,7 +4035,7 @@
           <a href="nonprofit.html">Mission &amp; Roadmap</a>
           <a href="license.html">License</a>
           <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" title="Official Facebook Page" aria-label="Official Facebook Page">Facebook</a>
-          <a href="changelog.html#pythos-1-8-35" title="View Changelog" aria-label="Version 1.8.35 Release Notes">v1.8.35</a>
+          <a href="changelog.html#pythos-1-8-36" title="View Changelog" aria-label="Version 1.8.36 Release Notes">v1.8.36</a>
         </nav>
       </div>
     </aside>
@@ -4010,9 +4053,12 @@
         <header class="header">
           <img class="header-avatar" src="assets/pythos_avatar.jpg" alt="Pythos Oracle" width="40" height="40" />
           <div class="header-info">
-            <h1>PYTHOS <a href="changelog.html#pythos-1-8-35" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.35)" aria-label="Version 1.8.35 Release Notes">v1.8.35</a></h1>
+            <h1>PYTHOS <a href="changelog.html#pythos-1-8-36" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.36)" aria-label="Version 1.8.36 Release Notes">v1.8.36</a></h1>
             <p>Mathematics & Physics Oracle</p>
           </div>
+                    <button id="exportNotesBtn" class="theme-toggle-btn export-notes-btn" title="Export Lesson Notes / Study Sheet" aria-label="Export Lesson Notes">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+          </button>
           <button id="themeToggleBtn" class="theme-toggle-btn" title="Toggle Dark/Light Mode" aria-label="Toggle Dark and Light Theme">
             <svg id="themeIconSun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none;" aria-hidden="true"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
             <svg id="themeIconMoon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>

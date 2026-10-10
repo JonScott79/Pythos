@@ -58,13 +58,13 @@ runTest('No duplicate campaign collision: Current headline counts distinct from 
   const currentCount = currentMatch[1].replace(/,/g, '');
   assert.notStrictEqual(currentCount, '20602', 'Current headline count must not duplicate Task #6 count (20,602)');
   assert.notStrictEqual(currentCount, '21733', 'Current headline count must not duplicate v1.8.25 count (21,733)');
-  assert.strictEqual(currentCount, '22722', 'Current headline count must match v1.8.35 count (22,722)');
+  assert.strictEqual(currentCount, '22722', 'Current headline count must match v1.8.36 count (22,722)');
 });
 
 // Test 4: Version alignment
 runTest('Version alignment: Homepage version matches validation page version', () => {
-  assert(indexHtml.includes('v1.8.35'), 'Homepage must cite v1.8.35');
-  assert(valHtml.includes('v1.8.35'), 'Validation page must cite v1.8.35');
+  assert(indexHtml.includes('v1.8.36'), 'Homepage must cite v1.8.36');
+  assert(valHtml.includes('v1.8.36'), 'Validation page must cite v1.8.36');
 });
 
 // Test 5: No stale 110k in meta descriptions

@@ -38,7 +38,8 @@ const TOOL_ALLOWLIST = Object.freeze({
   RENDER_GEOMETRY_TRIANGLE: 'render_geometry_triangle',
   RENDER_FUNCTION_GRAPH: 'render_function_graph',
   GENERATE_PRACTICE_PROBLEM: 'generate_practice_problem',
-  EVALUATE_STUDENT_WORK: 'evaluate_student_work'
+  EVALUATE_STUDENT_WORK: 'evaluate_student_work',
+  SEARCH_CONVERSATION_HISTORY: 'search_conversation_history'
 });
 
 /**
@@ -294,6 +295,20 @@ function validateToolRequest(rawRequest) {
       sanitizedArgs.studentStep = args.studentStep.trim();
       sanitizedArgs.targetExpression = typeof args.targetExpression === 'string' ? args.targetExpression.trim().slice(0, 500) : '';
       sanitizedArgs.variable = typeof args.variable === 'string' ? args.variable.trim().slice(0, 10) : 'x';
+      break;
+    }
+
+        case TOOL_ALLOWLIST.SEARCH_CONVERSATION_HISTORY: {
+      if (!args.query || typeof args.query !== 'string' || args.query.trim().length === 0) {
+        return { valid: false, error: 'search_conversation_history requires a non-empty "query" string.' };
+      }
+      if (args.query.length > 300) {
+        return { valid: false, error: 'Query length exceeds safe bound (300 chars).' };
+      }
+      sanitizedArgs.query = args.query.trim();
+      sanitizedArgs.limit = typeof args.limit === 'number' && args.limit > 0 && args.limit <= 10
+        ? Math.floor(args.limit)
+        : 3;
       break;
     }
 
@@ -578,6 +593,111 @@ async function executeTool(toolName, args, sessionContext = {}) {
         return res;
       }
 
+      case TOOL_ALLOWLIST.SEARCH_CONVERSATION_HISTORY: {
+        const { query, limit = 3 } = args;
+        const uid = sessionContext.uid || sessionContext.studentUid || null;
+
+        const { getAdminFirestore, isAdminSdkAvailable } = require('./firebaseAdmin');
+        if (!uid || !isAdminSdkAvailable()) {
+          const res = {
+            success: true,
+            tool: toolName,
+            query,
+            matchesCount: 0,
+            results: [],
+            message: uid ? 'Firestore Admin unavailable for conversation search' : 'No student UID provided for conversation search'
+          };
+          recordTelemetry(TELEMETRY_EVENTS.TOOL_SUCCEEDED, {
+            tool: toolName,
+            success: true,
+            details: `Search executed (offline/no-uid mode) for query "${query}"`
+          });
+          return res;
+        }
+
+        try {
+          const db = getAdminFirestore();
+          const chatsRef = db.collection('users').doc(uid).collection('pythos_chats');
+          const snap = await chatsRef.orderBy('timestamp', 'desc').limit(15).get();
+
+          const matches = [];
+          const cleanQuery = query.toLowerCase();
+          const queryTerms = cleanQuery.split(/\s+/).filter(w => w.length > 2);
+          const isRecencyQuery = /\b(?:last\s+(?:time|session|chat)|yesterday|previous|before)\b/i.test(cleanQuery);
+
+          snap.forEach(docSnap => {
+            const chat = docSnap.data();
+            const title = chat.title || 'Untitled Session';
+            const msgs = Array.isArray(chat.messages) ? chat.messages : [];
+            const dateStr = chat.timestamp && chat.timestamp.toDate ? chat.timestamp.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Recent';
+
+            if (isRecencyQuery && matches.length < limit) {
+              const lastUser = msgs.filter(m => m.role === 'user').slice(-1)[0];
+              const lastAssistant = msgs.filter(m => m.role === 'assistant').slice(-1)[0];
+              if (lastUser || lastAssistant) {
+                matches.push({
+                  chatId: docSnap.id,
+                  title,
+                  date: dateStr,
+                  studentSnippet: (lastUser?.content || '').slice(0, 200),
+                  tutorSnippet: (lastAssistant?.content || '').slice(0, 200)
+                });
+              }
+              return;
+            }
+
+            let matchedTurn = null;
+            for (let i = 0; i < msgs.length; i++) {
+              const m = msgs[i];
+              const textContent = (m.content || '').toLowerCase();
+              const matchesAll = queryTerms.length > 0 && queryTerms.some(term => textContent.includes(term) || title.toLowerCase().includes(term));
+              if (matchesAll) {
+                const studentTurn = m.role === 'user' ? m.content : (msgs[i-1]?.content || '');
+                const tutorTurn = m.role === 'assistant' ? m.content : (msgs[i+1]?.content || '');
+                matchedTurn = {
+                  chatId: docSnap.id,
+                  title,
+                  date: dateStr,
+                  studentSnippet: studentTurn.slice(0, 200),
+                  tutorSnippet: tutorTurn.slice(0, 200)
+                };
+                break;
+              }
+            }
+
+            if (matchedTurn && matches.length < limit) {
+              matches.push(matchedTurn);
+            }
+          });
+
+          const res = {
+            success: true,
+            tool: toolName,
+            query,
+            matchesCount: matches.length,
+            results: matches
+          };
+
+          recordTelemetry(TELEMETRY_EVENTS.TOOL_SUCCEEDED, {
+            tool: toolName,
+            success: true,
+            details: `Found ${matches.length} past conversation match(es) for "${query}"`
+          });
+          return res;
+        } catch (searchErr) {
+          recordTelemetry(TELEMETRY_EVENTS.TOOL_FAILED, {
+            tool: toolName,
+            success: false,
+            details: `Search error: ${searchErr.message}`
+          });
+          return {
+            success: false,
+            tool: toolName,
+            error: `Failed to search conversation history: ${searchErr.message}`
+          };
+        }
+      }
+
       default:
         recordTelemetry(TELEMETRY_EVENTS.TOOL_FAILED, {
           tool: toolName,
@@ -671,7 +791,25 @@ function selectAppropriateTool(studentIntent, userText, conversationHistory = []
     return null;
   }
 
-  // 3. Practice-Problem Generation Intent
+    // 3. Past Conversation Search Intent: "What did we do last time?", "Remember when we did...", "What did I mess up on yesterday?"
+  const isPastSearchPhrase = /\b(?:what\s+did\s+(?:we|i)\s+(?:do|work\s+on|solve|talk\s+about)\s+(?:last\s+time|yesterday|before)|remember\s+(?:when|our|last)|how\s+did\s+(?:we|i)\s+solve\s+that\s+last\s+time|look\s+up\s+past\s+(?:chats?|conversations?|sessions?)|search\s+(?:past|our|my)\s+(?:chats?|conversations?|history))\b/i.test(lower);
+  if (isPastSearchPhrase) {
+    recordTelemetry(TELEMETRY_EVENTS.TOOL_SELECTED, {
+      tool: TOOL_ALLOWLIST.SEARCH_CONVERSATION_HISTORY,
+      reason: 'Student asked to recall past session history',
+      details: `query=${clean}`
+    });
+    return {
+      tool: TOOL_ALLOWLIST.SEARCH_CONVERSATION_HISTORY,
+      reason: 'Student explicitly asked to review or recall past conversation history.',
+      arguments: {
+        query: clean,
+        limit: 3
+      }
+    };
+  }
+
+  // 4. Practice-Problem Generation Intent
   const isPracticePhrase = /\b(?:give\s+me\s+(?:another|a\s+harder|an\s+easier)\s+(?:problem|one|exercise)|give\s+me\s+an?\s+(?:harder|easier)\s+problem|quiz\s+me|give\s+me\s+one\s+to\s+practice|can\s+i\s+get\s+another\s+one(?:\s+to\s+practice)?|test\s+me|make\s+me\s+another\s+one|generate\s+a\s+(?:similar\s+)?problem|another\s+(?:problem|exercise)|practice\s+problem)\b/i.test(lower);
   if (studentIntent?.intent === 'PRACTICE_REQUEST' || isPracticePhrase) {
     const difficulty = /\bharder\b/i.test(lower) ? 'harder' : /\beasier\b/i.test(lower) ? 'easier' : 'similar';
@@ -912,6 +1050,18 @@ Evaluation Status: ${toolResult.status}
 Is Mathematically Equivalent: ${toolResult.isEqual}
 Proposed Value: ${toolResult.proposedValue !== undefined ? toolResult.proposedValue : 'N/A'}
 Pedagogical Directive: ${toolResult.feedback || (toolResult.isEqual ? 'Acknowledge the student\'s correct step and guide them forward.' : 'Help the student identify the error in their proposed step without discouragement.')}`;
+      break;
+
+    
+    case TOOL_ALLOWLIST.SEARCH_CONVERSATION_HISTORY:
+      if (toolResult.results && toolResult.results.length > 0) {
+        const summary = toolResult.results.map((r, i) =>
+          `[Past Chat #${i+1}: "${r.title || 'Untitled'}" (${r.date || 'Recent'})]\n- Student: ${r.studentSnippet}\n- Pythos: ${r.tutorSnippet}`
+        ).join('\n\n');
+        body = `Status: SUCCESS\nQuery: "${toolResult.query}"\nFound ${toolResult.results.length} relevant past conversation turn(s):\n${summary}\n\nPedagogical Directive: Integrate this shared history naturally to encourage the student and build continuity. Never recite raw logs mechanically.`;
+      } else {
+        body = `Status: NO_MATCHES\nQuery: "${toolResult.query}"\nNo relevant past conversation turns found.\nDirective: Warmly tell the student you don't have that specific past problem recorded in this chat history, and invite them to remind you what it was.`;
+      }
       break;
 
     default:

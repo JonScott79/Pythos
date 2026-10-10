@@ -1225,6 +1225,169 @@ const CLIENT_WITHHOLDING_EXPLANATIONS = {
   }
 };
 
+
+// =====================================
+// VOICE SYNTHESIS & STUDY NOTES EXPORT (Ancient Greek Professor Cadence - Tuned Onyx)
+// =====================================
+let currentPlayingAudio = null;
+let currentSpeakingBtn = null;
+
+function prepareTextForSpeech(raw) {
+  if (!raw || typeof raw !== 'string') return '';
+  return raw
+    .replace(/\[IMAGE_ATTACHED\]/g, '')
+    .replace(/\[(?:GRAPH|GEOMETRY|NUMBER_LINE):[^\]]*\]/gi, '')
+    .replace(/%%%[A-Z0-9_]+%%%/g, '')
+    .replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, 'function appendMessage(role, text, images = null, metadata = {}) { over $2')
+    .replace(/\\sqrt\{([^{}]+)\}/g, 'the square root of function appendMessage(role, text, images = null, metadata = {}) {')
+    .replace(/\^2\b/g, ' squared')
+    .replace(/\^3\b/g, ' cubed')
+    .replace(/\^([a-zA-Z0-9]+)/g, ' to the power of function appendMessage(role, text, images = null, metadata = {}) {')
+    .replace(/\\cdot|\\times/g, ' times ')
+    .replace(/\\pm/g, ' plus or minus ')
+    .replace(/\\approx/g, ' approximately ')
+    .replace(/\\neq/g, ' is not equal to ')
+    .replace(/\\leq/g, ' is less than or equal to ')
+    .replace(/\\geq/g, ' is greater than or equal to ')
+    .replace(/\\theta/g, 'theta')
+    .replace(/\\pi/g, 'pi')
+    .replace(/\\alpha/g, 'alpha')
+    .replace(/\\beta/g, 'beta')
+    .replace(/\\Delta/g, 'delta')
+    .replace(/\\infty/g, 'infinity')
+    .replace(/\\int/g, 'the integral of ')
+    .replace(/d\/dx/g, 'the derivative with respect to x of ')
+    .replace(/dy\/dx/g, 'd y d x')
+    .replace(/\\/g, '')
+    .replace(/[$#*`_~]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function stopCurrentSpeech() {
+  if (currentPlayingAudio) {
+    currentPlayingAudio.pause();
+    currentPlayingAudio = null;
+  }
+  if (window.speechSynthesis && window.speechSynthesis.speaking) {
+    window.speechSynthesis.cancel();
+  }
+  if (currentSpeakingBtn) {
+    currentSpeakingBtn.classList.remove('playing');
+    currentSpeakingBtn.innerHTML = `🔊 <span>Listen</span>`;
+    currentSpeakingBtn = null;
+  }
+}
+
+async function toggleSpeakMessage(rawText, btnEl) {
+  if (currentSpeakingBtn === btnEl) {
+    stopCurrentSpeech();
+    return;
+  }
+
+  stopCurrentSpeech();
+
+  currentSpeakingBtn = btnEl;
+  btnEl.classList.add('playing');
+  btnEl.innerHTML = `⏹️ <span>Stop</span>`;
+
+  try {
+    const resp = await fetch('/api/voice/speak', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: rawText, voice: 'onyx', speed: 0.93 })
+    });
+
+    const contentType = resp.headers.get('content-type') || '';
+    if (resp.ok && contentType.includes('audio/mpeg')) {
+      const blob = await resp.blob();
+      const audioUrl = URL.createObjectURL(blob);
+      const audio = new Audio(audioUrl);
+      currentPlayingAudio = audio;
+      audio.onended = () => {
+        stopCurrentSpeech();
+      };
+      audio.onerror = () => {
+        fallbackBrowserSpeech(rawText);
+      };
+      await audio.play();
+      return;
+    }
+
+    fallbackBrowserSpeech(rawText);
+  } catch (err) {
+    console.warn('[VOICE] Falling back to browser SpeechSynthesis:', err);
+    fallbackBrowserSpeech(rawText);
+  }
+}
+
+function fallbackBrowserSpeech(rawText) {
+  if (!('speechSynthesis' in window)) {
+    alert('Speech synthesis is not supported on this browser.');
+    stopCurrentSpeech();
+    return;
+  }
+
+  const cleanText = prepareTextForSpeech(rawText);
+  const utterance = new SpeechSynthesisUtterance(cleanText);
+
+  // Ancient Greek Professor tuning: deliberate pace and grounded pitch
+  utterance.rate = 0.93;
+  utterance.pitch = 0.92;
+
+  const activeChip = document.querySelector('.lang-chip.active');
+  const activeLangKey = activeChip ? activeChip.getAttribute('data-lang') : 'en';
+  const activeLangCode = (typeof LANG_LOCALES !== 'undefined' && LANG_LOCALES[activeLangKey] && LANG_LOCALES[activeLangKey].code) || 'en-US';
+  utterance.lang = activeLangCode;
+
+  const voices = window.speechSynthesis.getVoices();
+  const matchingVoices = voices.filter(v => v.lang === activeLangCode || v.lang.startsWith(activeLangCode.split('-')[0]));
+  const preferredVoice = matchingVoices.find(v => /\b(natural|guy|daniel|george|david|neural|male)\b/i.test(v.name)) || matchingVoices[0];
+  if (preferredVoice) {
+    utterance.voice = preferredVoice;
+  }
+
+  utterance.onend = () => {
+    stopCurrentSpeech();
+  };
+  utterance.onerror = () => {
+    stopCurrentSpeech();
+  };
+
+  window.speechSynthesis.speak(utterance);
+}
+
+function exportLessonNotes() {
+  if (!messages || messages.length === 0) {
+    alert('No lesson conversation to export yet. Ask Pythos a question first!');
+    return;
+  }
+
+  const activeTitle = currentChatId ? (document.querySelector(`.chat-item[data-id="${currentChatId}"] .chat-title`)?.textContent || 'Pythos Study Session') : 'Pythos Study Session';
+  const now = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+  let notesMarkdown = `# 🏛️ Pythos Study Notes: ${activeTitle}\n*Generated on ${now}*\n\n---\n\n`;
+
+  messages.forEach((m, idx) => {
+    if (!m || !m.content) return;
+    const speaker = m.role === 'user' ? '🧑‍🎓 Student' : '🏛️ Pythos (Oracle)';
+    notesMarkdown += `### ${speaker}\n${m.content}\n\n`;
+  });
+
+  notesMarkdown += `---\n*Pythos: High-Fidelity Mathematics & Physics Oracle*\n`;
+
+  const blob = new Blob([notesMarkdown], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const safeFilename = `Pythos_Study_Notes_${new Date().toISOString().slice(0, 10)}.md`;
+  a.download = safeFilename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 function appendMessage(role, text, images = null, metadata = {}) {
   const welcomeCard = document.getElementById("welcomeOracleCard");
   if (welcomeCard) {
@@ -1884,6 +2047,55 @@ function appendMessage(role, text, images = null, metadata = {}) {
     }, 1500);
   });
   actionRow.appendChild(copyBtn);
+
+  // Speak Button (Ancient Greek Professor Cadence - Tuned Onyx)
+  if (role === "assistant") {
+    const speakBtn = document.createElement("button");
+    speakBtn.className = "msg-speak-btn";
+    speakBtn.title = "Listen to Pythos speak (Ancient Greek Professor cadence)";
+    speakBtn.setAttribute("aria-label", "Listen to Pythos speak");
+    speakBtn.innerHTML = `🔊 <span>Listen</span>`;
+    speakBtn.addEventListener("click", () => {
+      toggleSpeakMessage(text, speakBtn);
+    });
+    actionRow.appendChild(speakBtn);
+
+    // Thumbs Feedback Buttons
+    const thumbsUpBtn = document.createElement("button");
+    thumbsUpBtn.className = "msg-feedback-btn msg-thumbs-up";
+    thumbsUpBtn.title = "Helpful / Understood";
+    thumbsUpBtn.setAttribute("aria-label", "Mark explanation helpful");
+    thumbsUpBtn.innerHTML = "👍";
+
+    const thumbsDownBtn = document.createElement("button");
+    thumbsDownBtn.className = "msg-feedback-btn msg-thumbs-down";
+    thumbsDownBtn.title = "Confusing or needs more explanation";
+    thumbsDownBtn.setAttribute("aria-label", "Report confusion or problem");
+    thumbsDownBtn.innerHTML = "👎";
+
+    thumbsUpBtn.addEventListener("click", () => {
+      thumbsUpBtn.classList.toggle("active");
+      thumbsDownBtn.classList.remove("active");
+    });
+
+    thumbsDownBtn.addEventListener("click", () => {
+      thumbsDownBtn.classList.toggle("active");
+      thumbsUpBtn.classList.remove("active");
+      if (typeof openReportModal === "function") {
+        openReportModal({
+          response: text,
+          question: metadata.question || (messages.find(m => m.role === "user")?.content || ""),
+          claims: metadata.claims || [],
+          verification: metadata.verification || [],
+          model: metadata.model || "pythos:latest"
+        });
+      }
+    });
+
+    actionRow.appendChild(thumbsUpBtn);
+    actionRow.appendChild(thumbsDownBtn);
+  }
+
   // Verified Derivation Step Audit Button – subtle action button matching Report and Copy (bottom-left)
   if (role === "assistant" && Array.isArray(metadata.verificationAudit) && metadata.verificationAudit.length > 0) {
     const auditSteps = metadata.verificationAudit;
@@ -4895,6 +5107,12 @@ function applyTheme(theme) {
 // Load saved theme or system preference
 const savedTheme = localStorage.getItem("pythos_theme") || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
 applyTheme(savedTheme);
+
+
+const exportNotesBtn = document.getElementById("exportNotesBtn");
+if (exportNotesBtn) {
+  exportNotesBtn.addEventListener("click", exportLessonNotes);
+}
 
 if (themeToggleBtn) {
   themeToggleBtn.addEventListener("click", () => {

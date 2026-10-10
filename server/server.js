@@ -3075,6 +3075,99 @@ app.post('/api/learning/record', studentAuthMiddleware, async (req, res) => {
 });
 
 // =====================================
+// Voice & Speech Synthesis (Ancient Greek Professor Cadence - Tuned Onyx)
+// =====================================
+function prepareTextForSpeech(raw) {
+  if (!raw || typeof raw !== 'string') return '';
+  return raw
+    .replace(/\[IMAGE_ATTACHED\]/g, '')
+    .replace(/\[(?:GRAPH|GEOMETRY|NUMBER_LINE):[^\]]*\]/gi, '')
+    .replace(/%%%[A-Z0-9_]+%%%/g, '')
+    .replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, '$1 over $2')
+    .replace(/\\sqrt\{([^{}]+)\}/g, 'the square root of $1')
+    .replace(/\^2\b/g, ' squared')
+    .replace(/\^3\b/g, ' cubed')
+    .replace(/\^([a-zA-Z0-9]+)/g, ' to the power of $1')
+    .replace(/\\cdot|\\times/g, ' times ')
+    .replace(/\\pm/g, ' plus or minus ')
+    .replace(/\\approx/g, ' approximately ')
+    .replace(/\\neq/g, ' is not equal to ')
+    .replace(/\\leq/g, ' is less than or equal to ')
+    .replace(/\\geq/g, ' is greater than or equal to ')
+    .replace(/\\theta/g, 'theta')
+    .replace(/\\pi/g, 'pi')
+    .replace(/\\alpha/g, 'alpha')
+    .replace(/\\beta/g, 'beta')
+    .replace(/\\Delta/g, 'delta')
+    .replace(/\\infty/g, 'infinity')
+    .replace(/\\int/g, 'the integral of ')
+    .replace(/d\/dx/g, 'the derivative with respect to x of ')
+    .replace(/dy\/dx/g, 'd y d x')
+    .replace(/\\/g, '')
+    .replace(/[$#*`_~]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+app.post('/api/voice/speak', async (req, res) => {
+  try {
+    const { text, voice = 'onyx', speed = 0.93 } = req.body || {};
+    if (!text || typeof text !== 'string') {
+      return res.status(400).json({ error: 'Text is required' });
+    }
+
+    const spokenText = prepareTextForSpeech(text.slice(0, 4096));
+    const apiKey = process.env.OPENAI_API_KEY;
+
+    if (!apiKey) {
+      return res.status(200).json({
+        fallback: true,
+        message: 'No OpenAI API key configured. Use browser speech synthesis.',
+        spokenText,
+        voiceConfig: { voice: 'onyx', speed: 0.93, pitch: 0.92 }
+      });
+    }
+
+    const response = await fetch('https://api.openai.com/v1/audio/speech', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'tts-1-hd',
+        voice: voice || 'onyx',
+        input: spokenText,
+        speed: speed || 0.93 // Ancient Greek professor cadence: measured and deliberate
+      })
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.warn('[VOICE] OpenAI TTS error:', errText);
+      return res.status(200).json({
+        fallback: true,
+        spokenText,
+        error: errText,
+        voiceConfig: { voice: 'onyx', speed: 0.93, pitch: 0.92 }
+      });
+    }
+
+    res.setHeader('Content-Type', 'audio/mpeg');
+    const audioBuffer = await response.arrayBuffer();
+    return res.send(Buffer.from(audioBuffer));
+  } catch (err) {
+    console.error('[VOICE] TTS endpoint exception:', err.message);
+    return res.status(200).json({
+      fallback: true,
+      spokenText: prepareTextForSpeech((req.body && req.body.text) || ''),
+      error: err.message,
+      voiceConfig: { voice: 'onyx', speed: 0.93, pitch: 0.92 }
+    });
+  }
+});
+
+// =====================================
 // Server Startup & Lifecycle
 // =====================================
 function clearActiveControllers() {

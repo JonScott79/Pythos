@@ -91,6 +91,54 @@ const FACT_PATTERNS = [
     kind: 'observed_fact',
     confidence: 0.88,
     transform: (match) => match[1].toLowerCase()
+  },
+  // Upcoming Exam / Milestone: "I have a calc test on Friday", "studying for my calculus exam on Tuesday", "My physics quiz is tomorrow"
+  {
+    category: 'milestones',
+    facet: 'upcomingExam',
+    kind: 'observed_fact',
+    confidence: 0.95,
+    customExtractor: (text) => {
+      // Guard against past statements
+      if (/\b(?:i\s+had|took\s+my|finished\s+my|already\s+took)\b/i.test(text)) return null;
+      // Guard against negation / hypotheticals
+      if (/\b(?:if\s+i\s+had|don't\s+have|do\s+not\s+have|no\s+test)\b/i.test(text)) return null;
+
+      const match = text.match(/\b(?:(?:i\s+have|i've\s+got|got|studying\s+for|prepping\s+for|prep\s+for|my)\s+(?:(?:a|an|my|the)\s+)?([a-zA-Z0-9\s/+]*?)\s*(test|exam|quiz|midterm|final))\s*(?:(?:is\s+)?on\s+([a-zA-Z]+|\d{1,2}(?:\/\d{1,2})?)|(tomorrow|next\s+[a-zA-Z]+|this\s+[a-zA-Z]+|coming\s+up|soon))?/i);
+      if (!match) return null;
+
+      const rawSubject = (match[1] || '').trim();
+      const eventType = match[2].toLowerCase();
+      const timeframe = (match[3] || match[4] || 'soon').trim();
+
+      if (rawSubject.length > 30 || /\b(?:question|problem|example|hint|formula)\b/i.test(rawSubject)) return null;
+
+      const subject = rawSubject ? (rawSubject.charAt(0).toUpperCase() + rawSubject.slice(1)) : 'Upcoming';
+      return {
+        subject,
+        eventType,
+        timeframe,
+        description: `${subject} ${eventType} (${timeframe})`,
+        status: 'pending_checkin',
+        recordedAt: new Date().toISOString()
+      };
+    }
+  },
+  // Milestone Resolution: "Took my calc test", "Finished my physics exam", "Got an A on my quiz"
+  {
+    category: 'milestones',
+    facet: 'upcomingExam',
+    kind: 'observed_fact',
+    confidence: 0.95,
+    customExtractor: (text) => {
+      const match = text.match(/\b(?:took\s+(?:my|the)|finished\s+(?:my|the)|got\s+(?:my\s+grade|an?\s+[a-dfA-DF][+-]?\s+on)|how\s+(?:my|the)\s+([a-zA-Z0-9\s]+?)\s+(?:test|exam|quiz)\s+went)\b/i);
+      if (!match) return null;
+      return {
+        status: 'completed',
+        resolvedAt: new Date().toISOString(),
+        outcomeNote: text.slice(0, 150)
+      };
+    }
   }
 ];
 
