@@ -10,7 +10,7 @@
   - Added new allowlisted tool in `toolController.js` enabling Pythos to search and recall past conversation turns in Firestore under student UIDs.
   - Formats past exchanges into structured computational context with pedagogical directives for natural conversational continuity.
 - **Interactive Study Notes Export & Feedback Controls**:
-  - Added 1-click **Export Lesson Notes** header button generating downloadable Markdown study sheets (`Pythos_Study_Notes_[Date].md`) from current tutoring dialogues.
+  - Added 1-click **Export Problem & Solution Sheet** tool button generating structured Markdown study sheets (extracts verified math problems, step-by-step derivations, and final boxed solutions while filtering out chit-chat) (`Pythos_Study_Notes_[Date].md`) from current tutoring dialogues.
   - Integrated inline **Thumbs-Up** (affirmation) and **Thumbs-Down** (confusing / problem report) feedback buttons on all assistant response bubbles.
 
 ## Pythos 1.8.35
