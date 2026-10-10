@@ -4973,6 +4973,10 @@ const exportNotesBtn = document.getElementById("exportNotesBtn");
 if (exportNotesBtn) {
   exportNotesBtn.addEventListener("click", exportLessonNotes);
 }
+const toolExportNotesBtn = document.getElementById("toolExportNotesBtn");
+if (toolExportNotesBtn) {
+  toolExportNotesBtn.addEventListener("click", exportLessonNotes);
+}
 
 if (themeToggleBtn) {
   themeToggleBtn.addEventListener("click", () => {
