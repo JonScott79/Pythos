@@ -15,6 +15,7 @@
 */
 
 const memoryService = require('./memoryService');
+const { isValidPreferredName } = require('./identityContext');
 
 // Fast deterministic regex extractors for high-confidence explicit facts
 const FACT_PATTERNS = [
@@ -42,12 +43,7 @@ const FACT_PATTERNS = [
       const correctionMatch = text.match(/\b(?:don'?t\s+call\s+me|never\s+call\s+me|stop\s+calling\s+me)\b.*?\b(?:(?:please|just)\s+)?call\s+me\s+([A-Za-z]{2,15})\b/i);
       if (correctionMatch) {
         const rawName = correctionMatch[1];
-        const banned = [
-          'solving', 'doing', 'taking', 'asking', 'working', 'struggling',
-          'confused', 'ready', 'back', 'just', 'not', 'here', 'now', 'fine', 'good',
-          'that', 'this', 'it', 'names', 'anything', 'something', 'again'
-        ];
-        if (!banned.includes(rawName.toLowerCase())) {
+        if (isValidPreferredName(rawName)) {
           return rawName.charAt(0).toUpperCase() + rawName.slice(1).toLowerCase();
         }
       }
@@ -57,17 +53,17 @@ const FACT_PATTERNS = [
         return null;
       }
 
+      // 4b. Guard against non-identity clauses: "I'm in AP Physics", "I am in high school", "I'm studying", etc.
+      if (/\b(?:i\s+am|i'm)\s+(?:in|at|from|with|taking|studying|learning|working|doing|trying|hoping|struggling)\b/i.test(text)) {
+        return null;
+      }
+
       // 5. Direct explicit preferred-name instruction
       const match = text.match(/\b(?:(?:please|just|you\s+can)\s+call\s+me|call\s+me|my\s+name\s+is|i\s+am|i'm)\s+([A-Za-z]{2,15})\b/i);
       if (!match) return null;
 
       const name = match[1];
-      const banned = [
-        'solving', 'doing', 'taking', 'asking', 'working', 'struggling',
-        'confused', 'ready', 'back', 'just', 'not', 'here', 'now', 'fine', 'good',
-        'that', 'this', 'it', 'names', 'anything', 'something', 'again'
-      ];
-      if (banned.includes(name.toLowerCase())) return null;
+      if (!isValidPreferredName(name)) return null;
 
       return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
     }

@@ -49,6 +49,40 @@ function extractFirstName(name) {
 }
 
 /**
+ * Validates whether a candidate preferred name is legitimate and not a common
+ * preposition, article, pronoun, or conversational filler (e.g. "In", "Studying").
+ *
+ * @param {any} name
+ * @returns {boolean}
+ */
+function isValidPreferredName(name) {
+  if (!name || typeof name !== 'string') return false;
+  const trimmed = name.trim();
+  if (trimmed.length < 2 || trimmed.length > 25) return false;
+  
+  const lower = trimmed.toLowerCase();
+  const invalidWords = new Set([
+    'in', 'at', 'on', 'from', 'to', 'for', 'with', 'by', 'as', 'into', 'about',
+    'of', 'off', 'out', 'up', 'down', 'over', 'under', 'a', 'an', 'the',
+    'it', 'its', 'this', 'that', 'these', 'those', 'me', 'my', 'mine',
+    'you', 'your', 'yours', 'we', 'our', 'ours', 'he', 'him', 'his',
+    'she', 'her', 'hers', 'they', 'them', 'their', 'theirs',
+    'new', 'here', 'there', 'now', 'just', 'not', 'no', 'yes', 'so',
+    'very', 'really', 'also', 'still', 'back', 'again', 'ready', 'stuck',
+    'lost', 'confused', 'good', 'bad', 'fine', 'okay', 'sure', 'great',
+    'cool', 'sorry', 'please', 'hello', 'hey', 'hi', 'pythos', 'tutor',
+    'student', 'user', 'admin', 'guest', 'none', 'null', 'undefined',
+    'names', 'anything', 'something', 'doing', 'taking', 'asking', 'working',
+    'struggling', 'solving'
+  ]);
+
+  if (invalidWords.has(lower)) return false;
+  if (lower.endsWith('ing') || lower.endsWith('ed')) return false;
+
+  return true;
+}
+
+/**
  * Constructs the Trusted Identity Context block for prompt injection.
  *
  * @param {Object} identity
@@ -70,7 +104,8 @@ function buildTrustedIdentityContext(identity) {
 
   const fullName = sanitizeDisplayName(identity.displayName);
   const firstName = extractFirstName(fullName);
-  const preferredName = sanitizeDisplayName(identity.preferredName);
+  const rawPreferred = sanitizeDisplayName(identity.preferredName);
+  const preferredName = isValidPreferredName(rawPreferred) ? rawPreferred : null;
   const callAs = preferredName || firstName;
 
   if (fullName || preferredName) {
@@ -94,5 +129,6 @@ function buildTrustedIdentityContext(identity) {
 module.exports = {
   sanitizeDisplayName,
   extractFirstName,
+  isValidPreferredName,
   buildTrustedIdentityContext
 };

@@ -619,7 +619,7 @@ const { normalizeWorksheetMath } = require('./ocrMathNormalizer');
 const memoryService = require('./memoryService');
 const memoryExtractor = require('./memoryExtractor');
 const firebaseAdmin = require('./firebaseAdmin');
-const { buildTrustedIdentityContext, sanitizeDisplayName } = require('./identityContext');
+const { buildTrustedIdentityContext, sanitizeDisplayName, isValidPreferredName } = require('./identityContext');
 
 const contextManager = require('./contextManager');
 const visionExtractor = require('./visionExtractor');
@@ -1914,7 +1914,9 @@ app.post('/api/chat', async (req, res) => {
       if (studentProfile) {
         memoryContext = memoryService.formatMemoryContext(studentProfile, classification);
         if (studentProfile.identity && studentProfile.identity.preferredName) {
-          studentPreferredName = studentProfile.identity.preferredName;
+          if (isValidPreferredName(studentProfile.identity.preferredName)) {
+            studentPreferredName = studentProfile.identity.preferredName;
+          }
         }
       }
     } catch (memErr) {
@@ -1927,7 +1929,7 @@ app.post('/api/chat', async (req, res) => {
     try {
       const immediateCandidates = memoryExtractor.extractCandidates(lastUserMsg.content);
       const nameCand = immediateCandidates.find(c => c.category === 'identity' && c.facet === 'preferredName');
-      if (nameCand && nameCand.value) {
+      if (nameCand && nameCand.value && isValidPreferredName(nameCand.value)) {
         studentPreferredName = nameCand.value;
       }
     } catch (candErr) {

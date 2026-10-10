@@ -340,6 +340,21 @@ const extractedFromDirect = memoryExtractor.extractCandidates("Just call me Jon.
 const candDirect = extractedFromDirect.find(c => c.category === 'identity' && c.facet === 'preferredName');
 assert.strictEqual(candDirect?.value, 'Jon');
 
+// 8e: Guard against prepositions and non-identity phrases ("I'm in AP Physics", "I'm studying")
+const extractedFromCourse = memoryExtractor.extractCandidates("I'm in AP Calculus");
+const nameFromCourse = extractedFromCourse.find(c => c.category === 'identity' && c.facet === 'preferredName');
+assert.strictEqual(nameFromCourse, undefined, 'Preposition "in" must never be extracted as preferredName');
+
+// 8f: If stored profile contains legacy/corrupted name like "In", context must safely fall back to first name
+const fallbackContext = buildTrustedIdentityContext({
+  isAuthenticated: true,
+  displayName: 'Jon Scott',
+  preferredName: 'In',
+  uid: 'uid_jon_123'
+});
+assert.ok(fallbackContext.includes('Address As: Jon'), 'Corrupted "In" must fall back to first name Jon');
+assert.ok(fallbackContext.includes('answer "Jon"'));
+
 console.log('  Status: ✅ PASSED (Pythos addresses by first name and reverts to requested preferred name)\n');
 
 console.log('================================================================');
