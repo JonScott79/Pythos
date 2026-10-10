@@ -212,7 +212,7 @@ assert(indexHtml.includes('aria-label="Version 1.8.36 Release Notes"'), 'Version
 console.log('\n--- Auditing Conversation History Filtering ---');
 assert(appJs.includes('Math Exam') && appJs.includes('isTestArtifact'), 'Filters test/benchmark artifacts (Math Exam, etc.) from student view');
 assert(!appJs.includes('deleteDoc(docRef)') || appJs.includes('deleteChat'), 'User conversation deletion is protected and non-destructive to real chats');
-assert(appJs.includes('loadSidebarChats(true)') && appJs.includes('autoResumeLatest'), 'Auto-resumes most recent conversation on login to optimize Firebase document fees');
+assert(appJs.includes('clearChatUI()') && appJs.includes('loadSidebarChats()'), 'Initializes fresh new session on login instead of auto-resuming past chats');
 
 // 6. MATHEMATICAL RENDERING PIPELINE AUDIT
 console.log('\n--- Auditing Mathematical Pipeline (Fractions, Exponents, Roots, Greeks, Derivatives, Integrals, Matrices, Units, Negatives) ---');

@@ -2348,7 +2348,9 @@ onAuthStateChanged(auth, (user) => {
     logoutBtn.style.display = "block";
     userName.textContent = user.displayName;
     userAvatar.src = user.photoURL;
-    loadSidebarChats(true);
+    currentChatId = null;
+    clearChatUI();
+    loadSidebarChats();
   } else {
     currentUser = null;
     loginBtn.style.display = "block";
@@ -2376,7 +2378,7 @@ function updateActiveSidebarChat(chatId) {
   });
 }
 
-async function loadSidebarChats(autoResumeLatest = false) {
+async function loadSidebarChats() {
   if (!currentUser) return;
   const listEl = document.getElementById("chatHistoryList");
   listEl.innerHTML = "<em>Loading past sessions...</em>";
@@ -2451,10 +2453,7 @@ async function loadSidebarChats(autoResumeLatest = false) {
       listEl.appendChild(wrapper);
     });
 
-    // Auto-resume previous conversation when logging in or reloading page to save Firebase fees
-    if (autoResumeLatest && !currentChatId && latestValidChatId) {
-      await loadChat(latestValidChatId);
-    }
+    // Starts in a fresh new session by default
   } catch (e) {
     console.error(e);
     listEl.innerHTML = "<em>Failed to load chats</em>";
