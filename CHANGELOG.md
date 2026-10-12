@@ -11,6 +11,11 @@
   - Formats past exchanges into structured computational context with pedagogical directives for natural conversational continuity.
 - **Interactive Feedback Controls**:
   - Integrated inline **Thumbs-Up** (affirmation) and **Thumbs-Down** (confusing / problem report) feedback buttons on all assistant response bubbles.
+- **SEO & Discoverability Infrastructure**:
+  - Integrated discreet bottom-right floating Study Hub & FAQ drawer (`<details>`) resolving crawler thin-content warnings while preserving full workspace immersion.
+  - Added native crawlable index links for Algebra, Calculus, Physics, Tools, and Mathematical Validation.
+  - Optimized Title tag to 56 characters (`Pythos | Free AI Math & Physics Tutor — Step-by-Step Solver`) and expanded meta descriptions and high-intent keyword targeting.
+  - Embedded structured JSON-LD `FAQPage` schema and added descriptive image `alt` attributes across all multilingual flag selectors.
 
 ## Pythos 1.8.35
 **Release Date:** October 6, 2026
