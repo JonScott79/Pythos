@@ -54,7 +54,8 @@ function cleanLatexUnits(str) {
     .replace(/\\(?:text|mathrm|mathbf)\s*\{([^{}]*)\}/g, ' $1 ')
     .replace(/\\quad/g, ' ')
     .replace(/\\;/g, ' ')
-    .replace(/\\,/g, ' ')
+    .replace(/\\(?:,|:|;|!)\s*/g, '')
+    .replace(/(?<=\d),(?=\d{3}(?:\D|$))/g, '')
     .replace(/[\$\s]+/g, ' ')
     .trim();
 }
@@ -836,15 +837,24 @@ function extractClaims(text, userPrompt = '') {
         const boxedMatches = extractBoxedMatches(text);
         if (boxedMatches.length > 0) {
           const rawBoxed = cleanLatexUnits(boxedMatches[boxedMatches.length - 1].content);
-          const nums = rawBoxed.match(/[-+]?\d+(?:\.\d+)?/g);
-          // Complex roots in boxed extraction
-          const compMatches = rawBoxed.match(/[-+]?i\b/gi);
-          if (compMatches && compMatches.length > 0) {
-            sols = compMatches;
-            rawMatchStr = boxedMatches[boxedMatches.length - 1].raw;
-          } else if (nums && nums.length > 0) {
-            sols = nums.map(Number);
-            rawMatchStr = boxedMatches[boxedMatches.length - 1].raw;
+          // If the boxed content is an algebraic polynomial / identity containing the variable,
+          // do NOT treat its coefficients/exponents as candidate roots!
+          const hasUnboundVar = new RegExp(`\\b${v}\\b`).test(rawBoxed.replace(/^[a-zA-Z]\s*=/, ''));
+          if (!hasUnboundVar) {
+            const compMatches = rawBoxed.match(/[-+]?i\b/gi);
+            if (compMatches && compMatches.length > 0) {
+              sols = compMatches;
+              rawMatchStr = boxedMatches[boxedMatches.length - 1].raw;
+            } else {
+              const isNumberList = /^[a-zA-Z\s=]*[-+]?\d+(?:\.\d+)?(?:\s*(?:,|and|or|;)\s*(?:[a-zA-Z]\s*=)?\s*[-+]?\d+(?:\.\d+)?)*\s*$/i.test(rawBoxed);
+              if (isNumberList) {
+                const nums = rawBoxed.match(/[-+]?\d+(?:\.\d+)?/g);
+                if (nums && nums.length > 0) {
+                  sols = nums.map(Number);
+                  rawMatchStr = boxedMatches[boxedMatches.length - 1].raw;
+                }
+              }
+            }
           }
         }
 
@@ -984,8 +994,13 @@ function extractClaims(text, userPrompt = '') {
       continue;
     }
 
+    // Strip LaTeX spacing macros (\, \: \; \!) and thousands separator commas within numbers
+    const cleanedLine = rawLine
+      .replace(/\\(?:,|:|;|!)\s*/g, '')
+      .replace(/(?<=\d),(?=\d{3}(?:\D|$))/g, '');
+
     // Convert trigonometric degree arguments into explicit Math.js degree units e.g. csc(60 deg)
-    const lineWithTrigDeg = rawLine.replace(/(?:\\)?(sin|cos|tan|sec|csc|cot)\s*(?:\(\s*([-+]?[0-9.]+)\s*(?:\^\{\s*\\?circ\s*\}|\^\\?circ|°|\s*deg)?\s*\)|\s+([-+]?[0-9.]+)\s*(?:\^\{\s*\\?circ\s*\}|\^\\?circ|°|\s*deg)?)/gi, (m, fn, argParen, argBare) => {
+    const lineWithTrigDeg = cleanedLine.replace(/(?:\\)?(sin|cos|tan|sec|csc|cot)\s*(?:\(\s*([-+]?[0-9.]+)\s*(?:\^\{\s*\\?circ\s*\}|\^\\?circ|°|\s*deg)?\s*\)|\s+([-+]?[0-9.]+)\s*(?:\^\{\s*\\?circ\s*\}|\^\\?circ|°|\s*deg)?)/gi, (m, fn, argParen, argBare) => {
       const rawArg = (argParen || argBare || '').trim();
       const isDeg = /°|circ|deg/i.test(m) || /°|circ|deg/i.test(promptStr);
       return `${fn.toLowerCase()}(${rawArg}${isDeg ? ' deg' : ''})`;
@@ -1777,12 +1792,17 @@ function checkPromptClaimFidelity(claim, userPrompt) {
               }
             } catch (_) {}
 
-            // C. Equivalent atomic number / fraction representation (e.g. prompt '1/2', claim '0.5' or '1/2')
+            // C. Equivalent atomic number / fraction representation (e.g. prompt '7/6 - 3/7', claim '31/42' or '(31)/(42)')
             try {
-              const fTarget = math.fraction(target.val);
-              const fClaim = math.fraction(claimVal);
-              if (math.equal(fTarget, fClaim)) {
-                if (/^[-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+(?:\.\d+)?)?$/.test(claimExpr)) {
+              const normExpr = claimExpr.replace(/[()\s]/g, '');
+              if (/^[-+]?\d+(?:\.\d+)?(?:\/\d+(?:\.\d+)?)?$/.test(normExpr)) {
+                const evalClaim = Number(math.evaluate(claimExpr));
+                if (Math.abs(evalClaim - target.val) < 1e-4) {
+                  return { ok: true };
+                }
+                const fTarget = math.fraction(target.val);
+                const fClaim = math.fraction(claimVal);
+                if (math.equal(fTarget, fClaim)) {
                   return { ok: true };
                 }
               }
