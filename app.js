@@ -4573,22 +4573,84 @@ const unitsConvertBtn = document.getElementById("unitsConvertBtn");
 const unitsResultArea = document.getElementById("unitsResultArea");
 const unitsSendToPythos = document.getElementById("unitsSendToPythos");
 
-unitsConvertBtn.addEventListener("click", () => {
-  const valStr = unitsValueInput.value.trim();
-  const targetUnit = unitsTargetInput.value.trim();
+// Custom Units Registration for Physics & Everyday Conversions
+function registerCustomUnits(m) {
+  if (!m || !m.createUnit) return;
+  try {
+    m.createUnit('mph', '1 mi/h', { override: true });
+    m.createUnit('kph', '1 km/h', { override: true });
+    m.createUnit('kmh', '1 km/h', { override: true });
+    m.createUnit('mps', '1 m/s', { override: true });
+    m.createUnit('fps', '1 ft/s', { override: true });
+    m.createUnit('knot', '1.852 km/h', { override: true });
+    m.createUnit('knots', '1 knot', { override: true });
+    m.createUnit('cal', '4.184 J', { override: true });
+    m.createUnit('kcal', '4184 J', { override: true });
+    m.createUnit('btu', '1 BTU', { override: true });
+  } catch (_) {}
+}
+
+function normalizeUnitString(str) {
+  if (!str) return "";
+  let s = str.trim().replace(/^(?:to|in)\s+/i, "");
+  s = s.replace(/°\s*C\b/gi, "degC")
+       .replace(/°\s*F\b/gi, "degF")
+       .replace(/°\s*K\b/gi, "K");
+  s = s.replace(/\bcelsius\b/gi, "degC");
+  s = s.replace(/\bfahrenheit\b/gi, "degF");
+  s = s.replace(/\bC\b/g, "degC");
+  s = s.replace(/\bF\b/g, "degF");
+  s = s.replace(/\bkph\b/gi, "kph");
+  s = s.replace(/\bmph\b/gi, "mph");
+  s = s.replace(/\bkmh\b/gi, "kmh");
+  return s;
+}
+
+function runUnitConversion() {
+  const rawVal = unitsValueInput.value.trim();
+  const rawTarget = unitsTargetInput.value.trim();
+
+  if (!rawVal) {
+    unitsResultArea.style.display = "block";
+    unitsResultArea.className = "check-result-area check-result-fail";
+    unitsResultArea.innerHTML = "<strong>Error:</strong> Please enter a value and starting unit (e.g. 100 kph).";
+    return;
+  }
+  if (!rawTarget) {
+    unitsResultArea.style.display = "block";
+    unitsResultArea.className = "check-result-area check-result-fail";
+    unitsResultArea.innerHTML = "<strong>Error:</strong> Please enter a target unit (e.g. mph).";
+    return;
+  }
 
   try {
     if (window.math && window.math.unit) {
-      const u = window.math.unit(valStr);
-      const converted = u.to(targetUnit);
+      registerCustomUnits(window.math);
+      const normVal = normalizeUnitString(rawVal);
+      const normTarget = normalizeUnitString(rawTarget);
+      const u = window.math.unit(normVal);
+      const converted = u.to(normTarget);
       unitsResultArea.style.display = "block";
       unitsResultArea.className = "check-result-area check-result-pass";
-      unitsResultArea.innerHTML = `<strong>Result:</strong> ${escapeHtml(converted.toString())}`;
+      unitsResultArea.innerHTML = `<strong>Result:</strong> ${escapeHtml(rawVal)} = <strong>${escapeHtml(converted.toString())}</strong>`;
     }
   } catch (err) {
     unitsResultArea.style.display = "block";
     unitsResultArea.className = "check-result-area check-result-fail";
-    unitsResultArea.innerHTML = `<strong>Error:</strong> Cannot convert <em>${escapeHtml(valStr)}</em> to <em>${escapeHtml(targetUnit)}</em>.`;
+    unitsResultArea.innerHTML = `<strong>Error:</strong> Cannot convert <em>${escapeHtml(rawVal)}</em> to <em>${escapeHtml(rawTarget)}</em>.`;
+  }
+}
+
+unitsConvertBtn.addEventListener("click", runUnitConversion);
+
+[unitsValueInput, unitsTargetInput].forEach(inp => {
+  if (inp) {
+    inp.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        runUnitConversion();
+      }
+    });
   }
 });
 
@@ -4689,6 +4751,12 @@ const calcDisplay = document.getElementById("calcDisplay");
 const calcHistory = document.getElementById("calcHistory");
 const calcDegRadBtn = document.getElementById("calcDegRad");
 let isDegMode = true;
+function cleanFloat(v) {
+  if (typeof v !== "number") return v;
+  if (Math.abs(v) < 1e-14) return 0;
+  const rounded = parseFloat(v.toPrecision(12));
+  return Math.abs(rounded - Math.round(rounded)) < 1e-12 ? Math.round(rounded) : rounded;
+}
 let calcCurrentExpr = "";
 
 calcDegRadBtn.addEventListener("click", () => {
@@ -4712,10 +4780,26 @@ function evaluateCalculator() {
       .replace(/×/g, "*")
       .replace(/π/g, "pi")
       .replace(/√\(/g, "sqrt(")
-      .replace(/√/g, "sqrt");
+      .replace(/√/g, "sqrt")
+      .replace(/\^\{([^}]+)\}/g, "^($1)")
+      .replace(/\*\*/g, "^")
+      .replace(/(\d+|\))\s*pow\s*(\d+|\()/gi, "$1^$2");
 
     if (window.math) {
-      const res = window.math.evaluate(expr);
+      const scope = {
+        ln: (x) => window.math.log(x),
+        log: (x, base) => base !== undefined ? window.math.log(x, base) : window.math.log10(x)
+      };
+      if (isDegMode) {
+        scope.sin = (x) => cleanFloat(Math.sin(x * Math.PI / 180));
+        scope.cos = (x) => cleanFloat(Math.cos(x * Math.PI / 180));
+        scope.tan = (x) => {
+          if (Math.abs((x - 90) % 180) < 1e-9) throw new Error("Tangent undefined at 90°");
+          return cleanFloat(Math.tan(x * Math.PI / 180));
+        };
+      }
+      const evalRes = window.math.evaluate(expr, scope);
+      const res = typeof evalRes === "number" ? cleanFloat(evalRes) : evalRes;
       calcHistory.textContent = `${raw} =`;
       calcDisplay.value = String(res);
       calcCurrentExpr = String(res);
@@ -4763,6 +4847,8 @@ document.querySelectorAll(".calc-key").forEach(btn => {
       let base = (calcDisplay.value === "0" || calcDisplay.value === "Error") ? "" : calcDisplay.value;
       if (val === "sqrt") {
         base += "sqrt(";
+      } else if (val === "pow" || val === "^") {
+        base += "^";
       } else if (val === "sin" || val === "cos" || val === "tan" || val === "ln" || val === "log") {
         base += `${val}(`;
       } else {

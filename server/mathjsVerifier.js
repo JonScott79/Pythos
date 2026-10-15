@@ -12,6 +12,36 @@
 
 const math = require('mathjs');
 
+// Register common custom speed, energy, and pressure units
+try {
+  math.createUnit('mph', '1 mi/h', { override: true });
+  math.createUnit('kph', '1 km/h', { override: true });
+  math.createUnit('kmh', '1 km/h', { override: true });
+  math.createUnit('mps', '1 m/s', { override: true });
+  math.createUnit('fps', '1 ft/s', { override: true });
+  math.createUnit('knot', '1.852 km/h', { override: true });
+  math.createUnit('knots', '1 knot', { override: true });
+  math.createUnit('cal', '4.184 J', { override: true });
+  math.createUnit('kcal', '4184 J', { override: true });
+  math.createUnit('btu', '1 BTU', { override: true });
+} catch (_) {}
+
+function normalizeUnitString(str) {
+  if (!str) return "";
+  let s = str.trim().replace(/^(?:to|in)\s+/i, "");
+  s = s.replace(/°\s*C\b/gi, "degC")
+       .replace(/°\s*F\b/gi, "degF")
+       .replace(/°\s*K\b/gi, "K");
+  s = s.replace(/\bcelsius\b/gi, "degC");
+  s = s.replace(/\bfahrenheit\b/gi, "degF");
+  s = s.replace(/\bC\b/g, "degC");
+  s = s.replace(/\bF\b/g, "degF");
+  s = s.replace(/\bkph\b/gi, "kph");
+  s = s.replace(/\bmph\b/gi, "mph");
+  s = s.replace(/\bkmh\b/gi, "kmh");
+  return s;
+}
+
 // Create exact math instance with bignumber and fraction support
 const exactMath = math.create(math.all, {
   number: 'Fraction',
@@ -598,12 +628,14 @@ const MathJSVerifier = {
   verifyUnits(claim) {
     const { value_with_units, target_units, expected_value, tolerance = 1e-3 } = claim;
     try {
-      const u = math.unit(value_with_units);
+      const normVal = typeof value_with_units === 'string' ? normalizeUnitString(value_with_units) : value_with_units;
+      const normTarget = typeof target_units === 'string' ? normalizeUnitString(target_units) : target_units;
+      const u = math.unit(normVal);
       
       // Test if units are dimensionally compatible
       let converted;
       try {
-        converted = u.to(target_units);
+        converted = u.to(normTarget);
       } catch (incompatErr) {
         return {
           verified: false,
@@ -614,7 +646,7 @@ const MathJSVerifier = {
         };
       }
 
-      const numericVal = converted.toNumber(target_units);
+      const numericVal = converted.toNumber(normTarget);
       if (typeof expected_value === 'number') {
         const matches = Math.abs(numericVal - expected_value) <= tolerance;
         return {
