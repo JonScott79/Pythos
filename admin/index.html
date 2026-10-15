@@ -625,6 +625,9 @@
           <button id="refreshReportsBtn" class="btn" title="Refresh Report List">
             ↻ Refresh List
           </button>
+          <button id="bulkDeleteBtn" class="btn" style="border-color:#ef4444; color:#ef4444;" title="Bulk delete all reports currently displayed in this queue">
+            🗑️ Bulk Delete Queue
+          </button>
           <button id="toggleReportingBtn" class="btn" title="Toggle Student Bug Reporting">
             Reporting: ...
           </button>
@@ -1209,6 +1212,65 @@
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+    }
+
+    // Expose helpers to window for console power-users
+    window.adminFetch = adminFetch;
+    window.getCachedReports = () => cachedReports;
+
+    // Bulk Delete Current Queue
+    const bulkDeleteBtn = document.getElementById("bulkDeleteBtn");
+    if (bulkDeleteBtn) {
+      bulkDeleteBtn.addEventListener("click", async () => {
+        if (!cachedReports || cachedReports.length === 0) {
+          alert("No reports in the current queue to delete.");
+          return;
+        }
+        const count = cachedReports.length;
+        if (!confirm(`Are you sure you want to permanently delete all ${count} reports in the current queue?\n\nThis will remove them from both disk and Firestore. This cannot be undone.`)) {
+          return;
+        }
+        bulkDeleteBtn.disabled = true;
+        const origText = bulkDeleteBtn.textContent;
+        const reportIds = cachedReports.map(r => r.report_id || r.id);
+
+        try {
+          bulkDeleteBtn.textContent = `⏳ Deleting ${count} reports...`;
+          const res = await adminFetch("/admin/reports/bulk-delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ reportIds })
+          });
+
+          if (!res.ok) {
+            // Fallback to sequential deletion if endpoint not deployed yet
+            let deleted = 0;
+            let failed = 0;
+            for (let i = 0; i < reportIds.length; i++) {
+              bulkDeleteBtn.textContent = `⏳ Deleting ${i + 1}/${count}...`;
+              try {
+                const delRes = await adminFetch(`/admin/reports/${encodeURIComponent(reportIds[i])}`, { method: "DELETE" });
+                if (delRes.ok) deleted++;
+                else failed++;
+              } catch (_) {
+                failed++;
+              }
+            }
+            alert(`Bulk deletion finished: ${deleted} deleted, ${failed} failed.`);
+          } else {
+            const data = await res.json();
+            alert(data.message || `Successfully deleted ${count} reports.`);
+          }
+        } catch (err) {
+          alert("Bulk delete error: " + err.message);
+        } finally {
+          bulkDeleteBtn.disabled = false;
+          bulkDeleteBtn.textContent = origText;
+          detailViewEl.innerHTML = `<div class="detail-placeholder"><p style="color:#15803d; font-weight:600;">Queue cleared.</p></div>`;
+          await loadReports();
+          await loadMetrics();
+        }
+      });
     }
 
     // Export Current Queue as AI Incident Analysis Bundle

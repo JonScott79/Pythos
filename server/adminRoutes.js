@@ -307,6 +307,43 @@ router.delete('/reports/:reportId', async (req, res) => {
   }
 });
 
+// POST /admin/reports/bulk-delete: Bulk delete reports permanently from disk & Firestore
+router.post('/reports/bulk-delete', async (req, res) => {
+  try {
+    const { reportIds } = req.body;
+    if (!Array.isArray(reportIds) || reportIds.length === 0) {
+      return res.status(400).json({
+        error: 'invalid_request',
+        message: 'A non-empty "reportIds" array is required.'
+      });
+    }
+
+    let deletedCount = 0;
+    const errors = [];
+    for (const id of reportIds) {
+      try {
+        const deleted = await reportService.deleteReport(id);
+        if (deleted) deletedCount++;
+      } catch (err) {
+        errors.push({ id, error: err.message });
+      }
+    }
+
+    res.status(200).json({
+      status: 'ok',
+      message: `Bulk delete completed: ${deletedCount} of ${reportIds.length} reports deleted.`,
+      deletedCount,
+      totalRequested: reportIds.length,
+      errors
+    });
+  } catch (err) {
+    res.status(500).json({
+      error: 'bulk_delete_failed',
+      message: err.message
+    });
+  }
+});
+
 // POST /admin/reporting/toggle: Administrative feature flag switch
 router.post('/reporting/toggle', (req, res) => {
   const { enabled } = req.body;

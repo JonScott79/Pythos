@@ -286,6 +286,17 @@ async function runTests() {
     assert.strictEqual(resGetAfterDel.status, 404, 'Deleted report should return 404');
     console.log('  Status: ✅ PASSED (Admin delete endpoint removes report cleanly)\n');
 
+    // Test 10b: Bulk Delete (/admin/reports/bulk-delete)
+    console.log('▶ [TEST 10b] Admin Bulk Delete Endpoint (/admin/reports/bulk-delete)');
+    const bulk1 = reportService.createReport({ question: 'Bulk Q1', response: 'Bulk A1', source: 'student' });
+    const bulk2 = reportService.createReport({ question: 'Bulk Q2', response: 'Bulk A2', source: 'student' });
+    const resBulkDel = await simulateRequest(testApp, 'POST', '/admin/reports/bulk-delete', {
+      'Authorization': 'Bearer admin_jwt_token.with.dots'
+    }, { reportIds: [bulk1.reportId, bulk2.reportId] });
+    assert.strictEqual(resBulkDel.status, 200, 'POST /admin/reports/bulk-delete should return 200');
+    assert.strictEqual(resBulkDel.body.deletedCount, 2);
+    console.log('  Status: ✅ PASSED (Bulk delete removes multiple reports cleanly)\n');
+
     // Test 11: Export Endpoints (/admin/reports/:id/export & /admin/reports-export)
     console.log('▶ [TEST 11] Admin Export Endpoints (Single Markdown/JSON & Queue Bundle)');
     const exportTarget = reportService.createReport({
