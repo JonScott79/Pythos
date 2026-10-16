@@ -55,6 +55,14 @@ Carefully examine the image and adhere to these strict rules:
    - If the student is asking "How do I do this?" or "Solve this":
      * State what the problem asks in clear terms.
      * Guide them through Step 1 without dumping the entire solution.
+
+6. CAPTURE ALL ANSWER PRECISION & FORMAT REQUIREMENTS:
+   - Identify and transcribe all explicit answer instructions, including:
+     * Rounding precision (e.g. Round to the nearest hundredth, Round to two decimal places, Round to the nearest tenth, Round to the nearest integer)
+     * Significant figures (e.g. Round to 3 significant figures)
+     * Form requirements (e.g. exact answer, simplest radical form, as a simplified fraction, do not round)
+     * Required units (e.g. in meters, in seconds, in kg)
+   - State these explicit constraints clearly in your problem statement transcription so that student work can be validated against them.
 `;
 }
 

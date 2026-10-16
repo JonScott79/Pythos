@@ -311,7 +311,7 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
   // -------------------------------------------------------------
   // 9. PROPOSED_ANSWER Intent
   // -------------------------------------------------------------
-  const ansPrefixMatch = clean.match(/^(?:i\s+think\s+(?:the\s+answer\s+is|it's|it\s+is)?|the\s+answer\s+is|is\s+the\s+answer|answer\s*[:=]|final\s+answer\s*[:=]|got|i\s+got|my\s+answer\s+is)\s*(.+)$/i);
+  const ansPrefixMatch = clean.match(/^(?:i\s+think\s+(?:the\s+answer\s+is|it\'s|it\s+is)?|the\s+answer\s+is|is\s+the\s+answer|is\s+it|it\'s|it\s+is|answer\s*[:=]|final\s+answer\s*[:=]|got|i\s+got|my\s+answer\s+is)\s*(.+)$/i);
   if (ansPrefixMatch) {
     signals.push('answer_prefix_marker');
     const expr = ansPrefixMatch[1].replace(/[?.,!]$/, '').trim();

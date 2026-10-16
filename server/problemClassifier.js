@@ -296,6 +296,13 @@ function extractAssumptionsAndConstraints(text) {
     assumptions.push('Mutually exclusive and exhaustive source partitions');
   }
 
+  const formatting = extractAnswerFormattingRequirements(text);
+  if (formatting) {
+    if (formatting.rounding) constraints.push(`Required precision: ${formatting.rounding.precisionName}`);
+    if (formatting.significantFigures) constraints.push(`Required precision: ${formatting.significantFigures.description}`);
+    if (formatting.exactRequired) constraints.push('Required format: exact expression (do not round)');
+    if (formatting.requiredUnit) constraints.push(`Required units: ${formatting.requiredUnit}`);
+  }
   return { assumptions, constraints };
 }
 
@@ -303,6 +310,157 @@ function extractAssumptionsAndConstraints(text) {
  * Main Problem Classification Function.
  * Returns structured classification representation.
  */
+function extractAnswerFormattingRequirements(text) {
+  if (!text || typeof text !== 'string') return null;
+  const lower = text.toLowerCase();
+  const reqs = {};
+
+  if (/\b(?:round(?:\s+to)?|to)\s+(?:the\s+)?nearest\s+hundredth\b/i.test(lower) ||
+      /\b(?:round(?:\s+to)?|to)\s+(?:two|2)\s+decimal\s+places?\b/i.test(lower)) {
+    reqs.rounding = {
+      type: 'DECIMAL_PLACES',
+      precisionName: 'the nearest hundredth',
+      decimalPlaces: 2
+    };
+  } else if (/\b(?:round(?:\s+to)?|to)\s+(?:the\s+)?nearest\s+tenth\b/i.test(lower) ||
+             /\b(?:round(?:\s+to)?|to)\s+(?:one|1)\s+decimal\s+place\b/i.test(lower)) {
+    reqs.rounding = {
+      type: 'DECIMAL_PLACES',
+      precisionName: 'the nearest tenth',
+      decimalPlaces: 1
+    };
+  } else if (/\b(?:round(?:\s+to)?|to)\s+(?:the\s+)?nearest\s+thousandth\b/i.test(lower) ||
+             /\b(?:round(?:\s+to)?|to)\s+(?:three|3)\s+decimal\s+places?\b/i.test(lower)) {
+    reqs.rounding = {
+      type: 'DECIMAL_PLACES',
+      precisionName: 'the nearest thousandth',
+      decimalPlaces: 3
+    };
+  } else if (/\b(?:round(?:\s+to)?|to)\s+(?:the\s+)?nearest\s+(?:integer|whole\s+number)\b/i.test(lower) ||
+             /\b(?:round(?:\s+to)?|to)\s+0\s+decimal\s+places?\b/i.test(lower)) {
+    reqs.rounding = {
+      type: 'DECIMAL_PLACES',
+      precisionName: 'the nearest integer',
+      decimalPlaces: 0
+    };
+  } else {
+    const genericDecMatch = lower.match(/\b(?:round(?:\s+to)?|to)\s+(\d+)\s+decimal\s+places?\b/i);
+    if (genericDecMatch) {
+      const places = parseInt(genericDecMatch[1], 10);
+      reqs.rounding = {
+        type: 'DECIMAL_PLACES',
+        precisionName: `${places} decimal places`,
+        decimalPlaces: places
+      };
+    }
+  }
+
+  const sigFigMatch = lower.match(/\b(?:to\s+)?(\d+)\s+significant\s+(?:figures?|digits?|figs?)\b/i);
+  if (sigFigMatch) {
+    const count = parseInt(sigFigMatch[1], 10);
+    reqs.significantFigures = {
+      count,
+      description: `${count} significant figures`
+    };
+  }
+
+  if (/\b(?:exact\s+(?:answer|value|expression|form)|give\s+(?:an\s+)?exact|do\s+not\s+round|in\s+terms\s+of\s+(?:pi|\u03C0)|simplest\s+radical\s+form)\b/i.test(lower)) {
+    reqs.exactRequired = true;
+    reqs.exactDescription = 'exact expression (do not round to decimal)';
+  }
+
+  const unitMatch = lower.match(/\b(?:in\s+units\s+of|with\s+units\s+of|expressed\s+in|(?:given|find|answer|side\s+[a-zA-Z])\s+in|in)\s+(meters?|centimeters?|seconds?|kilograms?|newtons?|joules?|radians?|degrees?)\b/i) ||
+                    lower.match(/\b(?:in\s+units\s+of|with\s+units\s+of|expressed\s+in)\s+(m|cm|s|kg|n|j|rad|deg)\b/i);
+  if (unitMatch && !lower.includes('assume that')) {
+    const u = unitMatch[1].toLowerCase();
+    reqs.requiredUnit = u;
+  }
+
+  if (/\b(?:as\s+a\s+(?:simplified\s+)?fraction|fraction\s+form|in\s+fraction\s+form)\b/i.test(lower)) {
+    reqs.fractionRequired = true;
+  }
+
+  return Object.keys(reqs).length > 0 ? reqs : null;
+}
+
+function extractRightTriangleTarget(text) {
+  if (!text || typeof text !== 'string') return null;
+  const clean = text.replace(/[\r\n]+/g, ' ');
+
+  // 1. Angle: "Angle A = 31.9" or "A = 31.9?" or "angle = 31.9"
+  let angleDeg = null;
+  const angleM = clean.match(/\b(?:angle\s*(?:[a-zA-Z]\b)?|[A-Z]\s*(?:=|is))\s*(\d+(?:\.\d+)?)\s*(?:\u00B0|deg|degrees)?\b/i) ||
+                 clean.match(/\b(?:angle\s*([a-zA-Z])?\s*(?:=|is)?)\s*(\d+(?:\.\d+)?)/i);
+  if (angleM) {
+    const rawVal = !isNaN(Number(angleM[1])) ? angleM[1] : (angleM[2] || angleM[3]);
+    angleDeg = parseFloat(rawVal);
+  }
+
+  // 2. Adjacent side: "adjacent side b = 28" or "adjacent = 28" or "b = 28"
+  let adjVal = null;
+  const adjM = clean.match(/\badjacent(?:\s*side)?(?:\s*[a-zA-Z])?\s*(?:=|is)?\s*(\d+(?:\.\d+)?)/i) ||
+               clean.match(/\b(?:side\s+b|b)\s*(?:=|is)\s*(\d+(?:\.\d+)?)/i);
+  if (adjM) adjVal = parseFloat(adjM[1]);
+
+  // 3. Opposite side: "opposite side a = 15" or "opposite = 15" or "side a = 15" (DO NOT match "Angle A = ...")
+  let oppVal = null;
+  const oppM = clean.match(/\bopposite(?:\s*side)?(?:\s*[a-zA-Z])?\s*(?:=|is)?\s*(\d+(?:\.\d+)?)/i) ||
+               clean.match(/(?<!angle\s*)\b(?:side\s+a)\s*(?:=|is)\s*(\d+(?:\.\d+)?)/i);
+  if (oppM) {
+    const candidateOpp = parseFloat(oppM[1]);
+    if (isNaN(angleDeg) || Math.abs(candidateOpp - angleDeg) > 0.001) {
+      oppVal = candidateOpp;
+    }
+  }
+
+  // 4. Hypotenuse: "hypotenuse = 35" or "c = 35"
+  let hypVal = null;
+  const hypM = clean.match(/\bhypotenuse(?:\s*side)?(?:\s*[a-zA-Z])?\s*(?:=|is)?\s*(\d+(?:\.\d+)?)/i) ||
+               clean.match(/\b(?:side\s+c|c)\s*(?:=|is)\s*(\d+(?:\.\d+)?)/i);
+  if (hypM) hypVal = parseFloat(hypM[1]);
+
+  if (angleDeg && adjVal && !oppVal) {
+    const rad = angleDeg * Math.PI / 180;
+    return {
+      type: 'RIGHT_TRIANGLE_OPP',
+      angleDeg,
+      adjVal,
+      targetValue: adjVal * Math.tan(rad),
+      formula: `${adjVal} * tan(${angleDeg}\u00B0)`
+    };
+  }
+  if (angleDeg && oppVal && !adjVal) {
+    const rad = angleDeg * Math.PI / 180;
+    return {
+      type: 'RIGHT_TRIANGLE_ADJ',
+      angleDeg,
+      oppVal,
+      targetValue: oppVal / Math.tan(rad),
+      formula: `${oppVal} / tan(${angleDeg}\u00B0)`
+    };
+  }
+  if (angleDeg && hypVal && !oppVal) {
+    const rad = angleDeg * Math.PI / 180;
+    return {
+      type: 'RIGHT_TRIANGLE_OPP',
+      angleDeg,
+      hypVal,
+      targetValue: hypVal * Math.sin(rad),
+      formula: `${hypVal} * sin(${angleDeg}\u00B0)`
+    };
+  }
+  if (adjVal && oppVal && !hypVal) {
+    return {
+      type: 'RIGHT_TRIANGLE_HYP',
+      adjVal,
+      oppVal,
+      targetValue: Math.hypot(adjVal, oppVal),
+      formula: `sqrt(${adjVal}^2 + ${oppVal}^2)`
+    };
+  }
+  return null;
+}
+
 function classifyProblem(userText) {
   if (!userText || typeof userText !== 'string') {
     return {
@@ -615,6 +773,7 @@ function classifyProblem(userText) {
   const hasTrigContext = /\b(?:sin|cos|tan|sec|csc|cot|sine|cosine|tangent|ratio|ratios|opposite|adjacent|hypotenuse|hypo|angle|theta|\/)\b/i.test(text) ||
                          /[θ\u03B8]/.test(text) || lower.includes('sin/cos');
   const isTrigProblem = lower.includes('trigonometry') || lower.includes('sin^2') || lower.includes('cos^2') || lower.includes('tan^2') || lower.includes('unit circle') ||
+    (/\\bangle\\b/i.test(lower) && /\\b(?:adjacent|opposite|hypotenuse)\\b/i.test(lower)) ||
     (hasTrigRatioKeywords && (hasTrigContext || lower.includes('triangle') || lower.includes('hypo') || lower.includes('opp') || lower.includes('adj'))) ||
     (lower.includes('triangle') && (lower.includes('hypotenuse') || lower.includes('hypo') || lower.includes('sine') || lower.includes('cosine') || lower.includes('tangent') || lower.includes('opposite') || lower.includes('adjacent'))) ||
     ((lower.includes('arc') || lower.includes('central angle') || lower.includes('radian')) && (lower.includes('circle') || lower.includes('radius') || lower.includes('intercepts'))) ||
@@ -731,5 +890,7 @@ module.exports = {
   classifyProblem,
   extractKnownQuantities,
   extractUnknownQuantities,
-  extractAssumptionsAndConstraints
+  extractAssumptionsAndConstraints,
+  extractAnswerFormattingRequirements,
+  extractRightTriangleTarget
 };

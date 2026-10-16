@@ -1047,10 +1047,180 @@ function resolveReferentialContext(userText, conversationHistory = []) {
  * that can be solved and explained with 100% verified certainty.
  * Accepts optional conversationHistory to resolve multi-turn referential requests.
  */
+function simplifyPythagoreanSide(hypExpr, legExpr) {
+  const nHyp = Number(hypExpr);
+  const nLeg = Number(legExpr);
+  if (!isNaN(nHyp) && !isNaN(nLeg) && nHyp > nLeg) {
+    const remSq = Math.round(nHyp * nHyp - nLeg * nLeg);
+    const root = Math.round(Math.sqrt(remSq));
+    if (root * root === remSq) return String(root);
+    return '\\sqrt{' + remSq + '}';
+  }
+
+  // hyp is \sqrt{x^2 + C} or \sqrt{x^2 + a^2} and leg is x
+  const hypRadMatch = String(hypExpr).match(/(?:\\sqrt|sqrt)\{?\s*([a-zA-Z])\^2\s*\+\s*(\d+|[a-zA-Z]\^2)\s*\}?/);
+  if (hypRadMatch) {
+    const v = hypRadMatch[1];
+    const c = hypRadMatch[2];
+    if (String(legExpr).trim() === v) {
+      const numC = Number(c);
+      if (!isNaN(numC)) {
+        const root = Math.round(Math.sqrt(numC));
+        if (root * root === numC) return String(root);
+        return '\\sqrt{' + numC + '}';
+      }
+      const varSq = c.match(/([a-zA-Z])\^2/);
+      if (varSq) return varSq[1];
+      return '\\sqrt{' + c + '}';
+    }
+  }
+
+  // hyp is number C and leg is x -> \sqrt{C^2 - x^2}
+  const hypNum = Number(hypExpr);
+  if (!isNaN(hypNum) && isNaN(Number(legExpr))) {
+    return '\\sqrt{' + (hypNum * hypNum) + ' - ' + legExpr + '^2}';
+  }
+
+  return '\\sqrt{(' + hypExpr + ')^2 - (' + legExpr + ')^2}';
+}
+
+function simplifyHypotenuseSide(leg1, leg2) {
+  const n1 = Number(leg1);
+  const n2 = Number(leg2);
+  if (!isNaN(n1) && !isNaN(n2)) {
+    const sumSq = Math.round(n1 * n1 + n2 * n2);
+    const root = Math.round(Math.sqrt(sumSq));
+    if (root * root === sumSq) return String(root);
+    return '\\sqrt{' + sumSq + '}';
+  }
+  if (isNaN(n1) && !isNaN(n2)) {
+    return '\\sqrt{' + leg1 + '^2 + ' + (n2 * n2) + '}';
+  }
+  if (!isNaN(n1) && isNaN(n2)) {
+    return '\\sqrt{' + leg2 + '^2 + ' + (n1 * n1) + '}';
+  }
+  return '\\sqrt{' + leg1 + '^2 + ' + leg2 + '^2}';
+}
+
+function extractContextualTrigTriangle(conversationHistory) {
+  if (!Array.isArray(conversationHistory) || conversationHistory.length === 0) return null;
+
+  for (let i = conversationHistory.length - 1; i >= 0; i--) {
+    const msg = conversationHistory[i];
+    if (!msg || !msg.content) continue;
+    const clean = msg.content.replace(/\\left|\\right/g, '');
+
+    // Check for explicit composite inverse trig: e.g. \sec(\sin^{-1}(\frac{x}{\sqrt{x^2+36}}))
+    const trigPattern = /\\?(sin|cos|tan|sec|csc|cot)\s*\(\s*\\?(?:arc(sin|cos|tan|sec|csc|cot)|(sin|cos|tan|sec|csc|cot)\s*(?:\^\{[-0-9]+\}|\^[-?]1|-1|[-?]1)?)\s*\(([^()]+(?:\([^()]*\)[^()]*)*)\)\s*\)/i;
+    const match = clean.match(trigPattern);
+    if (match) {
+      const outer = match[1].toLowerCase();
+      const inner = (match[2] || match[3]).toLowerCase();
+      const arg = match[4].trim();
+
+      let num, den;
+      const fracMatch = arg.match(/\\frac\{([^{}]+(?:\b|\{[^{}]*\}[^{}]*)*)\}\{([^{}]+(?:\b|\{[^{}]*\}[^{}]*)*)\}/);
+      if (fracMatch) {
+        num = fracMatch[1].trim();
+        den = fracMatch[2].trim();
+      } else if (arg.includes('/')) {
+        const parts = arg.split('/');
+        num = parts[0].trim();
+        den = parts[1].trim();
+      } else {
+        num = arg;
+        den = '1';
+      }
+
+      let opp, adj, hyp;
+      if (inner === 'sin') {
+        opp = num;
+        hyp = den;
+        adj = simplifyPythagoreanSide(hyp, opp);
+      } else if (inner === 'cos') {
+        adj = num;
+        hyp = den;
+        opp = simplifyPythagoreanSide(hyp, adj);
+      } else if (inner === 'tan') {
+        opp = num;
+        adj = den;
+        hyp = simplifyHypotenuseSide(opp, adj);
+      } else if (inner === 'sec') {
+        hyp = num;
+        adj = den;
+        opp = simplifyPythagoreanSide(hyp, adj);
+      } else if (inner === 'csc') {
+        hyp = num;
+        opp = den;
+        adj = simplifyPythagoreanSide(hyp, opp);
+      } else if (inner === 'cot') {
+        adj = num;
+        opp = den;
+        hyp = simplifyHypotenuseSide(opp, adj);
+      }
+
+      let result;
+      if (outer === 'sin') result = `\\frac{${opp}}{${hyp}}`;
+      else if (outer === 'cos') result = `\\frac{${adj}}{${hyp}}`;
+      else if (outer === 'tan') result = `\\frac{${opp}}{${adj}}`;
+      else if (outer === 'sec') result = `\\frac{${hyp}}{${adj}}`;
+      else if (outer === 'csc') result = `\\frac{${hyp}}{${opp}}`;
+      else if (outer === 'cot') result = `\\frac{${adj}}{${opp}}`;
+
+      return {
+        isAlgebraicTrig: true,
+        outer,
+        inner,
+        num,
+        den,
+        opp,
+        adj,
+        hyp,
+        result
+      };
+    }
+  }
+  return null;
+}
+
 function analyzeDeterministicIntent(userText, conversationHistory = []) {
   if (!userText || typeof userText !== 'string') return null;
   const clean = userText.trim().replace(/^\$+|\$+$/g, '').replace(/[?!.]+$/, '').replace(/(\d),(\d{3})\b/g, '$1$2').trim();
   const lower = clean.toLowerCase();
+
+  // Deterministic Answer Formatting & Precision Validation
+  if (Array.isArray(conversationHistory) && conversationHistory.length > 0) {
+    const cleanProposed = clean.replace(/^(?:i\s+think\s+(?:the\s+answer\s+is|it\x27s|it\s+is)?|the\s+answer\s+is|is\s+the\s+answer|is\s+it|it\x27s|it\s+is|answer\s*[:=]|final\s+answer\s*[:=]|got|i\s+got|my\s+answer\s+is)\s*/i, '')
+                               .replace(/^(?:[a-zA-Z]|theta)\s*=\s*/i, '')
+                               .replace(/[?.,!]$/, '')
+                               .trim();
+    if (/^[-+]?\d+(?:\.\d+)?(?:\s*[a-zA-Z]+)?$/.test(cleanProposed)) {
+      try {
+        const { extractActiveProblemState } = require('./contextManager');
+        const activeState = extractActiveProblemState(conversationHistory);
+        const active = activeState?.active;
+        if (active && active.formattingRequirements && (typeof active.targetValue === 'number' || active.formattingRequirements.exactRequired)) {
+          const { validateAnswerAgainstConstraints } = require('./studentWorkEvaluator');
+          const validation = validateAnswerAgainstConstraints(cleanProposed, active.targetValue, active.formattingRequirements);
+          if (validation && validation.status === 'FORMAT_MISMATCH') {
+            return {
+              type: 'ANSWER_FORMAT_MISMATCH',
+              message: validation.message,
+              expectedFormatted: validation.expectedFormatted,
+              mismatchType: validation.mismatchType,
+              actualPlaces: validation.actualPlaces,
+              requiredPlaces: validation.requiredPlaces,
+              actualSigFigs: validation.actualSigFigs,
+              requiredSigFigs: validation.requiredSigFigs,
+              details: validation.message
+            };
+          }
+        }
+      } catch (err) {
+        console.warn('[ROUTER] Format validation check error:', err.message);
+      }
+    }
+  }
 
   // Error diagnosis requests (e.g. "What is wrong with this step...", "Find the error in...")
   if (/\b(?:what\s+is\s+wrong|find\s+(?:the\s+)?error|find\s+(?:the\s+)?mistake|where\s+is\s+the\s+(?:error|mistake)|is\s+this\s+(?:solution\s+)?valid|check\s+(?:my|this)\s+(?:work|solution))\b/i.test(clean)) {
@@ -1479,6 +1649,31 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   );
 
   if (triangleMatch || isQualitativeTriangle) {
+    if (isQualitativeTriangle) {
+      const contextualTrig = extractContextualTrigTriangle(conversationHistory);
+      if (contextualTrig) {
+        return {
+          type: 'GEOMETRY_VIZ',
+          figType: 'triangle',
+          a: 3,
+          b: 4,
+          c: 5,
+          right_angle: 'C',
+          isTrigExplanation: true,
+          isAlgebraicTrig: true,
+          opp: contextualTrig.opp,
+          adj: contextualTrig.adj,
+          hyp: contextualTrig.hyp,
+          outer: contextualTrig.outer,
+          inner: contextualTrig.inner,
+          num: contextualTrig.num,
+          den: contextualTrig.den,
+          result: contextualTrig.result,
+          solution: contextualTrig.result,
+          formatted: `opp = ${contextualTrig.opp}, adj = ${contextualTrig.adj}, hyp = ${contextualTrig.hyp}`
+        };
+      }
+    }
     const { detectInputAmbiguity } = require('./inputAmbiguityDetector');
     const ambiguityCheck = detectInputAmbiguity(clean);
     if (ambiguityCheck && ambiguityCheck.hasAmbiguity) {
@@ -2494,6 +2689,10 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
 function buildDeterministicResponse(intent) {
   if (!intent) return null;
 
+  if (intent.type === 'ANSWER_FORMAT_MISMATCH') {
+    return intent.message;
+  }
+
   if (intent.type === 'GRAPH_PLOT') {
     return `📈 **Function Visualization**
 
@@ -2577,16 +2776,59 @@ $$\\boxed{${hyp}}$$`;
     }
 
     if (intent.isTrigExplanation) {
-      return `📐 **Right-Triangle Trigonometric Model**
+      if (intent.isAlgebraicTrig) {
+        let pythagoreanExplanation = '';
+        if (intent.inner === 'sin') {
+          pythagoreanExplanation = `Using the Pythagorean theorem ($a^2 + b^2 = c^2$) with $\\text{opposite} = ${opp}$ and $\\text{hypotenuse} = ${hyp}$:
+$$\\text{adjacent} = \\sqrt{(\\text{hypotenuse})^2 - (\\text{opposite})^2} = \\sqrt{(${hyp})^2 - (${opp})^2} = ${adj}$$`;
+        } else if (intent.inner === 'cos') {
+          pythagoreanExplanation = `Using the Pythagorean theorem ($a^2 + b^2 = c^2$) with $\\text{adjacent} = ${adj}$ and $\\text{hypotenuse} = ${hyp}$:
+$$\\text{opposite} = \\sqrt{(\\text{hypotenuse})^2 - (\\text{adjacent})^2} = \\sqrt{(${hyp})^2 - (${adj})^2} = ${opp}$$`;
+        } else {
+          pythagoreanExplanation = `Using the Pythagorean theorem ($a^2 + b^2 = c^2$) with $\\text{opposite} = ${opp}$ and $\\text{adjacent} = ${adj}$:
+$$\\text{hypotenuse} = \\sqrt{(\\text{opposite})^2 + (\\text{adjacent})^2} = \\sqrt{(${opp})^2 + (${adj})^2} = ${hyp}$$`;
+        }
+
+        let outerFormula = '';
+        if (intent.outer === 'sec') outerFormula = '\\frac{\\text{hypotenuse}}{\\text{adjacent}}';
+        else if (intent.outer === 'sin') outerFormula = '\\frac{\\text{opposite}}{\\text{hypotenuse}}';
+        else if (intent.outer === 'cos') outerFormula = '\\frac{\\text{adjacent}}{\\text{hypotenuse}}';
+        else if (intent.outer === 'tan') outerFormula = '\\frac{\\text{opposite}}{\\text{adjacent}}';
+        else if (intent.outer === 'csc') outerFormula = '\\frac{\\text{hypotenuse}}{\\text{opposite}}';
+        else if (intent.outer === 'cot') outerFormula = '\\frac{\\text{adjacent}}{\\text{opposite}}';
+
+        return `\uD83D\uDCD0 **Right-Triangle Algebraic Model**
+
+Here is the right triangle derived from your expression with angle $\\theta$:
+
+[GEOMETRY: triangle, a=${intent.a || 3}, b=${intent.b || 4}, c=${intent.c || 5}, right_angle=C, opp=${opp}, adj=${adj}, hyp=${hyp}, theta=true]
+
+### 1. Reference Angle & Side Assignment:
+Let $\\theta = \\${intent.inner}^{-1}\\left(\\frac{${intent.num}}{${intent.den}}\\right)$, which defines an acute angle in a right triangle:
+- **Opposite side** = $${opp}$ (vertical leg opposite to angle $\\theta$)
+- **Adjacent side** = $${adj}$ (horizontal leg adjacent to angle $\\theta$)
+- **Hypotenuse** = $${hyp}$ (longest side opposite the $90^\\circ$ right angle $C$)
+
+### 2. Deriving the Missing Side (Pythagorean Theorem):
+${pythagoreanExplanation}
+
+### 3. Evaluating Outer Expression $\\${intent.outer}(\\theta)$:
+Using the right-triangle ratio definition:
+$$\\${intent.outer}(\\theta) = ${outerFormula} = ${intent.result}$$
+
+$$\\boxed{${intent.result}}$$`;
+      }
+
+      return `\uD83D\uDCD0 **Right-Triangle Trigonometric Model**
 
 Here is the right triangle illustrating the opposite, adjacent, and hypotenuse sides with angle $\\theta$:
 
 [GEOMETRY: triangle, a=${intent.a}, b=${intent.b}, c=${intent.c}, right_angle=C, opp=${opp}, adj=${adj}, hyp=${hyp}, theta=true]
 
 ### 1. Side Identification Relative to $\\theta$:
-- **Opposite side** = ${opp}$ (vertical leg opposite to angle $\\theta$)
-- **Adjacent side** = ${adj}$ (horizontal leg adjacent to angle $\\theta$)
-- **Hypotenuse** = ${hyp}$ (longest side opposite the $90^\\circ$ right angle $C$)
+- **Opposite side** = $${opp}$ (vertical leg opposite to angle $\\theta$)
+- **Adjacent side** = $${adj}$ (horizontal leg adjacent to angle $\\theta$)
+- **Hypotenuse** = $${hyp}$ (longest side opposite the $90^\\circ$ right angle $C$)
 
 ### 2. Trigonometric Ratios for $\\theta$:
 - $\\sin(\\theta) = \\frac{\\text{opposite}}{\\text{hypotenuse}} = \\frac{${opp}}{${hyp}}$
@@ -2597,7 +2839,7 @@ Here is the right triangle illustrating the opposite, adjacent, and hypotenuse s
 Dividing the sine ratio by the cosine ratio:
 $\\frac{\\sin(\\theta)}{\\cos(\\theta)} = \\frac{\\frac{${opp}}{${hyp}}}{\\frac{${adj}}{${hyp}}} = \\frac{${opp}}{${hyp}} \\times \\frac{${hyp}}{${adj}} = \\frac{${opp}}{${adj}} = \\tan(\\theta)$
 
-The hypotenuse (${hyp}$) cancels out directly, confirming why tangent is identically $\\frac{\\text{opposite}}{\\text{adjacent}}$ and $\\frac{\\sin(\\theta)}{\\cos(\\theta)}$.`;
+The hypotenuse (${hyp}) cancels out directly, confirming why tangent is identically \\frac{\\text{opposite}}{\\text{adjacent}} and \\frac{\\sin(\\theta)}{\\cos(\\theta)}.`;
     }
 
     return `📐 **Geometric Construction**

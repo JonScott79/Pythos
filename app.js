@@ -284,6 +284,7 @@ function renderMath(element) {
           { left: "\\(", right: "\\)", display: false }
         ],
         ignoredTags: ["script", "noscript", "style", "textarea", "pre", "code", "option"],
+        ignoredClasses: ["katex", "katex-html", "katex-mathml", "katex-display"],
         throwOnError: false,
         errorColor: "#ef4444"
       });
@@ -973,9 +974,13 @@ function renderInlineGeometry(canvas, config) {
     ctx.fillRect(0, 0, width, height);
 
     // Default right-angled or general triangle rendering
-    const a = parseFloat(config.a) || 3;
-    const b = parseFloat(config.b) || 4;
-    const c = parseFloat(config.c) || Math.hypot(a, b);
+    // If a or b are non-numeric strings (like 'x' or '6'), use numeric value if parseable or default 3, 4, 5 for clean layout
+    const aNum = parseFloat(config.a) || parseFloat(config.opp) || 3;
+    const bNum = parseFloat(config.b) || parseFloat(config.adj) || 4;
+    const a = (!isNaN(aNum) && aNum > 0) ? aNum : 3;
+    const b = (!isNaN(bNum) && bNum > 0) ? bNum : 4;
+    const cNum = parseFloat(config.c) || parseFloat(config.hyp);
+    const c = (!isNaN(cNum) && cNum > 0) ? cNum : Math.hypot(a, b);
 
     // Compute coordinate vertices centered on canvas
     const pad = 35;
@@ -1049,19 +1054,36 @@ function renderInlineGeometry(canvas, config) {
     ctx.textAlign = "right";
     ctx.fillText("C", C.x - 6, C.y + 4);
 
+    // Helper to format symbolic labels cleanly for 2D canvas text: e.g. \sqrt{x^2+36} -> ?(x? + 36)
+    function formatSideLabel(val) {
+      if (val === undefined || val === null) return '';
+      let s = String(val).trim();
+      s = s.replace(/\\sqrt\{([^}]+)\}/g, '\u221A($1)');
+      s = s.replace(/sqrt\(([^)]+)\)/g, '\u221A($1)');
+      s = s.replace(/\^2/g, '\u00B2');
+      s = s.replace(/\+/g, ' + ');
+      s = s.replace(/-/g, ' - ');
+      s = s.replace(/\s+/g, ' ').trim();
+      return s;
+    }   }
+
+    const oppDisplay = formatSideLabel(config.opp !== undefined ? config.opp : a);
+    const adjDisplay = formatSideLabel(config.adj !== undefined ? config.adj : b);
+    const hypDisplay = formatSideLabel(config.hyp !== undefined ? config.hyp : c);
+
     // Side measurements with trigonometric annotations if applicable
     ctx.font = "11px system-ui, sans-serif";
     ctx.fillStyle = textCol;
     ctx.textAlign = "right";
-    const oppLabel = isTrigMode ? `opposite = ${a}` : `a = ${a}`;
+    const oppLabel = isTrigMode ? `opposite = ${oppDisplay}` : `a = ${oppDisplay}`;
     ctx.fillText(oppLabel, C.x - 8, (A.y + C.y) / 2);
 
     ctx.textAlign = "center";
-    const adjLabel = isTrigMode ? `adjacent = ${b}` : `b = ${b}`;
+    const adjLabel = isTrigMode ? `adjacent = ${adjDisplay}` : `b = ${adjDisplay}`;
     ctx.fillText(adjLabel, (C.x + B.x) / 2, C.y + 16);
 
     ctx.textAlign = "left";
-    const hypLabel = isTrigMode ? `hypotenuse = ${c}` : `c = ${c}`;
+    const hypLabel = isTrigMode ? `hypotenuse = ${hypDisplay}` : `c = ${hypDisplay}`;
     ctx.fillText(hypLabel, (A.x + B.x) / 2 + 10, (A.y + B.y) / 2 - 4);
 
     return true;
@@ -1491,17 +1513,21 @@ function appendMessage(role, text, images = null, metadata = {}) {
       return `%%%MATH_BLOCK_${idx}%%%`;
     });
 
-    // 2b. Auto-delimit unwrapped mathematical expressions (fractions, quadratic formulas/equations)
+    // 2b. Auto-delimit unwrapped mathematical expressions (fractions, quadratic formulas/equations, boxed, trig)
     // Only applied outside code blocks and outside already-delimited math
     const unwrappedMathPatterns = [
-      // Standalone or chained equations with \frac: e.g. \theta = \frac{15}{12} = \frac{5}{4} or \frac{2x}{2} = \frac{8}{2} or -\frac{29\pi}{3} + 2\pi(5)
-      /(?:^|[ \t])((?:(?:[-+]|\\[a-zA-Z]+|[a-zA-Z\u0370-\u03ff])\s*=\s*)?[-+]?\\frac\{[^{}]*\}\{[^{}]*\}(?:\s*[-+*\/=]\s*(?:[-+]?\\frac\{[^{}]*\}\{[^{}]*\}|(?:\\[a-zA-Z]+|[a-zA-Z0-9.\u0370-\u03ff()])+))*)/g,
+      // Standalone or chained equations with \frac (including nested radicals/text inside braces): e.g. \theta = \frac{15}{12} = \frac{5}{4} or \frac{x}{\sqrt{x^2+36}}
+      /(?:^|[ \t])((?:(?:[-+]|\\[a-zA-Z]+|[a-zA-Z\u0370-\u03ff])\s*=\s*)?[-+]?\\frac\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}(?:\s*[-+*\/=]\s*(?:[-+]?\\frac\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}|(?:\\[a-zA-Z]+|[a-zA-Z0-9.\u0370-\u03ff()])+))*)/g,
       // Standalone linear division steps: e.g. 2x/2 = 8/2 or 3x/3 = 15/3
       /(?:^|[ \t])([a-zA-Z0-9.\u0370-\u03ff]+\s*\/\s*\d+\s*=\s*[-+]?[a-zA-Z0-9.\u0370-\u03ff]+(?:\s*\/\s*\d+)?)/g,
       // Standalone quadratic equations: y^2 - 10y + 41 = 0 or x^2 + 5x + 6 = 0
       /(?:^|[ \t])([a-zA-Z]\^2\s*[-+]\s*(?:\d*[a-zA-Z])\s*[-+]\s*\d+\s*=\s*0)/g,
-      // Standalone quadratic formula / radical fractions: (y = )? \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}
-      /(?:^|[ \t])((?:[a-zA-Z]\s*=\s*)?[-+]?\\frac\{(?:[^{}]|\{[^{}]*\})*\}\{(?:[^{}]|\{[^{}]*\})*(?:\s*[-+*]\s*[a-zA-Z0-9.\u0370-\u03ff()]+)*)/g
+      // Standalone \boxed{...} expressions
+      /(?:^|[ \t])(\\boxed\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\})/g,
+      // Standalone or composite trig / inverse-trig expressions: e.g. \sec\left(\sin^{-1}\left(\frac{x}{\sqrt{x^2+36}}\right)\right)
+      /(?:^|[ \t])(\\(?:sec|csc|sin|cos|tan|cot)(?:_\{[^{}]+\})?(?:\^\{[-0-9]+\}|\^[-?]1)?(?:\\left)?\((?:[^()]+|\([^()]*\))*\\right\))/g,
+      // Standalone radical expressions: e.g. \sqrt{x^2 + 36} or c = \sqrt{a^2 + b^2}
+      /(?:^|[ \t])((?:(?:[a-zA-Z\u0370-\u03ff]|\\[a-zA-Z]+)\s*=\s*)?\\sqrt\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}(?:\s*[-+*\/=]\s*(?:\\sqrt\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}|[a-zA-Z0-9.\u0370-\u03ff()]+))*)/g
     ];
 
     unwrappedMathPatterns.forEach((pattern) => {
@@ -3833,6 +3859,9 @@ async function askPythos(userText) {
       let metaWithholdingDetails = null;
 
       let isStreamDone = false;
+      let isTruncated = false;
+      let isInterrupted = false;
+      let metaFinishReason = null;
       let verificationTimer = null;
 
       while (true) {
@@ -3905,6 +3934,8 @@ async function askPythos(userText) {
             if (ev.verification) metaVerification = ev.verification;
             if (ev.verificationAudit) metaVerificationAudit = ev.verificationAudit;
             if (ev.model) metaModel = ev.model;
+            if (ev.truncated) isTruncated = true;
+            if (ev.finishReason) metaFinishReason = ev.finishReason;
             if (ev.withheld) metaWithheld = true;
             if (ev.withholdingReason) metaWithholdingReason = ev.withholdingReason;
             if (ev.withholdingExplanation) metaWithholdingExplanation = ev.withholdingExplanation;
@@ -3922,6 +3953,7 @@ async function askPythos(userText) {
             break;
           } else if (ev.type === "error") {
             if (verificationTimer) { clearTimeout(verificationTimer); verificationTimer = null; }
+            if (ev.interrupted) isInterrupted = true;
             streamedText = ev.message || "An error occurred during inference.";
             contentDiv.textContent = streamedText;
             statusBadge.style.color = "#dc2626";
@@ -3981,7 +4013,12 @@ async function askPythos(userText) {
         sanitizedReply = sanitizedReply.replace(/```(?:[a-zA-Z0-9_-]*\n)?[\s\S]*?(?:\|[ \t]*\\|\\[ \t]*\|)[\s\S]*?(?:```|$)/gi, '');
         sanitizedReply = sanitizedReply.replace(/(?:\|\s*\\){2,}[^\n]*/gi, '');
         sanitizedReply = sanitizedReply.replace(/---\s*###\s*\d+\.\s*Visualizing\s+the\s+triangle[\s\S]*$/gi, '');
-        const finalReply = sanitizedReply.trim() || "The Oracle is silent. (Empty response)";
+        let finalReply = sanitizedReply.trim() || "The Oracle is silent. (Empty response)";
+        if (isTruncated) {
+          finalReply += "\n\n> ?? *[Response interrupted: reached maximum output token limit. Say \"continue\" to proceed.]*";
+        } else if (!isStreamDone && !userStoppedGeneration && !isInterrupted && streamedText.length > 0) {
+          finalReply += "\n\n> ?? *[Response interrupted: stream closed unexpectedly.]*";
+        }
         messages.push({ role: "assistant", content: finalReply });
         appendMessage("assistant", finalReply, null, {
           question: cleanText,
@@ -3989,6 +4026,9 @@ async function askPythos(userText) {
           verification: metaVerification,
           verificationAudit: metaVerificationAudit,
           model: metaModel,
+          truncated: isTruncated,
+          interrupted: isInterrupted || (!isStreamDone && !userStoppedGeneration),
+          finishReason: metaFinishReason,
           withheld: metaWithheld,
           withholdingReason: metaWithholdingReason,
           withholdingExplanation: metaWithholdingExplanation,

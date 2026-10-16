@@ -1,3 +1,22 @@
+## Pythos 1.8.37
+**Release Date:** October 16, 2026
+
+### Added & Enhanced
+
+- **Homework Answer Precision & Format Enforcement**:
+  - Integrated deterministic precision requirement extraction into `problemClassifier.js` and `contextManager.js` (`nearest_hundredth`, `nearest_tenth`, `nearest_thousandth`, `significant_figures`, `exact_only`, `units_required`).
+  - Added proactive student work evaluation in `studentWorkEvaluator.js` that catches format and precision mismatches (e.g. entering unrounded `17.428` when `17.43` was requested to the nearest hundredth) without forgiving underlying arithmetic mistakes.
+  - Enforces immediate pedagogical feedback guiding students on the specific rounding directive before accepting final answers.
+- **Context-Aware Geometric Diagramming**:
+  - Upgraded trigonometry diagram generator in `deterministicRouter.js` to dynamically extract symbolic side expressions (`opposite`, `adjacent`, `hypotenuse`) and reference angle ($\theta$) from active conversation context.
+  - Accurately renders problem-specific right triangles with clear side labeling and algebraic radicals rather than generic numeric fallbacks.
+- **KaTeX Math Notation & Balanced-Brace Delimiter Rendering**:
+  - Replaced regular expression passes in `app.js` with a robust balanced-brace parser for nested LaTeX radicals (`\sqrt{x^2+36}`), fractions (`\frac{...}{...}`), and `\boxed{...}` constructs.
+  - Eliminated double-render KaTeX syntax duplication and invalid entity escaping in chat bubble rendering.
+- **Resilient Streaming & Interruption Handling**:
+  - Increased completion token ceilings in `server/server.js` and downstream model runners to prevent unexpected mid-explanation cutoff.
+  - Enhanced stream monitor in `app.js` to detect upstream truncation (`length`, `MAX_TOKENS`) and display honest warning badges alongside continuation hints instead of silently truncating responses.
+
 ## Pythos 1.8.36
 **Release Date:** October 9, 2026
 

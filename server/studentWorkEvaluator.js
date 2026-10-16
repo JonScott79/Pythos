@@ -572,6 +572,157 @@ function evaluatePhysicsStep(targetExpr, activeProblem) {
  * @param {Object} activeProblemState - State object from contextManager
  * @returns {Object} Evaluation result
  */
+function countDecimalPlaces(numStr) {
+  const s = String(numStr).trim();
+  const dot = s.indexOf('.');
+  if (dot === -1) return 0;
+  return s.length - dot - 1;
+}
+
+function countSignificantFigures(numStr) {
+  let s = String(numStr).trim().replace(/^[-+]/, '');
+  if (!s.includes('.')) {
+    s = s.replace(/^0+/, '');
+    return s.length;
+  }
+  s = s.replace('.', '').replace(/^0+/, '');
+  return s.length;
+}
+
+function roundToDecimalPlaces(val, places) {
+  const factor = Math.pow(10, places);
+  return (Math.round(val * factor) / factor).toFixed(places);
+}
+
+function roundToSigFigs(val, sigFigs) {
+  if (val === 0) return '0';
+  const mult = Math.pow(10, sigFigs - Math.floor(Math.log10(Math.abs(val))) - 1);
+  const rounded = Math.round(val * mult) / mult;
+  return String(rounded);
+}
+
+function validateAnswerAgainstConstraints(proposedValStr, expectedNumeric, formattingReqs) {
+  let valClean = String(proposedValStr).trim();
+  let enteredUnit = null;
+
+  const uMatch = valClean.match(/^([-+]?[0-9.]+)\s*([a-zA-Z]+)$/);
+  if (uMatch) {
+    valClean = uMatch[1];
+    enteredUnit = uMatch[2].toLowerCase();
+  }
+
+  if (formattingReqs && formattingReqs.exactRequired) {
+    if (/^\d+\.?\d*$/.test(valClean)) {
+      return {
+        status: 'FORMAT_MISMATCH',
+        mismatchType: 'EXACT_REQUIRED',
+        message: 'Your calculation is close, but the instructions require an exact expression rather than a decimal approximation. Enter the exact form instead.'
+      };
+    }
+  }
+
+  const proposedNum = parseFloat(valClean);
+  if (isNaN(proposedNum) || typeof expectedNumeric !== 'number' || isNaN(expectedNumeric)) return null;
+
+  const diff = Math.abs(proposedNum - expectedNumeric);
+  const isNumericallyClose = diff < Math.max(0.05, Math.abs(expectedNumeric) * 0.01);
+
+  if (!formattingReqs) {
+    if (isNumericallyClose) {
+      return { status: 'CORRECT', details: proposedValStr + ' is mathematically correct.' };
+    }
+    return { status: 'INCORRECT', details: proposedValStr + ' does not match expected result.' };
+  }
+  if (!isNumericallyClose) {
+    return {
+      status: 'INCORRECT',
+      details: `${proposedValStr} is numerically incorrect.`
+    };
+  }
+
+  if (formattingReqs.requiredUnit) {
+    const reqU = formattingReqs.requiredUnit.toLowerCase();
+    const isMatchingUnit = (u1, u2) => {
+      if (!u1 || !u2) return false;
+      const clean1 = u1.replace(/s$/, '').toLowerCase();
+      const clean2 = u2.replace(/s$/, '').toLowerCase();
+      if (clean1 === clean2) return true;
+      if ((clean1 === 'm' && clean2 === 'meter') || (clean1 === 'meter' && clean2 === 'm')) return true;
+      if ((clean1 === 'cm' && clean2 === 'centimeter') || (clean1 === 'centimeter' && clean2 === 'cm')) return true;
+      if ((clean1 === 's' || clean1 === 'sec') && (clean2 === 'second')) return true;
+      if ((clean2 === 's' || clean2 === 'sec') && (clean1 === 'second')) return true;
+      if ((clean1 === 'kg' && clean2 === 'kilogram') || (clean1 === 'kilogram' && clean2 === 'kg')) return true;
+      if ((clean1 === 'rad' && clean2 === 'radian') || (clean1 === 'radian' && clean2 === 'rad')) return true;
+      if ((clean1 === 'deg' && clean2 === 'degree') || (clean1 === 'degree' && clean2 === 'deg')) return true;
+      return false;
+    };
+    if (!enteredUnit) {
+      return {
+        status: 'FORMAT_MISMATCH',
+        mismatchType: 'UNIT_MISSING',
+        message: 'Your calculation is correct, but the answer requires units of ' + reqU + '. Please include ' + reqU + ' with your answer.'
+      };
+    } else if (!isMatchingUnit(enteredUnit, reqU)) {
+      return {
+        status: 'FORMAT_MISMATCH',
+        mismatchType: 'UNIT_MISMATCH',
+        message: 'The numerical value is correct, but the problem requires units of ' + reqU + '. You entered ' + enteredUnit + '.'
+      };
+    }
+  }
+  if (formattingReqs.rounding && formattingReqs.rounding.type === 'DECIMAL_PLACES') {
+    const reqPlaces = formattingReqs.rounding.decimalPlaces;
+    const actualPlaces = countDecimalPlaces(valClean);
+    const expectedRoundedStr = roundToDecimalPlaces(expectedNumeric, reqPlaces);
+
+    if (actualPlaces !== reqPlaces) {
+      const placesWord = actualPlaces === 1 ? 'one decimal place' : (actualPlaces === 0 ? 'no decimal places' : `${actualPlaces} decimal places`);
+      return {
+        status: 'FORMAT_MISMATCH',
+        mismatchType: 'DECIMAL_PRECISION',
+        actualPlaces,
+        requiredPlaces: reqPlaces,
+        expectedFormatted: expectedRoundedStr,
+        message: `Your calculation is close, but the instructions require rounding to ${formattingReqs.rounding.precisionName}. You entered ${proposedValStr}, which has ${placesWord}. Enter **${expectedRoundedStr}** instead.`
+      };
+    }
+
+    if (parseFloat(valClean) === parseFloat(expectedRoundedStr)) {
+      return {
+        status: 'CORRECT',
+        expectedFormatted: expectedRoundedStr,
+        details: `${proposedValStr} is correctly calculated and rounded to ${formattingReqs.rounding.precisionName}.`
+      };
+    } else {
+      return {
+        status: 'FORMAT_MISMATCH',
+        mismatchType: 'INCORRECT_ROUNDING',
+        expectedFormatted: expectedRoundedStr,
+        message: `Your calculation has the correct number of decimal places, but was rounded incorrectly. Rounding to ${formattingReqs.rounding.precisionName} gives **${expectedRoundedStr}**.`
+      };
+    }
+  }
+
+  if (formattingReqs.significantFigures) {
+    const reqSigFigs = formattingReqs.significantFigures.count;
+    const actualSigFigs = countSignificantFigures(valClean);
+    const expectedSigFigStr = roundToSigFigs(expectedNumeric, reqSigFigs);
+
+    if (actualSigFigs !== reqSigFigs) {
+      return {
+        status: 'FORMAT_MISMATCH',
+        mismatchType: 'SIGNIFICANT_FIGURES',
+        actualSigFigs,
+        requiredSigFigs: reqSigFigs,
+        expectedFormatted: expectedSigFigStr,
+        message: `Your calculation is close, but the instructions require ${reqSigFigs} significant figures. You entered ${proposedValStr}, which has ${actualSigFigs} significant figures. Enter **${expectedSigFigStr}** instead.`
+      };
+    }
+  }
+
+  return { status: 'CORRECT', details: `${proposedValStr} is correct.` };
+}
+
 function evaluateStudentWork(rawInput, classification, conversationHistory = [], activeProblemState = null) {
   if (!classification || !classification.intent) {
     return { status: 'NO_EVALUATION', reason: 'Missing intent classification' };
@@ -812,6 +963,28 @@ function evaluateStudentWork(rawInput, classification, conversationHistory = [],
     const evaluated = math.evaluate(normalized);
     const num = typeof evaluated === 'number' ? evaluated : (evaluated && evaluated.valueOf ? evaluated.valueOf() : Number(evaluated));
     if (!isNaN(num)) {
+      const activeState = activeProblemState?.active || activeProblemState;
+      const fmtReqs = activeState?.formattingRequirements;
+      const targetVal = activeState?.targetValue;
+
+      if (fmtReqs && typeof targetVal === 'number') {
+        const validation = validateAnswerAgainstConstraints(targetExpr, targetVal, fmtReqs);
+        if (validation && validation.status === 'FORMAT_MISMATCH') {
+          return {
+            status: 'FORMAT_MISMATCH',
+            intent,
+            rawExpression: targetExpr,
+            normalizedExpression: normalized,
+            numericValue: num,
+            targetValue: targetVal,
+            mismatchType: validation.mismatchType,
+            expectedFormatted: validation.expectedFormatted,
+            message: validation.message,
+            details: validation.message
+          };
+        }
+      }
+
       return {
         status: 'VERIFIED',
         intent,
@@ -856,6 +1029,15 @@ function formatStudentWorkContext(classification, evaluation, activeProblemState
       out += `  State whether the two sides are equal based on exact reductions:\n`;
       out += `  ${evaluation.preferredResponse}\n`;
       out += `  DO NOT treat this input as an isolated standalone decimal calculation.\n`;
+    } else if (evaluation.status === 'FORMAT_MISMATCH') {
+      out += `- Proposed Answer: \`${evaluation.rawExpression}\`\n`;
+      out += `- Verification Status: ANSWER_FORMAT_MISMATCH\n`;
+      out += `- Deterministic Evaluation: ${evaluation.message}\n`;
+      out += `- CRITICAL PEDAGOGICAL DIRECTIVE:\n`;
+      out += `  The student's calculation is mathematically close, but violates the explicit formatting/rounding instructions.\n`;
+      out += `  1. Explicitly point out the format mismatch: "${evaluation.message}"\n`;
+      out += `  2. DO NOT state that their arithmetic was incorrect.\n`;
+      out += `  3. DO NOT mark the proposed answer as fully compliant.\n`;
     } else if (evaluation.status === 'STEP_VERIFIED_CORRECT') {
       out += `- Proposed Intermediate Step: \`${evaluation.target || evaluation.rawExpression}\`\n`;
       out += `- Verification Status: STEP_VERIFIED_CORRECT (Ground truth: step is mathematically valid)\n`;
@@ -991,5 +1173,10 @@ module.exports = {
   evaluatePhysicsStep,
   evaluateStudentWork,
   formatStudentWorkContext,
-  stripModelScratchpad
+  stripModelScratchpad,
+  countDecimalPlaces,
+  countSignificantFigures,
+  roundToDecimalPlaces,
+  roundToSigFigs,
+  validateAnswerAgainstConstraints
 };

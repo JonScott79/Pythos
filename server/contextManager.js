@@ -17,7 +17,7 @@
 */
 
 const math = require('mathjs');
-const { classifyProblem, DOMAINS } = require('./problemClassifier');
+const { classifyProblem, DOMAINS, extractAnswerFormattingRequirements, extractRightTriangleTarget } = require('./problemClassifier');
 const { resolveReferentialContext } = require('./deterministicRouter');
 const { evaluateLinearEquationStep, evaluateEquationCandidate } = require('./studentWorkEvaluator');
 
@@ -189,6 +189,9 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
             }
           }
 
+          const asstFmtReqs = extractAnswerFormattingRequirements(msg.content);
+          const asstTriTarget = extractRightTriangleTarget(msg.content);
+
           if (!currentActive) {
             currentActive = {
               domain: assistantCls.problemDomain,
@@ -197,6 +200,9 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
               knownVariables: assistantCls.knownQuantities || {},
               unknownQuantities: assistantCls.unknownQuantities || [],
               assumptions: assistantCls.assumptions || [],
+              formattingRequirements: asstFmtReqs || null,
+              targetValue: asstTriTarget ? asstTriTarget.targetValue : null,
+              formula: asstTriTarget ? asstTriTarget.formula : null,
               requiredMethod: assistantCls.requiredMethod || null,
               initialUserPrompt: prevMsg ? prevMsg.content : msg.content,
               transcription: msg.content.slice(0, 300),
@@ -218,6 +224,17 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
               currentActive.transcription = msg.content.slice(0, 300);
             }
           }
+        }
+      }
+      const asstFmtReqs = extractAnswerFormattingRequirements(msg.content);
+      const asstTriTarget = extractRightTriangleTarget(msg.content);
+      if (currentActive) {
+        if (!currentActive.formattingRequirements && asstFmtReqs) {
+          currentActive.formattingRequirements = asstFmtReqs;
+        }
+        if (!currentActive.targetValue && asstTriTarget) {
+          currentActive.targetValue = asstTriTarget.targetValue;
+          currentActive.formula = asstTriTarget.formula;
         }
       }
       continue;
@@ -418,20 +435,24 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
       } catch (_) {}
     }
 
+    const isStepOrValidation = /^(?:so|then|so\\s+then|which\\s+gives|which\\s+means|next\\s+step)\\b/i.test(msg.content.trim()) ||
+                               msg.content.trim().endsWith('?') ||
+                               isQuestionOrValidation;
+
     // Check if new equation is distinct from existing active equation
     const isDistinctNewEquation = extractedEq && currentActive && currentActive.activeExpression &&
       extractedEq !== currentActive.activeExpression &&
       !extractedEq.includes(currentActive.activeExpression) &&
       !currentActive.activeExpression.includes(extractedEq) &&
       !isIntermediateStepOfActive &&
-      !isQuestionOrValidation;
+      !isStepOrValidation;
 
     const isTopicSwitch = (classification && (classification.problemDomain === 'PHYSICS' || classification.problemDomain === 'CONCEPTUAL') &&
       currentActive && (currentActive.domain === 'TRIGONOMETRY' || currentActive.domain === 'GEOMETRY' || currentActive.domain === 'ALGEBRA') &&
       !isTerseFollowUp && !activeMath);
 
     if (trans.type === 'NEW_TOPIC_EXPLICIT' || isExplicitNewProblem || isDistinctNewEquation || isTopicSwitch ||
-        (isRecognizedProblem && currentActive && currentActive.domain !== detectedDomain && !isTerseFollowUp && !activeMath)) {
+        (isRecognizedProblem && currentActive && currentActive.domain !== detectedDomain && !isTerseFollowUp && !activeMath && !isQuestionOrValidation)) {
       if (currentActive) {
         currentActive.status = 'ARCHIVED_IN_SESSION';
         sessionProblems.push(currentActive);
@@ -439,7 +460,10 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
       }
     }
 
-    if (!currentActive && (isRecognizedProblem || activeMath || isTopicSwitch)) {
+    const fmtReqs = extractAnswerFormattingRequirements(msg.content);
+    const triTarget = extractRightTriangleTarget(msg.content);
+
+    if (!currentActive && (isRecognizedProblem || activeMath || isTopicSwitch || fmtReqs || triTarget)) {
       currentActive = {
         domain: detectedDomain,
         subtype: detectedSubtype,
@@ -447,6 +471,9 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
         knownVariables: classification ? classification.knownQuantities : {},
         unknownQuantities: classification ? classification.unknownQuantities : [],
         assumptions: classification ? classification.assumptions : [],
+        formattingRequirements: fmtReqs || null,
+        targetValue: triTarget ? triTarget.targetValue : null,
+        formula: triTarget ? triTarget.formula : null,
         requiredMethod: classification ? classification.requiredMethod : null,
         initialUserPrompt: msg.content,
         transcription: msg.content,
@@ -465,6 +492,13 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
       }
       if (classification && Object.keys(classification.knownQuantities).length > 0) {
         currentActive.knownVariables = { ...currentActive.knownVariables, ...classification.knownQuantities };
+      }
+      if (!currentActive.formattingRequirements && fmtReqs) {
+        currentActive.formattingRequirements = fmtReqs;
+      }
+      if (!currentActive.targetValue && triTarget) {
+        currentActive.targetValue = triTarget.targetValue;
+        currentActive.formula = triTarget.formula;
       }
     }
   }
