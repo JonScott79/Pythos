@@ -2035,11 +2035,18 @@ app.post('/api/chat', async (req, res) => {
   let primaryFailureError = null;
 
   const effectiveOptions = Object.assign(
-    { temperature: 0.3, num_ctx: contextManager.TOTAL_CONTEXT_LIMIT },
+    {
+      temperature: 0.3,
+      num_ctx: contextManager.TOTAL_CONTEXT_LIMIT,
+      num_predict: Math.min(options?.num_predict || options?.max_tokens || 2048, 2048)
+    },
     options || {}
   );
   if (!effectiveOptions.num_ctx) {
     effectiveOptions.num_ctx = contextManager.TOTAL_CONTEXT_LIMIT;
+  }
+  if (!effectiveOptions.num_predict) {
+    effectiveOptions.num_predict = 2048;
   }
 
   // Multimodal Hosted Vision Gateway Bridge
@@ -2317,7 +2324,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
             isStreaming,
             res,
             abortController,
-            timeoutMs: Math.min(REQUEST_TIMEOUT_MS, 15000)
+            timeoutMs: Math.min(REQUEST_TIMEOUT_MS, 90000)
           });
 
           if (!resOllama.content || !resOllama.content.trim()) {

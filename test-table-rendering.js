@@ -119,6 +119,19 @@ assert(complexRendered.includes('<pre><code class="language-python">'), 'Code bl
 assert(complexRendered.includes('return (x**2 - 4)'), 'Code block content unescaped/unaltered by table parser');
 console.log("✅ Coexistence with headers, LaTeX display math, and fenced code blocks verified");
 
+// --- Test 4: Multiline table cells with <br> and .has-table CSS styling ---
+console.log("\n▶ [TEST 4] Multiline table cells with <br> and .has-table CSS styling");
+const multilineSample = `
+| # | Identity | Formula |
+| :--- | :--- | :--- |
+| 1 | Reciprocal | csc x = 1/sin x<br>sec x = 1/cos x |
+`.trim();
+
+const multilineRendered = formatResponseText(multilineSample);
+assert(multilineRendered.includes('<br>'), 'Literal <br> in table cells must be rendered as HTML line breaks');
+assert(!multilineRendered.includes('&lt;br&gt;'), 'Table cells must not display raw escaped &lt;br&gt;');
+console.log("✅ Multiline table cells with <br> correctly preserved");
+
 console.log("\n==================================================");
 console.log("✔ ALL TABLE RENDERING TESTS PASSED (100%)");
 console.log("==================================================\n");

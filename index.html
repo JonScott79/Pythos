@@ -2102,6 +2102,12 @@
     }
 
     /* Markdown Data Table Styling */
+    .message.has-table,
+    .message:has(.pythos-table-wrap) {
+      width: min(96%, 980px) !important;
+      max-width: 96% !important;
+    }
+
     .pythos-table-wrap {
       width: 100%;
       overflow-x: auto;
@@ -2110,10 +2116,12 @@
       border-radius: 8px;
       background: var(--surface-color);
       box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+      -webkit-overflow-scrolling: touch;
     }
 
     .pythos-table {
       width: 100%;
+      min-width: 580px;
       border-collapse: collapse;
       text-align: left;
       font-size: 0.95rem;
@@ -2121,8 +2129,10 @@
 
     .pythos-table th,
     .pythos-table td {
-      padding: 8px 14px;
+      padding: 10px 16px;
       border-bottom: 1px solid var(--border-color);
+      vertical-align: top;
+      line-height: 1.5;
     }
 
     .pythos-table th {

@@ -1592,7 +1592,8 @@ function appendMessage(role, text, images = null, metadata = {}) {
           tableHtml += '<tr>';
           row.forEach((cell, i) => {
             const align = alignments[i] || 'left';
-            tableHtml += `<th style="text-align: ${align};">${cell}</th>`;
+            const cleanCell = cell.replace(/&lt;br\s*\/?&gt;/gi, "<br>");
+            tableHtml += `<th style="text-align: ${align};">${cleanCell}</th>`;
           });
           tableHtml += '</tr>';
         });
@@ -1605,7 +1606,8 @@ function appendMessage(role, text, images = null, metadata = {}) {
           tableHtml += '<tr>';
           row.forEach((cell, i) => {
             const align = alignments[i] || 'left';
-            tableHtml += `<td style="text-align: ${align};">${cell}</td>`;
+            const cleanCell = cell.replace(/&lt;br\s*\/?&gt;/gi, "<br>");
+            tableHtml += `<td style="text-align: ${align};">${cleanCell}</td>`;
           });
           tableHtml += '</tr>';
         });
@@ -1688,6 +1690,9 @@ function appendMessage(role, text, images = null, metadata = {}) {
 
   const formattedText = formatResponseText(sanitized);
   contentDiv.innerHTML = formattedText;
+  if (contentDiv.querySelector(".pythos-table-wrap")) {
+    div.classList.add("has-table");
+  }
 
   // If a graph was detected, instantiate the live canvas
   if (graphMatch) {
