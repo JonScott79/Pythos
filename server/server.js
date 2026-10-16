@@ -697,7 +697,7 @@ async function executeGroqVisionCall(provider, { messages, visionSystemPrompt, o
     model: targetModel,
     messages: formattedMessages,
     temperature: options?.temperature || 0.2,
-    max_tokens: Math.min(options?.max_tokens || 450, 450),
+    max_tokens: Math.min(options?.num_predict || options?.max_tokens || 2048, 2048),
     stream: false
   });
 
@@ -738,11 +738,16 @@ async function executeGroqVisionCall(provider, { messages, visionSystemPrompt, o
         }
         try {
           const parsed = JSON.parse(gBody);
-          const text = parsed.choices?.[0]?.message?.content || '';
+          const choice = parsed.choices?.[0];
+          const text = choice?.message?.content || '';
+          const finishReason = choice?.finish_reason;
+          const isTruncated = finishReason === 'length';
           resolveGroq({
             model: targetModel,
             content: text,
-            provider: provider.name
+            provider: provider.name,
+            finishReason: finishReason,
+            truncated: isTruncated
           });
         } catch (err) {
           rejectGroq(err);
@@ -860,7 +865,7 @@ async function executeGeminiVisionCall(provider, { messages, visionSystemPrompt,
     },
     generationConfig: {
       temperature: options?.temperature || 0.2,
-      maxOutputTokens: 900
+      maxOutputTokens: Math.min(options?.num_predict || options?.max_tokens || 2048, 2048)
     }
   });
 
@@ -916,10 +921,14 @@ async function executeGeminiVisionCall(provider, { messages, visionSystemPrompt,
             return rejectGemini(err);
           }
           const text = (candidate.content?.parts || []).map(p => p.text || '').join('');
+          const finishReason = candidate.finishReason;
+          const isTruncated = finishReason === 'MAX_TOKENS';
           resolveGemini({
             model: targetModel,
             content: text,
-            provider: provider.name
+            provider: provider.name,
+            finishReason: finishReason,
+            truncated: isTruncated
           });
         } catch (err) {
           rejectGemini(err);
@@ -2100,7 +2109,9 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           content: finalContent,
           provider: winningVisionProvider?.name || 'vision',
           reasoningPath: 'VISION',
-          hasImages: true
+          hasImages: true,
+          finishReason: successfulResult.finishReason || null,
+          truncated: successfulResult.truncated === true
         };
       } else {
         // No vision provider succeeded — format classified error response
@@ -2432,6 +2443,8 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
       provider: candidateResult?.provider || 'ollama-text',
       reasoningPath: candidateResult?.reasoningPath || 'PRIMARY',
       backupTriggerReason: candidateResult?.backupTriggerReason || null,
+      truncated: candidateResult?.truncated === true,
+      finishReason: candidateResult?.finishReason || null,
       message: { role: 'assistant', content: finalContent },
       done: true
     };
@@ -2795,6 +2808,8 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           provider: ollamaResponse.provider,
           reasoningPath: ollamaResponse.reasoningPath,
           backupTriggerReason: ollamaResponse.backupTriggerReason || null,
+          truncated: ollamaResponse.truncated === true,
+          finishReason: ollamaResponse.finishReason || null,
           withheld: ollamaResponse.withheld || false,
           withholdingReason: ollamaResponse.withholdingReason || null,
           withholdingExplanation: ollamaResponse.withholdingExplanation || null,
