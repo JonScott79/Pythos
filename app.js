@@ -3197,7 +3197,7 @@ async function convertHeicToJpegBlob(file) {
  * Automatically respects and preserves EXIF orientation via createImageBitmap
  * or Image element, capping maximum dimension to 1600px.
  */
-async function compressAndResizeImage(sourceFile, maxDimension = 1600, quality = 0.82) {
+async function compressAndResizeImage(sourceFile, maxDimension = 1200, quality = 0.80) {
   if (!sourceFile) {
     throw new Error("No image file provided");
   }
@@ -3860,6 +3860,7 @@ async function askPythos(userText) {
       let metaWithholdingDetails = null;
 
       let isStreamDone = false;
+      let isStreamError = false;
       let isTruncated = false;
       let isInterrupted = false;
       let metaFinishReason = null;
@@ -3955,6 +3956,8 @@ async function askPythos(userText) {
           } else if (ev.type === "error") {
             if (verificationTimer) { clearTimeout(verificationTimer); verificationTimer = null; }
             if (ev.interrupted) isInterrupted = true;
+            isStreamDone = true;
+            isStreamError = true;
             streamedText = ev.message || "An error occurred during inference.";
             contentDiv.textContent = streamedText;
             statusBadge.style.color = "#dc2626";
@@ -4017,7 +4020,7 @@ async function askPythos(userText) {
         let finalReply = sanitizedReply.trim() || "The Oracle is silent. (Empty response)";
         if (isTruncated) {
           finalReply += "\n\n> ?? *[Response interrupted: reached maximum output token limit. Say \"continue\" to proceed.]*";
-        } else if (!isStreamDone && !userStoppedGeneration && !isInterrupted && streamedText.length > 0) {
+        } else if (!isStreamError && !isStreamDone && !userStoppedGeneration && !isInterrupted && streamedText.length > 0) {
           finalReply += "\n\n> ?? *[Response interrupted: stream closed unexpectedly.]*";
         }
         messages.push({ role: "assistant", content: finalReply });

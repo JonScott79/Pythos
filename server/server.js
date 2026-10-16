@@ -658,10 +658,22 @@ async function executeGroqVisionCall(provider, { messages, visionSystemPrompt, o
   const visionConversation = messages.filter(m => m.role !== 'system');
   // Bound conversational history to recent turns to keep total tokens safely within Groq TPM limits
   const boundedTurns = visionConversation.slice(-6);
+
+  // In multi-turn chat, identify the most recent turn containing images.
+  // Only the active/most recent image is transmitted in base64 to avoid multiplying TPM token costs.
+  // Historical turns retain their transcribed questions and tutor solutions without re-sending image payloads.
+  let activeImageTurnIndex = -1;
+  for (let i = boundedTurns.length - 1; i >= 0; i--) {
+    if (Array.isArray(boundedTurns[i].images) && boundedTurns[i].images.length > 0) {
+      activeImageTurnIndex = i;
+      break;
+    }
+  }
+
   const formattedMessages = [
     { role: 'system', content: visionSystemPrompt },
-    ...boundedTurns.map(m => {
-      if (m.images && m.images.length > 0) {
+    ...boundedTurns.map((m, idx) => {
+      if (idx === activeImageTurnIndex && m.images && m.images.length > 0) {
         const contentParts = [{ type: 'text', text: m.content || 'Please analyze this image' }];
         m.images.forEach(b64 => {
           let cleanB64 = b64;
@@ -812,8 +824,18 @@ async function executeGeminiVisionCall(provider, { messages, visionSystemPrompt,
   const targetModel = provider.model || process.env.GEMINI_VISION_MODEL || 'gemini-2.5-flash';
   const visionConversation = messages.filter(m => m.role !== 'system');
 
+  // In multi-turn chat, identify the most recent turn containing images.
+  let activeImageTurnIndex = -1;
+  for (let i = visionConversation.length - 1; i >= 0; i--) {
+    if (Array.isArray(visionConversation[i].images) && visionConversation[i].images.length > 0) {
+      activeImageTurnIndex = i;
+      break;
+    }
+  }
+
   const contents = [];
-  for (const m of visionConversation) {
+  for (let i = 0; i < visionConversation.length; i++) {
+    const m = visionConversation[i];
     const role = m.role === 'assistant' ? 'model' : 'user';
     const parts = [];
 
@@ -821,7 +843,7 @@ async function executeGeminiVisionCall(provider, { messages, visionSystemPrompt,
       parts.push({ text: m.content.trim() });
     }
 
-    if (Array.isArray(m.images) && m.images.length > 0) {
+    if (i === activeImageTurnIndex && Array.isArray(m.images) && m.images.length > 0) {
       for (const img of m.images) {
         let b64 = img;
         let mimeType = 'image/jpeg';
@@ -2149,6 +2171,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
             message: classified.message,
             retryAfter: classified.retryAfter || 0
           }) + '\n');
+          res.write(JSON.stringify({ type: 'done' }) + '\n');
           return res.end();
         }
 
