@@ -1065,7 +1065,7 @@ function renderInlineGeometry(canvas, config) {
       s = s.replace(/-/g, ' - ');
       s = s.replace(/\s+/g, ' ').trim();
       return s;
-    }   }
+    }
 
     const oppDisplay = formatSideLabel(config.opp !== undefined ? config.opp : a);
     const adjDisplay = formatSideLabel(config.adj !== undefined ? config.adj : b);
@@ -2254,6 +2254,7 @@ loginBtn.addEventListener("click", async () => {
   try {
     await signInWithPopup(auth, provider);
   } catch (error) {
+    if (error.code === "auth/popup-closed-by-user" || error.code === "auth/cancelled-popup-request") return;
     console.error("Login failed", error);
     alert("Authentication failed.");
   }
