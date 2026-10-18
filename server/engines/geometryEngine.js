@@ -533,9 +533,9 @@ function solveTriangleSides(a, b, c) {
   const derivationSteps = [
     `Given side lengths: a = ${formatNumber(a)}, b = ${formatNumber(b)}, c = ${formatNumber(c)}`,
     `Triangle Inequality check: ${formatNumber(s1)} + ${formatNumber(s2)} = ${formatNumber(s1 + s2)} > ${formatNumber(s3)} (Valid)`,
-    `Perimeter: P = a + b + c = ${formatNumber(perimeter)}`,
-    `Semi-perimeter: s = \\frac{P}{2} = ${formatNumber(s)}`,
-    `Heron's Formula: A = \\sqrt{s(s-a)(s-b)(s-c)} = \\sqrt{${formatNumber(radicand)}} = ${formatNumber(area)}`,
+    `Perimeter: P = ${formatNumber(a)} + ${formatNumber(b)} + ${formatNumber(c)} = ${formatNumber(perimeter)}`,
+    `Semi-perimeter: s = ${formatNumber(s)}`,
+    `Heron's Formula: A = \\sqrt{${formatNumber(radicand)}} = ${formatNumber(area)}`,
     isRight ? `Right triangle confirmed by Pythagorean Theorem: ${formatNumber(s1)}^2 + ${formatNumber(s2)}^2 = ${formatNumber(s3)}^2` : `Angles via Law of Cosines: A \\approx ${formatNumber(angleDegA, 2)}^\\circ, B \\approx ${formatNumber(angleDegB, 2)}^\\circ, C \\approx ${formatNumber(angleDegC, 2)}^\\circ`
   ];
 
