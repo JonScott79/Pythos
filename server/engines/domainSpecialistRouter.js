@@ -56,15 +56,21 @@ function analyzeSpecialistIntent(prompt, conversationHistory = []) {
   }
 
   // 3. CALCULUS: DIFFERENTIATION
-  // e.g. "find the derivative of 3x^4 - 5x^2", "d/dx [sin(2x)]"
-  const derivMatch = clean.match(/(?:differentiate|derivative\s+of|d\/d([a-zA-Z])(?:\s*\[|\s*\()|compute\s+(?:the\s+)?derivative\s+of)\s*([^?$\n]+)/i);
+  // e.g. "find the derivative of 3x^4 - 5x^2", "d/dx [sin(2x)]", "Compute the derivative d/dx of 3x^3 + 8"
+  const derivMatch = clean.match(/(?:differentiate|derivative\s+of|d\/d([a-zA-Z])(?:\s*\[|\s*\(|\s+of)|compute\s+(?:the\s+)?derivative\s+(?:d\/d([a-zA-Z])\s+)?of|find\s+(?:the\s+)?derivative\s+(?:d\/d([a-zA-Z])\s+)?of)\s*([^?$\n]+)/i);
   if (derivMatch) {
-    let expr = derivMatch[2].replace(/[\])]+$/, '').trim();
-    const varName = derivMatch[1] || 'x';
+    let expr = derivMatch[derivMatch.length - 1].trim();
+    if (expr.endsWith(']') && (expr.match(/\]/g) || []).length > (expr.match(/\[/g) || []).length) {
+      expr = expr.slice(0, -1);
+    }
+    if (expr.endsWith(')') && (expr.match(/\)/g) || []).length > (expr.match(/\(/g) || []).length) {
+      expr = expr.slice(0, -1);
+    }
+    const varName = derivMatch[1] || derivMatch[2] || derivMatch[3] || 'x';
     return {
       domain: 'calculus',
       operation: 'DIFFERENTIATION',
-      expression: expr,
+      expression: expr.trim(),
       variable: varName,
       isSpecialistRoute: true
     };

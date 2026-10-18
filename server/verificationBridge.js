@@ -1636,6 +1636,8 @@ let resolvedPythonBin = null;
  * 2. python3
  * 3. python
  */
+const symbolicVerificationCache = new Map();
+
 function getPythonExecutable() {
   if (process.env.PYTHON_BIN) {
     return process.env.PYTHON_BIN;
@@ -1645,6 +1647,15 @@ function getPythonExecutable() {
   }
 
   const { spawnSync } = require('child_process');
+  const fs = require('fs');
+  if (process.platform === 'win32') {
+    const directWin = 'C:\\Users\\jonny\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe';
+    if (fs.existsSync(directWin)) {
+      resolvedPythonBin = directWin;
+      return directWin;
+    }
+  }
+
   const candidates = process.platform === 'win32'
     ? ['py', 'python', 'python3']
     : ['python3', 'python'];
@@ -2154,6 +2165,16 @@ async function runDeterministicVerification(claim, userPrompt = '') {
   }
 
   // Second-Line: Python Symbolic Verifiers (SymPy / SciPy) under Bounded Host Queue
+  const claimCacheKey = JSON.stringify({
+    domain: claim.domain,
+    type: claim.claim_type,
+    raw: claim.raw_match,
+    data: claim.data
+  });
+  if (symbolicVerificationCache.has(claimCacheKey)) {
+    return symbolicVerificationCache.get(claimCacheKey);
+  }
+
   const pythonResult = await casQueue.run(async () => {
     return new Promise((resolve) => {
       const pythonBin = getPythonExecutable();
@@ -2283,6 +2304,9 @@ async function runDeterministicVerification(claim, userPrompt = '') {
       }
     });
   });
+  if (pythonResult && (pythonResult.status === 'VERIFIED_CORRECT' || pythonResult.verified === true)) {
+    symbolicVerificationCache.set(claimCacheKey, pythonResult);
+  }
   return pythonResult;
 }
 

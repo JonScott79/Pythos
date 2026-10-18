@@ -17,14 +17,21 @@
 
 const { spawn } = require('child_process');
 const path = require('path');
+const fs = require('fs');
 
 let cachedPythonBin = null;
+const calculusCache = new Map();
 
 function resolvePython() {
   if (process.env.PYTHON_BIN) return process.env.PYTHON_BIN;
   if (cachedPythonBin) return cachedPythonBin;
 
   if (process.platform === 'win32') {
+    const directWin = 'C:\\Users\\jonny\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe';
+    if (fs.existsSync(directWin)) {
+      cachedPythonBin = directWin;
+      return cachedPythonBin;
+    }
     cachedPythonBin = 'py';
   } else {
     cachedPythonBin = 'python3';
@@ -33,6 +40,11 @@ function resolvePython() {
 }
 
 function runCalculusWorker(payload, timeoutMs = 15000) {
+  const cacheKey = JSON.stringify(payload);
+  if (calculusCache.has(cacheKey)) {
+    return Promise.resolve(calculusCache.get(cacheKey));
+  }
+
   return new Promise((resolve) => {
     const pythonBin = resolvePython();
     const scriptPath = path.join(__dirname, 'calculus_worker.py');
@@ -87,6 +99,9 @@ function runCalculusWorker(payload, timeoutMs = 15000) {
 
       try {
         const parsed = JSON.parse(stdout.trim());
+        if (parsed && (parsed.status === 'VERIFIED' || parsed.status === 'SUCCESS')) {
+          calculusCache.set(cacheKey, parsed);
+        }
         resolve(parsed);
       } catch (parseErr) {
         resolve({
