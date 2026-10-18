@@ -177,7 +177,7 @@ function analyzeSpecialistIntent(prompt, conversationHistory = []) {
     const isPerimeter = /\bperimeter\b/i.test(clean);
     const isArea = (/\b(?:find|calculate|compute|what\s+is|determine|get)\s+(?:the\s+|its\s+)?area\b/i.test(clean) || /\barea\s*(?:=|is|\?)\b/i.test(clean)) || (/\barea\b/i.test(clean) && !/\bperimeter\b/i.test(clean));
     const isHypotenuse = /\b(?:find|calculate|compute|what\s+is|determine|get|length\s+of)\s+(?:the\s+|its\s+)?hypotenuse\b/i.test(clean) || /\bhypotenuse\s*(?:=|is|\?)\b/i.test(clean);
-    const target = isPerimeter ? 'perimeter' : (isHypotenuse ? 'hypotenuse' : (isArea ? 'area' : 'area'));
+    const target = isPerimeter ? 'perimeter' : (isArea ? 'area' : 'hypotenuse');
     return {
       domain: 'geometry',
       operation: 'TRIANGLE_SIDES',
