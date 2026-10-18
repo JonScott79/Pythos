@@ -10,7 +10,7 @@ from arithmetic_verifier import verify_arithmetic
 from algebra_verifier import verify_algebra, verify_symbolic_equivalence
 from probability_verifier import verify_birthday_problem
 from physics_verifier import verify_conical_pendulum, verify_free_fall_kinematics
-from calculus_verifier import verify_derivative, verify_antiderivative, verify_change_of_variables
+from calculus_verifier import verify_derivative, verify_antiderivative, verify_change_of_variables, verify_definite_integral, verify_limit
 from calculus_improper_verifier import verify_improper_integral
 from calculus_singularity_verifier import verify_singularity_classification
 from physics_universal_verifier import verify_dimensions, verify_conservation_law
@@ -44,6 +44,10 @@ def dispatch_verification(payload: dict) -> dict:
                 return verify_derivative(data)
             elif claim_type == "antiderivative" or claim_type == "integral":
                 return verify_antiderivative(data)
+            elif claim_type == "definite_integral":
+                return verify_definite_integral(data)
+            elif claim_type == "limit":
+                return verify_limit(data)
             elif claim_type == "change_of_variables" or claim_type == "u_substitution":
                 return verify_change_of_variables(data)
             elif claim_type == "improper_integral" or claim_type == "parameterized_integral":

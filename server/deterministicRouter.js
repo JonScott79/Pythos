@@ -1630,6 +1630,61 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
     };
   }
 
+  // 0b-1. Strict Coordinate Geometry Triangle Area (Shoelace Formula)
+  const isAreaQuery = /(?:find|calculate|compute|what\s+is|determine|get)\s+(?:the\s+)?(?:right\s+)?area\b/i.test(clean) ||
+                      /\barea\b/i.test(clean);
+  const mentionsTriangle = /\btriangle\b/i.test(clean);
+  const isNonAreaTriangleQuery = mentionsTriangle && (
+    /\b(?:perimeter|centroid|slope|circumcenter|incenter|orthocenter|equilateral|isosceles|side\s+lengths?|angles?|bisector|median|altitude)\b/i.test(clean)
+  );
+  const hasMixedObjects = /\b(?:circle|cylinder|sphere|quadrilateral|rectangle|trapezoid|scatter|plot\s+the\s+points|vector)\b/i.test(clean);
+  const has3DCoords = /\(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\)/.test(clean);
+  const hasPolarCoords = /\b(?:r\s*=|theta\s*=|rad\b|\bpolar\b)/i.test(clean);
+  const hasBracketedCoords = /\[\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\]/.test(clean);
+
+  if (mentionsTriangle && isAreaQuery && !isNonAreaTriangleQuery && !hasMixedObjects && !has3DCoords && !hasPolarCoords && !hasBracketedCoords) {
+    const coordRegex = /(?:([A-Za-z])\s*)?\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)/g;
+    const matches = [];
+    let m;
+    while ((m = coordRegex.exec(clean)) !== null) {
+      matches.push({ label: m[1] ? m[1].toUpperCase() : null, x: parseFloat(m[2]), y: parseFloat(m[3]) });
+    }
+    if (matches.length === 3 && matches.every(p => Number.isFinite(p.x) && Number.isFinite(p.y))) {
+      const explicitLabels = matches.map(pt => pt.label).filter(Boolean);
+      const uniqueLabels = new Set(explicitLabels);
+      if (explicitLabels.length === 0 || uniqueLabels.size === explicitLabels.length) {
+        const defaultLabels = ['A', 'B', 'C'];
+        matches.forEach((pt, i) => { if (!pt.label) pt.label = defaultLabels[i]; });
+        const [p1, p2, p3] = matches;
+        const rawArea = 0.5 * Math.abs(p1.x * (p2.y - p3.y) + p2.x * (p3.y - p1.y) + p3.x * (p1.y - p2.y));
+        const formatted = (rawArea === 0 || Object.is(rawArea, -0)) ? '0' : (Number.isInteger(rawArea) ? rawArea.toString() : (Math.abs(rawArea) < 1e-4 ? rawArea.toFixed(10).replace(/\.?0+$/, '') : parseFloat(rawArea.toPrecision(12)).toString()));
+        return {
+          type: 'GEOMETRY_VIZ',
+          figType: 'triangle',
+          isCoordinateArea: true,
+          vertices: {
+            [p1.label]: [p1.x, p1.y],
+            [p2.label]: [p2.x, p2.y],
+            [p3.label]: [p3.x, p3.y]
+          },
+          points: [p1, p2, p3],
+          isArea: true,
+          numericResult: rawArea,
+          result: formatted,
+          solution: rawArea,
+          formatted: formatted,
+          isDegenerate: rawArea === 0
+        };
+      }
+    }
+  }
+
+  // 0b. Strict Negative Precedence Guard: Coordinate geometry requests with points/vertices
+  const hasCoordinatePoints = /\([-\d\s.,]+\)/.test(clean) || /\[[-\d\s.,]+\]/.test(clean) || /(?:vertices|vertex|points?|vectors?)/i.test(clean);
+  if (hasCoordinatePoints || isNonAreaTriangleQuery || hasMixedObjects || has3DCoords || hasPolarCoords || hasBracketedCoords) {
+    return null;
+  }
+
   // 0c. Geometric Figure Visualization Requests
   // Numerical: e.g. "show a right triangle with legs 3 and 4", "triangle with sides 3, 4, 5"
   // Qualitative: e.g. "can you show me on a triangle?", "show me on a right triangle", "draw a triangle"
@@ -2688,6 +2743,38 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
  */
 function buildDeterministicResponse(intent) {
   if (!intent) return null;
+  if (intent.isCoordinateArea) {
+    const pts = intent.points || (intent.vertices ? Object.entries(intent.vertices).map(([label, [x, y]]) => ({ label, x, y })) : null);
+    const [A, B, C] = pts;
+
+    if (intent.isDegenerate) {
+      return [
+        '📐 **Coordinate Geometry: Collinear Vertices**',
+        '',
+        `The triangle with vertices $${A.label}(${A.x}, ${A.y})$, $${B.label}(${B.x}, ${B.y})$, and $${C.label}(${C.x}, ${C.y})$ has collinear points.`,
+        '',
+        '### Area Calculation via Shoelace Formula:',
+        `$$\\text{Area} = \\frac{1}{2} |x_${A.label}(y_${B.label} - y_${C.label}) + x_${B.label}(y_${C.label} - y_${A.label}) + x_${C.label}(y_${A.label} - y_${B.label})| = 0$$`,
+        '',
+        '$$\\boxed{0}$$'
+      ].join('\n');
+    }
+
+    const dispVal = intent.formatted || intent.result;
+    return [
+      '📐 **Coordinate Geometry: Triangle Area via Shoelace Formula**',
+      '',
+      `Given vertices $${A.label}(${A.x}, ${A.y})$, $${B.label}(${B.x}, ${B.y})$, and $${C.label}(${C.x}, ${C.y})$:`,
+      '',
+      '### Formula:',
+      `$$\\text{Area} = \\frac{1}{2} |x_${A.label}(y_${B.label} - y_${C.label}) + x_${B.label}(y_${C.label} - y_${A.label}) + x_${C.label}(y_${A.label} - y_${B.label})|$$`,
+      '',
+      '### Calculation:',
+      `$$\\text{Area} = \\frac{1}{2} |(${A.x})(${B.y} - (${C.y})) + (${B.x})(${C.y} - (${A.y})) + (${C.x})(${A.y} - (${B.y}))| = ${dispVal}$$`,
+      '',
+      `$$\\boxed{${dispVal}}$$`
+    ].join('\n');
+  }
 
   if (intent.type === 'ANSWER_FORMAT_MISMATCH') {
     return intent.message;

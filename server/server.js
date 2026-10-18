@@ -620,6 +620,7 @@ const {
   classifyProblem,
   parseAngleFromText
 } = require('./deterministicRouter');
+const domainSpecialistRouter = require('./engines/domainSpecialistRouter');
 // Concurrency limiter
 const concurrencyLimiter = require('./concurrencyLimiter');
 const adminRoutes = require('./adminRoutes');
@@ -1689,10 +1690,43 @@ app.post('/api/chat', async (req, res) => {
     : false;
 
   if (lastUserMsg && !turnRequiresVisionEarly) {
-    const deterministicIntent = analyzeDeterministicIntent(lastUserMsg.content, messages);
-    if (deterministicIntent) {
-      const directResponse = buildDeterministicResponse(deterministicIntent);
-      if (directResponse) {
+    let directResponse = null;
+    let selectedModel = 'pythos-deterministic-router';
+    let isVisualOrClarification = false;
+
+    // Fast-Path Step 1: Specialized Domain Engines (Geometry & Calculus)
+    try {
+      const specialistIntent = domainSpecialistRouter.analyzeSpecialistIntent(lastUserMsg.content, messages);
+      if (specialistIntent && specialistIntent.isSpecialistRoute) {
+        const specialistResult = await domainSpecialistRouter.executeSpecialistRoute(specialistIntent);
+        if (specialistResult && specialistResult.status === 'VERIFIED') {
+          directResponse = specialistResult.formattedResponse;
+          selectedModel = specialistResult.model || 'pythos-specialist-engine';
+        }
+      }
+    } catch (specialistErr) {
+      console.warn('[SPECIALIST ROUTER] Error evaluating specialist route:', specialistErr.message);
+    }
+
+    // Fast-Path Step 2: Baseline Deterministic Router
+    let deterministicIntent = null;
+    if (!directResponse) {
+      deterministicIntent = analyzeDeterministicIntent(lastUserMsg.content, messages);
+      if (deterministicIntent) {
+        directResponse = buildDeterministicResponse(deterministicIntent);
+        selectedModel = 'pythos-deterministic-router';
+        isVisualOrClarification = deterministicIntent.type === 'CLASSICAL_MODEL_VIZ' ||
+                                  deterministicIntent.type === 'PROJECTILE_VIZ' ||
+                                  deterministicIntent.type === 'GEOMETRY_VIZ' ||
+                                  deterministicIntent.type === 'GRAPH_PLOT' ||
+                                  deterministicIntent.type === 'NUMBER_LINE_VIZ' ||
+                                  deterministicIntent.type === 'VIZ_SUBJECT_CLARIFICATION' ||
+                                  deterministicIntent.type === 'INPUT_AMBIGUITY_CLARIFICATION' ||
+                                  deterministicIntent.type === 'PLATFORM_KNOWLEDGE';
+      }
+    }
+
+    if (directResponse) {
         // Deterministic solution is a CANDIDATE, never an unverified delivery!
         const candidateAnswer = extractCandidateAnswer(directResponse);
         let effectiveVerificationPrompt = (lastUserMsg ? lastUserMsg.content : '');
@@ -1709,15 +1743,6 @@ app.post('/api/chat', async (req, res) => {
         let claims = [];
         let verificationResults = [];
         let verificationAudit = [];
-
-        const isVisualOrClarification = deterministicIntent.type === 'CLASSICAL_MODEL_VIZ' ||
-                                        deterministicIntent.type === 'PROJECTILE_VIZ' ||
-                                        deterministicIntent.type === 'GEOMETRY_VIZ' ||
-                                        deterministicIntent.type === 'GRAPH_PLOT' ||
-                                        deterministicIntent.type === 'NUMBER_LINE_VIZ' ||
-                                        deterministicIntent.type === 'VIZ_SUBJECT_CLARIFICATION' ||
-                                        deterministicIntent.type === 'INPUT_AMBIGUITY_CLARIFICATION' ||
-                                        deterministicIntent.type === 'PLATFORM_KNOWLEDGE';
 
         if (isVisualOrClarification) {
           gatePassed = true;
@@ -1767,7 +1792,7 @@ app.post('/api/chat', async (req, res) => {
               claims,
               verification: verificationResults,
               verificationAudit,
-              model: 'pythos-deterministic-router',
+              model: selectedModel,
               deterministic: true,
               deliveryStatus: delivery.status,
               deliveredAnswer: delivery.answer
@@ -1779,7 +1804,7 @@ app.post('/api/chat', async (req, res) => {
           return res.status(200).json({
             requestId,
             latencyMs: Date.now() - startTime,
-            model: 'pythos-deterministic-router',
+            model: selectedModel,
             message: {
               role: 'assistant',
               content: directResponse
@@ -1796,8 +1821,7 @@ app.post('/api/chat', async (req, res) => {
           console.warn(`[DETERMINISTIC GATE] Candidate withheld by delivery gate (${delivery ? delivery.status : 'FAILED'}): ${delivery ? delivery.reason : 'Unverified'}. Routing to LLM/CAS pipeline.`);
           // Candidate failed gate -> Fail-closed! Fall through to standard reasoning & verification pipeline
         }
-      }
-    }
+        }
   }
 
   const clientCloseHandler = () => {

@@ -827,6 +827,11 @@ const MathJSVerifier = {
         return { verified: false, engine: 'mathjs', status: 'UNKNOWN', reason: 'Circle radius must be positive number' };
       }
       expectedArea = Math.PI * radius * radius;
+    } else if (figure === 'coordinate_triangle') {
+      if (typeof data.exact_area !== 'number' || isNaN(data.exact_area)) {
+        return { verified: false, engine: 'mathjs', status: 'UNKNOWN', reason: 'Missing exact coordinate area' };
+      }
+      expectedArea = data.exact_area;
     } else {
       return { verified: false, engine: 'mathjs', status: 'UNKNOWN', reason: `Unsupported geometry figure: ${figure}` };
     }
@@ -1287,7 +1292,7 @@ const MathJSVerifier = {
     }
 
     // 7. Right Triangle Geometry
-        if (domain === 'geometry' && (claim_type === 'geometry_area' || claim_type === 'area')) {
+        if (domain === 'geometry' && (claim_type === 'geometry_area' || claim_type === 'area' || claim_type === 'geometry_coordinate_area' || claim_type === 'circle_area')) {
       return this.verifyGeometryArea(data);
     }
 if (domain === 'geometry' && (claim_type === 'right_triangle_geometry' || claim_type === 'right_triangle_sides')) {

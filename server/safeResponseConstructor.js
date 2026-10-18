@@ -38,6 +38,21 @@ function constructSafeVerifiedResponse({
 }) {
   if (!userPrompt || typeof userPrompt !== 'string') return null;
 
+  const clean = userPrompt.trim();
+  const isComplexPolar = /\b(?:complex|polar|cis|z_?[12]|\bi\s*sin)\b/i.test(clean);
+  const mentionsIdentity = /\b(?:identity|identities|double[- ]angle|half[- ]angle|sum[- ]to[- ]product|product[- ]to[- ]sum)\b/i.test(clean);
+  const hasSymbolicTrigVar = /\b(?:sin|cos|tan|csc|sec|cot)\s*\(\s*(?:-?[0-9.]*\s*[*+\-\/]?\s*)*(?:theta|θ|alpha|beta|gamma|phi|psi|[xyz]|(?:[a-uw-z](?![a-z])))\b/i.test(clean);
+  const isSymbolicIdentityQuery = mentionsIdentity || (hasSymbolicTrigVar && /\b(?:simplify|expand|prove|identity)\b/i.test(clean));
+
+  const { isVisualRequested } = require('./vizEngine/visualFidelity');
+  const wantsVisual = isVisualRequested(clean);
+  const mentionsTriangleOrVisual = /\b(?:triangle|sketch|draw|plot|diagram|visual|graph|hypotenuse|opposite\s+side|adjacent\s+side)\b/i.test(clean);
+  const isUnrequestedTrigVisual = !wantsVisual && !mentionsTriangleOrVisual && /\b(?:sin|cos|tan|sec|csc|cot)\b/i.test(clean);
+
+  if (isComplexPolar || isSymbolicIdentityQuery || isUnrequestedTrigVisual) {
+    return null;
+  }
+
   // 1. NESTED / COMPOSITE TRIGONOMETRIC PROBLEMS
   const trigModel = (preflightToolResult && preflightToolResult.trigModel) ||
                     parseTrigExpression(`${userPrompt} ${activeProblemState?.active?.activeExpression || ''}`);

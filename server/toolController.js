@@ -857,11 +857,23 @@ function selectAppropriateTool(studentIntent, userText, conversationHistory = []
 
   // 5. Visual Instruction Request or Proactive STEM "Draw It Out" Visualization
   const wantsVisual = isVisualRequested(clean);
+  const isComplexPolar = /\b(?:complex|polar|cis|z_?[12]|\bi\s*sin)\b/i.test(clean);
+  const mentionsIdentity = /\b(?:identity|identities|double[- ]angle|half[- ]angle|sum[- ]to[- ]product|product[- ]to[- ]sum)\b/i.test(clean);
+  const hasSymbolicTrigVar = /\b(?:sin|cos|tan|csc|sec|cot)\s*\(\s*(?:-?[0-9.]*\s*[*+\-\/]?\s*)*(?:theta|θ|alpha|beta|gamma|phi|psi|[xyz]|(?:[a-uw-z](?![a-z])))\b/i.test(clean);
+  const isSymbolicIdentityQuery = mentionsIdentity || (hasSymbolicTrigVar && /\b(?:simplify|expand|prove|identity)\b/i.test(clean));
+
+  const mentionsTriangleOrVisual = /\b(?:triangle|sketch|draw|plot|diagram|visual|graph|hypotenuse|opposite\s+side|adjacent\s+side)\b/i.test(clean);
+  const isUnrequestedTrigVisual = !wantsVisual && !mentionsTriangleOrVisual && /\b(?:sin|cos|tan|sec|csc|cot)\b/i.test(clean);
+  const blockRightTriangleViz = isComplexPolar || isSymbolicIdentityQuery || isUnrequestedTrigVisual;
+
   const isSTEMCandidate = wantsVisual || isTrigOrPhysicsVisualCandidate(clean, conversationHistory);
   if (isSTEMCandidate) {
     // Check if right triangle parameters can be extracted
     const params = extractRightTriangleParameters(clean, conversationHistory, activeProblemState);
     if (params) {
+      if (blockRightTriangleViz) {
+        return null;
+      }
       if (params.trigModel) {
         const isValid = verifyTrigTriangleModel(params, params.trigModel);
         if (!isValid) {

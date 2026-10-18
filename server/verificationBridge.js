@@ -374,7 +374,7 @@ function evaluateCandidateDelivery({ candidateAnswer, verifications = [], contra
   }
 
   // 17. Multi-Turn Parameter Fidelity: Circle Circumference
-  if (/\bcircumference\b/i.test(prompt) && /\bcircle\b/i.test(prompt)) {
+  if (/\bcircumference\b/i.test(prompt) && /\bcircle\b/i.test(prompt) && !/\barea\b/i.test(prompt)) {
     const rMatch = prompt.match(/\bradius\s+(?:is\s+)?(\d+(?:\.\d+)?)/i);
     if (rMatch) {
       const expCirc = 2 * Math.PI * parseFloat(rMatch[1]);
@@ -624,11 +624,11 @@ function extractClaims(text, userPrompt = '') {
       claim_type: 'definite_integral',
       raw_match: match[0],
       data: {
-        integrand: match[3].trim(),
+        integrand: match[3].trim().replace(/^\(/, '').replace(/\)$/, '').trim(),
         variable: match[4].trim(),
         lower_limit: match[1].trim(),
         upper_limit: match[2].trim(),
-        proposed_value: match[5].trim().replace(/\\/g, '').replace(/[.,;:]+$/, '')
+        proposed_value: match[5].trim().replace(/\\/g, '').replace(/boxed\{([^}]+)\}/, '$1').replace(/[.,;:]+$/, '').trim()
       }
     });
   }
@@ -664,7 +664,7 @@ function extractClaims(text, userPrompt = '') {
         expression: match[3].trim(),
         variable: match[1].trim(),
         target: match[2].trim(),
-        proposed_value: match[4].trim().replace(/[.,;:]+$/, '')
+        proposed_value: match[4].trim().replace(/\\/g, '').replace(/boxed\{([^}]+)\}/, '$1').replace(/[.,;:]+$/, '').trim()
       }
     });
   }
@@ -1310,8 +1310,85 @@ function extractClaims(text, userPrompt = '') {
         }
       }
 
-      // Right triangle legs area fallback
-      const legMatch = cleanPrompt.match(/(?:right\s+)?triangle.*?(?:legs|sides)?\s*(\d+(?:\.\d+)?)\s*(?:and|,)\s*(\d+(?:\.\d+)?)/i);
+      // Coordinate geometry check: Prevent coordinate pairs from being misinterpreted as triangle side lengths
+      const hasCoordinates = /\([-+]?\d+(?:\.\d+)?\s*,\s*[-+]?\d+(?:\.\d+)?\)/.test(cleanPrompt) || /\bvertices\b/i.test(cleanPrompt);
+
+      // Coordinate triangle area verification via Shoelace formula
+      if (hasCoordinates && /\barea\b/i.test(cleanPrompt) && candidateBoxed) {
+        const ptRegex = /(?:([a-zA-Z])\s*)?\(\s*([-+]?\d+(?:\.\d+)?)\s*,\s*([-+]?\d+(?:\.\d+)?)\s*\)/g;
+        const matches = [];
+        let m;
+        while ((m = ptRegex.exec(cleanPrompt)) !== null) {
+          matches.push({ x: parseFloat(m[2]), y: parseFloat(m[3]) });
+        }
+        if (matches.length >= 3) {
+          const n = matches.length;
+          let sum1 = 0;
+          let sum2 = 0;
+          for (let i = 0; i < n; i++) {
+            const curr = matches[i];
+            const next = matches[(i + 1) % n];
+            sum1 += curr.x * next.y;
+            sum2 += curr.y * next.x;
+          }
+          const exactArea = Math.abs(sum1 - sum2) / 2;
+          let val = parseFloat(candidateBoxed);
+          if (typeof candidateBoxed === 'string' && candidateBoxed.includes('/')) {
+            const parts = candidateBoxed.split('/');
+            if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1]) && Number(parts[1]) !== 0) {
+              val = Number(parts[0]) / Number(parts[1]);
+            }
+          }
+          if (!isNaN(val) && !claims.some(c => c.claim_type === 'geometry_coordinate_area' || c.claim_type === 'geometry_area')) {
+            claims.push({
+              domain: 'geometry',
+              claim_type: 'geometry_coordinate_area',
+              raw_match: `Coordinate Area of triangle = ${val}`,
+              data: {
+                figure: 'coordinate_triangle',
+                exact_area: exactArea,
+                proposed_value: val,
+                userPrompt: promptStr
+              },
+              userPrompt: promptStr
+            });
+          }
+        }
+      }
+
+            // Circle area verification
+      const circleMatch = cleanPrompt.match(/\bcircle\b.*?\bradius\s*(?:of|is|=)?\s*(\d+(?:\.\d+)?)/i) ||
+                          cleanPrompt.match(/\bradius\s*(?:of|is|=)?\s*(\d+(?:\.\d+)?).*?\bcircle\b/i);
+      if (circleMatch && candidateBoxed) {
+        const r = parseFloat(circleMatch[1]);
+        const exactArea = Math.PI * r * r;
+        let val = NaN;
+        if (/(\d+(?:\.\d+)?)\s*(?:\\pi|pi|π)/i.test(candidateBoxed)) {
+          const piMult = parseFloat(candidateBoxed.match(/(\d+(?:\.\d+)?)\s*(?:\\pi|pi|π)/i)[1]);
+          val = piMult * Math.PI;
+        } else {
+          val = parseFloat(candidateBoxed.replace(/[^-\d.]/g, ''));
+        }
+        if (!isNaN(val) && !claims.some(c => c.claim_type === 'circle_area' || c.claim_type === 'geometry_area')) {
+          claims.push({
+            domain: 'geometry',
+            claim_type: 'circle_area',
+            raw_match: `Area of circle(radius=${r}) = ${val}`,
+            data: {
+              figure: 'circle',
+              radius: r,
+              exact_area: exactArea,
+              proposed_value: val,
+              tolerance: 0.05,
+              userPrompt: promptStr
+            },
+            userPrompt: promptStr
+          });
+        }
+      }
+
+      // Right triangle legs area fallback (only if legs or sides are explicitly requested and no coordinates present)
+      const legMatch = !hasCoordinates ? cleanPrompt.match(/(?:right\s+)?triangle.*?\b(?:legs|sides)\b\s*(\d+(?:\.\d+)?)\s*(?:and|,)\s*(\d+(?:\.\d+)?)/i) : null;
       if (legMatch && /\barea\b/i.test(cleanPrompt) && candidateBoxed) {
         const val = parseFloat(candidateBoxed);
         if (!isNaN(val) && !claims.some(c => c.claim_type === 'geometry_area')) {
@@ -1331,8 +1408,8 @@ function extractClaims(text, userPrompt = '') {
         }
       }
 
-      // 10b. Geometry Area: Area of triangle with base B and height H or right triangle with legs
-      const triMatch = cleanPrompt.match(/\barea\s+(?:of\s+)?(?:a\s+)?(?:right\s+)?triangle\s*(?:with)?\s*(?:(?:base\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:and)?\s*height\s*[:=]?\s*(\d+(?:\.\d+)?)|height\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:and)?\s*base\s*[:=]?\s*(\d+(?:\.\d+)?))|(?:legs?\s*(?:of\s+length)?\s*(\d+(?:\.\d+)?)\s*(?:and|,)\s*(\d+(?:\.\d+)?)))/i);
+      // 10b. Geometry Area: Area of triangle with base B and height H or right triangle with legs (strictly non-coordinate)
+      const triMatch = !hasCoordinates ? cleanPrompt.match(/\barea\s+(?:of\s+)?(?:a\s+)?(?:right\s+)?triangle\s*(?:with)?\s*(?:(?:base\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:and)?\s*height\s*[:=]?\s*(\d+(?:\.\d+)?)|height\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:and)?\s*base\s*[:=]?\s*(\d+(?:\.\d+)?))|(?:legs?\s*(?:of\s+length)?\s*(\d+(?:\.\d+)?)\s*(?:and|,)\s*(\d+(?:\.\d+)?)))/i) : null;
       if (triMatch) {
         const b = parseFloat(triMatch[1] || triMatch[4] || triMatch[5]);
         const h = parseFloat(triMatch[2] || triMatch[3] || triMatch[6]);
@@ -1569,7 +1646,7 @@ function getPythonExecutable() {
 
   const { spawnSync } = require('child_process');
   const candidates = process.platform === 'win32'
-    ? ['python', 'python3']
+    ? ['py', 'python', 'python3']
     : ['python3', 'python'];
 
   for (const bin of candidates) {
@@ -2391,8 +2468,8 @@ function auditPromptClaimFidelity(claims, prompt) {
   }
 
   // 4. Geometry Area Queries
-  if (/\barea\b/i.test(prompt) && /\btriangle\b/i.test(prompt)) {
-    const hasGeomArea = claims.some(c => c.claim_type === 'geometry_area' || (c.domain === 'arithmetic' && c.data?.expression && c.data.expression.includes('*')));
+  if (/\barea\b/i.test(prompt) && (/\btriangle\b/i.test(prompt) || /\bpolygon\b/i.test(prompt))) {
+    const hasGeomArea = claims.some(c => c.claim_type === 'geometry_area' || c.claim_type === 'geometry_coordinate_area' || (c.domain === 'arithmetic' && c.data?.expression && c.data.expression.includes('*')));
     if (!hasGeomArea) {
       return {
         valid: false,
