@@ -490,7 +490,47 @@ def solve_optimization(payload: dict) -> dict:
     except Exception as e:
         return {"status": "FAILED", "error": str(e), "traceback": traceback.format_exc()}
 
+import math
+
+def sanitize_obj(o):
+    if isinstance(o, float):
+        if math.isinf(o) or math.isnan(o):
+            return None
+        return o
+    if isinstance(o, dict):
+        return {k: sanitize_obj(v) for k, v in o.items()}
+    if isinstance(o, list):
+        return [sanitize_obj(v) for v in o]
+    return o
+
+def process_payload(payload):
+    op = payload.get("operation")
+    if op == "DIFFERENTIATION":
+        res = solve_derivative(payload)
+    elif op == "INTEGRATION":
+        res = solve_integral(payload)
+    elif op == "LIMIT":
+        res = solve_limit(payload)
+    elif op == "OPTIMIZATION":
+        res = solve_optimization(payload)
+    else:
+        res = {"status": "UNSUPPORTED", "error": f"Unsupported calculus operation: {op}"}
+    return sanitize_obj(res)
+
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] == "--daemon":
+        for line in sys.stdin:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                payload = json.loads(line)
+                res = process_payload(payload)
+                print(json.dumps(res), flush=True)
+            except Exception as e:
+                print(json.dumps({"status": "FAILED", "error": str(e)}), flush=True)
+        return
+
     if len(sys.argv) > 1:
         try:
             payload = json.loads(sys.argv[1])
@@ -508,30 +548,8 @@ def main():
             print(json.dumps({"status": "FAILED", "error": f"JSON parse error: {e}"}))
             return
 
-    op = payload.get("operation")
-    if op == "DIFFERENTIATION":
-        res = solve_derivative(payload)
-    elif op == "INTEGRATION":
-        res = solve_integral(payload)
-    elif op == "LIMIT":
-        res = solve_limit(payload)
-    elif op == "OPTIMIZATION":
-        res = solve_optimization(payload)
-    else:
-        res = {"status": "UNSUPPORTED", "error": f"Unsupported calculus operation: {op}"}
-
-    import math
-    def sanitize_obj(o):
-        if isinstance(o, float):
-            if math.isinf(o) or math.isnan(o):
-                return None
-            return o
-        if isinstance(o, dict):
-            return {k: sanitize_obj(v) for k, v in o.items()}
-        if isinstance(o, list):
-            return [sanitize_obj(v) for v in o]
-        return o
-    print(json.dumps(sanitize_obj(res)))
+    res = process_payload(payload)
+    print(json.dumps(res))
 
 if __name__ == "__main__":
     main()

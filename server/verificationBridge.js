@@ -634,11 +634,11 @@ function extractClaims(text, userPrompt = '') {
   }
 
   // 2. Derivatives (e.g. \frac{d}{dx}[x^2] = 2x or \frac{d}{dx}\,x^3 = 3x^2)
-  const derivRegex = /\\frac\{d\}\{d([a-zA-Z])\}\s*(?:\\,|\\;|\\s)*(?:\[([^\]]+)\]|\\left\(([^)]+)\\right\)|\(([^)]+)\)|([a-zA-Z0-9^+\-*/.{}\s]+?))\s*=\s*([^$\n\\]+?)(?:\\quad|\$|\\\\|\n|\\end|\]|$)/g;
+  const derivRegex = /\\frac\{d\}\{d([a-zA-Z])\}\s*(?:\\,|\\;|\\s)*(?:\[([^\]]+)\]|\\left\(([^)]+)\\right\)|\(([^)]+)\)|([a-zA-Z0-9^+\-*/.{}\s]+?))\s*=\s*([^$\n]+)/g;
   while ((match = derivRegex.exec(text)) !== null) {
     let cleanExpr = (match[2] || match[3] || match[4] || match[5] || '').trim().replace(/[{}]/g, '');
     cleanExpr = cleanExpr.replace(/^(?:differentiate|find\s+the\s+derivative\s+of|calculate\s+the\s+derivative\s+of|what\s+is\s+the\s+derivative\s+of|compute\s+the\s+derivative\s+of)\s+/i, '').trim();
-    const propVal = match[6].trim().replace(/[{}]/g, '').replace(/[.,;:]+$/, '');
+    const propVal = match[6].trim().replace(/\\/g, '').replace(/boxed\{([^}]+)\}/, '$1').replace(/[.,;:]+$/, '').trim();
 
     claims.push({
       domain: 'calculus',
@@ -1432,7 +1432,7 @@ function extractClaims(text, userPrompt = '') {
       }
 
       // 10c. Calculus Derivatives: Find the derivative of <expr>
-      const derivPromptMatch = cleanPrompt.match(/^(?:find\s+the\s+derivative\s+of|calculate\s+the\s+derivative\s+of|what\s+is\s+the\s+derivative\s+of|compute\s+the\s+derivative\s+of|differentiate)\s+([a-zA-Z0-9^+\-*/().\s]+)$/i);
+      const derivPromptMatch = cleanPrompt.match(/^(?:find\s+the\s+derivative\s+(?:d\/d[a-zA-Z]\s+)?of|calculate\s+the\s+derivative\s+(?:d\/d[a-zA-Z]\s+)?of|what\s+is\s+the\s+derivative\s+(?:d\/d[a-zA-Z]\s+)?of|compute\s+the\s+derivative\s+(?:d\/d[a-zA-Z]\s+)?of|differentiate)\s+([a-zA-Z0-9^+\-*/().\s]+)$/i);
       if (derivPromptMatch) {
         const expr = derivPromptMatch[1].trim();
         if (/^[a-zA-Z0-9^+\-*/().\s]+$/.test(expr) && /[a-zA-Z]/.test(expr)) {
@@ -1979,7 +1979,7 @@ function checkPromptClaimFidelity(claim, userPrompt) {
 
   // Calculus Derivative Expression Fidelity
   if (claim.claim_type === 'derivative') {
-    const derivPromptMatch = promptStr.match(/(?:find\s+the\s+derivative\s+of|calculate\s+the\s+derivative\s+of|what\s+is\s+the\s+derivative\s+of|compute\s+the\s+derivative\s+of|differentiate)\s+([^,;?\n]+?)(?:\s+with\s+respect\s+to\s+[a-zA-Z]|\s*[?!.]|\s*$)/i);
+    const derivPromptMatch = promptStr.match(/(?:find\s+the\s+derivative\s+(?:d\/d[a-zA-Z]\s+)?of|calculate\s+the\s+derivative\s+(?:d\/d[a-zA-Z]\s+)?of|what\s+is\s+the\s+derivative\s+(?:d\/d[a-zA-Z]\s+)?of|compute\s+the\s+derivative\s+(?:d\/d[a-zA-Z]\s+)?of|differentiate)\s+([^,;?\n]+?)(?:\s+with\s+respect\s+to\s+[a-zA-Z]|\s*[?!.]|\s*$)/i);
     if (derivPromptMatch) {
       let promptExpr = derivPromptMatch[1].trim().replace(/^[a-zA-Z]\s*\([a-zA-Z]\)\s*=\s*/, '');
       const claimExpr = claim.data?.expression;
@@ -2175,7 +2175,80 @@ async function runDeterministicVerification(claim, userPrompt = '') {
     return symbolicVerificationCache.get(claimCacheKey);
   }
 
+let verifierDaemonProc = null;
+let verifierDaemonQueue = [];
+let verifierDaemonBuffer = '';
+
+function getVerifierDaemonProcess() {
+  if (verifierDaemonProc && !verifierDaemonProc.killed) return verifierDaemonProc;
+  const pythonBin = getPythonExecutable();
+  const pythonScript = path.join(__dirname, 'verifier', 'verifier.py');
+  try {
+    verifierDaemonProc = child_process.spawn(pythonBin, [pythonScript, '--daemon'], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+    });
+    verifierDaemonProc.unref();
+    verifierDaemonBuffer = '';
+    verifierDaemonProc.stdout.on('data', (d) => {
+      verifierDaemonBuffer += d.toString('utf8');
+      let nlIndex;
+      while ((nlIndex = verifierDaemonBuffer.indexOf('\n')) !== -1) {
+        const line = verifierDaemonBuffer.slice(0, nlIndex).trim();
+        verifierDaemonBuffer = verifierDaemonBuffer.slice(nlIndex + 1);
+        if (!line) continue;
+        const currentTask = verifierDaemonQueue.shift();
+        if (currentTask) {
+          try {
+            const parsed = JSON.parse(line);
+            currentTask.resolve(parsed);
+          } catch (err) {
+            currentTask.resolve({ verified: false, status: 'ERROR', error: err.message });
+          }
+        }
+      }
+    });
+    verifierDaemonProc.on('error', (err) => {
+      while (verifierDaemonQueue.length) {
+        verifierDaemonQueue.shift().resolve({ verified: false, status: 'ERROR', error: err.message });
+      }
+      verifierDaemonProc = null;
+    });
+    verifierDaemonProc.on('close', () => {
+      while (verifierDaemonQueue.length) {
+        verifierDaemonQueue.shift().resolve({ verified: false, status: 'ERROR', error: 'Verifier daemon closed' });
+      }
+      verifierDaemonProc = null;
+    });
+    return verifierDaemonProc;
+  } catch (err) {
+    return null;
+  }
+}
+
   const pythonResult = await casQueue.run(async () => {
+    const daemon = getVerifierDaemonProcess();
+    if (daemon && daemon.stdin && daemon.stdin.writable) {
+      return new Promise((resolve) => {
+        const timer = setTimeout(() => {
+          resolve({
+            verified: false,
+            status: 'ERROR',
+            error_type: 'CAS_TIMEOUT',
+            reason: 'Verifier timeout after 5000ms'
+          });
+        }, 5000);
+
+        verifierDaemonQueue.push({
+          resolve: (res) => {
+            clearTimeout(timer);
+            resolve(res);
+          }
+        });
+        daemon.stdin.write(JSON.stringify(claim) + '\n');
+      });
+    }
+
     return new Promise((resolve) => {
       const pythonBin = getPythonExecutable();
       const pythonScript = path.join(__dirname, 'verifier', 'verifier.py');
@@ -2527,6 +2600,15 @@ function auditPromptClaimFidelity(claims, prompt) {
   return { valid: true };
 }
 
+function closeVerifierDaemon() {
+  if (verifierDaemonProc) {
+    try { verifierDaemonProc.kill(); } catch (_) {}
+    verifierDaemonProc = null;
+    verifierDaemonQueue = [];
+    verifierDaemonBuffer = '';
+  }
+}
+
 module.exports = {
   extractBoxedMatches,
   cleanLatexUnits,
@@ -2540,5 +2622,6 @@ module.exports = {
   synthesizeVerificationStepAudit,
   verifyResponseClaims,
   getPythonExecutable,
-  getCasTelemetry
+  getCasTelemetry,
+  closeVerifierDaemon
 };

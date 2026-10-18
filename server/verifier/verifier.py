@@ -129,6 +129,19 @@ def dispatch_verification(payload: dict) -> dict:
         }
 
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] == "--daemon":
+        for line in sys.stdin:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                payload = json.loads(line)
+                res = dispatch_verification(payload)
+                print(json.dumps(res), flush=True)
+            except Exception as e:
+                print(json.dumps({"verified": False, "status": "ERROR", "error": str(e)}), flush=True)
+        return
+
     if len(sys.argv) > 1:
         # Read JSON string argument
         try:

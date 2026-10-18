@@ -286,7 +286,7 @@ async function executeSpecialistRoute(intent) {
           model: 'pythos-calculus-engine',
           deterministic: true,
           answer: res.exactResult,
-          formattedResponse: `### Calculus: Symbolic Differentiation\n\nTo differentiate $f(${intent.variable}) = ${intent.expression}$ with respect to $${intent.variable}$:\n\n${res.derivationSteps.map(s => `- $${s}$`).join('\n')}\n\n**Derivative:**\n$$\\boxed{${res.exactResult}}$$`
+          formattedResponse: `### Calculus: Symbolic Differentiation\n\nTo differentiate $f(${intent.variable}) = ${intent.expression}$ with respect to $${intent.variable}$:\n\n${res.derivationSteps.map(s => `- $${s}$`).join('\n')}\n\n**Derivative:**\n$$\\frac{d}{d${intent.variable}}(${intent.expression}) = \\boxed{${res.exactResult}}$$`
         };
       }
     } else if (intent.operation === 'INTEGRATION') {

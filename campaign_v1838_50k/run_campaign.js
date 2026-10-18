@@ -25,13 +25,14 @@ const { constructSafeVerifiedResponse } = require(path.join(ROOT, 'server/safeRe
 const verificationBridge = require(path.join(ROOT, 'server/verificationBridge'));
 const deterministicRouter = require(path.join(ROOT, 'server/deterministicRouter'));
 const domainSpecialistRouter = require(path.join(ROOT, 'server/engines/domainSpecialistRouter'));
+const calculusEngine = require(path.join(ROOT, 'server/engines/calculusEngine'));
 const { parseTrigExpression } = require(path.join(ROOT, 'server/trigExpressionParser'));
 const { enforceVisualFidelity, hasAsciiTriangle } = require(path.join(ROOT, 'server/vizEngine/visualFidelity'));
 const toolController = require(path.join(ROOT, 'server/toolController'));
 const contextManager = require(path.join(ROOT, 'server/contextManager'));
 
 const SEED = 3141592653; // Pi * 10^9
-const COMMIT_SHA = 'fabf1323d9d4032ad9517b4973f98d598ae652f1';
+const COMMIT_SHA = '90e5e687d7d1ec7c01d09cab44256d16ea7bfc88';
 const VERSION = '1.8.38';
 const CAMPAIGN_MODE = 'Production Integration 50K Specialist Engines Validation';
 
@@ -632,6 +633,9 @@ function matchAnswer(delivered, prob) {
 
 async function runValidationCampaign() {
   const startTime = Date.now();
+  try {
+    fs.writeFileSync(path.join(OUTPUT_DIR, 'checkpoints.jsonl'), '', 'utf8');
+  } catch (_) {}
   console.log(`\n======================================================================`);
   console.log(`🚀 STARTING 50,000-PROBLEM VALIDATION RERUN (v1.8.35 @ ${COMMIT_SHA.slice(0, 7)})`);
   console.log(`======================================================================\n`);
@@ -949,6 +953,9 @@ async function runValidationCampaign() {
         elapsedSec: elapsed
       };
       checkpointsLog.push(cp);
+      try {
+        fs.appendFileSync(path.join(OUTPUT_DIR, 'checkpoints.jsonl'), JSON.stringify(cp) + '\n', 'utf8');
+      } catch (_) {}
 
       console.log(`📍 CHECKPOINT [${(i + 1).toLocaleString()} / 50,000] - Correct: ${correctlyDelivered} | Incorrect: ${incorrectDelivered} | Withheld: ${safelyWithheld} | Catches: ${verificationCatches} | Escapes: ${verificationEscapes} | Recovery Rate: ${recRate} | Recv Correct: ${recCorr} | Runtime: ${elapsed}s | Peak RSS: ${peakRssMb}MB`);
     }
@@ -1015,6 +1022,9 @@ async function runValidationCampaign() {
   // Generate CAMPAIGN_REPORT.md
   const reportMd = generateCampaignReport(summary);
   fs.writeFileSync(path.join(OUTPUT_DIR, 'CAMPAIGN_REPORT.md'), reportMd);
+
+  try { calculusEngine.closeCalculusDaemon(); } catch (_) {}
+  try { verificationBridge.closeVerifierDaemon(); } catch (_) {}
 
   console.log(`\n======================================================================`);
   console.log(`🏁 RERUN CAMPAIGN COMPLETED IN ${totalRuntimeSeconds.toFixed(1)} SECONDS`);
