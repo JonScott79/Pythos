@@ -53,7 +53,7 @@ runTest('Nested trig: constructs verified derivation, reference triangle, and ou
 // 2. Single Trig Safe Construction
 runTest('Single trig: constructs verified reference triangle model', () => {
   const res = constructSafeVerifiedResponse({
-    userPrompt: 'what is tan(30°)?'
+    userPrompt: 'show tan(30°) on a reference triangle'
   });
 
   assert(res !== null, 'Response should not be null');
@@ -204,6 +204,29 @@ runTest('Architectural Mandate: When candidate explanation is rejected, construc
   assert(rescued.content.includes('\\text{Adjacent} = 1.8456'), 'Rescued response must deliver verified adj');
   assert(rescued.content.includes('\\text{Hypotenuse} = \\sqrt{1^2 + 1.8456^2} \\approx 2.0991'), 'Rescued response must deliver verified hyp');
   assert(rescued.content.includes('\\boxed{'), 'Rescued response must deliver boxed verified calculation');
+});
+
+// 11. Right-Triangle Perimeter Safe Construction
+runTest('Right-triangle perimeter: rescues verified perimeter and does not hallucinate hypotenuse', () => {
+  const userPrompt = 'A right triangle has legs 8 and 15 and hypotenuse 17. What is its perimeter?';
+  const preflightToolResult = {
+    tool: 'render_geometry_triangle',
+    success: true,
+    opp: 8,
+    adj: 15,
+    hyp: 17,
+    token: '[GEOMETRY: triangle, a=8, b=15, c=17, right_angle=C, opp=8, adj=15, hyp=17, theta=true]'
+  };
+
+  const rescued = constructSafeVerifiedResponse({
+    userPrompt,
+    preflightToolResult,
+    verificationResults: [{ status: 'ARITHMETIC_ERROR', details: 'Candidate delivered 999999' }]
+  });
+
+  assert(rescued !== null, 'Must rescue verified truth instead of withholding');
+  assert(rescued.content.includes('\\boxed{40}'), 'Must box the calculated perimeter 40');
+  assert(!rescued.content.includes('\\boxed{17}'), 'Must NEVER box the hypotenuse 17 as the perimeter');
 });
 
 console.log(`\n====================================================`);

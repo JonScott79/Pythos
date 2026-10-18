@@ -1681,7 +1681,7 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
 
   // 0b. Strict Negative Precedence Guard: Coordinate geometry requests with points/vertices
   const hasCoordinatePoints = /\([-\d\s.,]+\)/.test(clean) || /\[[-\d\s.,]+\]/.test(clean) || /(?:vertices|vertex|points?|vectors?)/i.test(clean);
-  if (hasCoordinatePoints || isNonAreaTriangleQuery || hasMixedObjects || has3DCoords || hasPolarCoords || hasBracketedCoords) {
+  if (hasCoordinatePoints || hasMixedObjects || has3DCoords || hasPolarCoords || hasBracketedCoords) {
     return null;
   }
 
@@ -1694,7 +1694,7 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
     /(?:tangent|cosine|sine|secant|cosecant|cotangent)\s+(?:left\s+parenthesis|superscript)/i.test(clean) ||
     /\b(?:StartFraction|EndFraction)\b/i.test(clean);
 
-  const triangleMatch = !isAlgebraicOrInverseTrig && clean.match(/(?:right\s+triangle|triangle).*?(?:legs|sides)?\s*(\d+(?:\.\d+)?)\s*(?:and|,)\s*(\d+(?:\.\d+)?)(?:\s*(?:,|and|\s+)+\s*(\d+(?:\.\d+)?))?/i);
+  const triangleMatch = !isAlgebraicOrInverseTrig && clean.match(/(?:right\s+triangle|triangle).*?(?:legs|sides)?\s*(\d+(?:\.\d+)?)\s*(?:and|,)\s*(\d+(?:\.\d+)?)(?:\s*(?:,|and|\s+)+\s*(?:(?:and\s+)?hypotenuse\s+)?(\d+(?:\.\d+)?))?/i);
   const isQualitativeTriangle = !isAlgebraicOrInverseTrig && !triangleMatch && (
     /(?:show|draw|illustrate|see|view|display|plot|sketch)\s+(?:me\s+)?(?:on\s+a\s+|a\s+|the\s+)?(?:right\s+)?triangle/i.test(clean) ||
     /(?:can\s+you\s+)?(?:show|draw|display|illustrate)\s+(?:me\s+)?(?:how\s+a\s+right\s+triangle\s+works|the\s+trig\s+ratios)/i.test(clean) ||
@@ -1773,8 +1773,8 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
     // Strip web platform boilerplate like "Question content area bottom", "content area" before checking for geometric area
     const cleanWithoutAreaBoilerplate = clean.replace(/\b(?:question\s+)?content\s+area(?:\s+bottom)?\b/gi, '');
     const isPerimeter = /\bperimeter\b/i.test(cleanWithoutAreaBoilerplate);
-    const isArea = !!triangleMatch && (/\b(?:find|calculate|compute|what\s+is|determine|get)\s+(?:the\s+)?area\b/i.test(cleanWithoutAreaBoilerplate) || /\barea\s*(?:=|is|\?)\b/i.test(cleanWithoutAreaBoilerplate));
-    const isHypotenuse = (/\b(?:find|calculate|compute|what\s+is|determine|get|length\s+of)\s+(?:the\s+)?hypotenuse\b/i.test(cleanWithoutAreaBoilerplate) || /\bhypotenuse\s*(?:=|is|\?)\b/i.test(cleanWithoutAreaBoilerplate));
+    const isArea = !!triangleMatch && (/\b(?:find|calculate|compute|what\s+is|determine|get)\s+(?:the\s+|its\s+)?area\b/i.test(cleanWithoutAreaBoilerplate) || /\barea\s*(?:=|is|\?)\b/i.test(cleanWithoutAreaBoilerplate));
+    const isHypotenuse = (/\b(?:find|calculate|compute|what\s+is|determine|get|length\s+of)\s+(?:the\s+|its\s+)?hypotenuse\b/i.test(cleanWithoutAreaBoilerplate) || /\bhypotenuse\s*(?:=|is|\?)\b/i.test(cleanWithoutAreaBoilerplate));
     const expectedVal = isPerimeter ? (a + b + c) : (isArea ? (0.5 * a * b) : c);
     const formattedVal = isPerimeter ? `perimeter = ${expectedVal}` : (isArea ? `area = ${expectedVal}` : `c = ${c}`);
 

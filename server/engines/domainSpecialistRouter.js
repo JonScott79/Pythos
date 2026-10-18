@@ -169,17 +169,22 @@ function analyzeSpecialistIntent(prompt, conversationHistory = []) {
   }
 
   // 9. TRIANGLE GEOMETRY: SIDE LENGTHS (EXPLICIT DISTINCTION FROM COORDINATES)
-  const sideMatch = clean.match(/(?:right\s+triangle|triangle).*?(?:legs|sides)?\s*(\d+(?:\.\d+)?)\s*(?:and|,)\s*(\d+(?:\.\d+)?)(?:\s*(?:,|and|\s+)+\s*(\d+(?:\.\d+)?))?/i);
+  const sideMatch = clean.match(/(?:right\s+triangle|triangle).*?(?:legs|sides)?\s*(\d+(?:\.\d+)?)\s*(?:and|,)\s*(\d+(?:\.\d+)?)(?:\s*(?:,|and|\s+)+\s*(?:(?:and\s+)?hypotenuse\s+)?(\d+(?:\.\d+)?))?/i);
   if (sideMatch && !clean.includes('(') && !clean.includes(')')) {
     const s1 = parseFloat(sideMatch[1]);
     const s2 = parseFloat(sideMatch[2]);
     const s3 = sideMatch[3] ? parseFloat(sideMatch[3]) : Math.sqrt(s1 * s1 + s2 * s2);
+    const isPerimeter = /\bperimeter\b/i.test(clean);
+    const isArea = (/\b(?:find|calculate|compute|what\s+is|determine|get)\s+(?:the\s+|its\s+)?area\b/i.test(clean) || /\barea\s*(?:=|is|\?)\b/i.test(clean)) || (/\barea\b/i.test(clean) && !/\bperimeter\b/i.test(clean));
+    const isHypotenuse = /\b(?:find|calculate|compute|what\s+is|determine|get|length\s+of)\s+(?:the\s+|its\s+)?hypotenuse\b/i.test(clean) || /\bhypotenuse\s*(?:=|is|\?)\b/i.test(clean);
+    const target = isPerimeter ? 'perimeter' : (isHypotenuse ? 'hypotenuse' : (isArea ? 'area' : 'area'));
     return {
       domain: 'geometry',
       operation: 'TRIANGLE_SIDES',
       a: s1,
       b: s2,
       c: s3,
+      target,
       isSpecialistRoute: true
     };
   }
@@ -235,12 +240,23 @@ async function executeSpecialistRoute(intent) {
     } else if (intent.operation === 'TRIANGLE_SIDES') {
       const res = geometryEngine.solveTriangleSides(intent.a, intent.b, intent.c);
       if (res.status === 'VERIFIED') {
+        let answerVal, targetLabel;
+        if (intent.target === 'perimeter') {
+          answerVal = res.perimeter.toString();
+          targetLabel = 'Perimeter';
+        } else if (intent.target === 'hypotenuse') {
+          answerVal = res.c.toString();
+          targetLabel = 'Hypotenuse';
+        } else {
+          answerVal = res.exactResult;
+          targetLabel = 'Area';
+        }
         return {
           status: 'VERIFIED',
           model: 'pythos-geometry-engine',
           deterministic: true,
-          answer: res.exactResult,
-          formattedResponse: `### Triangle Geometry\n\nFor triangle with side lengths $a = ${geometryEngine.formatNumber(intent.a)}$, $b = ${geometryEngine.formatNumber(intent.b)}$, $c = ${geometryEngine.formatNumber(intent.c)}$:\n\n${res.derivationSteps.map(s => `- $${s}$`).join('\n')}\n\n**Area:**\n$$\\boxed{${res.exactResult}}$$`
+          answer: answerVal,
+          formattedResponse: `### Triangle Geometry: ${targetLabel}\n\nFor triangle with side lengths $a = ${geometryEngine.formatNumber(intent.a)}$, $b = ${geometryEngine.formatNumber(intent.b)}$, $c = ${geometryEngine.formatNumber(intent.c)}$:\n\n${res.derivationSteps.map(s => `- $${s}$`).join('\n')}\n\n**${targetLabel}:**\n$$\\boxed{${answerVal}}$$`
         };
       }
     } else if (intent.operation === 'CIRCLE_GEOMETRY') {

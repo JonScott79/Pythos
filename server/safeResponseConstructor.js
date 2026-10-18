@@ -142,6 +142,25 @@ function constructSafeVerifiedResponse({
           }
         }
       }
+      const wantsPerimeter = /\bperimeter\b/i.test(userPrompt);
+      const wantsArea = (/\b(?:find|calculate|compute|what\s+is|determine|get)\s+(?:the\s+|its\s+)?area\b/i.test(userPrompt) || /\barea\s*(?:=|is|\?)\b/i.test(userPrompt)) || (/\barea\b/i.test(userPrompt) && !/\bperimeter\b/i.test(userPrompt));
+      const wantsHypotenuse = /\b(?:find|calculate|compute|what\s+is|determine|get|length\s+of)\s+(?:the\s+|its\s+)?hypotenuse\b/i.test(userPrompt) || /\bhypotenuse\s*(?:=|is|\?)\b/i.test(userPrompt);
+
+      let boxedAnswer = null;
+      if (wantsPerimeter && Number.isFinite(opp) && Number.isFinite(adj) && Number.isFinite(hyp)) {
+        boxedAnswer = opp + adj + hyp;
+      } else if (wantsArea && Number.isFinite(opp) && Number.isFinite(adj)) {
+        boxedAnswer = 0.5 * opp * adj;
+      } else if (wantsHypotenuse && Number.isFinite(hyp)) {
+        boxedAnswer = hyp;
+      }
+
+      // If the user requested a specific numerical calculation that could not be verified,
+      // fail-closed instead of delivering an unrelated boxed value.
+      if (boxedAnswer === null && (wantsPerimeter || wantsArea || wantsHypotenuse)) {
+        return null;
+      }
+
       const lines = [
         `Here is the verified right-triangle model:`,
         '',
@@ -152,10 +171,12 @@ function constructSafeVerifiedResponse({
         '',
         token || `[GEOMETRY: triangle, a=${opp}, b=${adj}, c=${hyp}, right_angle=C, opp=${opp}, adj=${adj}, hyp=${hyp}, theta=true]`,
         '',
-        orientationNote || `*Orientation note:* Geometric side lengths represent positive Euclidean distances ($adjacent = ${adj}$, $opposite = ${opp}$, $hypotenuse = ${hyp}$). Any negative signs indicate quadrant orientation.`,
-        '',
-        `$\\boxed{${hyp}}$$`
+        orientationNote || `*Orientation note:* Geometric side lengths represent positive Euclidean distances ($adjacent = ${adj}$, $opposite = ${opp}$, $hypotenuse = ${hyp}$). Any negative signs indicate quadrant orientation.`
       ];
+
+      if (boxedAnswer !== null) {
+        lines.push('', `$\\boxed{${boxedAnswer}}$`);
+      }
 
       return {
         content: lines.join('\n'),
