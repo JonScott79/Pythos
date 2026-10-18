@@ -32,7 +32,7 @@ const toolController = require(path.join(ROOT, 'server/toolController'));
 const contextManager = require(path.join(ROOT, 'server/contextManager'));
 
 const SEED = 3141592653; // Pi * 10^9
-const COMMIT_SHA = '90e5e687d7d1ec7c01d09cab44256d16ea7bfc88';
+const COMMIT_SHA = '4e8233ef00982b9f0ad8b328c6a0de8d9cfebbb8';
 const VERSION = '1.8.38';
 const CAMPAIGN_MODE = 'Production Integration 50K Specialist Engines Validation';
 
