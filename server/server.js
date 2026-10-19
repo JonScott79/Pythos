@@ -1702,6 +1702,9 @@ app.post('/api/chat', async (req, res) => {
         if (specialistResult && specialistResult.status === 'VERIFIED') {
           directResponse = specialistResult.formattedResponse;
           selectedModel = specialistResult.model || 'pythos-specialist-engine';
+          if (specialistResult.isVisualOrClarification) {
+            isVisualOrClarification = true;
+          }
         }
       }
     } catch (specialistErr) {
@@ -2236,7 +2239,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
     if (!textSelection.provider) {
       const isCostBlocked = textSelection.reason === 'COST_GUARDRAIL_BLOCKED';
       const isRateLimited = textSelection.reason === 'ALL_RATE_LIMITED';
-      const errStatus = isCostBlocked ? 403 : 503;
+      const errStatus = isCostBlocked ? 403 : (isRateLimited ? 429 : 503);
       const errCode = isRateLimited ? 'UPSTREAM_RATE_LIMITED' : 'UPSTREAM_UNAVAILABLE';
       const errMsg = isCostBlocked
         ? 'Text reasoning requires a paid provider, but Pythos is currently locked to $0 cost guardrail (free_only mode).'
@@ -2332,7 +2335,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
 
         const isCostBlocked = textSelection.reason === 'COST_GUARDRAIL_BLOCKED';
         const isRateLimited = textSelection.reason === 'ALL_RATE_LIMITED';
-        const errStatus = isCostBlocked ? 403 : 503;
+        const errStatus = isCostBlocked ? 403 : (isRateLimited ? 429 : 503);
         const errCode = isRateLimited ? 'UPSTREAM_RATE_LIMITED' : 'UPSTREAM_UNAVAILABLE';
         const errMsg = isCostBlocked
           ? 'Text reasoning requires a paid provider, but Pythos is currently locked to $0 cost guardrail (free_only mode).'

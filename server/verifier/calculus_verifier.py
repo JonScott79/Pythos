@@ -64,10 +64,21 @@ def verify_antiderivative(claim: dict) -> dict:
     if not integrand_str or not proposed_anti_str:
         return {"verified": False, "status": "UNKNOWN", "reason": "Missing integrand or proposed antiderivative"}
 
+    if isinstance(integrand_str, str):
+        import re
+        integrand_str = integrand_str.replace('^', '**')
+        integrand_str = re.sub(r'(\d+)\s*([a-zA-Z])', r'\1*\2', integrand_str)
+
+    if isinstance(proposed_anti_str, str):
+        import re
+        proposed_anti_str = proposed_anti_str.replace('^', '**')
+        proposed_anti_str = re.sub(r'(\d+)\s*([a-zA-Z])', r'\1*\2', proposed_anti_str)
+
     try:
         x = sp.Symbol(var_str)
-        integrand = sp.sympify(integrand_str, locals={var_str: x})
-        proposed_anti = sp.sympify(proposed_anti_str, locals={var_str: x})
+        c_sym = sp.Symbol('C')
+        integrand = sp.sympify(integrand_str, locals={var_str: x, 'C': c_sym})
+        proposed_anti = sp.sympify(proposed_anti_str, locals={var_str: x, 'C': c_sym})
 
         deriv_of_anti = sp.diff(proposed_anti, x)
         diff = sp.simplify(deriv_of_anti - integrand)

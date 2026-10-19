@@ -40,7 +40,8 @@ function resolvePython() {
 }
 
 let daemonProc = null;
-let daemonQueue = [];
+const daemonPending = new Map();
+let daemonReqCounter = 0;
 let daemonBuffer = '';
 
 function getDaemonProcess() {
@@ -61,28 +62,47 @@ function getDaemonProcess() {
         const line = daemonBuffer.slice(0, nlIndex).trim();
         daemonBuffer = daemonBuffer.slice(nlIndex + 1);
         if (!line) continue;
-        const currentTask = daemonQueue.shift();
-        if (currentTask) {
-          try {
-            const parsed = JSON.parse(line);
-            currentTask.resolve(parsed);
-          } catch (err) {
-            currentTask.resolve({ status: 'FAILED', error: err.message });
+        try {
+          const parsed = JSON.parse(line);
+          const reqId = parsed._id;
+          if (reqId !== undefined && daemonPending.has(reqId)) {
+            const task = daemonPending.get(reqId);
+            daemonPending.delete(reqId);
+            task.resolve(parsed);
+          } else if (daemonPending.size > 0) {
+            const firstKey = daemonPending.keys().next().value;
+            const task = daemonPending.get(firstKey);
+            daemonPending.delete(firstKey);
+            task.resolve(parsed);
+          }
+        } catch (err) {
+          if (daemonPending.size > 0) {
+            const firstKey = daemonPending.keys().next().value;
+            const task = daemonPending.get(firstKey);
+            daemonPending.delete(firstKey);
+            task.resolve({ status: 'FAILED', error: err.message });
           }
         }
       }
     });
-    daemonProc.on('error', (err) => {
-      while (daemonQueue.length) {
-        daemonQueue.shift().resolve({ status: 'FAILED', error: err.message });
+    const thisProc = daemonProc;
+    thisProc.on('error', (err) => {
+      if (daemonProc === thisProc) {
+        for (const [, task] of daemonPending.entries()) {
+          task.resolve({ status: 'FAILED', error: err.message });
+        }
+        daemonPending.clear();
+        daemonProc = null;
       }
-      daemonProc = null;
     });
-    daemonProc.on('close', () => {
-      while (daemonQueue.length) {
-        daemonQueue.shift().resolve({ status: 'FAILED', error: 'Calculus daemon closed' });
+    thisProc.on('close', () => {
+      if (daemonProc === thisProc) {
+        for (const [, task] of daemonPending.entries()) {
+          task.resolve({ status: 'FAILED', error: 'Calculus daemon closed' });
+        }
+        daemonPending.clear();
+        daemonProc = null;
       }
-      daemonProc = null;
     });
     return daemonProc;
   } catch (err) {
@@ -99,14 +119,20 @@ function runCalculusWorker(payload, timeoutMs = 15000) {
   const daemon = getDaemonProcess();
   if (daemon && daemon.stdin && daemon.stdin.writable) {
     return new Promise((resolve) => {
+      const reqId = ++daemonReqCounter;
       const timer = setTimeout(() => {
+        daemonPending.delete(reqId);
+        if (daemonProc) {
+          try { daemonProc.kill(); } catch (_) {}
+          daemonProc = null;
+        }
         resolve({
           status: 'FAILED',
           error: `Calculus daemon timed out after ${timeoutMs}ms`
         });
       }, timeoutMs);
 
-      daemonQueue.push({
+      daemonPending.set(reqId, {
         resolve: (res) => {
           clearTimeout(timer);
           if (res && (res.status === 'VERIFIED' || res.status === 'SUCCESS')) {
@@ -115,7 +141,7 @@ function runCalculusWorker(payload, timeoutMs = 15000) {
           resolve(res);
         }
       });
-      daemon.stdin.write(JSON.stringify(payload) + '\n');
+      daemon.stdin.write(JSON.stringify({ ...payload, _id: reqId }) + '\n');
     });
   }
 
@@ -269,9 +295,16 @@ async function optimize(expression, options = {}) {
 
 function closeCalculusDaemon() {
   if (daemonProc) {
-    try { daemonProc.kill(); } catch (_) {}
+    const proc = daemonProc;
     daemonProc = null;
-    daemonQueue = [];
+    proc.removeAllListeners('error');
+    proc.removeAllListeners('close');
+    if (proc.stdout) proc.stdout.removeAllListeners('data');
+    try { proc.kill(); } catch (_) {}
+    for (const [, task] of daemonPending.entries()) {
+      task.resolve({ status: 'FAILED', error: 'Calculus daemon closed' });
+    }
+    daemonPending.clear();
     daemonBuffer = '';
   }
 }

@@ -633,6 +633,23 @@ function extractClaims(text, userPrompt = '') {
     });
   }
 
+  // 1b. Indefinite Integrals / Antiderivatives (e.g. \int (3x^2) dx = \boxed{x^3 + C})
+  const indefRegex = /\\int\s*(?:\\left\(|\()?\s*([^=]+?)\s*(?:\\right\)|\))?\s*d([a-zA-Z])\s*=\s*([^$\n]+)/g;
+  while ((match = indefRegex.exec(text)) !== null) {
+    if (!/\\int\s*[_^]/.test(match[0])) {
+      claims.push({
+        domain: 'calculus',
+        claim_type: 'antiderivative',
+        raw_match: match[0],
+        data: {
+          integrand: match[1].trim().replace(/^\(/, '').replace(/\)$/, '').trim(),
+          variable: match[2].trim(),
+          proposed_antiderivative: match[3].trim().replace(/\\/g, '').replace(/boxed\{([^}]+)\}/, '$1').replace(/[.,;:]+$/, '').trim()
+        }
+      });
+    }
+  }
+
   // 2. Derivatives (e.g. \frac{d}{dx}[x^2] = 2x or \frac{d}{dx}\,x^3 = 3x^2)
   const derivRegex = /\\frac\{d\}\{d([a-zA-Z])\}\s*(?:\\,|\\;|\\s)*(?:\[([^\]]+)\]|\\left\(([^)]+)\\right\)|\(([^)]+)\)|([a-zA-Z0-9^+\-*/.{}\s]+?))\s*=\s*([^$\n]+)/g;
   while ((match = derivRegex.exec(text)) !== null) {
@@ -1359,7 +1376,7 @@ function extractClaims(text, userPrompt = '') {
             // Circle area verification
       const circleMatch = cleanPrompt.match(/\bcircle\b.*?\bradius\s*(?:of|is|=)?\s*(\d+(?:\.\d+)?)/i) ||
                           cleanPrompt.match(/\bradius\s*(?:of|is|=)?\s*(\d+(?:\.\d+)?).*?\bcircle\b/i);
-      if (circleMatch && candidateBoxed) {
+      if (circleMatch && /\barea\b/i.test(cleanPrompt) && candidateBoxed) {
         const r = parseFloat(circleMatch[1]);
         const exactArea = Math.PI * r * r;
         let val = NaN;
@@ -1436,7 +1453,8 @@ function extractClaims(text, userPrompt = '') {
       if (derivPromptMatch) {
         const expr = derivPromptMatch[1].trim();
         if (/^[a-zA-Z0-9^+\-*/().\s]+$/.test(expr) && /[a-zA-Z]/.test(expr)) {
-          const vMatch = expr.match(/[a-zA-Z]/);
+          const cleanForVar = expr.replace(/\b(sin|cos|tan|cot|sec|csc|log|ln|exp|sqrt)\b/gi, '');
+          const vMatch = cleanForVar.match(/[a-zA-Z]/);
           const v = vMatch ? vMatch[0] : 'x';
           if (!claims.some(c => c.claim_type === 'derivative')) {
             claims.push({
@@ -1707,6 +1725,77 @@ function getCasTelemetry() {
       executable: bin,
       error: err.code || err.message
     };
+  }
+}
+
+let verifierDaemonProc = null;
+const verifierDaemonPending = new Map();
+let verifierReqCounter = 0;
+let verifierDaemonBuffer = '';
+
+function getVerifierDaemonProcess() {
+  if (verifierDaemonProc && !verifierDaemonProc.killed) return verifierDaemonProc;
+  const pythonBin = getPythonExecutable();
+  const pythonScript = path.join(__dirname, 'verifier', 'verifier.py');
+  try {
+    verifierDaemonProc = child_process.spawn(pythonBin, [pythonScript, '--daemon'], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+    });
+    verifierDaemonProc.unref();
+    verifierDaemonBuffer = '';
+    verifierDaemonProc.stdout.on('data', (d) => {
+      verifierDaemonBuffer += d.toString('utf8');
+      let nlIndex;
+      while ((nlIndex = verifierDaemonBuffer.indexOf('\n')) !== -1) {
+        const line = verifierDaemonBuffer.slice(0, nlIndex).trim();
+        verifierDaemonBuffer = verifierDaemonBuffer.slice(nlIndex + 1);
+        if (!line) continue;
+        try {
+          const parsed = JSON.parse(line);
+          const reqId = parsed._id;
+          if (reqId !== undefined && verifierDaemonPending.has(reqId)) {
+            const task = verifierDaemonPending.get(reqId);
+            verifierDaemonPending.delete(reqId);
+            task.resolve(parsed);
+          } else if (verifierDaemonPending.size > 0) {
+            const firstKey = verifierDaemonPending.keys().next().value;
+            const task = verifierDaemonPending.get(firstKey);
+            verifierDaemonPending.delete(firstKey);
+            task.resolve(parsed);
+          }
+        } catch (err) {
+          if (verifierDaemonPending.size > 0) {
+            const firstKey = verifierDaemonPending.keys().next().value;
+            const task = verifierDaemonPending.get(firstKey);
+            verifierDaemonPending.delete(firstKey);
+            task.resolve({ verified: false, status: 'ERROR', error: err.message });
+          }
+        }
+      }
+    });
+    const thisProc = verifierDaemonProc;
+    thisProc.on('error', (err) => {
+      if (verifierDaemonProc === thisProc) {
+        for (const [, task] of verifierDaemonPending.entries()) {
+          task.resolve({ verified: false, status: 'ERROR', error: err.message });
+        }
+        verifierDaemonPending.clear();
+        verifierDaemonProc = null;
+      }
+    });
+    thisProc.on('close', () => {
+      if (verifierDaemonProc === thisProc) {
+        for (const [, task] of verifierDaemonPending.entries()) {
+          task.resolve({ verified: false, status: 'ERROR', error: 'Verifier daemon closed' });
+        }
+        verifierDaemonPending.clear();
+        verifierDaemonProc = null;
+      }
+    });
+    return verifierDaemonProc;
+  } catch (err) {
+    return null;
   }
 }
 
@@ -2175,62 +2264,17 @@ async function runDeterministicVerification(claim, userPrompt = '') {
     return symbolicVerificationCache.get(claimCacheKey);
   }
 
-let verifierDaemonProc = null;
-let verifierDaemonQueue = [];
-let verifierDaemonBuffer = '';
-
-function getVerifierDaemonProcess() {
-  if (verifierDaemonProc && !verifierDaemonProc.killed) return verifierDaemonProc;
-  const pythonBin = getPythonExecutable();
-  const pythonScript = path.join(__dirname, 'verifier', 'verifier.py');
-  try {
-    verifierDaemonProc = child_process.spawn(pythonBin, [pythonScript, '--daemon'], {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
-    });
-    verifierDaemonProc.unref();
-    verifierDaemonBuffer = '';
-    verifierDaemonProc.stdout.on('data', (d) => {
-      verifierDaemonBuffer += d.toString('utf8');
-      let nlIndex;
-      while ((nlIndex = verifierDaemonBuffer.indexOf('\n')) !== -1) {
-        const line = verifierDaemonBuffer.slice(0, nlIndex).trim();
-        verifierDaemonBuffer = verifierDaemonBuffer.slice(nlIndex + 1);
-        if (!line) continue;
-        const currentTask = verifierDaemonQueue.shift();
-        if (currentTask) {
-          try {
-            const parsed = JSON.parse(line);
-            currentTask.resolve(parsed);
-          } catch (err) {
-            currentTask.resolve({ verified: false, status: 'ERROR', error: err.message });
-          }
-        }
-      }
-    });
-    verifierDaemonProc.on('error', (err) => {
-      while (verifierDaemonQueue.length) {
-        verifierDaemonQueue.shift().resolve({ verified: false, status: 'ERROR', error: err.message });
-      }
-      verifierDaemonProc = null;
-    });
-    verifierDaemonProc.on('close', () => {
-      while (verifierDaemonQueue.length) {
-        verifierDaemonQueue.shift().resolve({ verified: false, status: 'ERROR', error: 'Verifier daemon closed' });
-      }
-      verifierDaemonProc = null;
-    });
-    return verifierDaemonProc;
-  } catch (err) {
-    return null;
-  }
-}
-
   const pythonResult = await casQueue.run(async () => {
     const daemon = getVerifierDaemonProcess();
     if (daemon && daemon.stdin && daemon.stdin.writable) {
       return new Promise((resolve) => {
+        const reqId = ++verifierReqCounter;
         const timer = setTimeout(() => {
+          verifierDaemonPending.delete(reqId);
+          if (verifierDaemonProc) {
+            try { verifierDaemonProc.kill(); } catch (_) {}
+            verifierDaemonProc = null;
+          }
           resolve({
             verified: false,
             status: 'ERROR',
@@ -2239,13 +2283,13 @@ function getVerifierDaemonProcess() {
           });
         }, 5000);
 
-        verifierDaemonQueue.push({
+        verifierDaemonPending.set(reqId, {
           resolve: (res) => {
             clearTimeout(timer);
             resolve(res);
           }
         });
-        daemon.stdin.write(JSON.stringify(claim) + '\n');
+        daemon.stdin.write(JSON.stringify({ ...claim, _id: reqId }) + '\n');
       });
     }
 
@@ -2602,9 +2646,16 @@ function auditPromptClaimFidelity(claims, prompt) {
 
 function closeVerifierDaemon() {
   if (verifierDaemonProc) {
-    try { verifierDaemonProc.kill(); } catch (_) {}
+    const proc = verifierDaemonProc;
     verifierDaemonProc = null;
-    verifierDaemonQueue = [];
+    proc.removeAllListeners('error');
+    proc.removeAllListeners('close');
+    if (proc.stdout) proc.stdout.removeAllListeners('data');
+    try { proc.kill(); } catch (_) {}
+    for (const [, task] of verifierDaemonPending.entries()) {
+      task.resolve({ verified: false, status: 'ERROR', error: 'Verifier daemon closed' });
+    }
+    verifierDaemonPending.clear();
     verifierDaemonBuffer = '';
   }
 }

@@ -60,13 +60,19 @@ function analyzeSpecialistIntent(prompt, conversationHistory = []) {
   const derivMatch = clean.match(/(?:differentiate|derivative\s+of|d\/d([a-zA-Z])(?:\s*\[|\s*\(|\s+of)|compute\s+(?:the\s+)?derivative\s+(?:d\/d([a-zA-Z])\s+)?of|find\s+(?:the\s+)?derivative\s+(?:d\/d([a-zA-Z])\s+)?of)\s*([^?$\n]+)/i);
   if (derivMatch) {
     let expr = derivMatch[derivMatch.length - 1].trim();
+    let varName = derivMatch[1] || derivMatch[2] || derivMatch[3];
+    const wrtMatch = expr.match(/\s+(?:with\s+respect\s+to|wrt)\s+([a-zA-Z])\b/i);
+    if (wrtMatch) {
+      if (!varName) varName = wrtMatch[1];
+      expr = expr.slice(0, wrtMatch.index).trim();
+    }
     if (expr.endsWith(']') && (expr.match(/\]/g) || []).length > (expr.match(/\[/g) || []).length) {
       expr = expr.slice(0, -1);
     }
     if (expr.endsWith(')') && (expr.match(/\)/g) || []).length > (expr.match(/\(/g) || []).length) {
       expr = expr.slice(0, -1);
     }
-    const varName = derivMatch[1] || derivMatch[2] || derivMatch[3] || 'x';
+    if (!varName) varName = 'x';
     return {
       domain: 'calculus',
       operation: 'DIFFERENTIATION',
@@ -77,29 +83,46 @@ function analyzeSpecialistIntent(prompt, conversationHistory = []) {
   }
 
   // 4. CALCULUS: INTEGRATION
-  // e.g. "integrate x^2 from 0 to 3", "evaluate integral of cos(x)"
-  const defIntMatch = clean.match(/(?:integrate|integral\s+of)\s+(.+?)\s+from\s+([^\s]+)\s+to\s+([^?$\n]+)/i);
-  if (defIntMatch) {
+  // e.g. "integrate x^2 from 0 to 3", "integral from 0 to 4 of x^2 dx", "evaluate integral of cos(x)"
+  const defIntMatch1 = clean.match(/(?:integrate|integral\s+of|evaluate\s+the\s+integral\s+of)\s+(.+?)\s+from\s+([^\s]+)\s+to\s+([^?$\n]+)/i);
+  const defIntMatch2 = clean.match(/(?:integral|integrate|evaluate\s+the\s+integral)\s+from\s+([^\s]+)\s+to\s+([^\s]+)\s+of\s+([^?$\n]+)/i);
+  if (defIntMatch1 || defIntMatch2) {
+    let expr = defIntMatch1 ? defIntMatch1[1].trim() : defIntMatch2[3].trim();
+    let lower = defIntMatch1 ? defIntMatch1[2].trim() : defIntMatch2[1].trim();
+    let upper = defIntMatch1 ? defIntMatch1[3].trim() : defIntMatch2[2].trim();
+    let variable = 'x';
+    const dVarMatch = expr.match(/\s+d([a-zA-Z])$/i);
+    if (dVarMatch) {
+      variable = dVarMatch[1];
+      expr = expr.slice(0, dVarMatch.index).trim();
+    }
     return {
       domain: 'calculus',
       operation: 'INTEGRATION',
-      expression: defIntMatch[1].trim(),
+      expression: expr,
       isDefinite: true,
-      lowerLimit: defIntMatch[2].trim(),
-      upperLimit: defIntMatch[3].trim(),
-      variable: 'x',
+      lowerLimit: lower,
+      upperLimit: upper,
+      variable,
       isSpecialistRoute: true
     };
   }
 
   const indefIntMatch = clean.match(/(?:integrate|find\s+the\s+integral\s+of|evaluate\s+the\s+integral\s+of)\s+([^?$\n]+)/i);
   if (indefIntMatch && !/\bfrom\b/i.test(clean)) {
+    let expr = indefIntMatch[1].trim();
+    let variable = 'x';
+    const dVarMatch = expr.match(/\s+d([a-zA-Z])$/i);
+    if (dVarMatch) {
+      variable = dVarMatch[1];
+      expr = expr.slice(0, dVarMatch.index).trim();
+    }
     return {
       domain: 'calculus',
       operation: 'INTEGRATION',
-      expression: indefIntMatch[1].trim(),
+      expression: expr,
       isDefinite: false,
-      variable: 'x',
+      variable,
       isSpecialistRoute: true
     };
   }
@@ -286,7 +309,7 @@ async function executeSpecialistRoute(intent) {
           model: 'pythos-calculus-engine',
           deterministic: true,
           answer: res.exactResult,
-          formattedResponse: `### Calculus: Symbolic Differentiation\n\nTo differentiate $f(${intent.variable}) = ${intent.expression}$ with respect to $${intent.variable}$:\n\n${res.derivationSteps.map(s => `- $${s}$`).join('\n')}\n\n**Derivative:**\n$$\\frac{d}{d${intent.variable}}(${intent.expression}) = \\boxed{${res.exactResult}}$$`
+          formattedResponse: `### Calculus: Symbolic Differentiation\n\nTo differentiate $f(${intent.variable}) = ${intent.expression}$ with respect to $${intent.variable}$:\n\n${res.derivationSteps.map(s => `- $${s}$`).join('\n')}\n\n**Derivative:**\n$$\\frac{d}{d${intent.variable}}[${intent.expression}] = \\boxed{${res.exactResult}}$$`
         };
       }
     } else if (intent.operation === 'INTEGRATION') {
@@ -314,6 +337,17 @@ async function executeSpecialistRoute(intent) {
         target: intent.target
       });
       if (res.status === 'VERIFIED') {
+        if (res.exists === false) {
+          return {
+            status: 'VERIFIED',
+            model: 'pythos-calculus-engine',
+            deterministic: true,
+            answer: 'Does Not Exist',
+            isSpecialistRoute: true,
+            isVisualOrClarification: true,
+            formattedResponse: `### Calculus: Limit Analysis\n\nFor $f(${intent.variable}) = ${intent.expression}$ as $${intent.variable} \\to ${intent.target}$:\n\n${res.derivationSteps.map(s => `- $${s}$`).join('\n')}\n\n**Conclusion:**\n$$\\lim_{${intent.variable} \\to ${intent.target}} (${intent.expression}) \\text{ does not exist (left- and right-hand limits differ)}$$`
+          };
+        }
         return {
           status: 'VERIFIED',
           model: 'pythos-calculus-engine',

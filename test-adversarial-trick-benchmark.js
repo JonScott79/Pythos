@@ -37,7 +37,8 @@ const {
   extractClaims,
   extractCandidateAnswer,
   runDeterministicVerification,
-  evaluateCandidateDelivery
+  evaluateCandidateDelivery,
+  closeVerifierDaemon
 } = require(path.join(SERVER_DIR, 'verificationBridge'));
 
 const {
@@ -700,8 +701,16 @@ async function runAdversarialBenchmark() {
 }
 
 if (require.main === module) {
-  runAdversarialBenchmark().catch(err => {
+  runAdversarialBenchmark().then(res => {
+    closeVerifierDaemon();
+    if (res.incorrectDelivered > 0 || res.falsePositiveRejections > 0) {
+      process.exit(1);
+    } else {
+      process.exit(0);
+    }
+  }).catch(err => {
     console.error('Fatal error during benchmark run:', err);
+    closeVerifierDaemon();
     process.exit(1);
   });
 }

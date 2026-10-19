@@ -134,12 +134,19 @@ def main():
             line = line.strip()
             if not line:
                 continue
+            req_id = None
             try:
                 payload = json.loads(line)
+                req_id = payload.get("_id")
                 res = dispatch_verification(payload)
+                if req_id is not None:
+                    res["_id"] = req_id
                 print(json.dumps(res), flush=True)
             except Exception as e:
-                print(json.dumps({"verified": False, "status": "ERROR", "error": str(e)}), flush=True)
+                err_res = {"verified": False, "status": "ERROR", "error": str(e)}
+                if req_id is not None:
+                    err_res["_id"] = req_id
+                print(json.dumps(err_res), flush=True)
         return
 
     if len(sys.argv) > 1:

@@ -7,7 +7,7 @@ const { generateArithmeticTests } = require('./property/property_tests');
 const { runFuzzTests } = require('./fuzz/fuzz_tests');
 const { AI_RELIABILITY_ATTACKS } = require('./ai-reliability/ai_reliability_tests');
 const MathJSVerifier = require('../server/mathjsVerifier');
-const { runDeterministicVerification } = require('../server/verificationBridge');
+const { runDeterministicVerification, closeVerifierDaemon } = require('../server/verificationBridge');
 
 async function runTortureSuite() {
   console.log('======================================================================');
@@ -114,6 +114,12 @@ async function runTortureSuite() {
     console.log(`• ${cat.padEnd(22)}: ${data.passed}/${data.total} passed (UNKNOWN: ${data.unknown}, Failed: ${data.failed})`);
   }
   console.log('======================================================================\n');
+  closeVerifierDaemon();
+  if (report.failed > 0) {
+    process.exit(1);
+  } else {
+    process.exit(0);
+  }
 }
 
 runTortureSuite();
