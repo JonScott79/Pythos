@@ -720,7 +720,7 @@ async function executeGroqVisionCall(provider, { messages, visionSystemPrompt, o
     model: targetModel,
     messages: formattedMessages,
     temperature: options?.temperature || 0.2,
-    max_tokens: Math.min(options?.num_predict || options?.max_tokens || 2048, 2048),
+    max_tokens: Math.min(options?.num_predict || options?.max_tokens || 4096, 4096),
     stream: false
   });
 
@@ -898,7 +898,7 @@ async function executeGeminiVisionCall(provider, { messages, visionSystemPrompt,
     },
     generationConfig: {
       temperature: options?.temperature || 0.2,
-      maxOutputTokens: Math.min(options?.num_predict || options?.max_tokens || 2048, 2048)
+      maxOutputTokens: Math.min(options?.num_predict || options?.max_tokens || 4096, 4096)
     }
   });
 
@@ -1100,7 +1100,7 @@ ${m.content.slice(PYTHOS_SYSTEM_PROMPT.length).trim()}`;
     model: targetModel,
     messages: textMessages,
     temperature: options?.temperature || 0.2,
-    max_tokens: Math.min(options?.num_predict || 2048, 2048),
+    max_tokens: Math.min(options?.num_predict || options?.max_tokens || 4096, 4096),
     stream: false
   };
   if (isReasoningModel) {
@@ -1150,10 +1150,12 @@ ${m.content.slice(PYTHOS_SYSTEM_PROMPT.length).trim()}`;
           if (!text.trim() && choice?.message?.reasoning) {
             text = choice.message.reasoning;
           }
+          const isTruncated = choice?.finish_reason === 'length';
           resolveGroq({
             model: targetModel,
             content: text,
-            provider: provider.name
+            provider: provider.name,
+            truncated: isTruncated
           });
         } catch (err) {
           rejectGroq(err);
@@ -2084,7 +2086,7 @@ app.post('/api/chat', async (req, res) => {
     {
       temperature: 0.3,
       num_ctx: contextManager.TOTAL_CONTEXT_LIMIT,
-      num_predict: Math.min(options?.num_predict || options?.max_tokens || 2048, 2048)
+      num_predict: Math.min(options?.num_predict || options?.max_tokens || 4096, 4096)
     },
     options || {}
   );
@@ -2092,7 +2094,7 @@ app.post('/api/chat', async (req, res) => {
     effectiveOptions.num_ctx = contextManager.TOTAL_CONTEXT_LIMIT;
   }
   if (!effectiveOptions.num_predict) {
-    effectiveOptions.num_predict = 2048;
+    effectiveOptions.num_predict = 4096;
   }
 
   // Multimodal Hosted Vision Gateway Bridge
@@ -2414,6 +2416,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
             content: resGroq.content,
             provider: selectedProvider.name,
             reasoningPath: 'BACKUP',
+            truncated: resGroq.truncated === true,
             backupTriggerReason: primaryFailureError ? (primaryFailureError.code || primaryFailureError.message) : 'PRIMARY_UNAVAILABLE'
           };
           break;
