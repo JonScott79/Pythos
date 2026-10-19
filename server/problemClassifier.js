@@ -830,7 +830,19 @@ function classifyProblem(userText) {
   // -------------------------------------------------------------
   // 12. Conceptual / Direct Inquiry
   // -------------------------------------------------------------
-  if (lower.includes('what is') || lower.includes('explain') || lower.includes('difference between') || lower.includes('why is')) {
+  if (
+    lower.includes('what is') ||
+    lower.includes("what's") ||
+    lower.includes('whats') ||
+    lower.includes('whts') ||
+    lower.includes('explain') ||
+    lower.includes('difference between') ||
+    lower.includes('difference in') ||
+    lower.includes('difference of') ||
+    lower.includes('formula for') ||
+    lower.includes('definition of') ||
+    lower.includes('why is')
+  ) {
     return {
       problemDomain: DOMAINS.CONCEPTUAL,
       problemSubtype: 'CONCEPTUAL_EXPLANATION',

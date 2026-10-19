@@ -105,15 +105,24 @@ def verify_algebra(claim: dict) -> dict:
     """
     Verifies algebraic equations, solution candidates, lost roots, and extraneous roots.
     """
-    eq_str = claim.get("equation")
-    variable_str = claim.get("variable", "x")
-    proposed_solutions = claim.get("proposed_solutions", [])
+    data = claim.get("data") if isinstance(claim.get("data"), dict) else {}
+    eq_str = claim.get("equation") or data.get("equation")
+    variable_str = claim.get("variable") or data.get("variable") or "x"
+    proposed_solutions = claim.get("proposed_solutions") or data.get("proposed_solutions") or []
+    modulus = claim.get("modulus") or data.get("modulus")
     
     if isinstance(proposed_solutions, (int, float, str)):
         proposed_solutions = [proposed_solutions]
 
     if not eq_str:
         return {"verified": False, "status": "UNKNOWN", "reason": "Missing equation"}
+
+    if eq_str and "mod" in eq_str.lower():
+        import re
+        mod_m = re.search(r'\(?\s*mod(?:ulo)?\s*(\d+)\s*\)?', eq_str, re.IGNORECASE)
+        if mod_m:
+            modulus = modulus or mod_m.group(1)
+            eq_str = re.sub(r'\(?\s*mod(?:ulo)?\s*\d+\s*\)?', '', eq_str, flags=re.IGNORECASE).strip()
 
     try:
         var = sp.Symbol(variable_str)
@@ -225,8 +234,8 @@ def verify_algebra(claim: dict) -> dict:
                 "details": f"Proposed value(s) {extraneous_found} do not satisfy original equation {eq_str}"
             }
 
-        # 2. Lost root check
-        if proposed_solutions and true_sol_vals:
+        # 2. Lost root check (applicable to real/complex equations, not modular congruences)
+        if not modulus and proposed_solutions and true_sol_vals:
             proposed_nums = [float(p) for p in proposed_solutions if not (isinstance(p, str) and 'i' in p.lower())]
             lost_roots = []
             for t in true_sol_vals:

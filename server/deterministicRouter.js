@@ -17,7 +17,7 @@ const mathjsVerifier = require('./mathjsVerifier');
  */
 function hasConceptualIntent(text) {
   if (!text || typeof text !== 'string') return false;
-  const conceptualPattern = /\b(explain|why|how come|concept|intuition|derive|derivation|interpret|interpretation|meaning|proof|prove|guide|teach|what does it mean|understand|reasoning|significance|discuss|difference between|demonstrate|exhibit|illustrate|is this|does this|is that|is it|are they|same thing|same as|the same|equivalent|equal to each other|mean the same|does that mean|what about|would that be|paradox|fallacy|reversal)\b/i;
+  const conceptualPattern = /\b(explain|why|how come|concept|intuition|derive|derivation|interpret|interpretation|meaning|proof|prove|guide|teach|what does it mean|understand|reasoning|significance|discuss|difference\s+(?:between|in|of)|formula\s+for|definition\s+of|rule\s+for|(?:what\s+is|what's|whats|whts)\s+(?:the\s+)?(?:difference|meaning|concept|formula|definition|rule|intuition|point|purpose|significance|theorem|property|law|paradox|fallacy|reason)|demonstrate|exhibit|illustrate|is this|does this|is that|is it|are they|same thing|same as|the same|equivalent|equal to each other|mean the same|does that mean|what about|would that be|paradox|fallacy|reversal)\b/i;
   return conceptualPattern.test(text);
 }
 

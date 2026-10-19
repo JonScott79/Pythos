@@ -308,8 +308,15 @@ const MathJSVerifier = {
       return { verified: false, engine: 'mathjs', status: 'UNKNOWN', reason: 'Missing expressions for equivalence check' };
     }
 
-    // Rational expressions with division require SymPy CAS for exact denominator singularity & domain loss analysis
-    if (expr1.includes('/') || expr2.includes('/')) {
+    // Rational expressions with division by a variable require SymPy CAS for exact denominator singularity & domain loss analysis
+    const hasVariableDenominator = (expr) => {
+      if (!expr || !expr.includes('/')) return false;
+      const cleanExpr = expr.replace(/\b(?:m\/s(?:\^2)?|km\/h|mi\/h|ft\/s)\b/gi, '');
+      if (!cleanExpr.includes('/')) return false;
+      return variables.some(v => new RegExp(`/[^/]*\\b${v}\\b`, 'i').test(cleanExpr));
+    };
+
+    if (hasVariableDenominator(expr1) || hasVariableDenominator(expr2)) {
       return {
         verified: false,
         engine: 'mathjs',
@@ -319,9 +326,13 @@ const MathJSVerifier = {
     }
 
     try {
-      // 1. Symbolic simplification comparison
-      const simp1 = math.simplify(expr1).toString();
-      const simp2 = math.simplify(expr2).toString();
+      // 1. Symbolic simplification comparison (normalizing physical units if attached)
+      const unitRegex = /\*?\s*\b(?:m\/s(?:\^2)?|km\/h|mi\/h|ft\/s|m|s|kg|N|J|W)\b/gi;
+      const cleanExpr1 = expr1.replace(unitRegex, '').trim() || expr1;
+      const cleanExpr2 = expr2.replace(unitRegex, '').trim() || expr2;
+
+      const simp1 = math.simplify(cleanExpr1).toString();
+      const simp2 = math.simplify(cleanExpr2).toString();
 
       if (simp1 === simp2) {
         return {
@@ -389,9 +400,13 @@ const MathJSVerifier = {
    * Level 2: Equation Root Substitution Check
    */
   verifyEquationSolution(claim) {
-    const { equation, variable = 'x', proposed_solution, proposed_solutions } = claim;
+    const { equation, variable = 'x', proposed_solution, proposed_solutions, modulus, is_modular } = claim;
     if (!equation) {
       return { verified: false, engine: 'mathjs', status: 'UNKNOWN', reason: 'Missing equation' };
+    }
+
+    if (modulus || is_modular || (typeof equation === 'string' && /(?:\\pmod|\(mod\s*\d+\)|\bmod\b)/i.test(equation))) {
+      return { verified: false, engine: 'mathjs', status: 'UNKNOWN', reason: 'Modular congruence equations defer to CAS (SymPy)' };
     }
 
     const rawSolutions = Array.isArray(proposed_solutions)

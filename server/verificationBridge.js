@@ -105,8 +105,56 @@ function extractCandidateAnswer(text) {
 }
 
 /**
+ * Determines whether a user prompt requires a solved numerical or algebraic candidate answer (fail-closed).
+ * Conceptual questions, formula requests, definitions, explanations, and conversational turns
+ * do not require a single scalar candidate answer, but still require mathematical claim verification.
+ */
+function requiresCandidateAnswer(prompt = '', claims = []) {
+  if (!prompt || typeof prompt !== 'string') return true;
+  const clean = prompt.trim();
+  const lower = clean.toLowerCase();
+
+  // 1. Explicit calculation, solving, or simplification directives strictly require a candidate answer
+  if (/\b(?:solve|calculate|compute|evaluate|integrate|differentiate|find\s+(?:the\s+)?(?:value|root|solution|zeros?|x|y|z|answer)|simplify)\b/i.test(clean)) {
+    return true;
+  }
+
+  // 2. Contains standalone mathematical equations with equality to solve (e.g., "2x + 6 = 14", "3x - 6 = 0")
+  if (/(?:[a-zA-Z0-9^*/+\-.\s()]+\s*=\s*[a-zA-Z0-9^*/+\-.\s()]+)/.test(clean)) {
+    // If it contains an equation, verify if it's purely conceptual discussion vs an equation to solve
+    if (!/\b(?:what\s+does|meaning\s+of|explain|why\s+is|difference)\b/i.test(lower)) {
+      return true;
+    }
+  }
+
+  // 3. Word problem asking for quantitative value (speed, cost, amount, height, etc.)
+  if (/\b(?:how\s+(?:many|much|far|fast|long|tall|heavy)|what\s+is\s+the\s+(?:speed|velocity|acceleration|force|energy|cost|price|total|weight|mass|volume|area|perimeter|distance|length|height|radius|diameter|angle|probability))\b/i.test(lower)) {
+    return true;
+  }
+
+  // 4. Pure arithmetic or algebra expression: e.g. "3x-6?", "2+2", "15 * 3"
+  if (/^[\d\s+\-*/^().a-zA-Z?=]+$/.test(clean) && /[\d]/.test(clean)) {
+    return true;
+  }
+
+  // 5. Conceptual, definitional, explanatory, or formula inquiry
+  // e.g. "whts the difference in cubes.", "what is the quadratic formula?", "explain integration by parts"
+  const isConceptual = /\b(?:whts|whats|what\s+is|what\s+are|what\s+does|explain|difference\s+(?:in|of|between)|how\s+to|how\s+do|how\s+does|why\s+is|why\s+does|define|definition|meaning|formula\s+for|concept|intuition|teach|guide|discuss|rule\s+for|theorem|property|law\s+of)\b/i.test(lower);
+  if (isConceptual) {
+    return false;
+  }
+
+  // 6. Conversational / greetings / remarks without mathematical solving operators
+  if (!/[\d=+\-*/^]/.test(clean)) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
  * Enforces the strict delivery gate architecture:
- * - A null/empty candidate answer MUST NEVER be delivered.
+ * - A null/empty candidate answer MUST NEVER be delivered on calculation/problem queries.
  * - Claims must be fully verified with no invalid claims or contradictions.
  * - Prompt-to-claim fidelity must be satisfied.
  */
@@ -141,16 +189,18 @@ function evaluateCandidateDelivery(arg1, arg2, arg3, arg4, arg5) {
     };
   }
 
-  // Reject non-finite or undefined candidate answers
+  // Reject non-finite or undefined candidate answers on queries requiring a solved candidate answer
   if (candidateAnswer === null || candidateAnswer === undefined || String(candidateAnswer).trim() === '' ||
       /^(?:Infinity|-Infinity|NaN|undefined|null)$/i.test(String(candidateAnswer).trim())) {
-    return {
-      status: 'NO_CANDIDATE_ANSWER',
-      delivered: false,
-      withheld: true,
-      answer: null,
-      reason: 'No valid finite candidate answer could be extracted (fail-closed).'
-    };
+    if (requiresCandidateAnswer(prompt, claims)) {
+      return {
+        status: 'NO_CANDIDATE_ANSWER',
+        delivered: false,
+        withheld: true,
+        answer: null,
+        reason: 'No valid finite candidate answer could be extracted (fail-closed).'
+      };
+    }
   }
 
   const hasInvalid = verifications.some(v =>
@@ -856,14 +906,18 @@ function evaluateCandidateDelivery(arg1, arg2, arg3, arg4, arg5) {
     }
   }
 
-  const allVerified = verifications.length > 0 && verifications.every(v => v.verified === true);
+  const allVerified = verifications.length === 0
+    ? !requiresCandidateAnswer(prompt, claims)
+    : verifications.every(v => v.verified === true);
   if (allVerified) {
     return {
       status: 'VERIFIED',
       delivered: true,
       withheld: false,
       answer: candidateAnswer,
-      reason: 'All extracted claims verified successfully with prompt fidelity.'
+      reason: verifications.length === 0
+        ? 'Conceptual or qualitative derivation with zero invalid claims verified successfully.'
+        : 'All extracted claims verified successfully with prompt fidelity.'
     };
   }
 
@@ -1038,6 +1092,16 @@ function extractClaims(text, userPrompt = '') {
   function cleanAndNormalizeEquation(rawEqStr) {
     if (!rawEqStr || typeof rawEqStr !== 'string' || !rawEqStr.includes('=')) return null;
     rawEqStr = rawEqStr.replace(/÷/g, '/').replace(/\\div/g, '/');
+
+    // Split across implication / equivalence connective arrows (e.g. \implies, \iff, =>)
+    if (/(?:\\(?:implies|Rightarrow|iff|Leftrightarrow)|=>)/.test(rawEqStr)) {
+      const segments = rawEqStr.split(/(?:\\(?:implies|Rightarrow|iff|Leftrightarrow)|=>)/);
+      const eqSegments = segments.filter(s => s.includes('='));
+      if (eqSegments.length > 0) {
+        rawEqStr = eqSegments[0].trim();
+      }
+    }
+
     const parts = rawEqStr.split('=');
     if (parts.length !== 2) return null;
     const rawLhs = parts[0].trim();
@@ -2268,7 +2332,10 @@ function extractClaims(text, userPrompt = '') {
         const algPromptMatch = targetPrompt.match(/^(?:simplify|expand|factor|multiply)?\s*([a-zA-Z0-9^+\-*/().\s]+)$/i);
         if (algPromptMatch) {
           const expr = algPromptMatch[1].trim();
-          if (/^[a-zA-Z0-9^+\-*/().\s]+$/.test(expr) && /[a-zA-Z]/.test(expr) && /[+\-*^()]/.test(expr)) {
+          const mathFuncs = new Set(['sin', 'cos', 'tan', 'sec', 'csc', 'cot', 'log', 'ln', 'exp', 'sqrt', 'pi', 'theta', 'phi']);
+          const words = expr.match(/[a-zA-Z]{2,}/g) || [];
+            const hasProseWords = words.some(w => !mathFuncs.has(w.toLowerCase()));
+            if (!hasProseWords && /^[a-zA-Z0-9^+\-*/().\s]+$/.test(expr) && /[a-zA-Z]/.test(expr) && /[+\-*^()]/.test(expr)) {
             const c1 = cleanLatexForSympy(expr);
             const c2 = cleanLatexForSympy(candidateBoxed);
             const hasVarInCand = /[a-zA-Z]/.test(c2.cleaned || '');
@@ -3736,6 +3803,7 @@ module.exports = {
   extractBoxedMatches,
   cleanLatexUnits,
   extractCandidateAnswer,
+  requiresCandidateAnswer,
   evaluateCandidateDelivery,
   auditPromptClaimFidelity,
   extractClaims,

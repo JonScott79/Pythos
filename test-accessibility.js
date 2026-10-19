@@ -165,8 +165,9 @@ assert(appJs.includes('LANG_LOCALES') && appJs.includes('aria-pressed'), 'Langua
 
 // 4. VERSION LINK & CHANGELOG ANCHOR AUDIT
 console.log('\n--- Auditing Version Links & Changelog Integrity ---');
-assert(indexHtml.includes('href="changelog.html#pythos-1-9-4"'), 'Version link points to #pythos-1-9-4 anchor');
-assert(changelogHtml.includes('id="pythos-1-9-4"'), 'Changelog has target anchor id="pythos-1-9-4"');
+assert(indexHtml.includes('href="changelog.html#pythos-1-9-5"'), 'Version link points to #pythos-1-9-5 anchor');
+assert(changelogHtml.includes('id="pythos-1-9-5"'), 'Changelog has target anchor id="pythos-1-9-5"');
+assert(changelogHtml.includes('id="pythos-1-9-4"'), 'Changelog retains previous release anchor id="pythos-1-9-4"');
 assert(changelogHtml.includes('id="pythos-1-9-3"'), 'Changelog retains previous release anchor id="pythos-1-9-3"');
 assert(changelogHtml.includes('id="pythos-1-9-2"'), 'Changelog retains previous release anchor id="pythos-1-9-2"');
 assert(changelogHtml.includes('id="pythos-1-9-1"'), 'Changelog retains previous release anchor id="pythos-1-9-1"');
@@ -215,7 +216,7 @@ assert(changelogHtml.includes('id="pythos-1-6-0"'), 'Changelog retains previous 
 assert(changelogHtml.includes('id="pythos-1-5-0"'), 'Changelog retains previous release anchor id="pythos-1-5-0"');
 assert(changelogHtml.includes('class="back-btn"') && changelogHtml.includes('href="index.html"'), 'Changelog has back-link to workspace');
 assert(changelogHtml.includes('id="pythos-1-9-0"'), 'Changelog retains previous release anchor id="pythos-1-9-0"');
-assert(indexHtml.includes('aria-label="Version 1.9.4 Release Notes"'), 'Version links have accessible screen reader names');
+assert(indexHtml.includes('aria-label="Version 1.9.5 Release Notes"'), 'Version links have accessible screen reader names');
 
 // 5. CONVERSATION HISTORY AUDIT
 console.log('\n--- Auditing Conversation History Filtering ---');

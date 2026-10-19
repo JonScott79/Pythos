@@ -249,6 +249,22 @@ async function runHttpDeliverySuite() {
         'Contradictory derivation must NOT escape through response path');
     });
 
+    // -------------------------------------------------------------------------
+    // 8. Conceptual inquiry (difference in cubes) is delivered cleanly
+    // -------------------------------------------------------------------------
+    await test('8. Conceptual explanation (difference in cubes) is verified and delivered without withholding', async () => {
+      mockResponseContent = 'The difference of cubes is an algebraic identity:\n\\[ a^3 - b^3 = (a - b)(a^2 + ab + b^2) \\]\nFor example, 27 = 3^3, so x^3 - 27 = (x - 3)(x^2 + 3x + 9).';
+      const res = await makeHttpRequest({
+        messages: [{ role: 'user', content: 'whts the difference in cubes.' }],
+        stream: false
+      });
+
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(Boolean(res.data.withheld), false, 'Conceptual explanation must NOT be withheld');
+      assert(res.data.message && res.data.message.content.includes('a^3 - b^3'),
+        'Conceptual explanation must be delivered cleanly');
+    });
+
   } finally {
     if (pythosServer) {
       try { pythosServer.close(); } catch (_) {}

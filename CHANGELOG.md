@@ -1,3 +1,19 @@
+## Pythos 1.9.5
+**Release Date:** October 19, 2026
+
+### Added & Enhanced
+
+- **Intent-Aware Delivery Gate & Conceptual Query Delivery**:
+  - Resolved false withholding on conceptual inquiries, definitions, and algebraic formulas (e.g. `whts the difference in cubes.`, `what is the quadratic formula?`) where scalar/boxed candidate answers do not exist.
+  - Implemented `requiresCandidateAnswer(prompt, claims)` in `server/verificationBridge.js` to distinguish computational solving tasks (`solve`, `calculate`, standalone equations, quantitative word problems) from conceptual inquiries, allowing verified qualitative derivations with zero invalid claims to deliver cleanly without fail-closed withholding.
+- **LaTeX Implication & Equivalence Connective Splitting**:
+  - Enhanced `cleanAndNormalizeEquation` in `server/verificationBridge.js` to split across implication and logical connectives (`\implies`, `\iff`, `=>`, `\Rightarrow`). Prevents LaTeX connective symbols in multi-step factoring derivations from polluting equation strings and causing CAS syntax exceptions.
+- **Modular Congruence Routing & CAS Delegation**:
+  - Updated `server/mathjsVerifier.js` to defer modular congruence equations (`(mod N)`) directly to SymPy CAS rather than evaluating them as standard real-number polynomials.
+  - Enhanced `server/verifier/algebra_verifier.py` to bypass real-domain lost-root checks when `modulus` is present and verify integer modular congruences directly modulo $N$.
+- **Arithmetic Query Protection in Deterministic Router**:
+  - Refined `hasConceptualIntent` in `server/deterministicRouter.js` to require conceptual target nouns after conversational openers (`what is`, `whats`, `whts`), preserving high-speed deterministic calculation on direct arithmetic queries (e.g. `What is 95 - 96?`, `What is 96% of 50,000?`).
+
 ## Pythos 1.9.4
 **Release Date:** October 19, 2026
 

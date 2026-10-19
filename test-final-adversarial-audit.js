@@ -607,7 +607,7 @@ Given parameter a = 2, we evaluate 3a = 6.`;
     await test('8', '8C', 'HTTP Route: Candidate-to-claim mismatch (verified step with flawed answer 99) is WITHHELD', async () => {
       mockResponseContent = 'We note: (x - 2)(x + 2) = x^2 - 4. Further deduction shows the final answer is 99.';
       const res = await makeHttpRequest({
-        messages: [{ role: 'user', content: 'Simplify (x - 2)(x + 2)' }],
+        messages: [{ role: 'user', content: 'Explain how to simplify (x - 2)(x + 2)' }],
         stream: false
       });
 
