@@ -402,6 +402,11 @@ const MathJSVerifier = {
       return { verified: false, engine: 'mathjs', status: 'UNKNOWN', reason: 'Missing proposed solution(s)' };
     }
 
+    const hasComplex = rawSolutions.some(s => typeof s === 'string' && /(?:^|[^a-zA-Z])[+-]?(?:\d+(?:\.\d+)?)?[iI]\b/.test(s.trim()));
+    if (hasComplex) {
+      return { verified: false, engine: 'mathjs', status: 'UNKNOWN', reason: 'Complex roots defer to CAS (SymPy)' };
+    }
+
     const solutions = rawSolutions.map(s => {
       if (typeof s === 'number') return s;
       const str = String(s).trim();

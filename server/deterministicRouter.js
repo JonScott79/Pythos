@@ -1185,7 +1185,20 @@ function extractContextualTrigTriangle(conversationHistory) {
 
 function analyzeDeterministicIntent(userText, conversationHistory = []) {
   if (!userText || typeof userText !== 'string') return null;
-  const clean = userText.trim().replace(/^\$+|\$+$/g, '').replace(/[?!.]+$/, '').replace(/(\d),(\d{3})\b/g, '$1$2').trim();
+  let clean = userText.trim().replace(/^\$+|\$+$/g, '').replace(/[?!.]+$/, '').replace(/(\d),(\d{3})\b/g, '$1$2').trim();
+  let inferredRhsZero = false;
+  // Incomplete equations with trailing '=' (e.g. "3x-9=", "5x-6=", "5+3=")
+  if (/=$/.test(clean)) {
+    const withoutEq = clean.replace(/=+$/, '').trim();
+    if (/[a-zA-Z]/.test(withoutEq)) {
+      // Incomplete equation with algebraic variable: interpret as equating expression to zero
+      clean = withoutEq + ' = 0';
+      inferredRhsZero = true;
+    } else {
+      // Pure arithmetic expression: strip trailing '=' to evaluate arithmetic
+      clean = withoutEq;
+    }
+  }
   const lower = clean.toLowerCase();
 
   // Deterministic Answer Formatting & Precision Validation
@@ -1680,8 +1693,11 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   }
 
   // 0b. Strict Negative Precedence Guard: Coordinate geometry requests with points/vertices
-  const hasCoordinatePoints = /\([-\d\s.,]+\)/.test(clean) || /\[[-\d\s.,]+\]/.test(clean) || /(?:vertices|vertex|points?|vectors?)/i.test(clean);
-  if (hasCoordinatePoints || hasMixedObjects || has3DCoords || hasPolarCoords || hasBracketedCoords) {
+  const hasCoordinatePoints = /\([-\d\s.]+\s*,\s*[-\d\s.]+(?:\s*,\s*[-\d\s.]+)?\)/.test(clean) ||
+                              /\[[-\d\s.]+\s*,\s*[-\d\s.]+(?:\s*,\s*[-\d\s.]+)?\]/.test(clean) ||
+                              /(?:vertices|vertex|points?|vectors?)/i.test(clean);
+  const isGeometryContext = mentionsTriangle || /(?:geometry|polygon|quadrilateral|shape|vertices|vertex|coordinate)/i.test(clean);
+  if (isGeometryContext && (hasCoordinatePoints || hasMixedObjects || has3DCoords || hasPolarCoords || hasBracketedCoords)) {
     return null;
   }
 
@@ -2006,6 +2022,125 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
     }
   }
 
+  // 2b. Binomial Product Expansion (e.g. "(2x+4)(3+5x)", "expand (x+3)(x-5)", "(2x-1)(4x+3)")
+  const binomMatch = clean.match(/^(?:(?:expand|multiply|simplify|calculate|evaluate|what\s+is|compute)\s+)?\(\s*([-+]?\d*(?:\.\d+)?)\s*([a-zA-Z])\s*([-+])\s*(\d+(?:\.\d+)?)\s*\)\s*\*?\s*\(\s*(?:([-+]?\d*(?:\.\d+)?)\s*([a-zA-Z])\s*([-+])\s*(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s*([-+])\s*(\d*(?:\.\d+)?)\s*([a-zA-Z]))\s*\)$/i);
+  if (binomMatch) {
+    const aRaw = binomMatch[1];
+    const a = aRaw === '' || aRaw === '+' ? 1 : (aRaw === '-' ? -1 : parseFloat(aRaw));
+    const v1 = binomMatch[2];
+    const bSign = binomMatch[3] === '-' ? -1 : 1;
+    const b = bSign * parseFloat(binomMatch[4]);
+
+    let c = 0, d = 0, v2 = v1;
+    if (binomMatch[5] !== undefined) {
+      const cRaw = binomMatch[5];
+      c = cRaw === '' || cRaw === '+' ? 1 : (cRaw === '-' ? -1 : parseFloat(cRaw));
+      v2 = binomMatch[6];
+      const dSign = binomMatch[7] === '-' ? -1 : 1;
+      d = dSign * parseFloat(binomMatch[8]);
+    } else {
+      d = parseFloat(binomMatch[9]);
+      const cSign = binomMatch[10] === '-' ? -1 : 1;
+      const cRaw = binomMatch[11];
+      c = (cRaw === '' || cRaw === undefined) ? cSign * 1 : cSign * parseFloat(cRaw);
+      v2 = binomMatch[12];
+    }
+
+    if (v1.toLowerCase() === v2.toLowerCase()) {
+      const v = v1;
+      const quadCoeff = a * c;
+      const linCoeff = a * d + b * c;
+      const constCoeff = b * d;
+
+      let polyStr = '';
+      if (quadCoeff === 1) polyStr += `${v}^2`;
+      else if (quadCoeff === -1) polyStr += `-${v}^2`;
+      else if (quadCoeff !== 0) polyStr += `${quadCoeff}${v}^2`;
+
+      if (linCoeff > 0) polyStr += (polyStr ? ' + ' : '') + (linCoeff === 1 ? v : `${linCoeff}${v}`);
+      else if (linCoeff < 0) polyStr += (polyStr ? ' - ' : '-') + (Math.abs(linCoeff) === 1 ? v : `${Math.abs(linCoeff)}${v}`);
+
+      if (constCoeff > 0) polyStr += (polyStr ? ' + ' : '') + constCoeff;
+      else if (constCoeff < 0) polyStr += (polyStr ? ' - ' : '-') + Math.abs(constCoeff);
+      if (!polyStr) polyStr = '0';
+
+      return {
+        type: 'ALGEBRA_SIMPLIFICATION',
+        expression: clean,
+        result: polyStr,
+        solution: polyStr,
+        formatted: polyStr,
+        steps: [
+          `Use the FOIL method (First, Outside, Inside, Last): $(${a !== 1 ? a : ''}${v})(${c !== 1 ? c : ''}${v}) + (${a !== 1 ? a : ''}${v})(${d}) + (${b})(${c !== 1 ? c : ''}${v}) + (${b})(${d})$`,
+          `Multiply each term: $${quadCoeff}${v}^2 + ${a * d}${v} + ${b * c}${v} + ${constCoeff}$`,
+          `Combine like terms: $${polyStr}$`
+        ]
+      };
+    }
+  }
+
+  // 2c. Quadratic Factoring (e.g. "2x^2+14x+12", "x^2-5x+6", "factor 2x^2+14x+12")
+  const quadFactorMatch = clean.match(/^(?:(?:factor|simplify)\s+)?([-+]?\d*(?:\.\d+)?)\s*([a-zA-Z])\^2\s*([-+])\s*(\d*(?:\.\d+)?)\s*\2\s*([-+])\s*(\d+(?:\.\d+)?)$/i);
+  if (quadFactorMatch) {
+    const aRaw = quadFactorMatch[1];
+    const a = aRaw === '' || aRaw === '+' ? 1 : (aRaw === '-' ? -1 : parseFloat(aRaw));
+    const v = quadFactorMatch[2];
+    const bSign = quadFactorMatch[3] === '-' ? -1 : 1;
+    const bRaw = quadFactorMatch[4];
+    const b = (bRaw === '' || bRaw === undefined) ? bSign * 1 : bSign * parseFloat(bRaw);
+    const cSign = quadFactorMatch[5] === '-' ? -1 : 1;
+    const c = cSign * parseFloat(quadFactorMatch[6]);
+
+    if (a !== 0) {
+      const disc = b * b - 4 * a * c;
+      if (disc >= 0) {
+        const sqrtD = Math.sqrt(disc);
+        if (Math.round(sqrtD) === sqrtD) {
+          const r1 = (-b - sqrtD) / (2 * a);
+          const r2 = (-b + sqrtD) / (2 * a);
+
+          function gcdInt(x, y) {
+            x = Math.abs(x); y = Math.abs(y);
+            while (y) { const t = y; y = x % y; x = t; }
+            return x;
+          }
+
+          const g = gcdInt(gcdInt(Math.round(a), Math.round(b)), Math.round(c));
+          const lead = a < 0 ? -g : g;
+          const aRed = a / lead;
+          const bRed = b / lead;
+          const cRed = c / lead;
+
+          const minR = Math.min(r1, r2);
+          const maxR = Math.max(r1, r2);
+
+          function factorTerm(root) {
+            const sign = root <= 0 ? '+' : '-';
+            const val = Math.abs(root);
+            return `${v} ${sign} ${val}`;
+          }
+
+          let factStr = '';
+          if (lead !== 1) factStr += `${lead}`;
+          factStr += `(${factorTerm(maxR)})(${factorTerm(minR)})`;
+
+          return {
+            type: 'ALGEBRA_SIMPLIFICATION',
+            expression: clean,
+            result: factStr,
+            solution: factStr,
+            formatted: factStr,
+            steps: [
+              lead !== 1 ? `Factor out common coefficient ${lead}: $${lead}(${aRed !== 1 ? aRed : ''}${v}^2 ${bRed >= 0 ? '+' : '-'} ${Math.abs(bRed)}${v} ${cRed >= 0 ? '+' : '-'} ${Math.abs(cRed)})$` : null,
+              `Find two numbers that multiply to $${aRed * cRed}$ and add to $${bRed}$: $${-minR}$ and $${-maxR}$`,
+              `Factor into binomials: $${factStr}$`
+            ].filter(Boolean)
+          };
+        }
+      }
+    }
+  }
+
   // 3. Linear & Quadratic Equation Solving (e.g. "solve 3x + 5 = 20", "solve for x: x^2 - 5x + 6 = 0", "Pythos, solve this equation: 2x + 7 = 15", "Okay, now solve x^2 - 5x + 6 = 0", "Find root for x: 7x + 44 = 9")
   const eqMatch = clean.match(/^(?:(?:(?:okay|ok|now|pythos|please|kindly|actually|wait|sorry|no)[,\s]+)*(?:solve|find|determine|calculate|(?:the\s+)?equation\s+(?:was|is)|i\s+meant)(?:\s+[a-zA-Z]\s+in\b)?(?:\s+(?:all\s+)?(?:the\s+)?(?:real\s+)?(?:root|roots|solution|solutions|value(?:\s+of)?))?(?:\s+(?:this|the)?\s*equation)?(?:\s+(?:for|in|of|to)(?:\s+[a-zA-Z])?)?[:\s]+)?([a-zA-Z0-9.\s*+^/()\-]+=[a-zA-Z0-9.\s*+^/()\-]+)$/i) ||
                   clean.match(/^(?:(?:(?:okay|ok|now|pythos|please|kindly|actually|wait|sorry|no)[,\s]+)*(?:solve|find|determine|calculate|(?:the\s+)?equation\s+(?:was|is)|i\s+meant)(?:\s+[a-zA-Z]\s+in\b)?(?:\s+(?:all\s+)?(?:the\s+)?(?:real\s+)?(?:root|roots|solution|solutions|value(?:\s+of)?))?(?:\s+(?:this|the)?\s*equation)?(?:\s+(?:for|in|of|to)(?:\s+[a-zA-Z])?)?[:\s]+)?(sqrt\([a-zA-Z0-9.\s*+^/()\-]+\)\s*=\s*[a-zA-Z0-9.\s*+^/()\-]+)$/i);
@@ -2013,8 +2148,9 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
     const rawEq = eqMatch[1].trim().replace(/\+\s*-/g, '- ');
 
     // If an active problem exists and student did not explicitly command "solve...", defer to contextual student work evaluation
+    const hasPriorAssistant = Array.isArray(conversationHistory) && conversationHistory.some(m => m && m.role === 'assistant');
     const hasExplicitSolveDirective = /^(?:solve|find\s+(?:the\s+)?(?:root|roots|solution)|calculate|determine|(?:actually|wait|sorry)[,\s]+(?:the\s+)?equation\s+(?:was|is))\b/i.test(clean);
-    if (!hasExplicitSolveDirective && conversationHistory && conversationHistory.length > 0) {
+    if (!hasExplicitSolveDirective && hasPriorAssistant) {
       try {
         const { extractActiveProblemState } = require('./contextManager');
         const state = extractActiveProblemState(conversationHistory);
@@ -2117,6 +2253,20 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
             result: solStr,
             formatted: `${v} = ${solStr}`
           };
+        } else {
+          const realPart = Math.round((-b / (2 * a)) * 1e6) / 1e6;
+          const imagPart = Math.round((Math.sqrt(-disc) / (2 * Math.abs(a))) * 1e6) / 1e6;
+          const imagStr = imagPart === 1 ? 'i' : `${imagPart}i`;
+          const solStr = realPart === 0 ? `-${imagStr}, ${imagStr}` : `${realPart} - ${imagStr}, ${realPart} + ${imagStr}`;
+          const formatted = realPart === 0 ? `${v} = \\pm ${imagStr}` : `${v} = ${realPart} \\pm ${imagStr}`;
+          return {
+            type: 'ALGEBRA_QUADRATIC_SOLVE',
+            equation: rawEq,
+            variable: v,
+            solution: solStr,
+            result: solStr,
+            formatted
+          };
         }
       }
     }
@@ -2136,6 +2286,11 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
       if (coeff !== 0 && !isNaN(rhsVal)) {
         const root = (rhsVal - constVal) / coeff;
         const cleanRoot = root % 1 === 0 ? root : parseFloat(root.toFixed(6));
+        const linearSteps = [
+          inferredRhsZero ? `Interpreted trailing "=" as equating expression to zero: $${rawEq}$` : null,
+          constVal !== 0 ? `Subtract ${constVal > 0 ? constVal : `(${constVal})`} from both sides: $${coeff === 1 ? varName : (coeff === -1 ? `-${varName}` : `${coeff}${varName}`)} = ${rhsVal - constVal}$` : null,
+          coeff !== 1 ? `Divide both sides by ${coeff}: $${varName} = ${cleanRoot}$` : null
+        ].filter(Boolean);
         return {
           type: 'ALGEBRA_LINEAR_SOLVE',
           equation: rawEq,
@@ -2143,10 +2298,8 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
           solution: cleanRoot,
           result: cleanRoot,
           formatted: `${varName} = ${cleanRoot}`,
-          steps: [
-            constVal !== 0 ? `Subtract ${constVal > 0 ? constVal : `(${constVal})`} from both sides: $${coeff === 1 ? varName : (coeff === -1 ? `-${varName}` : `${coeff}${varName}`)} = ${rhsVal - constVal}$` : null,
-            coeff !== 1 ? `Divide both sides by ${coeff}: $${varName} = ${cleanRoot}$` : null
-          ].filter(Boolean)
+          inferredRhsZero: Boolean(inferredRhsZero),
+          steps: linearSteps
         };
       }
     }
@@ -2201,11 +2354,16 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
                 };
               } else {
                 return {
-                  type: 'ALGEBRA_CONTRADICTION',
-                  result: 'IMPOSSIBLE',
-                  solution: 'IMPOSSIBLE',
-                  formatted: `Contradiction: Equation simplifies to 0 = ${B.toFixed(4)}, which has no solution.`,
-                  reason: 'Contradiction: Inconsistent linear equation (no solution).'
+                  type: 'ALGEBRA_LINEAR_SOLVE',
+                  equation: rawEq,
+                  variable: v,
+                  solution: 'No solution',
+                  result: 'No solution',
+                  formatted: `\\text{No solution (Inconsistent equation: } 0 = ${B.toFixed(4)}\\text{)}`,
+                  steps: [
+                    `Simplifying both sides yields: $0 = ${B.toFixed(4)}$`,
+                    `Since this statement is false for all values of $${v}$, there is no solution.`
+                  ]
                 };
               }
             }
@@ -3126,7 +3284,9 @@ If you ever want a tool that isn't here yet, just hit the **🚩 Report** button
   }
 
   if (intent.type === 'ALGEBRA_LINEAR_SOLVE') {
-    let out = `✅ Here is the step-by-step solution for $${intent.equation}$:\n\n`;
+    let out = intent.inferredRhsZero
+      ? `✅ Interpreted trailing \`=\` as equating expression to zero to solve for $${intent.variable}$ ($${intent.equation}$):\n\n`
+      : `✅ Here is the step-by-step solution for $${intent.equation}$:\n\n`;
     intent.steps.forEach((s, idx) => {
       out += `${idx + 1}. ${s}\n`;
     });
@@ -3160,7 +3320,14 @@ If you ever want a tool that isn't here yet, just hit the **🚩 Report** button
   }
 
   if (intent.type === 'ALGEBRA_SIMPLIFICATION') {
-    return `✅ Here is the algebraic simplification:\n\n$$\n${intent.formatted}\n$$\n\n\\boxed{${intent.formatted}}`;
+    let stepsText = '';
+    if (intent.steps && intent.steps.length > 0) {
+      stepsText = intent.steps.map((s, idx) => `${idx + 1}. ${s}`).join('\n') + '\n\n';
+    }
+    const eqDisplay = intent.expression && intent.formatted && intent.expression !== intent.formatted
+      ? `${intent.expression} = ${intent.formatted}`
+      : (intent.formatted || intent.expression);
+    return `✅ Here is the algebraic simplification for $${intent.expression || intent.formatted}$:\n\n${stepsText}$$\n${eqDisplay}\n$$\n\n\\boxed{${intent.solution || intent.formatted}}`;
   }
 
   if (intent.type === 'CALCULUS_DERIVATIVE') {

@@ -744,6 +744,39 @@ function buildBoundedConversationContext(rawMessages = [], options = {}) {
 }
 
 
+function isIndependentProblem(text, priorPrompt) {
+  if (!text || typeof text !== 'string') return false;
+  const t = text.trim();
+  // Conversational corrections, amendments, or continuations
+  if (/^(?:i\s+meant|actually|wait|sorry|no|typo|instead|what\s+about|how\s+about|and|then|now|what\s+if)\b/i.test(t)) {
+    return false;
+  }
+  // Bare variable assignments or bare numbers (e.g. "x = 3", "3", "y = 4") represent student work
+  if (/^[a-zA-Z]\s*=\s*[-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?$/i.test(t) || /^[-+]?\d+(?:\.\d+)?$/i.test(t)) {
+    return false;
+  }
+  // 1. Standalone equation with operations on LHS or RHS (e.g. "3x-9=0", "5x-6=0", "2x^2+14x+12=0", "3x-9=")
+  if (/^[a-zA-Z0-9^+\-*/()÷\\.\s]+=[a-zA-Z0-9^+\-*/()÷\\.\s]*$/.test(t) && /[+*^/\-]/.test(t.split('=')[0])) {
+    return true;
+  }
+  // 2. Standalone algebraic expression without = (e.g. "2x^2+14x+12", "(2x+4)(3+5x)")
+  const cleanAlg = t.replace(/\b(?:sin|cos|tan|sec|csc|cot|log|ln|exp|sqrt)\b/gi, '');
+  if (/^[a-zA-Z0-9^+\-*/().\s]+$/.test(t) && !/\b[a-zA-Z]{3,}\b/.test(cleanAlg) && /[a-zA-Z]/.test(t) && /[+*^/\-]/.test(t) && !/[?!]/.test(t)) {
+    return true;
+  }
+  // 3. Standalone calculus Leibniz derivative or integral (e.g. "d/dx ln(x)", "d/dx [sin(x)]", "\int x^2 dx")
+  if (/^(?:d\/d[a-zA-Z]|\\frac\{d\}\{d[a-zA-Z]\}|\\int\b|integrate\b|differentiate\b)/i.test(t)) {
+    return true;
+  }
+  // 4. Domain divergence check: if prior prompt was calculus (e.g. "d/dx ln(x)") and current is algebra without calculus keywords
+  if (priorPrompt && /\b(?:d\/dx|derivative|integral|integrate|differentiate|limit)\b/i.test(priorPrompt)) {
+    if (!/\b(?:derivative|integral|differentiate|limit|dx|dy|dt)\b/i.test(t) && /[a-zA-Z0-9]/.test(t)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /**
  * Synthesizes the Authoritative Effective Problem Context from a multi-turn conversation.
  * Replaces superseded values/equations while preserving unchanging problem context.
@@ -771,6 +804,11 @@ function buildEffectivePrompt(messages = []) {
     return 'Generate practice problem: ' + latestUser;
   }
 
+  // 1d. Independent mathematical problem or domain transition
+  if (isIndependentProblem(latestUser, firstUser)) {
+    return latestUser;
+  }
+
   // 2. Identify base problem
   let basePrompt = firstUser;
   for (let i = 0; i < userMsgs.length - 1; i++) {
@@ -780,6 +818,8 @@ function buildEffectivePrompt(messages = []) {
       let np = npm[1].trim();
       if (!/^(?:solve|calculate|what|find)\b/i.test(np)) np = 'Solve ' + np;
       basePrompt = np;
+    } else if (isIndependentProblem(um, firstUser)) {
+      basePrompt = um;
     }
   }
 
@@ -953,6 +993,7 @@ function buildEffectivePrompt(messages = []) {
 
 module.exports = {
   buildEffectivePrompt,
+  isIndependentProblem,
   TOTAL_CONTEXT_LIMIT,
   MAX_INPUT_TOKEN_TARGET,
   RECENT_VERBATIM_TURNS,

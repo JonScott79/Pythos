@@ -150,14 +150,21 @@ def verify_algebra(claim: dict) -> dict:
         extraneous_found = []
         for prop in proposed_solutions:
             try:
-                # Support complex roots like i, -i
-                if isinstance(prop, str) and prop.strip().lower() in ('i', '-i'):
-                    val = sp.I if prop.strip().lower() == 'i' else -sp.I
-                elif isinstance(prop, str):
-                    try:
-                        val = sp.sympify(prop)
-                    except Exception:
-                        val = float(prop)
+                # Support complex roots like i, -i, 2i, -2i, etc.
+                if isinstance(prop, str):
+                    clean_prop = prop.strip()
+                    if clean_prop.lower() == 'i':
+                        val = sp.I
+                    elif clean_prop.lower() == '-i':
+                        val = -sp.I
+                    else:
+                        import re
+                        norm_p = re.sub(r'(\d)\s*[iI]\b', r'\g<1>*I', clean_prop)
+                        norm_p = re.sub(r'(^|[-+*/\s])\s*[iI]\b', r'\g<1>I', norm_p)
+                        try:
+                            val = _safe_parse(norm_p)
+                        except Exception:
+                            val = float(clean_prop)
                 else:
                     val = float(prop)
 
@@ -183,7 +190,7 @@ def verify_algebra(claim: dict) -> dict:
                 # Check if substitution produces undefined/infinite values
                 if (lhs_val == sp.zoo or lhs_val == sp.nan or lhs_val == sp.oo or lhs_val == -sp.oo or
                     rhs_val == sp.zoo or rhs_val == sp.nan or rhs_val == sp.oo or rhs_val == -sp.oo):
-                    extraneous_found.append(val)
+                    extraneous_found.append(str(val))
                     continue
                 modulus = claim.get("modulus")
                 if modulus:
@@ -192,18 +199,21 @@ def verify_algebra(claim: dict) -> dict:
                         diff_val = float(sp.N(lhs_val - rhs_val))
                         mod_diff = (diff_val % m_val + m_val) % m_val
                         if min(mod_diff, abs(m_val - mod_diff)) > 1e-4:
-                            extraneous_found.append(val)
+                            extraneous_found.append(str(val))
                     except Exception:
-                        extraneous_found.append(val)
+                        extraneous_found.append(str(val))
                 else:
-                    diff_val = float(sp.N(lhs_val - rhs_val))
-                    # NaN from domain violations (e.g., 0/0)
-                    if math.isnan(diff_val) or math.isinf(diff_val):
-                        extraneous_found.append(val)
-                    elif abs(diff_val) > 1e-4:
-                        extraneous_found.append(val)
+                    diff_simp = sp.simplify(lhs_val - rhs_val)
+                    if diff_simp != 0:
+                        try:
+                            diff_c = complex(sp.N(diff_simp))
+                            diff_val = abs(diff_c)
+                            if math.isnan(diff_val) or math.isinf(diff_val) or diff_val > 1e-4:
+                                extraneous_found.append(str(val))
+                        except Exception:
+                            extraneous_found.append(str(val))
             except Exception:
-                extraneous_found.append(float(prop) if isinstance(prop, (int, float)) else prop)
+                extraneous_found.append(str(prop))
 
         if extraneous_found:
             return {

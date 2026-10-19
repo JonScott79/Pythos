@@ -55,9 +55,7 @@ function analyzeSpecialistIntent(prompt, conversationHistory = []) {
     };
   }
 
-  // 3. CALCULUS: DIFFERENTIATION
-  // e.g. "find the derivative of 3x^4 - 5x^2", "d/dx [sin(2x)]", "Compute the derivative d/dx of 3x^3 + 8"
-  const derivMatch = clean.match(/(?:differentiate|derivative\s+of|d\/d([a-zA-Z])(?:\s*\[|\s*\(|\s+of)|compute\s+(?:the\s+)?derivative\s+(?:d\/d([a-zA-Z])\s+)?of|find\s+(?:the\s+)?derivative\s+(?:d\/d([a-zA-Z])\s+)?of)\s*([^?$\n]+)/i);
+  const derivMatch = clean.match(/(?:differentiate|derivative\s+of|d\/d([a-zA-Z])(?:\s*\[|\s*\(|\s+of|\s+)|compute\s+(?:the\s+)?derivative\s+(?:d\/d([a-zA-Z])\s+)?of|find\s+(?:the\s+)?derivative\s+(?:d\/d([a-zA-Z])\s+)?of)\s*([^?$\n]+)/i);
   if (derivMatch) {
     let expr = derivMatch[derivMatch.length - 1].trim();
     let varName = derivMatch[1] || derivMatch[2] || derivMatch[3];
@@ -304,12 +302,15 @@ async function executeSpecialistRoute(intent) {
     if (intent.operation === 'DIFFERENTIATION') {
       const res = await calculusEngine.differentiate(intent.expression, { variable: intent.variable });
       if (res.status === 'VERIFIED') {
+        const domainNote = /\b(?:ln|log)\b/i.test(intent.expression)
+          ? `\n\n*Note: Valid on the real domain $${intent.variable} > 0$.*`
+          : '';
         return {
           status: 'VERIFIED',
           model: 'pythos-calculus-engine',
           deterministic: true,
           answer: res.exactResult,
-          formattedResponse: `### Calculus: Symbolic Differentiation\n\nTo differentiate $f(${intent.variable}) = ${intent.expression}$ with respect to $${intent.variable}$:\n\n${res.derivationSteps.map(s => `- $${s}$`).join('\n')}\n\n**Derivative:**\n$$\\frac{d}{d${intent.variable}}[${intent.expression}] = \\boxed{${res.exactResult}}$$`
+          formattedResponse: `### Calculus: Symbolic Differentiation\n\nTo differentiate $f(${intent.variable}) = ${intent.expression}$ with respect to $${intent.variable}$:\n\n${res.derivationSteps.map(s => `- $${s}$`).join('\n')}\n\n**Derivative:**\n$$\\frac{d}{d${intent.variable}}[${intent.expression}] = \\boxed{${res.exactResult}}$$${domainNote}`
         };
       }
     } else if (intent.operation === 'INTEGRATION') {

@@ -1,3 +1,27 @@
+## Pythos 1.9.3
+**Release Date:** October 19, 2026
+
+### Added & Enhanced
+
+- **Deterministic Gate Expansion & Trailing Equals Resolution**:
+  - Resolved false withholding on incomplete equations (`3x-9=`, `5x-6=`) by establishing `ALGEBRA_LINEAR_SOLVE` intent, automatically inferring missing zero right-hand side, and explicitly disclosing the assumption (`Interpreted trailing "=" as equating expression to zero`) in user-visible output.
+  - Added quadratic factoring (`ALGEBRA_SIMPLIFICATION`) with lead common coefficient extraction (e.g. `2x^2+14x+12 = 2(x+1)(x+6)`) and binomial product expansion (`(2x+4)(3+5x) = 10x^2+26x+12`), unblocking unadorned expression queries on Turn 1.
+- **Verification Daemon Concurrency & Request Isolation**:
+  - Completely eliminated unsafe `firstKey` request stealing in `verificationBridge.js`. Verifier daemon responses now resolve strictly against matching unique request IDs (`reqId`), preventing cross-request verdict contamination under concurrent load.
+  - Protected daemon against malformed JSON or unindexed responses with isolated safe rejection.
+- **Calculus Leibniz Spacing & Real-Domain Disclosure**:
+  - Expanded calculus derivative regex in `domainSpecialistRouter.js` and `verificationBridge.js` to match whitespace-delimited Leibniz notation (`d/dx ln(x)`).
+  - Enforced explicit real-domain condition disclosure in delivered calculus output (e.g. `*Note: Valid on the real domain $x > 0$.*` for $\ln(x)$).
+- **Exact Candidate Verification & Substring Elimination**:
+  - Hardened `evaluateCandidateDelivery` to require exact mathematical equivalence rather than substring inclusion (`.includes()`), eliminating partial answer acceptance (e.g. rejecting `x+1` when the target is `2(x+1)(x+6)`).
+- **Multi-Turn Domain Isolation & ReDoS Protection**:
+  - Upgraded `isIndependentProblem` in `contextManager.js` to detect domain shifts (calculus $\leftrightarrow$ algebra) and reset effective verification prompts, preventing Turn 1 prompt bleed and false `FIDELITY_MISMATCH` errors.
+  - Eliminated catastrophic regular expression backtracking (ReDoS) on sentence inputs in `isIndependentProblem` by replacing nested quantifiers with linear scans and math prose guards.
+- **Complex Roots & LaTeX Normalization Hygiene**:
+  - Added complex root handling in `mathjsVerifier.js`, safely deferring complex roots ($x = \pm 2i$) to SymPy CAS.
+  - Fixed variable-width lookbehind regex in `algebra_verifier.py` and stringified `ImaginaryUnit` objects to prevent JSON serialization crashes.
+  - Preserved leading backslashes on LaTeX expressions in `cleanLatexForSympy`, ensuring multi-step rational simplifications verify cleanly.
+
 ## Pythos 1.9.2
 **Release Date:** October 19, 2026
 

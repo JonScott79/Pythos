@@ -1845,6 +1845,7 @@ app.post('/api/chat', async (req, res) => {
             verification: verificationResults,
             verificationAudit,
             deterministic: true,
+            withheld: false,
             deliveryStatus: delivery.status,
             deliveredAnswer: delivery.answer,
             done: true
