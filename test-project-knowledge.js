@@ -218,7 +218,7 @@ for (const q of releaseQueries) {
     assert(res.sources.includes('CHANGELOG'));
 
     const ctx = buildProjectKnowledgeContext(q);
-    assert(ctx.includes('Pythos 1.9.3'), 'Context must contain latest version 1.9.3');
+    assert(ctx.includes('Pythos 1.9.4'), 'Context must contain latest version 1.9.4');
     assert(ctx.includes('October 19, 2026'), 'Context must contain release date');
     // Token efficiency check: latest release extracted should be under 500 tokens
     assert(ctx.length < 4500, `Changelog context should be compact (< 4500 chars), got ${ctx.length}`);
@@ -404,7 +404,7 @@ runTest('Authoritative source reads from filesystem, not hardcoded strings', () 
 
   const changelogSource = getAuthoritativeSource('CHANGELOG');
   assert(changelogSource !== null);
-  assert(changelogSource.text.includes('Pythos 1.9.3'));
+  assert(changelogSource.text.includes('Pythos 1.9.4'));
 });
 
 // =========================================================================

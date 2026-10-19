@@ -956,8 +956,10 @@ function buildEffectivePrompt(messages = []) {
       effective += ' (User claims: ' + userClaimMatch[1] + ')';
       continue;
     }
-    if (/\bi\s+got\s+(\d+(?:\.\d+)?)\b/i.test(turnText)) {
-      const pAns = turnText.match(/\bi\s+got\s+(\d+(?:\.\d+)?)\b/i)[1];
+    const studentAnsMatch = turnText.match(/\b(?:it\x27?s|its|it\s+is|is\s+it|answer\s+is|is|i\s+got|got)\s+(?:flipping\s+|literally\s+|obviously\s+|clearly\s+|just\s+|definitely\s+|freaking\s+|totally\s+)?([-+]?\d+(?:\.\d+)?)\b/i) ||
+                            turnText.match(/\b(?:flipping|literally|obviously|clearly)\s+([-+]?\d+(?:\.\d+)?)\b/i);
+    if (studentAnsMatch) {
+      const pAns = studentAnsMatch[1];
       effective += ' (Student proposes answer: ' + pAns + ')';
       continue;
     }

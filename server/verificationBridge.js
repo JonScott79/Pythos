@@ -2074,6 +2074,7 @@ function extractClaims(text, userPrompt = '') {
   // When candidate states a final answer in \boxed{...} or bare value and surrounding prompt provides mathematical intent
   if (promptStr) {
     const cleanPrompt = promptStr.trim().replace(/[?!.]+$/, '').trim();
+    const basePrompt = cleanPrompt.replace(/\s*\((?:Student proposes answer|User asserts|User claims|Context|Note):.*?\)/gi, '').trim().replace(/[?!.]+$/, '').trim();
 
     // Extract proposed final answer from \boxed{...}
     let candidateBoxed = null;
@@ -2261,26 +2262,47 @@ function extractClaims(text, userPrompt = '') {
         }
       }
 
-      // 10d. Algebraic Simplification / Factoring / Expansion: e.g. "(2x+4)(3+5x)", "2x^2+14x+12", "simplify (x+1)^2", "factor x^2-9"
-      if (!cleanPrompt.includes('=') && candidateBoxed && /[a-zA-Z]/.test(cleanPrompt) && !/\bd\/d[a-zA-Z]\b|\bderivative\b|\bdifferentiate\b|\blim\b|\bint\b/i.test(cleanPrompt)) {
-        const algPromptMatch = cleanPrompt.match(/^(?:simplify|expand|factor|multiply)?\s*([a-zA-Z0-9^+\-*/().\s]+)$/i);
+      // 10d. Algebraic Simplification / Factoring / Expansion or Implicit Zero RHS Solving
+      const targetPrompt = basePrompt || cleanPrompt;
+      if (!targetPrompt.includes('=') && candidateBoxed && /[a-zA-Z]/.test(targetPrompt) && !/\bd\/d[a-zA-Z]\b|\bderivative\b|\bdifferentiate\b|\blim\b|\bint\b/i.test(targetPrompt)) {
+        const algPromptMatch = targetPrompt.match(/^(?:simplify|expand|factor|multiply)?\s*([a-zA-Z0-9^+\-*/().\s]+)$/i);
         if (algPromptMatch) {
           const expr = algPromptMatch[1].trim();
           if (/^[a-zA-Z0-9^+\-*/().\s]+$/.test(expr) && /[a-zA-Z]/.test(expr) && /[+\-*^()]/.test(expr)) {
             const c1 = cleanLatexForSympy(expr);
             const c2 = cleanLatexForSympy(candidateBoxed);
-            if (c1.cleaned && c2.cleaned && !claims.some(c => c.claim_type === 'symbolic_equivalence')) {
-              claims.push({
-                domain: 'algebra',
-                claim_type: 'symbolic_equivalence',
-                raw_match: `${expr} = ${candidateBoxed}`,
-                data: {
-                  expr1: c1.cleaned,
-                  expr2: c2.cleaned,
+            const hasVarInCand = /[a-zA-Z]/.test(c2.cleaned || '');
+            if (c1.cleaned && c2.cleaned) {
+              if (hasVarInCand && !claims.some(c => c.claim_type === 'symbolic_equivalence')) {
+                claims.push({
+                  domain: 'algebra',
+                  claim_type: 'symbolic_equivalence',
+                  raw_match: `${expr} = ${candidateBoxed}`,
+                  data: {
+                    expr1: c1.cleaned,
+                    expr2: c2.cleaned,
+                    userPrompt: promptStr
+                  },
                   userPrompt: promptStr
-                },
-                userPrompt: promptStr
-              });
+                });
+              } else if (!hasVarInCand && !claims.some(c => c.claim_type === 'equation_solution')) {
+                // Incomplete equation evaluated with implicit zero RHS (e.g. "3x-6?", "5x-10", "3x-6")
+                const varMatch = expr.match(/[a-zA-Z]/);
+                const v = varMatch ? varMatch[0] : 'x';
+                const sols = candidateBoxed.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean);
+                claims.push({
+                  domain: 'algebra',
+                  claim_type: 'equation_solution',
+                  raw_match: `${expr} = 0`,
+                  data: {
+                    equation: `${expr} = 0`,
+                    variable: v,
+                    proposed_solutions: sols,
+                    userPrompt: promptStr
+                  },
+                  userPrompt: promptStr
+                });
+              }
             }
           }
         }

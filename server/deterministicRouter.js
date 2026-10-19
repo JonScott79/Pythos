@@ -1187,7 +1187,7 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   if (!userText || typeof userText !== 'string') return null;
   let clean = userText.trim().replace(/^\$+|\$+$/g, '').replace(/[?!.]+$/, '').replace(/(\d),(\d{3})\b/g, '$1$2').trim();
   let inferredRhsZero = false;
-  // Incomplete equations with trailing '=' (e.g. "3x-9=", "5x-6=", "5+3=")
+  // Incomplete equations with trailing '=' or unadorned linear expression (e.g. "3x-9=", "5x-6=", "3x-6?", "3x-6")
   if (/=$/.test(clean)) {
     const withoutEq = clean.replace(/=+$/, '').trim();
     if (/[a-zA-Z]/.test(withoutEq)) {
@@ -1198,6 +1198,11 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
       // Pure arithmetic expression: strip trailing '=' to evaluate arithmetic
       clean = withoutEq;
     }
+  } else if (/^(?:solve\s+)?[-+]?\d*(?:\.\d+)?\s*\*?\s*[a-zA-Z]\s*[-+]\s*\d+(?:\.\d+)?$/i.test(clean)) {
+    // Standalone linear expression (e.g. "3x-6?", "3x-6", "solve 3x-6")
+    const stripped = clean.replace(/^solve\s+/i, '').trim();
+    clean = stripped + ' = 0';
+    inferredRhsZero = true;
   }
   const lower = clean.toLowerCase();
 
@@ -2287,7 +2292,7 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
         const root = (rhsVal - constVal) / coeff;
         const cleanRoot = root % 1 === 0 ? root : parseFloat(root.toFixed(6));
         const linearSteps = [
-          inferredRhsZero ? `Interpreted trailing "=" as equating expression to zero: $${rawEq}$` : null,
+          inferredRhsZero ? `Interpreted expression as equating to zero: $${rawEq}$` : null,
           constVal !== 0 ? `Subtract ${constVal > 0 ? constVal : `(${constVal})`} from both sides: $${coeff === 1 ? varName : (coeff === -1 ? `-${varName}` : `${coeff}${varName}`)} = ${rhsVal - constVal}$` : null,
           coeff !== 1 ? `Divide both sides by ${coeff}: $${varName} = ${cleanRoot}$` : null
         ].filter(Boolean);
@@ -3285,7 +3290,7 @@ If you ever want a tool that isn't here yet, just hit the **🚩 Report** button
 
   if (intent.type === 'ALGEBRA_LINEAR_SOLVE') {
     let out = intent.inferredRhsZero
-      ? `✅ Interpreted trailing \`=\` as equating expression to zero to solve for $${intent.variable}$ ($${intent.equation}$):\n\n`
+      ? `✅ Interpreted expression as equating to zero to solve for $${intent.variable}$ ($${intent.equation}$):\n\n`
       : `✅ Here is the step-by-step solution for $${intent.equation}$:\n\n`;
     intent.steps.forEach((s, idx) => {
       out += `${idx + 1}. ${s}\n`;

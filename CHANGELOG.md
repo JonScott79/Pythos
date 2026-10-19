@@ -1,3 +1,17 @@
+## Pythos 1.9.4
+**Release Date:** October 19, 2026
+
+### Added & Enhanced
+
+- **Implicit Linear Expression Solving & Zero-RHS Invariant**:
+  - Resolved safe withholding on unadorned and question-marked linear expressions (e.g. `3x-6?`, `3x-6`, `3x-6 = ?`, `5x-10?`) by establishing `ALGEBRA_LINEAR_SOLVE` fast-path intent with automatic zero right-hand side inference and explicit step-by-step disclosure (`Interpreted expression as equating to zero: $3x - 6 = 0$`).
+- **CAS Claim Formulation & Identity Disambiguation**:
+  - Upgraded Pattern 10d in `verificationBridge.js` to distinguish algebraic identities from implicit equation root solutions. When a scalar root candidate is extracted for an unadorned variable expression (e.g. `2` for `3x-6`), Pythos now extracts an `equation_solution` claim for `3x-6 = 0` rather than evaluating an impossible universal identity (`3x-6 ≡ 2`), preventing false `INVALID_CLAIMS_DETECTED` withholding.
+  - Introduced clean `basePrompt` resolution in Pattern 10 to strip multi-turn contextual metadata (`(Student proposes answer: ...)`, `(User claims: ...)`), allowing candidate roots in conversational follow-ups to bind and verify cleanly against underlying expressions.
+- **Conversational Student Answer Intent Recognition**:
+  - Expanded `studentIntentClassifier.js` to recognize natural student language, adverbs, and informal phrasing (e.g. `its flipping 2 man ez math`, `its 2`, `it's 2`, `literally 2 bro`, `obviously 2 ez math`), classifying them as `PROPOSED_ANSWER` with exact numeric root isolation.
+  - Enhanced multi-turn prompt aggregation in `contextManager.js` to capture conversational answers into `effectivePrompt` for pedagogical alignment and deterministic step evaluation.
+
 ## Pythos 1.9.3
 **Release Date:** October 19, 2026
 

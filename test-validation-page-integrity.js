@@ -63,8 +63,8 @@ runTest('No duplicate campaign collision: Current headline counts distinct from 
 
 // Test 4: Version alignment
 runTest('Version alignment: Homepage version matches validation page version', () => {
-  assert(indexHtml.includes('v1.9.3'), 'Homepage must cite v1.9.3');
-  assert(valHtml.includes('v1.9.3'), 'Validation page must cite v1.9.3');
+  assert(indexHtml.includes('v1.9.4'), 'Homepage must cite v1.9.4');
+  assert(valHtml.includes('v1.9.4'), 'Validation page must cite v1.9.4');
 });
 
 // Test 5: No stale 110k in meta descriptions
