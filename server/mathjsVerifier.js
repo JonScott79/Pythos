@@ -458,12 +458,22 @@ const MathJSVerifier = {
       // 2. Perform substitution verification
       const invalidRoots = [];
       const validRoots = [];
+      const modulus = claim.modulus || claim.data?.modulus;
+      const isModular = Boolean(modulus && typeof modulus === 'number' && modulus > 1);
 
       for (const sol of solutions) {
         const scope = { [variable]: sol };
         const lhsVal = math.evaluate(normLhs, scope);
         const rhsVal = math.evaluate(normRhs, scope);
-        const diff = Math.abs(lhsVal - rhsVal);
+        
+        let diff;
+        if (isModular) {
+          const modDiff = Math.abs(((lhsVal - rhsVal) % modulus + modulus) % modulus);
+          diff = Math.min(modDiff, Math.abs(modulus - modDiff));
+        } else {
+          diff = Math.abs(lhsVal - rhsVal);
+        }
+
         if (diff < 1e-5) {
           validRoots.push(sol);
         } else {
@@ -478,7 +488,20 @@ const MathJSVerifier = {
           status: 'EXTRANEOUS_ROOT',
           error_type: 'EXTRANEOUS_ROOT',
           invalid_roots: invalidRoots,
-          details: `Substitution failure: ${variable} = ${invalidRoots[0].solution} yields LHS=${invalidRoots[0].lhs}, RHS=${invalidRoots[0].rhs} (Mismatch).`
+          details: isModular
+            ? `Substitution failure in modular congruence: ${variable} = ${invalidRoots[0].solution} yields LHS=${invalidRoots[0].lhs}, RHS=${invalidRoots[0].rhs} (Mismatch mod ${modulus}).`
+            : `Substitution failure: ${variable} = ${invalidRoots[0].solution} yields LHS=${invalidRoots[0].lhs}, RHS=${invalidRoots[0].rhs} (Mismatch).`
+        };
+      }
+
+      // If modular congruence with valid roots, certified as verified!
+      if (isModular && validRoots.length > 0) {
+        return {
+          verified: true,
+          engine: 'mathjs',
+          status: 'VERIFIED',
+          valid_roots: validRoots,
+          details: `Modular solution ${variable} = ${validRoots.join(', ')} satisfies ${equation} (mod ${modulus}).`
         };
       }
 

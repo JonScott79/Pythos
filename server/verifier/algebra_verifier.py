@@ -185,12 +185,23 @@ def verify_algebra(claim: dict) -> dict:
                     rhs_val == sp.zoo or rhs_val == sp.nan or rhs_val == sp.oo or rhs_val == -sp.oo):
                     extraneous_found.append(val)
                     continue
-                diff_val = float(sp.N(lhs_val - rhs_val))
-                # NaN from domain violations (e.g., 0/0)
-                if math.isnan(diff_val) or math.isinf(diff_val):
-                    extraneous_found.append(val)
-                elif abs(diff_val) > 1e-4:
-                    extraneous_found.append(val)
+                modulus = claim.get("modulus")
+                if modulus:
+                    try:
+                        m_val = float(modulus)
+                        diff_val = float(sp.N(lhs_val - rhs_val))
+                        mod_diff = (diff_val % m_val + m_val) % m_val
+                        if min(mod_diff, abs(m_val - mod_diff)) > 1e-4:
+                            extraneous_found.append(val)
+                    except Exception:
+                        extraneous_found.append(val)
+                else:
+                    diff_val = float(sp.N(lhs_val - rhs_val))
+                    # NaN from domain violations (e.g., 0/0)
+                    if math.isnan(diff_val) or math.isinf(diff_val):
+                        extraneous_found.append(val)
+                    elif abs(diff_val) > 1e-4:
+                        extraneous_found.append(val)
             except Exception:
                 extraneous_found.append(float(prop) if isinstance(prop, (int, float)) else prop)
 

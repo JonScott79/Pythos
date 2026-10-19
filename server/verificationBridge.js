@@ -1075,7 +1075,7 @@ function extractClaims(text, userPrompt = '') {
   }
 
   // Pattern 5b: Equation followed by explicit solution assignment (e.g. "2x + 3 = 11, x = 4", "y - 4 = 0 has the real solution y = 4", or "x^2 - 5x + 6 = 0, x = 2 or x = 3")
-  const eqVarRegex = /([a-zA-Z0-9^+\-*/()÷\\.\s]+=[a-zA-Z0-9^+\-*/()÷\\.\s]+)[,;:\s]+(?:=>\s*|\\implies\s+|so\s+|therefore\s+|has\s+(?:the\s+)?(?:real\s+)?(?:solution|root)s?\s+(?:is\s+|as\s+)?|(?:the\s+)?(?:real\s+)?(?:solution|root)s?\s+(?:is|are)\s+|with\s+(?:the\s+)?(?:real\s+)?(?:solution|root)s?\s+|which\s+gives\s+|giving\s+)?([a-zA-Z])\s*=\s*([-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?|[-+]?[iI]\b)(?:\s*(?:,|and|or)\s*\2\s*=\s*([-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?|[-+]?[iI]\b))?/gi;
+  const eqVarRegex = /([a-zA-Z0-9^+\-*/()÷\\.\s]+=[a-zA-Z0-9^+\-*/()÷\\.\s]+)[,;:\s]+(?:=>\s*|\\implies\s+|so\s+|therefore\s+|has\s+(?:the\s+)?(?:real\s+)?(?:solution|root)s?\s+(?:is\s+|as\s+)?|(?:the\s+)?(?:real\s+)?(?:solution|root)s?\s+(?:is|are)\s+|with\s+(?:the\s+)?(?:real\s+)?(?:solution|root)s?\s+|which\s+gives\s+|giving\s+)?([a-zA-Z])\s*=\s*([-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?|[-+]?[iI]\b)(?:\s*(?:,|and|or|\\text\{\s*(?:and|or)\s*\}|\\lor)\s*(?:\2\s*=\s*)?([-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?|[-+]?[iI]\b))?/gi;
   let eqVarMatch;
   while ((eqVarMatch = eqVarRegex.exec(text)) !== null) {
     const rawEq = eqVarMatch[1].trim();
@@ -1094,6 +1094,12 @@ function extractClaims(text, userPrompt = '') {
         if (foundIdx !== -1 && foundIdx <= eqVarMatch.index + rawEq.length) {
           exactOffset = foundIdx;
         }
+
+        const modMatch5b = rawEq.match(/(?:\\pmod\s*\{?|\(mod\s*|\bmodulo\s+|\bmod\s+)(\d+)\)?/i) ||
+                           promptStr.match(/(?:\\pmod\s*\{?|\(mod\s*|\bmodulo\s+|\bmod\s+)(\d+)\)?/i) ||
+                           text.match(/(?:\\pmod\s*\{?|\(mod\s*|\bmodulo\s+|\bmod\s+)(\d+)\)?/i);
+        const mod5b = modMatch5b ? parseInt(modMatch5b[1], 10) : null;
+
         claims.push({
           domain: 'algebra',
           claim_type: 'equation_solution',
@@ -1102,7 +1108,9 @@ function extractClaims(text, userPrompt = '') {
           data: {
             equation: cleaned.equation,
             variable: cleaned.variable || variable,
-            proposed_solutions: sols
+            proposed_solutions: sols,
+            modulus: mod5b,
+            is_modular: Boolean(mod5b)
           }
         });
       }
@@ -1112,73 +1120,104 @@ function extractClaims(text, userPrompt = '') {
   // Pattern 5c: Solved equation from prompt/context where candidate states solution (e.g. "x = -5", "\boxed{x = -5}", "\boxed{3, 9}", or "\boxed{\,x=3,\;9\,}")
   const isSystemPrompt = ((promptStr.match(/=/g) || []).length >= 2) || /\bsystem\s+of\s+(?:linear\s+)?equations\b/i.test(promptStr) || /\bsystem\s*:/i.test(promptStr);
   if (promptStr && !isSystemPrompt) {
-    const promptEqMatch = promptStr.match(/([a-zA-Z0-9^+\-*/()÷\\.\s]+=[a-zA-Z0-9^+\-*/()÷\\.\s]+)/);
+    let promptEqMatch = promptStr.match(/([a-zA-Z0-9^+\-*/()÷\\.\s]+=[a-zA-Z0-9^+\-*/()÷\\.\s]+)/);
+    const modMatch5c = promptStr.match(/(?:\\pmod\s*\{?|\(mod\s*|\bmodulo\s+|\bmod\s+)(\d+)\)?/i) ||
+                       text.match(/(?:\\pmod\s*\{?|\(mod\s*|\bmodulo\s+|\bmod\s+)(\d+)\)?/i);
+    let mod5c = modMatch5c ? parseInt(modMatch5c[1], 10) : null;
+
+    // Check if prompt is a modular inverse request without explicit equation e.g. "Find the modular inverse of 20 modulo 23"
+    if (!promptEqMatch && modMatch5c) {
+      const modInvMatch = promptStr.match(/\bmodular\s+inverse\s+of\s+(\d+)\s+modulo\s+(\d+)/i);
+      if (modInvMatch) {
+        promptEqMatch = [`${modInvMatch[1]}*x = 1`, `${modInvMatch[1]}*x = 1`];
+        mod5c = parseInt(modInvMatch[2], 10);
+      }
+    }
+
     if (promptEqMatch) {
       const cleaned = cleanAndNormalizeEquation(promptEqMatch[1]);
       if (cleaned) {
-        const v = cleaned.variable;
-        let sols = [];
-        let rawMatchStr = null;
-        let matchOffset = -1;
+        // Variable guard: If equation has multiple distinct variables (e.g. circle x^2+y^2-8y-128=0 or line 3x+4y+19=0),
+        // do not bind single scalar variable solution
+        const eqFreeVars = new Set(cleaned.equation.match(/\b([a-zA-Z])\b/g) || []);
+        ['sin', 'cos', 'tan', 'sec', 'csc', 'cot', 'log', 'ln', 'sqrt', 'pi', 'i', 'I', 'e'].forEach(fn => eqFreeVars.delete(fn));
 
-        // Check boxed matches first for full root set
-        const boxedMatches = extractBoxedMatches(text);
-        if (boxedMatches.length > 0) {
-          const rawBoxed = cleanLatexUnits(boxedMatches[boxedMatches.length - 1].content);
-          // If the boxed content is an algebraic polynomial / identity containing the variable,
-          // do NOT treat its coefficients/exponents as candidate roots!
-          const hasUnboundVar = new RegExp(`\\b${v}\\b`).test(rawBoxed.replace(/^[a-zA-Z]\s*=/, ''));
-          if (!hasUnboundVar) {
-            const compMatches = rawBoxed.match(/[-+]?i\b/gi);
-            if (compMatches && compMatches.length > 0) {
-              sols = compMatches;
-              rawMatchStr = boxedMatches[boxedMatches.length - 1].raw;
-              matchOffset = text.lastIndexOf(rawMatchStr);
-            } else {
-              const isNumberList = /^[a-zA-Z\s=]*[-+]?\d+(?:\.\d+)?(?:\s*(?:,|and|or|;)\s*(?:[a-zA-Z]\s*=)?\s*[-+]?\d+(?:\.\d+)?)*\s*$/i.test(rawBoxed);
-              if (isNumberList) {
-                const nums = rawBoxed.match(/[-+]?\d+(?:\.\d+)?/g);
-                if (nums && nums.length > 0) {
-                  sols = nums.map(Number);
+        const isMultiVarEq = eqFreeVars.size >= 2;
+        if (!isMultiVarEq) {
+          const v = cleaned.variable;
+          let sols = [];
+          let rawMatchStr = null;
+          let matchOffset = -1;
+
+          // Check boxed matches first for full root set
+          const boxedMatches = extractBoxedMatches(text);
+          if (boxedMatches.length > 0) {
+            const rawBoxed = cleanLatexUnits(boxedMatches[boxedMatches.length - 1].content);
+
+            // Check if boxed specifies a variable that is NOT in the equation (e.g. \boxed{r = 12} or \boxed{d = 10.2})
+            const boxedVarMatch = rawBoxed.match(/^([a-zA-Z])\s*=/);
+            let canBindBoxed = true;
+            if (boxedVarMatch && boxedVarMatch[1].toLowerCase() !== v.toLowerCase()) {
+              canBindBoxed = false;
+            }
+
+            if (canBindBoxed) {
+              const hasUnboundVar = new RegExp(`\\b${v}\\b`).test(rawBoxed.replace(/^[a-zA-Z]\s*=/, ''));
+              if (!hasUnboundVar) {
+                const compMatches = rawBoxed.match(/[-+]?i\b/gi);
+                if (compMatches && compMatches.length > 0) {
+                  sols = compMatches;
                   rawMatchStr = boxedMatches[boxedMatches.length - 1].raw;
                   matchOffset = text.lastIndexOf(rawMatchStr);
+                } else {
+                  const isNumberList = /^[a-zA-Z\s=]*[-+]?\d+(?:\.\d+)?(?:\s*(?:,|and|or|;)\s*(?:[a-zA-Z]\s*=)?\s*[-+]?\d+(?:\.\d+)?)*\s*$/i.test(rawBoxed);
+                  if (isNumberList) {
+                    const nums = rawBoxed.match(/[-+]?\d+(?:\.\d+)?/g);
+                    if (nums && nums.length > 0) {
+                      sols = nums.map(Number);
+                      rawMatchStr = boxedMatches[boxedMatches.length - 1].raw;
+                      matchOffset = text.lastIndexOf(rawMatchStr);
+                    }
+                  }
                 }
               }
             }
           }
-        }
 
-        // If not in boxed, check explicit assignments like x = 3 or x = 9, or x = 3, 9
-        if (sols.length === 0) {
-          const assignRegex = new RegExp(`(?:\\b${v}\\s*=\\s*|solutions?:?\\s*|roots?:?\\s*)([-+]?\\d+(?:\\.\\d+)?(?:\\s*\/\\s*\\d+)?|[-+]?[iI]\\b)(?:\\s*(?:,|and|or|;)?\\s*(?:${v}\\s*=\\s*)?([-+]?\\d+(?:\\.\\d+)?(?:\\s*\/\\s*\\d+)?|[-+]?[iI]\\b))?`, 'gi');
-          let m;
-          while ((m = assignRegex.exec(text)) !== null) {
-            const pre = text.substring(Math.max(0, m.index - 30), m.index);
-            if (/\b(?:excludes?|excluding|cannot\s+be|not\s+equal\s+to|domain|restriction|where)\b/i.test(pre)) continue;
-            sols = [parseNumOrFrac(m[1])];
-            if (m[2]) sols.push(parseNumOrFrac(m[2]));
-            rawMatchStr = m[0];
-            matchOffset = m.index;
-            break;
+          // If not in boxed, check explicit assignments like x = 3 or x = 9, or x = 3, 9
+          if (sols.length === 0) {
+            const assignRegex = new RegExp(`(?:\\b${v}\\s*=\\s*|solutions?:?\\s*|roots?:?\\s*)([-+]?\\d+(?:\\.\\d+)?(?:\\s*\/\\s*\\d+)?|[-+]?[iI]\\b)(?:\\s*(?:,|and|or|;)?\\s*(?:${v}\\s*=\\s*)?([-+]?\\d+(?:\\.\\d+)?(?:\\s*\/\\s*\\d+)?|[-+]?[iI]\\b))?`, 'gi');
+            let m;
+            while ((m = assignRegex.exec(text)) !== null) {
+              const pre = text.substring(Math.max(0, m.index - 30), m.index);
+              if (/\b(?:excludes?|excluding|cannot\s+be|not\s+equal\s+to|domain|restriction|where)\b/i.test(pre)) continue;
+              sols = [parseNumOrFrac(m[1])];
+              if (m[2]) sols.push(parseNumOrFrac(m[2]));
+              rawMatchStr = m[0];
+              matchOffset = m.index;
+              break;
+            }
           }
-        }
 
-        if (sols.length > 0) {
-          const alreadyClaimed = claims.some(c => c.data?.equation === cleaned.equation && c.claim_type === 'equation_solution');
-          if (!alreadyClaimed) {
-            claims.push({
-              domain: 'algebra',
-              claim_type: 'equation_solution',
-              raw_match: rawMatchStr || `solutions: ${sols.join(', ')}`,
-              match_offset: matchOffset >= 0 ? matchOffset : undefined,
-              data: {
-                equation: cleaned.equation,
-                variable: cleaned.variable,
-                proposed_solutions: sols,
+          if (sols.length > 0) {
+            const alreadyClaimed = claims.some(c => c.data?.equation === cleaned.equation && c.claim_type === 'equation_solution');
+            if (!alreadyClaimed) {
+              claims.push({
+                domain: 'algebra',
+                claim_type: 'equation_solution',
+                raw_match: rawMatchStr || `solutions: ${sols.join(', ')}`,
+                match_offset: matchOffset >= 0 ? matchOffset : undefined,
+                data: {
+                  equation: cleaned.equation,
+                  variable: cleaned.variable,
+                  proposed_solutions: sols,
+                  modulus: mod5c,
+                  is_modular: Boolean(mod5c),
+                  userPrompt: promptStr
+                },
                 userPrompt: promptStr
-              },
-              userPrompt: promptStr
-            });
+              });
+            }
           }
         }
       }
@@ -1427,6 +1466,8 @@ function extractClaims(text, userPrompt = '') {
       return { error: 'MALFORMED_POWER', raw: s };
     }
 
+    s = s.replace(/[$]/g, ' ');
+    s = s.replace(/\\boxed\{([^{}]+)\}/g, '$1');
     s = s.replace(/\u000c/g, '\\f');
     s = s.replace(/\\\]/g, ' ').replace(/\\\[/g, ' ');
     s = s.replace(/\\+$/, '');
@@ -1435,6 +1476,7 @@ function extractClaims(text, userPrompt = '') {
     s = s.replace(/\\left\[/g, '[').replace(/\\right\]/g, ']');
     s = s.replace(/\\cdot/g, '*');
     s = s.replace(/÷|\\div/g, '/');
+    s = s.replace(/\|([^|]+)\|/g, 'Abs($1)');
 
     // Convert square roots and nth roots before fraction parsing so inner braces don't block \frac parsing
     let sqrtPrev;
@@ -1484,13 +1526,17 @@ function extractClaims(text, userPrompt = '') {
     .replace(/\\begin\{aligned\}([\s\S]*?)\\end\{aligned\}/gi, '$1')
     .replace(/\\begin\{align\*?\}([\s\S]*?)\\end\{align\*?\}/gi, '$1')
     .replace(/\\\[([\s\S]*?)\\\]/g, '\n$1\n')
-    .replace(/\\$\$([\s\S]*?)\\$\$/g, '\n$1\n');
+    .replace(/\\$\$([\s\S]*?)\\$\$/g, '\n$1\n')
+    .replace(/[$]/g, ' ');
 
   const rawEqLines = normalizedEqText.split(/\r?\n/);
   let previousEqRhs = null;
 
   for (let rawEqLine of rawEqLines) {
-    let eqLine = rawEqLine.trim();
+    let eqLine = rawEqLine
+      .replace(/\\boxed\{([^{}]+)\}/g, '$1')
+      .replace(/\\(?:,|:|;|!)\s*/g, ' ')
+      .trim();
     if (!eqLine) continue;
 
     // Filter out parenthetical comments on their own line e.g. "(excludes x = 2)"
@@ -1547,7 +1593,7 @@ function extractClaims(text, userPrompt = '') {
             s = s.substring(0, proseEndMatch.index).trim();
           }
         }
-        return s.trim();
+        return s.replace(/\\(?:,|:|;|!)\s*/g, ' ').trim();
       }
 
       const segments = rawSegments.map((seg, idx) => {
@@ -1563,7 +1609,7 @@ function extractClaims(text, userPrompt = '') {
         if (!rawLeft || !rawRight) continue;
 
         // Filter: If segments contain English prose words, this is prose commentary, not symbolic equivalence
-        const mathAllowedWords = new Set(['sin', 'cos', 'tan', 'sec', 'csc', 'cot', 'log', 'ln', 'exp', 'sqrt', 'frac', 'cdot', 'left', 'right', 'pi', 'quad', 'qquad']);
+        const mathAllowedWords = new Set(['sin', 'cos', 'tan', 'sec', 'csc', 'cot', 'log', 'ln', 'exp', 'sqrt', 'frac', 'cdot', 'left', 'right', 'pi', 'quad', 'qquad', 'abs']);
         const leftWords = rawLeft.match(/[a-zA-Z]{2,}/g) || [];
         const rightWords = rawRight.match(/[a-zA-Z]{2,}/g) || [];
         if (leftWords.some(w => !mathAllowedWords.has(w.toLowerCase())) ||
@@ -1574,10 +1620,58 @@ function extractClaims(text, userPrompt = '') {
         // Filter: Prose sentences or domain descriptions e.g. "This step excludes x"
         if (/\b(?:step|excludes?|domain|restrictions?|note|remember|we\s+have|given|assume)\b/i.test(rawLeft) || /\b(?:from\s+the|domain|excludes?)\b/i.test(rawRight)) continue;
 
-        // Filter: Pure variable assignment e.g. x = 2 or x = 2/3
-        const cleanL = rawLeft.replace(/^[(\s]+|[)\s]+$/g, '');
-        const cleanR = rawRight.replace(/^[(\s]+|[)\s]+$/g, '');
-        if (/^[a-zA-Z]\s*$/.test(cleanL) && /^(?:[-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?|[-+]?[iI])$/.test(cleanR)) continue;
+        // Check for malformed syntax first so syntax errors fail closed
+        const c1 = cleanLatexForSympy(rawLeft);
+        const c2 = cleanLatexForSympy(rawRight);
+
+        if (c1.error || c2.error) {
+          claims.push({
+            domain: 'algebra',
+            claim_type: 'symbolic_equivalence',
+            raw_match: `${rawLeft} = ${rawRight}`,
+            match_offset: text.indexOf(eqClause),
+            data: {
+              expr1: rawLeft,
+              expr2: rawRight,
+              is_malformed: true,
+              malformed_reason: c1.error || c2.error,
+              userPrompt: promptStr
+            },
+            userPrompt: promptStr
+          });
+          continue;
+        }
+
+        // Filter: Pure variable assignment e.g. x = 2 or x = 2/3 or x = 6, 12 or d = 10.2 or x = 8 or -4
+        const cleanL = rawLeft.replace(/^[(\s]+|[)\s]+$/g, '').trim();
+        const cleanR = rawRight.replace(/^[(\s]+|[)\s]+$/g, '').trim();
+
+        if (/^[a-zA-Z]\s*$/.test(cleanL)) {
+          const rWithoutFunctions = cleanR.replace(/\\(?:frac|sqrt|left|right|cdot|times|div|pm|mp)\b/gi, '')
+            .replace(/\b(?:sin|cos|tan|sec|csc|cot|log|ln|exp|sqrt|pi|deg|Abs|abs)\b/gi, '');
+          const hasOtherVars = /[a-zA-Z]/.test(rWithoutFunctions);
+          if (!hasOtherVars) {
+            continue;
+          }
+        }
+        if (/^[a-zA-Z]\s*$/.test(cleanR)) {
+          const lWithoutFunctions = cleanL.replace(/\\(?:frac|sqrt|left|right|cdot|times|div|pm|mp)\b/gi, '')
+            .replace(/\b(?:sin|cos|tan|sec|csc|cot|log|ln|exp|sqrt|pi|deg|Abs|abs)\b/gi, '');
+          const hasOtherVars = /[a-zA-Z]/.test(lWithoutFunctions);
+          if (!hasOtherVars) {
+            continue;
+          }
+        }
+
+        // Filter: Multivariable or single-variable polynomial equated to a constant
+        // (Equations to be solved or transformed, e.g. x^2 + (y-4)^2 = 144 or 3x + 4y + 19 = 0)
+        const isLConst = !/[a-zA-Z]/.test(cleanL.replace(/\b(?:pi|e|I)\b/g, ''));
+        const isRConst = !/[a-zA-Z]/.test(cleanR.replace(/\b(?:pi|e|I)\b/g, ''));
+        const hasTranscendental = /\b(?:sin|cos|tan|sec|csc|cot|log|ln|exp)\b/i.test(cleanL) || /\b(?:sin|cos|tan|sec|csc|cot|log|ln|exp)\b/i.test(cleanR);
+        const hasFraction = /[/]|\\frac\b/.test(cleanL) || /[/]|\\frac\b/.test(cleanR);
+        if (!hasFraction && !hasTranscendental && ((isLConst && !isRConst) || (!isLConst && isRConst))) {
+          continue;
+        }
 
         // Filter: Equation equated to zero e.g. 6x^3 - 21x^2 + 31x - 6 = 0
         if (rawRight === '0' || rawLeft === '0') continue;
@@ -1603,28 +1697,6 @@ function extractClaims(text, userPrompt = '') {
         // Filter: If the entire line is identical to userPrompt equation being solved
         if (promptStr && (promptStr.includes(rawLeft) && promptStr.includes(rawRight) && promptStr.includes('='))) {
           if (Math.abs(promptStr.length - eqClause.length) < 15) continue;
-        }
-
-        // Check for malformed syntax
-        const c1 = cleanLatexForSympy(rawLeft);
-        const c2 = cleanLatexForSympy(rawRight);
-
-        if (c1.error || c2.error) {
-          claims.push({
-            domain: 'algebra',
-            claim_type: 'symbolic_equivalence',
-            raw_match: `${rawLeft} = ${rawRight}`,
-            match_offset: text.indexOf(eqClause),
-            data: {
-              expr1: rawLeft,
-              expr2: rawRight,
-              is_malformed: true,
-              malformed_reason: c1.error || c2.error,
-              userPrompt: promptStr
-            },
-            userPrompt: promptStr
-          });
-          continue;
         }
 
         const expr1 = c1.cleaned;
@@ -1697,6 +1769,18 @@ function extractClaims(text, userPrompt = '') {
     // 6a. LaTeX Fraction: \frac{A}{B} \approx C or = C (including leading sign -\frac{A}{B})
     const fracMatches = line.matchAll(/([-+]?)\s*\\frac\{([\d.]+|\bpi\b)\}\{([\d.]+|\bpi\b)\}\s*(?:\\approx|\\thickapprox|~|=)\s*([-+]?[\d.]+)\s*(%)?/gi);
     for (const m of fracMatches) {
+      const preStr = line.substring(0, m.index).trim();
+      const postStr = line.substring(m.index + m[0].length);
+
+      // If preceded by an operator, operand, or word, this is an intermediate fraction in a larger expression
+      const hasPrecedingMath = /[-+*/^0-9a-zA-Z\\}\)]\s*$/.test(preStr);
+      // If followed by continuing arithmetic operator before next '=' or end
+      const hasContinuingOp = /^\s*[-+*/^]/.test(postStr);
+
+      if (hasPrecedingMath || hasContinuingOp) {
+        continue;
+      }
+
       const sign = m[1].trim() === '-' ? '-' : '';
       const num = m[2];
       const den = m[3];
@@ -1723,22 +1807,23 @@ function extractClaims(text, userPrompt = '') {
 
     // 6b. General Infix Operations & Equations: A op B = C, (A op B) / C = D, = A / B = C, A(B/C) = D
     // Backward scans from relation symbol to safely capture leading negative numbers and parenthesized operations without mid-expression truncation
+    const lineWithFrac = line.replace(/\\d?frac\{([^{}]+)\}\{([^{}]+)\}/g, '(($1)/($2))');
     const eqRegex = /(?:\\approx|\\thickapprox|≈|~|=)\s*([-+]?[\d.]+(?:\s*\/\s*[\d.]+)?)\s*(%)?/g;
     let match;
-    while ((match = eqRegex.exec(line)) !== null) {
+    while ((match = eqRegex.exec(lineWithFrac)) !== null) {
       const eqIndex = match.index;
 
       // Guard against intermediate numbers in chained equality (e.g. "= 2 - 8 = -6" or "= 2(1)^2..."):
       // If the characters following match[0] continue an arithmetic expression before the next '=' or end-of-line,
       // this matched number was only a leading operand, NOT the RHS result.
-      const afterMatch = line.slice(eqIndex + match[0].length);
+      const afterMatch = lineWithFrac.slice(eqIndex + match[0].length);
       const nextEq = afterMatch.search(/(?:\\approx|\\thickapprox|%^|~|=)/);
       const segmentAfter = nextEq !== -1 ? afterMatch.slice(0, nextEq) : afterMatch;
       if (!/^\s*\.\s+/.test(segmentAfter) && !/^\s*\.?\s*\b/.test(segmentAfter) && /^\s*[-+*/^()\[\]]/.test(segmentAfter)) {
         continue;
       }
 
-      const rawVal = match[1].replace(/\s+/g, '');
+      const rawVal = match[1].replace(/\s+/g, '').replace(/[.,;:]+$/, '');
       const isPct = match[2] === '%';
       let val;
       if (rawVal.includes('/')) {
@@ -1753,7 +1838,7 @@ function extractClaims(text, userPrompt = '') {
       if (isNaN(val)) continue;
       if (isPct) val = val / 100.0;
 
-      const beforeEq = line.slice(0, eqIndex);
+      const beforeEq = lineWithFrac.slice(0, eqIndex);
       const suffixMatch = beforeEq.match(/(?:^|[=:,;]|\b(?:is|as|to|of|because|gives|gives\s+us|equals?|we\s+have|so|then|that|therefore|thus|hence|calculate|calculating|compute|computing|find|yields?|get|got)\s+|[a-zA-Z\\]+\s*=)\s*((?:[-+]?[\s0-9.()+\-*/^]+|\bpi\b|\bsqrt\([^\)]+\)|\b(?:log10|log|ln)\s*\([^\)]+\)|\b(?:sin|cos|tan|sec|csc|cot)\s*\([^\)]+\))+)$/i);
       if (!suffixMatch) continue;
 

@@ -658,7 +658,7 @@ Given parameter a = 2, we evaluate 3a = 6.`;
     await test('8', '8G', 'HTTP Route: Contradictory evidence (valid step + invalid step) is SAFELY WITHHELD / RECOVERED', async () => {
       mockResponseContent = 'Note that 2 + 2 = 4. Now solving: x + 5 = 12 \\implies x = 99. The answer is 99.';
       const res = await makeHttpRequest({
-        messages: [{ role: 'user', content: 'Solve x + 5 = 12' }],
+        messages: [{ role: 'user', content: 'Explain how to solve x + 5 = 12' }],
         stream: false
       });
 

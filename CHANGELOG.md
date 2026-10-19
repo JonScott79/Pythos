@@ -1,3 +1,27 @@
+## Pythos 1.9.2
+**Release Date:** October 19, 2026
+
+### Added & Enhanced
+
+- **Modular Arithmetic Congruence Verification**:
+  - Implemented modular arithmetic verification in `server/verificationBridge.js`, `server/mathjsVerifier.js`, and `server/verifier/algebra_verifier.py`.
+  - Added detection and extraction for modular congruences ($Ax \equiv B \pmod M$, `\pmod{M}`, `(mod M)`, `modulo M`, and "modular inverse of A modulo M"), recording modulus and congruence metadata into claims.
+  - Verifier now computes congruence differences modulo $M$ ($\\min(|LHS - RHS| \pmod M, M - (|LHS - RHS| \pmod M)) < 10^{-4}$), certifying legitimate modular inverse solutions rather than falsely failing them over $\mathbb{R}$ as extraneous roots.
+- **Multiplicand-Preserving Arithmetic Extraction**:
+  - Hardened Section 6a fraction regex in `server/verificationBridge.js` with boundary guards (`hasPrecedingMath` and `hasContinuingOp`) to prevent isolating fractions from larger multiplicative chains (such as Euler totient calculations $\phi(n) = n \prod (1 - 1/p)$ where $85 \times \frac{4}{5} = 68$ was previously truncated to $\frac{4}{5} = 68$).
+  - Upgraded Section 6b infix arithmetic with automatic LaTeX fraction normalization (`lineWithFrac`), allowing multi-step fraction arithmetic like $85 \cdot \frac{4}{5} = 68$ and $68 \cdot \frac{16}{17} = 64$ to verify seamlessly.
+- **Multivariable Equation Root Isolation & Variable Identity Guards**:
+  - Added variable identity guards in `server/verificationBridge.js` Pattern 5c preventing scalar assignments with mismatched variable symbols (e.g. circle radius $\boxed{r = 12}$ or line distance $\boxed{d = 10.2}$) from being bound as extraneous roots for variable $x$ in multivariable curves ($x^2 + y^2 - 8y - 128 = 0$ or $3x + 4y + 19 = 0$).
+  - Prevents binding single scalar solutions to equations with two or more free variables.
+- **Quadratic Connective Root Extraction**:
+  - Expanded quadratic second-root extraction in `server/verificationBridge.js` Pattern 5b to capture roots separated by LaTeX connectives (`\text{ or }`, `\text{ and }`, `\lor`) and comma-separated lists (e.g. $x = 8 \text{ or } x = -4$, $x = 6, 12$), eliminating false `INCOMPLETE_ROOT_SET` rejections.
+- **Symbolic Equivalence Filtering & Delimiter Hygiene**:
+  - Sanitized math delimiters (`$`) and unwrapped boxed expressions in Section 5g equation normalization, preventing trailing/leading `$` from leaking into SymPy expressions.
+  - Added absolute value parsing (`|...|` $\to$ `Abs(...)`) in `cleanLatexForSympy`.
+  - Filtered pure variable assignments ($d = 10.2$, $x = 6, 12$) and non-fractional polynomial curve equations ($x^2 + (y-4)^2 = 144$) from being treated as universal symbolic identities, while preserving rational expression simplifications ($\frac{x^2-4}{x^2-4} = 1$) and trigonometric identities ($\sin^2(x) + \cos^2(x) = 1$).
+- **Admin Sanctuary Console Version Alignment**:
+  - Synchronized the release badge and navigation link on the Pythos Admin Sanctuary console (`admin/index.html`) to current release (`v1.9.2`).
+
 ## Pythos 1.9.1
 **Release Date:** October 19, 2026
 
