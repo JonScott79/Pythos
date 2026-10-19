@@ -2818,12 +2818,13 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           if (candidateDelivery && candidateDelivery.delivered === false) {
             failureAudit.push(candidateDelivery.reason || candidateDelivery.status);
           }
-          uncorrectedInvalidClaims.forEach(({ verification }) => {
-            failureAudit.push(verification.details || verification.error_type || verification.status);
+          uncorrectedInvalidClaims.forEach(({ claim, verification }) => {
+            failureAudit.push(`[${claim?.claim_type}: "${claim?.raw_match}"] ${verification.details || verification.error_type || verification.status}`);
           });
           internalContradictions.forEach(ic => {
             failureAudit.push(ic.details);
           });
+          failureAudit.push(`[RAW_PREVIEW] ${finalContent.replace(/\s+/g, ' ').slice(0, 400)}`);
 
           // Determine structured reason code from context & failures
           let resolvedReason = WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED;
