@@ -739,9 +739,24 @@ function extractClaims(text, userPrompt = '') {
     return /^\s*[a-zA-Z]\s*=\s*[-+]?\d+(?:\.\d+)?\s*$/.test(cleaned.equation);
   }
 
+  function parseNumOrFrac(str) {
+    if (!str) return NaN;
+    str = String(str).trim();
+    if (str.includes('/')) {
+      const p = str.split('/');
+      if (p.length === 2) {
+        const num = parseFloat(p[0]);
+        const den = parseFloat(p[1]);
+        if (!isNaN(num) && !isNaN(den) && den !== 0) return num / den;
+      }
+    }
+    return parseFloat(str);
+  }
+
   // Helper to isolate pure mathematical equation from surrounding conversational prose
   function cleanAndNormalizeEquation(rawEqStr) {
     if (!rawEqStr || typeof rawEqStr !== 'string' || !rawEqStr.includes('=')) return null;
+    rawEqStr = rawEqStr.replace(/÷/g, '/').replace(/\\div/g, '/');
     const parts = rawEqStr.split('=');
     if (parts.length !== 2) return null;
     const rawLhs = parts[0].trim();
@@ -812,15 +827,15 @@ function extractClaims(text, userPrompt = '') {
   }
 
   // Pattern 5b: Equation followed by explicit solution assignment (e.g. "2x + 3 = 11, x = 4" or "x^2 - 5x + 6 = 0, x = 2 or x = 3")
-  const eqVarRegex = /([a-zA-Z0-9^+\-*/().\s]+=[a-zA-Z0-9^+\-*/().\s]+)[,;:\s]+(?:=>\s*|\\implies\s+|so\s+|therefore\s+)?([a-zA-Z])\s*=\s*([-\d.]+)(?:\s*(?:,|and|or)\s*\2\s*=\s*([-\d.]+))?/gi;
+  const eqVarRegex = /([a-zA-Z0-9^+\-*/()÷\\.\s]+=[a-zA-Z0-9^+\-*/()÷\\.\s]+)[,;:\s]+(?:=>\s*|\\implies\s+|so\s+|therefore\s+)?([a-zA-Z])\s*=\s*([-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?)(?:\s*(?:,|and|or)\s*\2\s*=\s*([-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?))?/gi;
   let eqVarMatch;
   while ((eqVarMatch = eqVarRegex.exec(text)) !== null) {
     const rawEq = eqVarMatch[1].trim();
     if (isBareAssignment(rawEq)) continue;
     if (/\b(?:with|where|given|for)\s+[a-zA-Z0-9_]+\s*=/i.test(rawEq)) continue;
     const variable = eqVarMatch[2];
-    const sols = [parseFloat(eqVarMatch[3])];
-    if (eqVarMatch[4]) sols.push(parseFloat(eqVarMatch[4]));
+    const sols = [parseNumOrFrac(eqVarMatch[3])];
+    if (eqVarMatch[4]) sols.push(parseNumOrFrac(eqVarMatch[4]));
     const cleaned = cleanAndNormalizeEquation(rawEq);
     if (cleaned) {
       const alreadyClaimed = claims.some(c => c.data?.equation === cleaned.equation && c.claim_type === 'equation_solution');
@@ -842,7 +857,7 @@ function extractClaims(text, userPrompt = '') {
   // Pattern 5c: Solved equation from prompt/context where candidate states solution (e.g. "x = -5", "\boxed{x = -5}", "\boxed{3, 9}", or "\boxed{\,x=3,\;9\,}")
   const isSystemPrompt = ((promptStr.match(/=/g) || []).length >= 2) || /\bsystem\b/i.test(promptStr);
   if (promptStr && !isSystemPrompt) {
-    const promptEqMatch = promptStr.match(/([a-zA-Z0-9^+\-*/().\s]+=[a-zA-Z0-9^+\-*/().\s]+)/);
+    const promptEqMatch = promptStr.match(/([a-zA-Z0-9^+\-*/()÷\\.\s]+=[a-zA-Z0-9^+\-*/()÷\\.\s]+)/);
     if (promptEqMatch) {
       const cleaned = cleanAndNormalizeEquation(promptEqMatch[1]);
       if (cleaned) {
@@ -877,11 +892,11 @@ function extractClaims(text, userPrompt = '') {
 
         // If not in boxed, check explicit assignments like x = 3 or x = 9, or x = 3, 9
         if (sols.length === 0) {
-          const assignRegex = new RegExp(`(?:\\b${v}\\s*=\\s*|solutions?:?\\s*|roots?:?\\s*)([-+]?\\d+(?:\\.\\d+)?)(?:\\s*(?:,|and|or|;)?\\s*(?:${v}\\s*=\\s*)?([-+]?\\d+(?:\\.\\d+)?))?`, 'i');
+          const assignRegex = new RegExp(`(?:\\b${v}\\s*=\\s*|solutions?:?\\s*|roots?:?\\s*)([-+]?\\d+(?:\\.\\d+)?(?:\\s*\/\\s*\\d+)?)(?:\\s*(?:,|and|or|;)?\\s*(?:\${v}\\s*=\\s*)?([-+]?\\d+(?:\\.\\d+)?(?:\\s*\/\\s*\\d+)?))?`, 'i');
           const assignMatch = text.match(assignRegex);
           if (assignMatch) {
-            sols = [parseFloat(assignMatch[1])];
-            if (assignMatch[2]) sols.push(parseFloat(assignMatch[2]));
+            sols = [parseNumOrFrac(assignMatch[1])];
+            if (assignMatch[2]) sols.push(parseNumOrFrac(assignMatch[2]));
             rawMatchStr = assignMatch[0];
           }
         }

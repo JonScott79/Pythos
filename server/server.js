@@ -2554,11 +2554,31 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
 
     let finalContent = candidateResult ? candidateResult.content : '';
     let isRefusalWithheld = false;
+    let refusalWithholdingDetails = null;
+    let refusalWithholdingExplanation = null;
     if (isModelRefusal(finalContent)) {
       console.warn('[DELIVERY GATE] Candidate response was a generic refusal; intercepting with canonical safe withholding.');
       const safeWithholding = getSafeWithholding(WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED);
       finalContent = safeWithholding.formattedContent;
       isRefusalWithheld = true;
+      refusalWithholdingExplanation = safeWithholding.explanation;
+      refusalWithholdingDetails = {
+        headline: safeWithholding.headline,
+        explanation: safeWithholding.explanation,
+        cause: safeWithholding.cause,
+        help: safeWithholding.help,
+        nextStep: safeWithholding.nextStep
+      };
+      if (isStreaming && !res.writableEnded && res.headersSent) {
+        res.write(JSON.stringify({
+          type: 'withheld',
+          withheld: true,
+          withholdingReason: WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED,
+          withholdingExplanation: safeWithholding.explanation,
+          withholdingDetails: refusalWithholdingDetails,
+          formattedContent: safeWithholding.formattedContent
+        }) + '\n');
+      }
     }
     let ollamaResponse = {
       model: candidateResult?.model || targetModel,
@@ -2569,6 +2589,8 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
       finishReason: candidateResult?.finishReason || null,
       withheld: isRefusalWithheld,
       withholdingReason: isRefusalWithheld ? WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED : null,
+      withholdingExplanation: isRefusalWithheld ? refusalWithholdingExplanation : null,
+      withholdingDetails: isRefusalWithheld ? refusalWithholdingDetails : null,
       message: { role: 'assistant', content: finalContent },
       done: true
     };
@@ -2580,11 +2602,24 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
     } catch (ctxErr) {
       console.warn('[CONTEXT] buildEffectivePrompt failed in post-verification:', ctxErr.message);
     }
-    let { claims, internalContradictions, verificationResults, invalidClaims, verificationAudit } = await verifyResponseClaims(
-      finalContent,
-      effectiveVerificationPrompt,
-      abortController.signal
-    );
+    let claims = [];
+    let internalContradictions = [];
+    let verificationResults = [];
+    let invalidClaims = [];
+    let verificationAudit = [];
+
+    if (!isRefusalWithheld) {
+      const audit = await verifyResponseClaims(
+        finalContent,
+        effectiveVerificationPrompt,
+        abortController.signal
+      );
+      claims = audit.claims;
+      internalContradictions = audit.internalContradictions;
+      verificationResults = audit.verificationResults;
+      invalidClaims = audit.invalidClaims;
+      verificationAudit = audit.verificationAudit;
+    }
 
     if (invalidClaims.length > 0 || internalContradictions.length > 0) {
       console.warn(`[VERIFIER] Detected ${invalidClaims.length} invalid claims and ${internalContradictions.length} internal contradictions. Requesting revision...`);
@@ -2801,6 +2836,17 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           };
           ollamaResponse.message.content = finalContent;
           ollamaResponse.withholdingReasons = failureAudit; // Preserved internally for auditing
+
+          if (isStreaming && !res.writableEnded && res.headersSent) {
+            res.write(JSON.stringify({
+              type: 'withheld',
+              withheld: true,
+              withholdingReason: resolvedReason,
+              withholdingExplanation: safeWithholding.explanation,
+              withholdingDetails: ollamaResponse.withholdingDetails,
+              formattedContent: safeWithholding.formattedContent
+            }) + '\n');
+          }
         }
       }
 
@@ -2938,6 +2984,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           withholdingReason: ollamaResponse.withholdingReason || null,
           withholdingExplanation: ollamaResponse.withholdingExplanation || null,
           withholdingDetails: ollamaResponse.withholdingDetails || null,
+          formattedContent: ollamaResponse.withheld ? finalContent : null,
           safeResponseRecovered: ollamaResponse.safeResponseRecovered || false,
           recoverySource: ollamaResponse.recoverySource || null,
           recoveryTitle: ollamaResponse.recoveryTitle || null,

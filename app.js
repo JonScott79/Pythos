@@ -3864,6 +3864,7 @@ async function askPythos(userText) {
       let metaWithholdingReason = null;
       let metaWithholdingExplanation = null;
       let metaWithholdingDetails = null;
+      let metaWithholdingContent = null;
 
       let isStreamDone = false;
       let isStreamError = false;
@@ -3936,6 +3937,19 @@ async function askPythos(userText) {
             contentDiv.textContent = streamedText;
             statusBadge.style.color = "#059669";
             statusBadge.innerHTML = `<span style="color:#059669; font-weight:600;">✓ Calculation verified & corrected</span>`;
+          } else if (ev.type === "withheld") {
+            metaWithheld = true;
+            if (ev.withholdingReason) metaWithholdingReason = ev.withholdingReason;
+            if (ev.withholdingExplanation) metaWithholdingExplanation = ev.withholdingExplanation;
+            if (ev.withholdingDetails) metaWithholdingDetails = ev.withholdingDetails;
+            const replacementText = ev.formattedContent || (ev.withholdingExplanation
+              ? ("I need a little more information to solve this problem.\n\n" + ev.withholdingExplanation)
+              : "I need a little more information to solve this problem.\n\nI worked through a possible answer, but I couldn't verify it well enough to give it to you. I'd rather not guess.");
+            metaWithholdingContent = replacementText;
+            streamedText = replacementText;
+            contentDiv.textContent = streamedText;
+            statusBadge.style.color = "#d97706";
+            statusBadge.innerHTML = `<span style="color:#d97706; font-weight:500;">Clarification Needed</span>`;
           } else if (ev.type === "verified") {
             if (verificationTimer) { clearTimeout(verificationTimer); verificationTimer = null; }
             if (ev.claims) metaClaims = ev.claims;
@@ -3944,11 +3958,17 @@ async function askPythos(userText) {
             if (ev.model) metaModel = ev.model;
             if (ev.truncated) isTruncated = true;
             if (ev.finishReason) metaFinishReason = ev.finishReason;
-            if (ev.withheld) metaWithheld = true;
-            if (ev.withholdingReason) metaWithholdingReason = ev.withholdingReason;
-            if (ev.withholdingExplanation) metaWithholdingExplanation = ev.withholdingExplanation;
-            if (ev.withholdingDetails) metaWithholdingDetails = ev.withholdingDetails;
             if (ev.withheld) {
+              metaWithheld = true;
+              if (ev.withholdingReason) metaWithholdingReason = ev.withholdingReason;
+              if (ev.withholdingExplanation) metaWithholdingExplanation = ev.withholdingExplanation;
+              if (ev.withholdingDetails) metaWithholdingDetails = ev.withholdingDetails;
+              const replacementText = ev.formattedContent || (ev.withholdingExplanation
+                ? ("I need a little more information to solve this problem.\n\n" + ev.withholdingExplanation)
+                : "I need a little more information to solve this problem.\n\nI worked through a possible answer, but I couldn't verify it well enough to give it to you. I'd rather not guess.");
+              metaWithholdingContent = replacementText;
+              streamedText = replacementText;
+              contentDiv.textContent = streamedText;
               statusBadge.style.color = "#d97706";
               statusBadge.innerHTML = `<span style="color:#d97706; font-weight:500;">Clarification Needed</span>`;
             } else {
@@ -4019,6 +4039,10 @@ async function askPythos(userText) {
         }
       } else {
         let sanitizedReply = streamedText.trim();
+        if (metaWithheld) {
+          const defaultWithholding = "I need a little more information to solve this problem.\n\n" + (metaWithholdingExplanation || "I worked through a possible answer, but I couldn't verify it well enough to give it to you. I'd rather not guess.");
+          sanitizedReply = metaWithholdingContent || defaultWithholding;
+        }
         // Sanitize any runaway ASCII loops or broken unclosed code blocks before markdown rendering
         sanitizedReply = sanitizedReply.replace(/```(?:[a-zA-Z0-9_-]*\n)?[\s\S]*?(?:\|[ \t]*\\|\\[ \t]*\|)[\s\S]*?(?:```|$)/gi, '');
         sanitizedReply = sanitizedReply.replace(/(?:\|\s*\\){2,}[^\n]*/gi, '');
