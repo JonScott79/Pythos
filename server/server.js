@@ -1095,13 +1095,18 @@ ${m.content.slice(PYTHOS_SYSTEM_PROMPT.length).trim()}`;
     return { role: m.role, content: m.content || '' };
   });
 
-  const groqPayload = JSON.stringify({
+  const isReasoningModel = targetModel.includes('gpt-oss') || targetModel.includes('o1') || targetModel.includes('o3');
+  const payloadObj = {
     model: targetModel,
     messages: textMessages,
     temperature: options?.temperature || 0.2,
     max_tokens: Math.min(options?.num_predict || 2048, 2048),
     stream: false
-  });
+  };
+  if (isReasoningModel) {
+    payloadObj.reasoning_effort = 'low';
+  }
+  const groqPayload = JSON.stringify(payloadObj);
 
   const groqHttps = require('https');
   const executeCall = () => new Promise((resolveGroq, rejectGroq) => {
@@ -1140,7 +1145,11 @@ ${m.content.slice(PYTHOS_SYSTEM_PROMPT.length).trim()}`;
         }
         try {
           const parsed = JSON.parse(gBody);
-          const text = parsed.choices?.[0]?.message?.content || '';
+          const choice = parsed.choices?.[0];
+          let text = choice?.message?.content || '';
+          if (!text.trim() && choice?.message?.reasoning) {
+            text = choice.message.reasoning;
+          }
           resolveGroq({
             model: targetModel,
             content: text,
@@ -2453,8 +2462,11 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           }
         } else {
           console.error(`[BACKUP BRAIN] Backup provider '${selectedProvider.name}' also failed:`, callErr.message);
-          const retrySec = callErr.retryAfter || 60;
-          providerPolicy.recordRateLimit(selectedProvider.name, retrySec);
+          const isRateLimit = callErr.statusCode === 429 || callErr.status === 429 || (callErr.message && callErr.message.toLowerCase().includes('rate_limit'));
+          if (isRateLimit) {
+            const retrySec = callErr.retryAfter || 60;
+            providerPolicy.recordRateLimit(selectedProvider.name, retrySec);
+          }
         }
       }
     }

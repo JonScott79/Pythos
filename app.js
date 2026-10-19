@@ -1673,7 +1673,8 @@ function appendMessage(role, text, images = null, metadata = {}) {
             displayMode: isDisplay,
             throwOnError: false,
             errorColor: "#ef4444",
-            output: "htmlAndMathml"
+            output: "htmlAndMathml",
+            strict: false
           });
         } catch (err) {
           console.warn("[KATEX] renderToString error:", err);
