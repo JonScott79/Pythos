@@ -12,9 +12,9 @@ TRANSFORMATIONS = standard_transformations + (implicit_multiplication_applicatio
 
 def _safe_parse(expr_str, evaluate=True):
     try:
-        return sp.sympify(expr_str, evaluate=evaluate)
-    except Exception:
         return parse_expr(expr_str, transformations=TRANSFORMATIONS, evaluate=evaluate)
+    except Exception:
+        return sp.sympify(expr_str, evaluate=evaluate)
 
 def _find_denominators(expr, target_var=None):
     """

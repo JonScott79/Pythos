@@ -1168,6 +1168,16 @@ function extractClaims(text, userPrompt = '') {
     const normLhs = lhs.replace(/(\d)\s*([a-zA-Z])(?![a-zA-Z])/g, (m, g1, g2) => g1 + '*' + g2);
     const normRhs = rhs.replace(/(\d)\s*([a-zA-Z])(?![a-zA-Z])/g, (m, g1, g2) => g1 + '*' + g2);
 
+    const countChars = (str, char) => (str.match(new RegExp('\\' + char, 'g')) || []).length;
+    if (countChars(normLhs, '(') !== countChars(normLhs, ')') ||
+        countChars(normRhs, '(') !== countChars(normRhs, ')') ||
+        countChars(normLhs, '[') !== countChars(normLhs, ']') ||
+        countChars(normRhs, '[') !== countChars(normRhs, ']') ||
+        countChars(normLhs, '{') !== countChars(normLhs, '}') ||
+        countChars(normRhs, '{') !== countChars(normRhs, '}')) {
+      return null;
+    }
+
     const variableMatch = normLhs.match(/\b([a-zA-Z])\b/) || normRhs.match(/\b([a-zA-Z])\b/);
     const variable = variableMatch ? variableMatch[1] : 'x';
 
@@ -1206,6 +1216,8 @@ function extractClaims(text, userPrompt = '') {
   let eqVarMatch;
   while ((eqVarMatch = eqVarRegex.exec(text)) !== null) {
     const rawEq = eqVarMatch[1].trim();
+    if (/\n\s*\n/.test(rawEq)) continue;
+    if ((rawEq.match(/=/g) || []).length > 1) continue;
     if (isBareAssignment(rawEq)) continue;
     if (/\b(?:with|where|given|for)\s+[a-zA-Z0-9_]+\s*=/i.test(rawEq)) continue;
     const variable = eqVarMatch[2];
@@ -1604,8 +1616,9 @@ function extractClaims(text, userPrompt = '') {
     s = s.replace(/\\\]/g, ' ').replace(/\\\[/g, ' ');
     s = s.replace(/\\+$/, '');
     s = s.replace(/\\(?:quad|qquad|;|\\,|,|!)/g, ' ');
-    s = s.replace(/\\left\(/g, '(').replace(/\\right\)/g, ')');
-    s = s.replace(/\\left\[/g, '[').replace(/\\right\]/g, ']');
+    s = s.replace(/\\(?:left|right)\./g, '');
+    s = s.replace(/\\(?:bigl|bigr|Bigl|Bigr|biggl|biggr|Big|big|left|right)\s*([()\[\]{}])/g, '$1');
+    s = s.replace(/\\(?:bigl|bigr|Bigl|Bigr|biggl|biggr|Big|big|left|right)\b/g, '');
     s = s.replace(/\\cdot/g, '*');
     s = s.replace(/÷|\\div/g, '/');
     s = s.replace(/\|([^|]+)\|/g, 'Abs($1)');
@@ -1661,7 +1674,7 @@ function extractClaims(text, userPrompt = '') {
     .replace(/\\begin\{aligned\}([\s\S]*?)\\end\{aligned\}/gi, '$1')
     .replace(/\\begin\{align\*?\}([\s\S]*?)\\end\{align\*?\}/gi, '$1')
     .replace(/\\\[([\s\S]*?)\\\]/g, '\n$1\n')
-    .replace(/\\$\$([\s\S]*?)\\$\$/g, '\n$1\n')
+    .replace(/\$\$([\s\S]*?)\$\$/g, '\n$1\n')
     .replace(/[$]/g, ' ');
 
   const rawEqLines = normalizedEqText.split(/\r?\n/);
@@ -1698,8 +1711,8 @@ function extractClaims(text, userPrompt = '') {
       continue;
     }
 
-    // Split on clauses if multiple equations exist (e.g. separated by ';' or sentence periods or 'and' or implication arrows or commas before variable assignments)
-    const eqClauses = eqLine.split(/(?:\\implies|\\Rightarrow|=>|-->|\\rightarrow|;\s*|\.(?!\d)\s+|,\s*(?=[a-zA-Z]\s*=)|(?<=[^\s\w/+\-*^])\s+(?:and|also|while|as\s+well\s+as)\s+)/i);
+    // Split on clauses if multiple equations exist (e.g. separated by ';' or sentence periods or 'and' or implication arrows, \quad/\qquad, or commas before variable assignments)
+    const eqClauses = eqLine.split(/(?:\\implies|\\Rightarrow|=>|-->|\\rightarrow|\\(?:qquad|quad)\s*|;\s*|\.(?!\d)\s+|,\s*(?:\\(?:qquad|quad)\s*)?(?=[a-zA-Z]\s*=)|(?<=[^\s\w/+\-*^])\s+(?:and|also|while|as\s+well\s+as)\s+)/i);
 
     for (const eqClause of eqClauses) {
       if (!eqClause.includes('=')) continue;
@@ -1728,7 +1741,7 @@ function extractClaims(text, userPrompt = '') {
             s = s.substring(0, proseEndMatch.index).trim();
           }
         }
-        return s.replace(/\\(?:,|:|;|!)\s*/g, ' ').trim();
+        return s.replace(/\\(?:,|:|;|!|quad|qquad)\s*/g, ' ').trim();
       }
 
       const segments = rawSegments.map((seg, idx) => {
@@ -1743,6 +1756,9 @@ function extractClaims(text, userPrompt = '') {
 
         if (!rawLeft || !rawRight) continue;
 
+        // Filter: Comma-separated lists of equations or conditions in a segment are not expressions
+        if (rawLeft.includes(',') || rawRight.includes(',')) continue;
+
         // Filter: If segments contain English prose words, this is prose commentary, not symbolic equivalence
         const mathAllowedWords = new Set(['sin', 'cos', 'tan', 'sec', 'csc', 'cot', 'log', 'ln', 'exp', 'sqrt', 'frac', 'cdot', 'left', 'right', 'pi', 'quad', 'qquad', 'abs']);
         const leftWords = rawLeft.match(/[a-zA-Z]{2,}/g) || [];
@@ -1754,6 +1770,32 @@ function extractClaims(text, userPrompt = '') {
 
         // Filter: Prose sentences or domain descriptions e.g. "This step excludes x"
         if (/\b(?:step|excludes?|domain|restrictions?|note|remember|we\s+have|given|assume)\b/i.test(rawLeft) || /\b(?:from\s+the|domain|excludes?)\b/i.test(rawRight)) continue;
+
+        // Filter: Pure variable assignment e.g. x = 2 or x = 2/3 or x = 6, 12 or d = 10.2 or x = 8 or -4
+        const cleanL = rawLeft.replace(/^[(\s]+|[)\s]+$/g, '').trim();
+        const cleanR = rawRight.replace(/^[(\s]+|[)\s]+$/g, '').trim();
+
+        // Variable-to-variable equation or substitution (e.g. B = A, x = y) is NOT a universal symbolic identity
+        if (/^[a-zA-Z]\s*$/.test(cleanL) && /^[a-zA-Z]\s*$/.test(cleanR)) {
+          continue;
+        }
+
+        if (/^[a-zA-Z]\s*$/.test(cleanL)) {
+          const rWithoutFunctions = cleanR.replace(/\\(?:frac|sqrt|left|right|cdot|times|div|pm|mp)\b/gi, '')
+            .replace(/\b(?:sin|cos|tan|sec|csc|cot|log|ln|exp|sqrt|pi|deg|Abs|abs)\b/gi, '');
+          const hasOtherVars = /[a-zA-Z]/.test(rWithoutFunctions);
+          if (!hasOtherVars) {
+            continue;
+          }
+        }
+        if (/^[a-zA-Z]\s*$/.test(cleanR)) {
+          const lWithoutFunctions = cleanL.replace(/\\(?:frac|sqrt|left|right|cdot|times|div|pm|mp)\b/gi, '')
+            .replace(/\b(?:sin|cos|tan|sec|csc|cot|log|ln|exp|sqrt|pi|deg|Abs|abs)\b/gi, '');
+          const hasOtherVars = /[a-zA-Z]/.test(lWithoutFunctions);
+          if (!hasOtherVars) {
+            continue;
+          }
+        }
 
         // Check for malformed syntax first so syntax errors fail closed
         const c1 = cleanLatexForSympy(rawLeft);
@@ -1777,26 +1819,6 @@ function extractClaims(text, userPrompt = '') {
           continue;
         }
 
-        // Filter: Pure variable assignment e.g. x = 2 or x = 2/3 or x = 6, 12 or d = 10.2 or x = 8 or -4
-        const cleanL = rawLeft.replace(/^[(\s]+|[)\s]+$/g, '').trim();
-        const cleanR = rawRight.replace(/^[(\s]+|[)\s]+$/g, '').trim();
-
-        if (/^[a-zA-Z]\s*$/.test(cleanL)) {
-          const rWithoutFunctions = cleanR.replace(/\\(?:frac|sqrt|left|right|cdot|times|div|pm|mp)\b/gi, '')
-            .replace(/\b(?:sin|cos|tan|sec|csc|cot|log|ln|exp|sqrt|pi|deg|Abs|abs)\b/gi, '');
-          const hasOtherVars = /[a-zA-Z]/.test(rWithoutFunctions);
-          if (!hasOtherVars) {
-            continue;
-          }
-        }
-        if (/^[a-zA-Z]\s*$/.test(cleanR)) {
-          const lWithoutFunctions = cleanL.replace(/\\(?:frac|sqrt|left|right|cdot|times|div|pm|mp)\b/gi, '')
-            .replace(/\b(?:sin|cos|tan|sec|csc|cot|log|ln|exp|sqrt|pi|deg|Abs|abs)\b/gi, '');
-          const hasOtherVars = /[a-zA-Z]/.test(lWithoutFunctions);
-          if (!hasOtherVars) {
-            continue;
-          }
-        }
 
         // Filter: Multivariable or single-variable polynomial equated to a constant
         // (Equations to be solved or transformed, e.g. x^2 + (y-4)^2 = 144 or 3x + 4y + 19 = 0)
