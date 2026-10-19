@@ -12,6 +12,9 @@
 - **Modular Congruence Routing & CAS Delegation**:
   - Updated `server/mathjsVerifier.js` to defer modular congruence equations (`(mod N)`) directly to SymPy CAS rather than evaluating them as standard real-number polynomials.
   - Enhanced `server/verifier/algebra_verifier.py` to bypass real-domain lost-root checks when `modulus` is present and verify integer modular congruences directly modulo $N$.
+- **Polynomial Like-Term Simplification & Candidate Extraction**:
+  - Added deterministic router fast-path for standalone polynomial expressions with combinable terms (e.g. `4x^2+12+2` -> `4x^2 + 14`).
+  - Fixed Pattern 10d symbolic equivalence extraction in `server/verificationBridge.js` to ensure intermediate arithmetic claims (e.g. `12+2 = 14`) do not block the extraction and verification of prompt-to-candidate equivalence claims, preventing false `UNSUPPORTED_CANDIDATE_ANSWER` withholding on multi-step simplifications.
 - **Arithmetic Query Protection in Deterministic Router**:
   - Refined `hasConceptualIntent` in `server/deterministicRouter.js` to require conceptual target nouns after conversational openers (`what is`, `whats`, `whts`), preserving high-speed deterministic calculation on direct arithmetic queries (e.g. `What is 95 - 96?`, `What is 96% of 50,000?`).
 

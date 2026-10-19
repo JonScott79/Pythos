@@ -596,6 +596,10 @@
             </li>
             <li class="change-item">
               <span class="change-bullet"></span>
+              <div><strong>Polynomial Like-Term Simplification:</strong> Added deterministic router fast-path for standalone polynomial expressions with combinable terms (e.g. <em>4x^2+12+2</em> &rarr; <em>4x^2 + 14</em>) and unblocked Pattern 10d symbolic equivalence extraction from being suppressed by intermediate arithmetic claims.</div>
+            </li>
+            <li class="change-item">
+              <span class="change-bullet"></span>
               <div><strong>Arithmetic Protection in Deterministic Router:</strong> Refined <code>hasConceptualIntent</code> in <code>deterministicRouter.js</code> to require conceptual target nouns after conversational openers, ensuring direct arithmetic queries (e.g. <em>"What is 95 - 96?"</em>) execute deterministically under 1ms.</div>
             </li>
           </ul>

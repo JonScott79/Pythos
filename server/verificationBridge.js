@@ -2382,7 +2382,12 @@ function extractClaims(text, userPrompt = '') {
             const c2 = cleanLatexForSympy(candidateBoxed);
             const hasVarInCand = /[a-zA-Z]/.test(c2.cleaned || '');
             if (c1.cleaned && c2.cleaned) {
-              if (hasVarInCand && !claims.some(c => c.claim_type === 'symbolic_equivalence')) {
+              const alreadyClaimed = claims.some(c =>
+                c.claim_type === 'symbolic_equivalence' &&
+                ((c.data?.expr1 === c1.cleaned && c.data?.expr2 === c2.cleaned) ||
+                 (c.data?.expr1 === c2.cleaned && c.data?.expr2 === c1.cleaned))
+              );
+              if (hasVarInCand && !alreadyClaimed) {
                 claims.push({
                   domain: 'algebra',
                   claim_type: 'symbolic_equivalence',

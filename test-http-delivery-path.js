@@ -265,6 +265,22 @@ async function runHttpDeliverySuite() {
         'Conceptual explanation must be delivered cleanly');
     });
 
+    // -------------------------------------------------------------------------
+    // 9. Algebraic expression simplification (4x^2+12+2) is delivered cleanly
+    // -------------------------------------------------------------------------
+    await test('9. Algebraic simplification (4x^2+12+2) is verified and delivered without withholding', async () => {
+      mockResponseContent = 'Let’s simplify the algebraic expression step by step:\n\n\\[ 4x^{2}+12+2 \\]\n\n1. Combine the constants:\n\\[ 12 + 2 = 14 \\]\n\n2. Write the simplified expression:\n\\[ 4x^{2} + 14 \\]\n\n\\boxed{4x^{2}+14}';
+      const res = await makeHttpRequest({
+        messages: [{ role: 'user', content: '4x^2+12+2' }],
+        stream: false
+      });
+
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(Boolean(res.data.withheld), false, 'Algebraic simplification must NOT be withheld');
+      assert(res.data.message && res.data.message.content.includes('4x^{2} + 14'),
+        'Simplified candidate expression must be delivered');
+    });
+
   } finally {
     if (pythosServer) {
       try { pythosServer.close(); } catch (_) {}

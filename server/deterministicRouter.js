@@ -2521,6 +2521,35 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
     };
   }
 
+  // 3f. Polynomial Like-Term Simplification (e.g. "4x^2+12+2", "simplify 4x^2+12+2", "3x + 5 - 2", "2x^2 + 4 + 6")
+  const polySimpMatch = clean.match(/^(?:simplify\s+)?([a-zA-Z0-9^+\-*/().\s]+)$/i);
+  if (polySimpMatch && !clean.includes('=') && !clean.includes('?') && /[a-zA-Z]/.test(clean) && /[+\-*]/.test(clean)) {
+    const rawExpr = polySimpMatch[1].trim();
+    if (!/[a-zA-Z]{2,}/.test(rawExpr) && /^[a-zA-Z0-9^+\-*/().\s]+$/.test(rawExpr)) {
+      try {
+        const simp = math.rationalize(rawExpr);
+        const simpStr = simp.toString();
+        const normRaw = rawExpr.replace(/\s+/g, '');
+        const normSimp = simpStr.replace(/\s+/g, '').replace(/\*/g, '');
+        if (simpStr && normRaw !== normSimp) {
+          const prettySimp = simpStr.replace(/\s*\*\s*/g, '').replace(/\s*\^\s*/g, '^').replace(/\s+/g, ' ').trim();
+          return {
+            type: 'ALGEBRA_SIMPLIFICATION',
+            original: rawExpr,
+            expression: rawExpr,
+            result: prettySimp,
+            solution: prettySimp,
+            formatted: prettySimp,
+            steps: [
+              `Identify combinable terms in $${rawExpr}$:`,
+              `Combine terms to simplify: $${prettySimp}$`
+            ]
+          };
+        }
+      } catch (_) {}
+    }
+  }
+
   const evalAtMatch = clean.match(/^evaluate\s+(.+?)\s+at\s+([a-zA-Z])\s*=\s*([-+]?\d+(?:\.\d+)?)$/i);
   if (evalAtMatch) {
     const expr = evalAtMatch[1].trim();
