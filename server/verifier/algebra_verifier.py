@@ -3,9 +3,91 @@ algebra_verifier.py - Deterministic symbolic algebra, root check, and substituti
 """
 
 import sympy as sp
+from sympy.parsing.sympy_parser import parse_expr, standard_transformations, implicit_multiplication_application
 import math
 
 from message_helper import user_message, log_internal
+
+TRANSFORMATIONS = standard_transformations + (implicit_multiplication_application,)
+
+def _safe_parse(expr_str, evaluate=True):
+    try:
+        return sp.sympify(expr_str, evaluate=evaluate)
+    except Exception:
+        return parse_expr(expr_str, transformations=TRANSFORMATIONS, evaluate=evaluate)
+
+def _find_denominators(expr, target_var=None):
+    """
+    Extracts all denominator singularity roots from an unevaluated SymPy expression tree.
+    Handles nested fractions, irrational roots, complex roots, symbolic parameters,
+    and repeated/closely-spaced roots without floating-point loss.
+    Returns: (roots_list, is_reliable, unsupported_reason)
+    Each root in roots_list is a dict:
+      {
+        'sympy': z_simp,
+        'exact': str(z_simp),
+        'numeric': float_or_complex_numeric,
+        'is_complex': bool
+      }
+    """
+    roots_list = []
+    is_reliable = True
+    unsupported_reason = None
+    if expr is None:
+        return roots_list, is_reliable, unsupported_reason
+
+    try:
+        for atom in sp.preorder_traversal(expr):
+            if isinstance(atom, sp.Pow) and atom.exp.is_negative:
+                denom_base = atom.base
+                # Also handle rational bases from nested fractions like ((x-2)/(x+2))**(-1)
+                try:
+                    num, den = sp.fraction(denom_base)
+                    bases_to_check = [num]
+                    if den != 1:
+                        bases_to_check.append(den)
+                except Exception:
+                    bases_to_check = [denom_base]
+
+                for b in bases_to_check:
+                    symbols = [target_var] if (target_var and target_var in b.free_symbols) else list(b.free_symbols)
+                    for s in symbols:
+                        try:
+                            zeros = sp.solve(b, s)
+                            for z in zeros:
+                                z_simp = sp.simplify(z)
+                                # Avoid duplicate roots using exact symbolic difference for same variable
+                                if not any(sp.simplify(z_simp - existing['sympy']) == 0 and existing.get('variable') == str(s) for existing in roots_list):
+                                    num_val = None
+                                    is_comp = False
+                                    try:
+                                        eval_z = complex(z_simp.evalf())
+                                        if abs(eval_z.imag) < 1e-12:
+                                            num_val = float(eval_z.real)
+                                        else:
+                                            is_comp = True
+                                            num_val = f"{eval_z.real:g}+{eval_z.imag:g}j" if eval_z.real != 0 else f"{eval_z.imag:g}j"
+                                    except Exception:
+                                        num_val = None
+
+                                    roots_list.append({
+                                        'variable': str(s),
+                                        'sympy': z_simp,
+                                        'exact': str(z_simp),
+                                        'numeric': num_val,
+                                        'is_complex': is_comp
+                                    })
+                        except NotImplementedError as nie:
+                            is_reliable = False
+                            unsupported_reason = f"Cannot analytically solve denominator singularities for {b}: {nie}"
+                        except Exception as ex:
+                            is_reliable = False
+                            unsupported_reason = f"Error solving singularities for {b}: {ex}"
+    except Exception as top_err:
+        is_reliable = False
+        unsupported_reason = f"Traversal failure: {top_err}"
+
+    return roots_list, is_reliable, unsupported_reason
 
 def _finalize(payload: dict) -> dict:
     """Add user_message based on status and log internal details, then strip private fields."""
@@ -37,33 +119,25 @@ def verify_algebra(claim: dict) -> dict:
         var = sp.Symbol(variable_str)
         if "=" in eq_str:
             lhs_str, rhs_str = eq_str.split("=", 1)
-            lhs = sp.sympify(lhs_str.strip())
-            rhs = sp.sympify(rhs_str.strip())
+            lhs = _safe_parse(lhs_str.strip())
+            rhs = _safe_parse(rhs_str.strip())
             equation = sp.Eq(lhs, rhs)
         else:
             lhs_str = eq_str
             rhs_str = "0"
-            equation = sp.Eq(sp.sympify(eq_str), 0)
+            equation = sp.Eq(_safe_parse(eq_str), 0)
 
         # Domain restriction check: parse raw expression with evaluate=False
         # to preserve denominators that SymPy would otherwise simplify away.
         # e.g. x**2/x is simplified to x by sympify, hiding the x=0 singularity.
-        domain_excluded_vals = set()
+        domain_excluded_roots = []
         for raw_side in [lhs_str.strip(), rhs_str.strip()]:
             try:
-                raw_expr = sp.sympify(raw_side, evaluate=False)
-                # Collect all denominators from Pow(base, -1) and Mul terms
-                for atom in sp.preorder_traversal(raw_expr):
-                    if isinstance(atom, sp.Pow) and atom.exp.is_negative:
-                        denom_base = atom.base
-                        if var in denom_base.free_symbols:
-                            # Find values of var that zero this denominator
-                            zeros = sp.solve(denom_base, var)
-                            for z in zeros:
-                                try:
-                                    domain_excluded_vals.add(float(z.evalf()))
-                                except (TypeError, ValueError):
-                                    pass
+                raw_expr = _safe_parse(raw_side, evaluate=False)
+                side_roots, _, _ = _find_denominators(raw_expr, target_var=var)
+                for r in side_roots:
+                    if not any(sp.simplify(r['sympy'] - ex['sympy']) == 0 for ex in domain_excluded_roots):
+                        domain_excluded_roots.append(r)
             except Exception:
                 pass
 
@@ -79,12 +153,30 @@ def verify_algebra(claim: dict) -> dict:
                 # Support complex roots like i, -i
                 if isinstance(prop, str) and prop.strip().lower() in ('i', '-i'):
                     val = sp.I if prop.strip().lower() == 'i' else -sp.I
+                elif isinstance(prop, str):
+                    try:
+                        val = sp.sympify(prop)
+                    except Exception:
+                        val = float(prop)
                 else:
                     val = float(prop)
-                # Domain restriction: reject values that zero a denominator
+
+                # Domain restriction: reject values that zero any denominator
                 # in the original (pre-simplified) expression
-                if any(abs(val - excl) < 1e-9 for excl in domain_excluded_vals):
-                    extraneous_found.append(val)
+                is_domain_violation = False
+                for excl in domain_excluded_roots:
+                    try:
+                        if isinstance(val, (int, float)) and excl['numeric'] is not None and not excl['is_complex']:
+                            if abs(val - excl['numeric']) < 1e-9:
+                                is_domain_violation = True
+                                break
+                        elif sp.simplify(sp.sympify(val) - excl['sympy']) == 0:
+                            is_domain_violation = True
+                            break
+                    except Exception:
+                        pass
+                if is_domain_violation:
+                    extraneous_found.append(float(val) if isinstance(val, (int, float)) else str(val))
                     continue
                 lhs_val = lhs.subs(var, val)
                 rhs_val = rhs.subs(var, val)
@@ -144,9 +236,18 @@ def verify_algebra(claim: dict) -> dict:
 
 def verify_symbolic_equivalence(claim: dict) -> dict:
     """
-    Verifies symbolic algebraic and trigonometric identity equivalence using SymPy simplification.
+    Verifies symbolic algebraic and trigonometric identity equivalence using SymPy simplification
+    with domain preservation checks.
     e.g. sin(x)^2 + cos(x)^2 == 1 or x^2 - 16 == (x-4)*(x+4)
     """
+    if claim.get("is_malformed"):
+        return {
+            "verified": False,
+            "status": "MALFORMED_EXPRESSION",
+            "error_type": "MALFORMED_SYNTAX",
+            "reason": claim.get("malformed_reason", "Malformed expression notation")
+        }
+
     expr1_str = claim.get("expr1")
     expr2_str = claim.get("expr2")
 
@@ -154,16 +255,72 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
         return {"verified": False, "status": "UNKNOWN", "reason": "Missing expressions for equivalence check"}
 
     try:
-        e1 = sp.sympify(expr1_str)
-        e2 = sp.sympify(expr2_str)
+        e1 = _safe_parse(expr1_str, evaluate=True)
+        e2 = _safe_parse(expr2_str, evaluate=True)
 
         diff = sp.simplify(sp.trigsimp(e1 - e2))
 
         if diff == 0:
+            # Check domain preservation across simplification
+            raw_e1 = _safe_parse(expr1_str, evaluate=False)
+            raw_e2 = _safe_parse(expr2_str, evaluate=False)
+
+            target_var = None
+            free = raw_e1.free_symbols.union(raw_e2.free_symbols)
+            if sp.Symbol('x') in free:
+                target_var = sp.Symbol('x')
+            elif len(free) == 1:
+                target_var = list(free)[0]
+
+            roots1, rel1, unsupp1 = _find_denominators(raw_e1, target_var=target_var)
+            roots2, rel2, unsupp2 = _find_denominators(raw_e2, target_var=target_var)
+
+            # If domain cannot be determined reliably, verifier must not certify domain preservation
+            if not rel1 or not rel2:
+                return {
+                    "verified": True,
+                    "status": "VERIFIED_ON_UNKNOWN_DOMAIN",
+                    "domain_preserved": False,
+                    "domain_certification": "UNRELIABLE_DOMAIN",
+                    "domain_unsupported_reason": unsupp1 or unsupp2,
+                    "details": f"Symbolic equivalence established: {expr1_str} ≡ {expr2_str}, but denominator singularities could not be analytically determined in closed form. Domain preservation cannot be certified."
+                }
+
+            lost = [r for r in roots1 if not any(sp.simplify(r['sympy'] - o['sympy']) == 0 and r.get('variable') == o.get('variable') for o in roots2)]
+            is_domain_identical = (len(lost) == 0)
+
+            lost_exclusions = [r['numeric'] if not r['is_complex'] and r['numeric'] is not None else r['exact'] for r in lost]
+            lost_exclusions_exact = [r['exact'] for r in lost]
+            lost_exclusions_real = [r['numeric'] for r in lost if not r['is_complex'] and r['numeric'] is not None]
+            lost_exclusions_detailed = [
+                {
+                    "variable": r.get("variable", str(target_var or "x")),
+                    "exact": r["exact"],
+                    "numeric": r["numeric"] if not r["is_complex"] else None,
+                    "is_complex": r["is_complex"],
+                    "expr1": expr1_str,
+                    "expr2": expr2_str
+                }
+                for r in lost
+            ]
+            domain_exclusions = [r['numeric'] if not r['is_complex'] and r['numeric'] is not None else r['exact'] for r in roots1]
+            domain_exclusions_exact = [r['exact'] for r in roots1]
+
             return {
                 "verified": True,
                 "status": "VERIFIED",
-                "details": f"Symbolic equivalence proven: {expr1_str} ≡ {expr2_str} (Difference simplifies to 0)."
+                "variable": str(target_var or "x"),
+                "domain_preserved": is_domain_identical,
+                "shared_domain_only": not is_domain_identical,
+                "lost_exclusions": lost_exclusions,
+                "lost_exclusions_exact": lost_exclusions_exact,
+                "lost_exclusions_real": lost_exclusions_real,
+                "lost_exclusions_detailed": lost_exclusions_detailed,
+                "domain_exclusions": domain_exclusions,
+                "domain_exclusions_exact": domain_exclusions_exact,
+                "details": f"Symbolic equivalence proven: {expr1_str} ≡ {expr2_str}." + (
+                    f" Note: original expression excludes {target_var or 'x'} in {lost_exclusions_exact}." if not is_domain_identical else ""
+                )
             }
         else:
             return {
@@ -173,4 +330,9 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
                 "details": f"Expressions {expr1_str} and {expr2_str} are not algebraically equivalent."
             }
     except Exception as e:
-        return {"verified": False, "status": "UNKNOWN", "reason": str(e)}
+        return {
+            "verified": False,
+            "status": "MALFORMED_EXPRESSION",
+            "error_type": "MALFORMED_SYNTAX",
+            "reason": f"Could not parse or simplify expressions: {str(e)}"
+        }

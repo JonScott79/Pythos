@@ -22,14 +22,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="assets/favicon.png">
-  <title>Pythos Release History &amp; Changelog | v1.9.0</title>
+  <title>Pythos Release History &amp; Changelog | v1.9.1</title>
   <meta name="description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://pythos.lanzar.me/changelog.html">
 
   <!-- OPEN GRAPH -->
-  <meta property="og:title" content="Pythos Release History &amp; Changelog | v1.9.0">
+  <meta property="og:title" content="Pythos Release History &amp; Changelog | v1.9.1">
   <meta property="og:description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta property="og:url" content="https://pythos.lanzar.me/changelog.html">
   <meta property="og:type" content="article">
@@ -41,7 +41,7 @@
 
   <!-- TWITTER CARD -->
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Pythos Release History &amp; Changelog | v1.9.0">
+  <meta name="twitter:title" content="Pythos Release History &amp; Changelog | v1.9.1">
   <meta name="twitter:description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="twitter:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
 
@@ -532,7 +532,7 @@
         <a href="nonprofit.html" class="nav-link">Mission &amp; Roadmap</a>
         <a href="license.html" class="nav-link">License</a>
         <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" class="nav-link">Facebook</a>
-        <a href="changelog.html#pythos-1-9-0" class="nav-link active" aria-current="page">v1.9.0</a>
+        <a href="changelog.html#pythos-1-9-1" class="nav-link active" aria-current="page">v1.9.1</a>
       </div>
     </div>
 
@@ -562,12 +562,47 @@
         <!-- ==================== RELEASE 1.8.28 ==================== -->
         <!-- ==================== RELEASE 1.8.29 ==================== -->
     <!-- ==================== RELEASE 1.8.31 ==================== -->
+                                                                                    <!-- ==================== RELEASE 1.9.1 ==================== -->
+      <article class="release-card" id="pythos-1-9-1">
+        <div class="release-header">
+          <div class="release-title-wrap">
+            <h2 class="release-version">Pythos 1.9.1</h2>
+            <span class="release-badge">Latest Release</span>
+          </div>
+          <time class="release-date" datetime="2026-10-19">October 19, 2026</time>
+        </div>
+
+        <div class="section-group">
+          <div class="section-header">
+            <span class="badge-added">Enhancement</span>
+            <span class="section-title">Scoped Contradiction Isolation &amp; Fail-Closed Verification Gating</span>
+          </div>
+          <ul class="change-list">
+            <li class="change-item">
+              <span class="change-bullet"></span>
+              <div><strong>Scoped Contradiction Detection:</strong> Completely refactored <code>auditInternalConsistency</code> in <code>server/verificationBridge.js</code> to isolate variables, equations, and Markdown sections. Independent equations (such as \(x^2 + 1 = 0\) having no real roots alongside \(y - 4 = 0\) having root \(y = 4\)) no longer trigger false-positive contradiction flags, while true intra-equation contradictions remain strictly rejected.</div>
+            </li>
+            <li class="change-item">
+              <span class="change-bullet"></span>
+              <div><strong>Domain-Restriction Singularity Isolation:</strong> Upgraded <code>_find_denominators</code> in <code>algebra_verifier.py</code> to differentiate real and complex denominator singularities in closed form. Prevents cancelled denominators in auxiliary equations from invalidating solutions for independent target variables, and fails closed (<code>VERIFIED_ON_UNKNOWN_DOMAIN</code>) when singularities cannot be analytically certified.</div>
+            </li>
+            <li class="change-item">
+              <span class="change-bullet"></span>
+              <div><strong>Fail-Closed Candidate Delivery Gating:</strong> Hardened <code>evaluateCandidateDelivery</code> to require candidate answers to bind strictly to verified target claims. Any response containing unverified answers or invalid intermediate claims (<code>audit.invalidClaims &gt; 0</code>) triggers canonical safe pedagogical withholding (<code>SAFE_WITHHOLDING</code>), eliminating unverified token leakage.</div>
+            </li>
+            <li class="change-item">
+              <span class="change-bullet"></span>
+              <div><strong>Upstream Refusal Routing &amp; 4096 Token Ceiling:</strong> Intercepts upstream model refusals directly to safe pedagogical guidance and expands the generation token ceiling to 4096 to prevent truncation on extensive multi-step mathematical derivations.</div>
+            </li>
+          </ul>
+        </div>
+      </article>
+
                                                                                     <!-- ==================== RELEASE 1.9.0 ==================== -->
       <article class="release-card" id="pythos-1-9-0">
         <div class="release-header">
           <div class="release-title-wrap">
             <h2 class="release-version">Pythos 1.9.0</h2>
-            <span class="release-badge">Latest Release</span>
           </div>
           <time class="release-date" datetime="2026-10-18">October 18, 2026</time>
         </div>
@@ -2089,7 +2124,7 @@
 
   <footer>
     <div>🏛️ Pythos — Free AI Mathematics &amp; Physics Education Initiative. Developed by LANZAR.</div>
-    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-9-0" style="color:var(--primary-color); text-decoration:none;">v1.9.0</a></div>
+    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-9-1" style="color:var(--primary-color); text-decoration:none;">v1.9.1</a></div>
   </footer>
 
   <script>

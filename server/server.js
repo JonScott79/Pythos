@@ -2685,6 +2685,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
       } catch (revErr) {
         console.error('[VERIFIER] Revision call failed:', revErr.message);
       }
+    }
 
       // Deterministic Supremacy: Enforce mathematical truth across any remaining invalid calculations
       for (const { claim, verification, claimIndex } of invalidClaims) {
@@ -2762,10 +2763,26 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
         return true; // Still uncorrected
       });
 
-      const hasUnresolvableFailure = uncorrectedInvalidClaims.length > 0 || internalContradictions.length > 0;
+      const candidateAnswer = extractCandidateAnswer(finalContent);
+      let candidateDelivery = null;
+      try {
+        candidateDelivery = evaluateCandidateDelivery({
+          candidateAnswer,
+          verifications: verificationResults,
+          contradictions: internalContradictions,
+          claims,
+          prompt: effectiveVerificationPrompt
+        });
+      } catch (cdErr) {
+        console.warn('[DELIVERY GATE] Candidate delivery evaluation error:', cdErr.message);
+      }
+
+      const hasUnresolvableFailure = uncorrectedInvalidClaims.length > 0 ||
+                                     internalContradictions.length > 0 ||
+                                     (candidateDelivery && candidateDelivery.delivered === false);
 
       if (hasUnresolvableFailure) {
-        console.warn(`[DELIVERY GATE] Candidate contains ${uncorrectedInvalidClaims.length} uncorrected errors and ${internalContradictions.length} contradictions. Enforcing safe withholding gate...`);
+        console.warn(`[DELIVERY GATE] Candidate contains ${uncorrectedInvalidClaims.length} uncorrected errors, ${internalContradictions.length} contradictions, candidateDelivery: ${candidateDelivery?.status || 'OK'}. Enforcing safe withholding gate...`);
 
         // ARCHITECTURAL MANDATE:
         // Never withhold verified mathematical truth merely because the conversational explanation failed verification.
@@ -2797,6 +2814,9 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           // No trusted verified solution exists (e.g. genuinely ambiguous, missing problem information, uncomputable)
           // -> Enforce fail-closed safe withholding to protect the student from unverified guesses.
           const failureAudit = [];
+          if (candidateDelivery && candidateDelivery.delivered === false) {
+            failureAudit.push(candidateDelivery.reason || candidateDelivery.status);
+          }
           uncorrectedInvalidClaims.forEach(({ verification }) => {
             failureAudit.push(verification.details || verification.error_type || verification.status);
           });
@@ -2871,7 +2891,6 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           console.error('[REPORT SERVICE] Failed to auto-flag report:', flagErr.message);
         }
       }
-    }
 
     // Enforce pedagogical consistency for contextual validation and continuation
     if (studentEvaluation && studentEvaluation.preferredResponse) {

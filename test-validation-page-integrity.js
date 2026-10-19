@@ -1,4 +1,4 @@
-﻿/**
+/**
  * test-validation-page-integrity.js
  *
  * Automated regression test guarding the Mathematical Validation page:
@@ -63,8 +63,8 @@ runTest('No duplicate campaign collision: Current headline counts distinct from 
 
 // Test 4: Version alignment
 runTest('Version alignment: Homepage version matches validation page version', () => {
-  assert(indexHtml.includes('v1.9.0'), 'Homepage must cite v1.9.0');
-  assert(valHtml.includes('v1.9.0'), 'Validation page must cite v1.9.0');
+  assert(indexHtml.includes('v1.9.1'), 'Homepage must cite v1.9.1');
+  assert(valHtml.includes('v1.9.1'), 'Validation page must cite v1.9.1');
 });
 
 // Test 5: No stale 110k in meta descriptions

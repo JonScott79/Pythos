@@ -95,7 +95,7 @@ function extractCandidateAnswer(text) {
     if (sanitized) return sanitized;
   }
   
-  const inlineMatch = text.match(/(?:x|y|z|result|answer|v|velocity|force|energy)\s*=\s*([-\d./]+(?:\s*[a-zA-Z/^2]+)?)/i);
+  const inlineMatch = text.match(/(?:final\s+answer|answer|result|x|y|z|v|velocity|force|energy)(?:\s*=\s*|\s+is\s+)([-\d./]+(?:\s*[a-zA-Z/^2]+)?)/i);
   if (inlineMatch) {
     const sanitized = sanitizeExtracted(inlineMatch[1]);
     if (sanitized) return sanitized;
@@ -110,7 +110,26 @@ function extractCandidateAnswer(text) {
  * - Claims must be fully verified with no invalid claims or contradictions.
  * - Prompt-to-claim fidelity must be satisfied.
  */
-function evaluateCandidateDelivery({ candidateAnswer, verifications = [], contradictions = [], claims = [], prompt = '' }) {
+function evaluateCandidateDelivery(arg1, arg2, arg3, arg4, arg5) {
+  let candidateAnswer, verifications, contradictions, claims, prompt;
+  if (arg1 && typeof arg1 === 'object' && !Array.isArray(arg1) && ('candidateAnswer' in arg1 || 'verifications' in arg1)) {
+    ({ candidateAnswer, verifications = [], contradictions = [], claims = [], prompt = '' } = arg1);
+  } else {
+    // Flexible fallback for positional calls: (text, verifications, prompt, claims, answer)
+    if (arg5 !== undefined) {
+      candidateAnswer = arg5;
+      verifications = arg2 || [];
+      prompt = arg3 || '';
+      claims = arg4 || [];
+      contradictions = [];
+    } else {
+      candidateAnswer = arg1;
+      verifications = arg2 || [];
+      contradictions = arg3 || [];
+      claims = arg4 || [];
+      prompt = '';
+    }
+  }
   // Reject division by zero in prompt (fail-closed)
   if (/\/\s*0+(?:\.0*)?(?!\d)/.test(prompt) || /\b(?:divide\s+by\s+zero|division\s+by\s+zero)\b/i.test(prompt)) {
     return {
@@ -143,6 +162,172 @@ function evaluateCandidateDelivery({ candidateAnswer, verifications = [], contra
       answer: null,
       reason: 'Candidate output contained contradictory or disproven mathematical claims.'
     };
+  }
+
+  // --- DOMAIN PRESERVATION & RESTRICTED ROOT DELIVERY SAFEGUARDS ---
+  const allLostRecords = [];
+  let hasUnreliableDomain = false;
+  let unreliableDomainReason = null;
+
+  for (let vi = 0; vi < verifications.length; vi++) {
+    const v = verifications[vi];
+    const c = claims[vi];
+    if (v.status === 'UNRELIABLE_DOMAIN' || v.domain_certification === 'UNRELIABLE_DOMAIN' || v.status === 'VERIFIED_ON_UNKNOWN_DOMAIN') {
+      hasUnreliableDomain = true;
+      unreliableDomainReason = v.domain_unsupported_reason || v.details || 'Denominator singularities could not be reliably established in closed form.';
+    }
+    if (Array.isArray(v.lost_exclusions_detailed)) {
+      for (const item of v.lost_exclusions_detailed) {
+        allLostRecords.push({
+          variable: item.variable || v.variable || c?.data?.variable || 'x',
+          exact: item.exact,
+          numeric: item.numeric,
+          is_complex: Boolean(item.is_complex),
+          scopeId: c?.scopeId !== undefined ? c.scopeId : 0,
+          expr1: item.expr1 || c?.data?.expr1,
+          expr2: item.expr2 || c?.data?.expr2
+        });
+      }
+    } else if (Array.isArray(v.lost_exclusions)) {
+      for (const ex of v.lost_exclusions) {
+        const isComp = typeof ex === 'string' && (ex.includes('j') || ex.includes('I'));
+        allLostRecords.push({
+          variable: v.variable || c?.data?.variable || 'x',
+          exact: String(ex),
+          numeric: !isComp && typeof ex === 'number' ? ex : (!isComp && !isNaN(parseFloat(ex)) ? parseFloat(ex) : null),
+          is_complex: isComp,
+          scopeId: c?.scopeId !== undefined ? c.scopeId : 0,
+          expr1: c?.data?.expr1,
+          expr2: c?.data?.expr2
+        });
+      }
+    }
+  }
+
+  // Fail-closed: Withhold delivery if domain preservation could not be reliably established
+  if (hasUnreliableDomain) {
+    return {
+      status: 'UNVERIFIED_DOMAIN',
+      delivered: false,
+      withheld: true,
+      answer: null,
+      reason: `Domain preservation could not be verified: ${unreliableDomainReason}`
+    };
+  }
+
+  // Fail-closed: Withhold delivery if candidate solution restores a lost/canceled denominator root in its scope
+  if (allLostRecords.length > 0) {
+    const candRaw = String(candidateAnswer).trim();
+    let candVar = null;
+    let candValStr = candRaw;
+    const varPrefixMatch = candRaw.match(/^([a-zA-Z])\s*=\s*(.+)$/);
+    if (varPrefixMatch) {
+      candVar = varPrefixMatch[1];
+      candValStr = varPrefixMatch[2].trim();
+    } else {
+      const promptVarMatch = prompt.match(/\b(?:solve\s+for|find)\s+([a-zA-Z])\b/i) || prompt.match(/\b([a-zA-Z])\s*=/);
+      if (promptVarMatch) {
+        candVar = promptVarMatch[1];
+      }
+    }
+
+    const isComplexCand = /[ij]\b/i.test(candValStr);
+    const candNum = !isComplexCand ? parseFloat(candValStr.replace(/[^-\d.]/g, '')) : NaN;
+    const candStrLower = candValStr.toLowerCase();
+
+    // Find the claim that yielded candidateAnswer to determine target scope
+    const matchingClaim = claims.find(c => {
+      if (c.claim_type === 'equation_solution' || c.claim_type === 'substitution') {
+        const sols = Array.isArray(c.data?.proposed_solutions) ? c.data.proposed_solutions : [c.data?.proposed_solution];
+        return sols.some(s => {
+          if (s === undefined || s === null) return false;
+          if (typeof s === 'number' && !isNaN(candNum) && Math.abs(s - candNum) < 1e-4) return true;
+          return String(s).trim().toLowerCase() === candStrLower;
+        });
+      }
+      return false;
+    });
+    const targetScope = matchingClaim?.scopeId;
+
+    const violatesLost = allLostRecords.some(rec => {
+      // 1. Variable Identity: Exclusion on x does not invalidate candidate solution for y
+      if (candVar && rec.variable && candVar !== rec.variable) {
+        return false;
+      }
+
+      // 2. Scope / Derivation: Exclusion in Problem 1 must not invalidate solution for Problem 2
+      if (rec.scopeId !== undefined && targetScope !== undefined && rec.scopeId !== targetScope) {
+        return false;
+      }
+
+      // 3. Independent Equation: An exclusion from a canceled fraction applies only if the candidate's equation derives from that fraction
+      if (matchingClaim?.data?.equation && rec.numeric !== null && !isNaN(candNum)) {
+        const claimEq = matchingClaim.data.equation;
+        const claimVar = matchingClaim.data.variable || 'x';
+        if (claimEq.includes('/')) {
+          const denomMatch = claimEq.match(/\/\s*\(([^)]+)\)|\/\s*([a-zA-Z0-9^+\-*]+)/g);
+          if (denomMatch && denomMatch.length > 0) {
+            const vanishesOwnDenom = denomMatch.some(d => {
+              const cleanD = d.replace(/^\/\s*\(?/, '').replace(/\)?$/, '');
+              try {
+                const evaluated = math.evaluate(cleanD, { [claimVar]: candNum });
+                return Math.abs(evaluated) < 1e-9;
+              } catch (_) {
+                return false;
+              }
+            });
+            if (!vanishesOwnDenom && !claimEq.includes(rec.exact)) {
+              return false;
+            }
+          }
+        } else {
+          // Polynomial / linear equation without fractions (e.g. 3x - 6 = 0).
+          // An exclusion from a canceled fraction applies only if this equation derives from that fraction
+          // (i.e. claimEq matches or contains the simplified expression expr2).
+          const simp = rec.expr2 || rec.simplifiedExpr;
+          if (simp) {
+            const normEq = claimEq.replace(/\s+/g, '');
+            const normSimp = String(simp).replace(/\*\*/g, '^').replace(/\s+/g, '');
+            const normLhs = claimEq.split('=')[0].replace(/\s+/g, '');
+            const isDerived = normEq.includes(normSimp) || (normLhs.length > 1 && normSimp.includes(normLhs));
+            if (!isDerived) {
+              return false; // Independent equation unrelated to the fraction!
+            }
+          } else {
+            return false;
+          }
+        }
+      }
+
+      // 2. Real vs. Complex Domain Check
+      if (rec.is_complex) {
+        // Complex singularity never matches a real candidate answer
+        if (!isComplexCand && !isNaN(candNum)) {
+          return false;
+        }
+        const recExact = rec.exact.trim().toLowerCase();
+        return candStrLower === recExact || (candStrLower === 'i' && recExact === 'i') || (candStrLower === '-i' && recExact === '-i');
+      } else {
+        // Real singularity
+        if (isComplexCand) {
+          return false;
+        }
+        if (!isNaN(candNum) && rec.numeric !== null && Math.abs(candNum - rec.numeric) < 1e-5) {
+          return true;
+        }
+        return candStrLower === rec.exact.trim().toLowerCase();
+      }
+    });
+
+    if (violatesLost) {
+      return {
+        status: 'EXTRANEOUS_ROOT_DELIVERY_REJECTED',
+        delivered: false,
+        withheld: true,
+        answer: null,
+        reason: `Candidate solution restored an excluded value (${candidateAnswer}) that was removed by canceled denominator.`
+      };
+    }
   }
 
   const fidelity = auditPromptClaimFidelity(claims, prompt);
@@ -204,13 +389,18 @@ function evaluateCandidateDelivery({ candidateAnswer, verifications = [], contra
 
   // 4. Impossible Problems: Real solutions requested for negative discriminant
   if (/\breal\s+(?:roots?|solutions?)\b/i.test(prompt) && /x\^2\s*\+\s*\d+\s*=\s*0/i.test(prompt)) {
-    return {
-      status: 'IMPOSSIBLE_PROBLEM',
-      delivered: false,
-      withheld: true,
-      answer: null,
-      reason: 'Equation has no real solutions (discriminant < 0).'
-    };
+    // Only withhold if prompt is specifically an adversarial trap solely asking for real roots of this quadratic
+    // (do not withhold if prompt involves independent equations like y - 4 = 0 or multiple variables)
+    const hasMultipleVars = /\b[y-zY-Z]\b/.test(prompt);
+    if (!hasMultipleVars) {
+      return {
+        status: 'IMPOSSIBLE_PROBLEM',
+        delivered: false,
+        withheld: true,
+        answer: null,
+        reason: 'Equation has no real solutions (discriminant < 0).'
+      };
+    }
   }
 
   // 5. Impossible Problems: Probability distribution sum > 1.0
@@ -581,6 +771,61 @@ function evaluateCandidateDelivery({ candidateAnswer, verifications = [], contra
     }
   }
 
+  // Candidate-to-Claim Binding Guard:
+  // An intermediate claim alone cannot authorize delivery of an unsupported final answer.
+  if (candidateAnswer !== null && candidateAnswer !== undefined && verifications.length > 0) {
+    const candStr = String(candidateAnswer).trim().toLowerCase();
+    const candNum = parseFloat(candStr.replace(/[^-\d.]/g, ''));
+
+    const isSupportedByClaims = claims.some((c, i) => {
+      const v = verifications[i];
+      if (!v || v.verified !== true) return false;
+
+      // 1. Equation solutions
+      if (c.claim_type === 'equation_solution' || c.claim_type === 'system_solution') {
+        const sols = Array.isArray(c.data?.proposed_solutions) ? c.data.proposed_solutions : [c.data?.proposed_solution];
+        return sols.some(s => {
+          if (s === undefined || s === null) return false;
+          if (typeof s === 'number' && !isNaN(candNum) && Math.abs(s - candNum) < 1e-4) return true;
+          return String(s).trim().toLowerCase() === candStr;
+        });
+      }
+
+      // 2. Arithmetic or numerical evaluation
+      if (v.exact_value !== undefined && v.exact_value !== null) {
+        if (!isNaN(candNum) && Math.abs(candNum - Number(v.exact_value)) < 1e-4) return true;
+        if (String(v.exact_value).trim().toLowerCase() === candStr) return true;
+      }
+      if (c.data?.proposed_value !== undefined) {
+        if (!isNaN(candNum) && Math.abs(candNum - Number(c.data.proposed_value)) < 1e-4) return true;
+      }
+
+      // 3. Symbolic Equivalence / Simplification
+      if (c.claim_type === 'symbolic_equivalence') {
+        const e1 = (c.data?.expr1 || '').trim().toLowerCase();
+        const e2 = (c.data?.expr2 || '').trim().toLowerCase();
+        if (e1 === candStr || e2 === candStr) return true;
+        const cleanCand = candStr.replace(/^[a-zA-Z]\s*=\s*/, '').replace(/\s+/g, '').replace(/(\d)\*([a-zA-Z])/g, '$1$2');
+        const normCand = cleanCand.replace(/\*\*/g, '^');
+        const normE1 = e1.replace(/\*\*/g, '^').replace(/\s+/g, '').replace(/(\d)\*([a-zA-Z])/g, '$1$2');
+        const normE2 = e2.replace(/\*\*/g, '^').replace(/\s+/g, '').replace(/(\d)\*([a-zA-Z])/g, '$1$2');
+        if (normCand === normE1 || normCand === normE2 || normE1.includes(normCand) || normE2.includes(normCand)) return true;
+      }
+
+      return false;
+    });
+
+    if (!isSupportedByClaims) {
+      return {
+        status: 'UNSUPPORTED_CANDIDATE_ANSWER',
+        delivered: false,
+        withheld: true,
+        answer: null,
+        reason: `Candidate answer (${candidateAnswer}) is not supported or verified by any claim in the derivation.`
+      };
+    }
+  }
+
   const allVerified = verifications.length > 0 && verifications.every(v => v.verified === true);
   if (allVerified) {
     return {
@@ -731,17 +976,19 @@ function extractClaims(text, userPrompt = '') {
   }
 
   // Helper to identify bare variable assignments (e.g. "x = 11" or "y = 3")
-  // Helper to identify bare variable assignments (e.g. "x = 11" or "The solution is x = 11")
   function isBareAssignment(eqStr) {
     if (!eqStr || typeof eqStr !== 'string') return false;
     const cleaned = cleanAndNormalizeEquation(eqStr);
     if (!cleaned) return false;
-    return /^\s*[a-zA-Z]\s*=\s*[-+]?\d+(?:\.\d+)?\s*$/.test(cleaned.equation);
+    return /^\s*[a-zA-Z]\s*=\s*(?:[-+]?\d+(?:\.\d+)?|[-+]?[iI])\s*$/.test(cleaned.equation);
   }
 
   function parseNumOrFrac(str) {
     if (!str) return NaN;
     str = String(str).trim();
+    if (/^[-+]?[iI]$/.test(str)) {
+      return str.toLowerCase();
+    }
     if (str.includes('/')) {
       const p = str.split('/');
       if (p.length === 2) {
@@ -817,6 +1064,7 @@ function extractClaims(text, userPrompt = '') {
         domain: 'algebra',
         claim_type: 'equation_solution',
         raw_match: eqSolMatch[0],
+        match_offset: eqSolMatch.index,
         data: {
           equation: cleaned.equation,
           variable: cleaned.variable,
@@ -826,8 +1074,8 @@ function extractClaims(text, userPrompt = '') {
     }
   }
 
-  // Pattern 5b: Equation followed by explicit solution assignment (e.g. "2x + 3 = 11, x = 4" or "x^2 - 5x + 6 = 0, x = 2 or x = 3")
-  const eqVarRegex = /([a-zA-Z0-9^+\-*/()÷\\.\s]+=[a-zA-Z0-9^+\-*/()÷\\.\s]+)[,;:\s]+(?:=>\s*|\\implies\s+|so\s+|therefore\s+)?([a-zA-Z])\s*=\s*([-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?)(?:\s*(?:,|and|or)\s*\2\s*=\s*([-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?))?/gi;
+  // Pattern 5b: Equation followed by explicit solution assignment (e.g. "2x + 3 = 11, x = 4", "y - 4 = 0 has the real solution y = 4", or "x^2 - 5x + 6 = 0, x = 2 or x = 3")
+  const eqVarRegex = /([a-zA-Z0-9^+\-*/()÷\\.\s]+=[a-zA-Z0-9^+\-*/()÷\\.\s]+)[,;:\s]+(?:=>\s*|\\implies\s+|so\s+|therefore\s+|has\s+(?:the\s+)?(?:real\s+)?(?:solution|root)s?\s+(?:is\s+|as\s+)?|(?:the\s+)?(?:real\s+)?(?:solution|root)s?\s+(?:is|are)\s+|with\s+(?:the\s+)?(?:real\s+)?(?:solution|root)s?\s+|which\s+gives\s+|giving\s+)?([a-zA-Z])\s*=\s*([-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?|[-+]?[iI]\b)(?:\s*(?:,|and|or)\s*\2\s*=\s*([-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?|[-+]?[iI]\b))?/gi;
   let eqVarMatch;
   while ((eqVarMatch = eqVarRegex.exec(text)) !== null) {
     const rawEq = eqVarMatch[1].trim();
@@ -840,10 +1088,17 @@ function extractClaims(text, userPrompt = '') {
     if (cleaned) {
       const alreadyClaimed = claims.some(c => c.data?.equation === cleaned.equation && c.claim_type === 'equation_solution');
       if (!alreadyClaimed) {
+        let exactOffset = eqVarMatch.index;
+        const eqLhsRaw = cleaned.equation.split('=')[0].replace(/\*/g, '').trim();
+        const foundIdx = text.indexOf(eqLhsRaw, eqVarMatch.index);
+        if (foundIdx !== -1 && foundIdx <= eqVarMatch.index + rawEq.length) {
+          exactOffset = foundIdx;
+        }
         claims.push({
           domain: 'algebra',
           claim_type: 'equation_solution',
           raw_match: eqVarMatch[0],
+          match_offset: exactOffset,
           data: {
             equation: cleaned.equation,
             variable: cleaned.variable || variable,
@@ -855,7 +1110,7 @@ function extractClaims(text, userPrompt = '') {
   }
 
   // Pattern 5c: Solved equation from prompt/context where candidate states solution (e.g. "x = -5", "\boxed{x = -5}", "\boxed{3, 9}", or "\boxed{\,x=3,\;9\,}")
-  const isSystemPrompt = ((promptStr.match(/=/g) || []).length >= 2) || /\bsystem\b/i.test(promptStr);
+  const isSystemPrompt = ((promptStr.match(/=/g) || []).length >= 2) || /\bsystem\s+of\s+(?:linear\s+)?equations\b/i.test(promptStr) || /\bsystem\s*:/i.test(promptStr);
   if (promptStr && !isSystemPrompt) {
     const promptEqMatch = promptStr.match(/([a-zA-Z0-9^+\-*/()÷\\.\s]+=[a-zA-Z0-9^+\-*/()÷\\.\s]+)/);
     if (promptEqMatch) {
@@ -864,6 +1119,7 @@ function extractClaims(text, userPrompt = '') {
         const v = cleaned.variable;
         let sols = [];
         let rawMatchStr = null;
+        let matchOffset = -1;
 
         // Check boxed matches first for full root set
         const boxedMatches = extractBoxedMatches(text);
@@ -877,6 +1133,7 @@ function extractClaims(text, userPrompt = '') {
             if (compMatches && compMatches.length > 0) {
               sols = compMatches;
               rawMatchStr = boxedMatches[boxedMatches.length - 1].raw;
+              matchOffset = text.lastIndexOf(rawMatchStr);
             } else {
               const isNumberList = /^[a-zA-Z\s=]*[-+]?\d+(?:\.\d+)?(?:\s*(?:,|and|or|;)\s*(?:[a-zA-Z]\s*=)?\s*[-+]?\d+(?:\.\d+)?)*\s*$/i.test(rawBoxed);
               if (isNumberList) {
@@ -884,6 +1141,7 @@ function extractClaims(text, userPrompt = '') {
                 if (nums && nums.length > 0) {
                   sols = nums.map(Number);
                   rawMatchStr = boxedMatches[boxedMatches.length - 1].raw;
+                  matchOffset = text.lastIndexOf(rawMatchStr);
                 }
               }
             }
@@ -892,12 +1150,16 @@ function extractClaims(text, userPrompt = '') {
 
         // If not in boxed, check explicit assignments like x = 3 or x = 9, or x = 3, 9
         if (sols.length === 0) {
-          const assignRegex = new RegExp(`(?:\\b${v}\\s*=\\s*|solutions?:?\\s*|roots?:?\\s*)([-+]?\\d+(?:\\.\\d+)?(?:\\s*\/\\s*\\d+)?)(?:\\s*(?:,|and|or|;)?\\s*(?:\${v}\\s*=\\s*)?([-+]?\\d+(?:\\.\\d+)?(?:\\s*\/\\s*\\d+)?))?`, 'i');
-          const assignMatch = text.match(assignRegex);
-          if (assignMatch) {
-            sols = [parseNumOrFrac(assignMatch[1])];
-            if (assignMatch[2]) sols.push(parseNumOrFrac(assignMatch[2]));
-            rawMatchStr = assignMatch[0];
+          const assignRegex = new RegExp(`(?:\\b${v}\\s*=\\s*|solutions?:?\\s*|roots?:?\\s*)([-+]?\\d+(?:\\.\\d+)?(?:\\s*\/\\s*\\d+)?|[-+]?[iI]\\b)(?:\\s*(?:,|and|or|;)?\\s*(?:${v}\\s*=\\s*)?([-+]?\\d+(?:\\.\\d+)?(?:\\s*\/\\s*\\d+)?|[-+]?[iI]\\b))?`, 'gi');
+          let m;
+          while ((m = assignRegex.exec(text)) !== null) {
+            const pre = text.substring(Math.max(0, m.index - 30), m.index);
+            if (/\b(?:excludes?|excluding|cannot\s+be|not\s+equal\s+to|domain|restriction|where)\b/i.test(pre)) continue;
+            sols = [parseNumOrFrac(m[1])];
+            if (m[2]) sols.push(parseNumOrFrac(m[2]));
+            rawMatchStr = m[0];
+            matchOffset = m.index;
+            break;
           }
         }
 
@@ -908,6 +1170,7 @@ function extractClaims(text, userPrompt = '') {
               domain: 'algebra',
               claim_type: 'equation_solution',
               raw_match: rawMatchStr || `solutions: ${sols.join(', ')}`,
+              match_offset: matchOffset >= 0 ? matchOffset : undefined,
               data: {
                 equation: cleaned.equation,
                 variable: cleaned.variable,
@@ -1015,6 +1278,378 @@ function extractClaims(text, userPrompt = '') {
           });
         }
       }
+    }
+  }
+
+  // 5f. Root Existence Claims
+  const noRealRootRegex = /\b(?:has\s+no\s+real\s+roots?|no\s+real\s+solutions?|there\s+(?:are|is)\s+no\s+real\s+roots?|no\s+real\s+roots?\s+exist)\b/gi;
+  let noRealMatch;
+  while ((noRealMatch = noRealRootRegex.exec(text)) !== null) {
+    const matchIdx = noRealMatch.index;
+    const preText = text.substring(Math.max(0, matchIdx - 150), matchIdx);
+    const postText = text.substring(matchIdx, Math.min(text.length, matchIdx + 150));
+
+    let targetEq = null;
+    let targetVar = 'x';
+
+    // Search for equation in preText (e.g. x^2 + 1 = 0)
+    const eqMatches = [...preText.matchAll(/([a-zA-Z0-9^+\-*/()÷\\.\s]+=[a-zA-Z0-9^+\-*/()÷\\.\s]+)/g)];
+    if (eqMatches.length > 0) {
+      const lastEq = eqMatches[eqMatches.length - 1][1];
+      const cleaned = cleanAndNormalizeEquation(lastEq);
+      if (cleaned) {
+        targetEq = cleaned.equation;
+        targetVar = cleaned.variable;
+      }
+    } else {
+      const postEqMatches = postText.match(/([a-zA-Z0-9^+\-*/()÷\\.\s]+=[a-zA-Z0-9^+\-*/()÷\\.\s]+)/);
+      if (postEqMatches) {
+        const cleaned = cleanAndNormalizeEquation(postEqMatches[1]);
+        if (cleaned) {
+          targetEq = cleaned.equation;
+          targetVar = cleaned.variable;
+        }
+      }
+    }
+
+    if (!targetEq) {
+      const varMatch = preText.match(/\b(?:in|for|variable)\s+([a-zA-Z])\b/i) || postText.match(/\b(?:in|for|variable)\s+([a-zA-Z])\b/i);
+      if (varMatch) {
+        targetVar = varMatch[1];
+      }
+    }
+
+    claims.push({
+      domain: 'algebra',
+      claim_type: 'root_existence',
+      raw_match: noRealMatch[0],
+      match_offset: matchIdx,
+      data: {
+        assertion: 'NO_REAL_ROOT',
+        equation: targetEq,
+        variable: targetVar
+      }
+    });
+  }
+
+  const realRootRegex = /\b(?:sign\s+change\s+(?:between|from|in)\s+[^.\n]+(?:indicates?|shows?|proves?|means?)[^.\n]+root|intermediate\s+value\s+theorem[^.\n]+root|(?:a|at\s+least\s+one)\s+real\s+root\s+(?:must\s+exist|exists|is\s+present)|([a-zA-Z])\s*=\s*([-+]?\d+(?:\.\d+)?)\s+is\s+a\s+(?:real\s+)?solution(?:\s+to\s+([^.\n]+))?)\b/gi;
+  let realMatch;
+  while ((realMatch = realRootRegex.exec(text)) !== null) {
+    const matchIdx = realMatch.index;
+    let targetVar = realMatch[1] || 'x';
+    let targetSols = realMatch[2] ? [parseFloat(realMatch[2])] : [];
+    let targetEq = null;
+
+    if (realMatch[3]) {
+      const toEqStr = realMatch[3].trim();
+      if (/that\s+same\s+equation/i.test(toEqStr)) {
+        const preText = text.substring(0, matchIdx);
+        const eqMatches = [...preText.matchAll(/([a-zA-Z0-9^+\-*/()÷\\.\s]+=[a-zA-Z0-9^+\-*/()÷\\.\s]+)/g)];
+        if (eqMatches.length > 0) {
+          const cleaned = cleanAndNormalizeEquation(eqMatches[eqMatches.length - 1][1]);
+          if (cleaned) targetEq = cleaned.equation;
+        }
+      } else {
+        const cleaned = cleanAndNormalizeEquation(toEqStr);
+        if (cleaned) targetEq = cleaned.equation;
+      }
+    } else {
+      const preText = text.substring(Math.max(0, matchIdx - 150), matchIdx);
+      const eqMatches = [...preText.matchAll(/([a-zA-Z0-9^+\-*/()÷\\.\s]+=[a-zA-Z0-9^+\-*/()÷\\.\s]+)/g)];
+      if (eqMatches.length > 0) {
+        const cleaned = cleanAndNormalizeEquation(eqMatches[eqMatches.length - 1][1]);
+        if (cleaned) targetEq = cleaned.equation;
+      }
+    }
+
+    claims.push({
+      domain: 'algebra',
+      claim_type: 'root_existence',
+      raw_match: realMatch[0],
+      match_offset: matchIdx,
+      data: {
+        assertion: 'REAL_ROOT_EXISTS',
+        equation: targetEq,
+        variable: targetVar,
+        proposed_solutions: targetSols
+      }
+    });
+  }
+
+  const compRootRegex = /\b(?:has\s+complex\s+roots?|complex\s+roots?\s+exist|roots?\s+exist\s+in\s+(?:the\s+)?complex\s+plane|has\s+complex\s+solutions?)\b/gi;
+  let compMatch;
+  while ((compMatch = compRootRegex.exec(text)) !== null) {
+    const matchIdx = compMatch.index;
+    const preText = text.substring(Math.max(0, matchIdx - 150), matchIdx);
+    let targetEq = null;
+    let targetVar = 'x';
+    const eqMatches = [...preText.matchAll(/([a-zA-Z0-9^+\-*/()÷\\.\s]+=[a-zA-Z0-9^+\-*/()÷\\.\s]+)/g)];
+    if (eqMatches.length > 0) {
+      const cleaned = cleanAndNormalizeEquation(eqMatches[eqMatches.length - 1][1]);
+      if (cleaned) {
+        targetEq = cleaned.equation;
+        targetVar = cleaned.variable;
+      }
+    }
+    claims.push({
+      domain: 'algebra',
+      claim_type: 'root_existence',
+      raw_match: compMatch[0],
+      match_offset: matchIdx,
+      data: {
+        assertion: 'COMPLEX_ROOTS_EXIST',
+        domain: 'complex',
+        equation: targetEq,
+        variable: targetVar
+      }
+    });
+  }
+
+  // 5g. Comprehensive Intermediate Symbolic Equivalence / Rational Expression Simplification Claims
+  function cleanLatexForSympy(str) {
+    if (!str) return '';
+    let s = str.trim();
+
+    // Check for unbalanced braces
+    const openBraces = (s.match(/\{/g) || []).length;
+    const closeBraces = (s.match(/\}/g) || []).length;
+    if (openBraces !== closeBraces) {
+      return { error: 'UNBALANCED_BRACES', raw: s };
+    }
+
+    // Check for empty fraction arguments e.g. \frac{}
+    if (/\\frac\s*\{\s*\}\s*\{/i.test(s) || /\\frac\s*\{[^{}]*\}\s*\{\s*\}/i.test(s)) {
+      return { error: 'EMPTY_FRACTION_ARG', raw: s };
+    }
+
+    // Check for malformed powers e.g. ^^ or ^\
+    if (/\^{2,}|\^[a-zA-Z0-9+-]+\^/i.test(s)) {
+      return { error: 'MALFORMED_POWER', raw: s };
+    }
+
+    s = s.replace(/\u000c/g, '\\f');
+    s = s.replace(/\\\]/g, ' ').replace(/\\\[/g, ' ');
+    s = s.replace(/\\+$/, '');
+    s = s.replace(/\\(?:quad|qquad|;|\\,|,|!)/g, ' ');
+    s = s.replace(/\\left\(/g, '(').replace(/\\right\)/g, ')');
+    s = s.replace(/\\left\[/g, '[').replace(/\\right\]/g, ']');
+    s = s.replace(/\\cdot/g, '*');
+    s = s.replace(/÷|\\div/g, '/');
+
+    // Convert square roots and nth roots before fraction parsing so inner braces don't block \frac parsing
+    let sqrtPrev;
+    let sqrtPasses = 0;
+    do {
+      sqrtPrev = s;
+      s = s.replace(/\\sqrt\[([^{}]+)\]\{([^{}]+)\}/g, '(($2)**(1/($1)))');
+      s = s.replace(/\\sqrt\{([^{}]+)\}/g, 'sqrt($1)');
+      sqrtPasses++;
+    } while (s !== sqrtPrev && sqrtPasses < 10);
+    s = s.replace(/\\sqrt\s*([0-9a-zA-Z])/g, 'sqrt($1)');
+
+    // Map imaginary unit notation to SymPy I
+    s = s.replace(/\\mathrm\{i\}|\\imath/g, 'I');
+    s = s.replace(/(?<=[^a-zA-Z0-9_]|^)i(?=[^a-zA-Z0-9_]|$)/g, 'I');
+
+    // Multi-pass fraction parser handling arbitrarily nested fractions
+    let prev;
+    let passes = 0;
+    do {
+      prev = s;
+      s = s.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, '(($1)/($2))');
+      passes++;
+    } while (s !== prev && passes < 20);
+
+    if (/\\frac\b/.test(s)) {
+      return { error: 'MALFORMED_FRACTION', raw: s };
+    }
+
+    // Strip backslashes from standard functions and handle sin^2(x) -> (sin(x))**2
+    s = s.replace(/\\(sin|cos|tan|sec|csc|cot|ln|log|exp)\^\{?(\d+)\}?\s*\(([^)]+)\)/g, '($1($3))**$2');
+    s = s.replace(/\\(sin|cos|tan|sec|csc|cot|ln|log|exp)\b/g, '$1');
+
+    s = s.replace(/\^\{?([a-zA-Z0-9+-]+)\}?/g, '**$1');
+    s = s.replace(/(\d)\s*([a-zA-Z])/g, '$1*$2');
+    s = s.replace(/(\d)\s*\(/g, '$1*(');
+    s = s.replace(/\)\s*(\d)/g, ')*$1');
+    s = s.replace(/\)\s*([a-zA-Z])/g, ')*$1');
+    s = s.replace(/\)\s*\(/g, ')*(');
+
+    return { cleaned: s.trim() };
+  }
+
+  // 1. Normalize LaTeX display math blocks, aligned environments, and equation tags
+  let normalizedEqText = text
+    .replace(/\u000c/g, '\\f')
+    .replace(/\\begin\{aligned\}([\s\S]*?)\\end\{aligned\}/gi, '$1')
+    .replace(/\\begin\{align\*?\}([\s\S]*?)\\end\{align\*?\}/gi, '$1')
+    .replace(/\\\[([\s\S]*?)\\\]/g, '\n$1\n')
+    .replace(/\\$\$([\s\S]*?)\\$\$/g, '\n$1\n');
+
+  const rawEqLines = normalizedEqText.split(/\r?\n/);
+  let previousEqRhs = null;
+
+  for (let rawEqLine of rawEqLines) {
+    let eqLine = rawEqLine.trim();
+    if (!eqLine) continue;
+
+    // Filter out parenthetical comments on their own line e.g. "(excludes x = 2)"
+    if (/^\s*\(.*?\)\s*$/.test(eqLine)) continue;
+
+    // Strip trailing LaTeX linebreaks '\\' and optional spacing e.g. '\\[4pt]'
+    eqLine = eqLine.replace(/\\\\(?:\s*\[[^\]]*\])?\s*$/, '').trim();
+
+    // Check if line is an aligned continuation e.g. '&= expr' or '= expr'
+    if (/^&?\s*=/.test(eqLine)) {
+      if (previousEqRhs) {
+        const continuationRhs = eqLine.replace(/^&?\s*=\s*/, '').trim();
+        eqLine = `${previousEqRhs} = ${continuationRhs}`;
+      } else {
+        continue;
+      }
+    }
+
+    // Strip internal alignment markers '&'
+    eqLine = eqLine.replace(/&/g, ' ').trim();
+
+    if (!eqLine.includes('=')) {
+      previousEqRhs = null;
+      continue;
+    }
+
+    // Split on clauses if multiple equations exist (e.g. separated by ';' or sentence periods or 'and' or implication arrows or commas before variable assignments)
+    const eqClauses = eqLine.split(/(?:\\implies|\\Rightarrow|=>|-->|\\rightarrow|;\s*|\.(?!\d)\s+|,\s*(?=[a-zA-Z]\s*=)|(?<=[^\s\w/+\-*^])\s+(?:and|also|while|as\s+well\s+as)\s+)/i);
+
+    for (const eqClause of eqClauses) {
+      if (!eqClause.includes('=')) continue;
+
+      // Filter: Commentary in parentheses e.g. "(excludes x = 2)" or prose domain descriptions
+      if (/^\s*\(.*?\)\s*$/.test(eqClause) || /^\s*(?:note|remember|warning)?\s*(?:domain|restrictions?|excludes?)\b/i.test(eqClause)) continue;
+
+      const rawSegments = eqClause.split(/(?<![=!<])=(?![=])/);
+      if (rawSegments.length < 2) continue;
+
+      function trimMathProse(str, isLeft) {
+        let s = str.trim();
+        if (!s) return '';
+        if (isLeft) {
+          s = s.replace(/^[A-Za-z0-9\s,;'"-]*?:\s*/i, '');
+          s = s.replace(/^(?:(?:first|second|third|next|then|finally|separately|additionally|here\s+is\s+the\s+step)\s+)?(?:(?:consider|note|recall|notice|observe)\s+)?(?:the\s+)?(?:identity|expression|fraction|equation)?:?\s*/i, '');
+          const proseMatch = s.match(/^(?:.*?\b(?:we\s+have|we\s+get|we\s+find|we\s+see|yields?|leads?\s+to|gives?|thus|therefore|so|hence|simplif(?:y|ies|ying)|cancel(?:ling)?|becomes?|left\s+with|note\s+that|notice\s+that|that|where|solving|solve|setting|substituting|excludes?|from|this\s+step\s+excludes?)\s+)+/i);
+          if (proseMatch) {
+            s = s.substring(proseMatch[0].length).trim();
+          }
+          s = s.replace(/^[A-Za-z0-9\s,;'"-]*?:\s*/i, '');
+          s = s.replace(/^(?:(?:first|second|third|next|then|finally|separately|additionally|here\s+is\s+the\s+step)\s+)?(?:(?:consider|note|recall|notice|observe)\s+)?(?:the\s+)?(?:identity|expression|fraction|equation)?:?\s*/i, '');
+        } else {
+          const proseEndMatch = s.match(/(?:[,;.]?\s+(?:for\s+all|for\s+|where\s+|which\s+|when\s+|as\s+|provided\s+|since\s+|because\s+|note\s+|with\s+|gives?|yields?|leads?\s+to|from\s+the\s+domain.*$|from\s+.*$|in\s+the\s+domain.*$).*$|[.,;:]+$)/i);
+          if (proseEndMatch) {
+            s = s.substring(0, proseEndMatch.index).trim();
+          }
+        }
+        return s.trim();
+      }
+
+      const segments = rawSegments.map((seg, idx) => {
+        const isLhs = (idx === 0);
+        const isRhs = (idx === rawSegments.length - 1);
+        return trimMathProse(seg, isLhs && !isRhs);
+      });
+
+      for (let i = 0; i < segments.length - 1; i++) {
+        const rawLeft = segments[i].trim();
+        const rawRight = segments[i + 1].trim();
+
+        if (!rawLeft || !rawRight) continue;
+
+        // Filter: If segments contain English prose words, this is prose commentary, not symbolic equivalence
+        const mathAllowedWords = new Set(['sin', 'cos', 'tan', 'sec', 'csc', 'cot', 'log', 'ln', 'exp', 'sqrt', 'frac', 'cdot', 'left', 'right', 'pi', 'quad', 'qquad']);
+        const leftWords = rawLeft.match(/[a-zA-Z]{2,}/g) || [];
+        const rightWords = rawRight.match(/[a-zA-Z]{2,}/g) || [];
+        if (leftWords.some(w => !mathAllowedWords.has(w.toLowerCase())) ||
+            rightWords.some(w => !mathAllowedWords.has(w.toLowerCase()))) {
+          continue;
+        }
+
+        // Filter: Prose sentences or domain descriptions e.g. "This step excludes x"
+        if (/\b(?:step|excludes?|domain|restrictions?|note|remember|we\s+have|given|assume)\b/i.test(rawLeft) || /\b(?:from\s+the|domain|excludes?)\b/i.test(rawRight)) continue;
+
+        // Filter: Pure variable assignment e.g. x = 2 or x = 2/3
+        const cleanL = rawLeft.replace(/^[(\s]+|[)\s]+$/g, '');
+        const cleanR = rawRight.replace(/^[(\s]+|[)\s]+$/g, '');
+        if (/^[a-zA-Z]\s*$/.test(cleanL) && /^(?:[-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?|[-+]?[iI])$/.test(cleanR)) continue;
+
+        // Filter: Equation equated to zero e.g. 6x^3 - 21x^2 + 31x - 6 = 0
+        if (rawRight === '0' || rawLeft === '0') continue;
+
+        // Filter: Function definition f(x) = expr
+        if (/^[a-zA-Z]\s*\([a-zA-Z0-9,\s]+\)$/.test(rawLeft)) continue;
+
+        // Filter: Equation being solved (e.g. "Solving x + 1 = 3" or preceded by "Solve...")
+        const prevContext = text.substring(Math.max(0, text.indexOf(rawEqLine) - 100), text.indexOf(rawEqLine));
+        const isPrecededBySolve = /\b(?:solv(?:e|ing)|set(?:ting)?)\b/i.test(prevContext);
+        if (isPrecededBySolve || /\b(?:solv(?:e|ing)|set(?:ting)?)\b/i.test(eqClause) || /\b(?:solv(?:e|ing)|set(?:ting)?)\b/i.test(rawLeft)) {
+          if (!/[a-zA-Z]/.test(rawRight) || !/[a-zA-Z]/.test(rawLeft)) {
+            continue;
+          }
+        }
+
+        // Filter: If equation is already extracted as an equation_solution claim
+        const normClause = `${rawLeft} = ${rawRight}`.replace(/\s+/g, '');
+        if (claims.some(c => c.claim_type === 'equation_solution' && (c.data?.equation?.replace(/\s+/g, '').includes(normClause) || c.raw_match?.replace(/\s+/g, '').includes(normClause)))) {
+          continue;
+        }
+
+        // Filter: If the entire line is identical to userPrompt equation being solved
+        if (promptStr && (promptStr.includes(rawLeft) && promptStr.includes(rawRight) && promptStr.includes('='))) {
+          if (Math.abs(promptStr.length - eqClause.length) < 15) continue;
+        }
+
+        // Check for malformed syntax
+        const c1 = cleanLatexForSympy(rawLeft);
+        const c2 = cleanLatexForSympy(rawRight);
+
+        if (c1.error || c2.error) {
+          claims.push({
+            domain: 'algebra',
+            claim_type: 'symbolic_equivalence',
+            raw_match: `${rawLeft} = ${rawRight}`,
+            match_offset: text.indexOf(eqClause),
+            data: {
+              expr1: rawLeft,
+              expr2: rawRight,
+              is_malformed: true,
+              malformed_reason: c1.error || c2.error,
+              userPrompt: promptStr
+            },
+            userPrompt: promptStr
+          });
+          continue;
+        }
+
+        const expr1 = c1.cleaned;
+        const expr2 = c2.cleaned;
+
+        const hasVarOrExpr1 = /[a-zA-Z]/.test(expr1) || /[+*^/]/.test(expr1);
+        const hasVarOrExpr2 = /[a-zA-Z]/.test(expr2) || /[+*^/]/.test(expr2);
+
+        if (expr1 && expr2 && (expr1 !== expr2 || /[/]/.test(expr1)) && (hasVarOrExpr1 || hasVarOrExpr2)) {
+          claims.push({
+            domain: 'algebra',
+            claim_type: 'symbolic_equivalence',
+            raw_match: `${rawLeft} = ${rawRight}`,
+            match_offset: text.indexOf(eqClause),
+            data: {
+              expr1,
+              expr2,
+              userPrompt: promptStr
+            },
+            userPrompt: promptStr
+          });
+        }
+      }
+
+      previousEqRhs = segments[segments.length - 1];
     }
   }
 
@@ -1592,6 +2227,30 @@ function extractClaims(text, userPrompt = '') {
     }
   }
 
+  // Assign derivation/equation scopeId based on position in structured text
+  for (const claim of claims) {
+    if (claim.scopeId === undefined) {
+      let offset = (claim.match_offset !== undefined && claim.match_offset >= 0) ? claim.match_offset : -1;
+      if (offset === -1 && claim.raw_match) {
+        offset = text.indexOf(claim.raw_match);
+      }
+      if (offset === -1 && claim.data?.equation) {
+        offset = text.indexOf(claim.data.equation);
+      }
+      if (offset === -1 && claim.data?.expr1) {
+        offset = text.indexOf(claim.data.expr1);
+      }
+      if (offset >= 0) {
+        const prefix = text.substring(0, offset);
+        // Match section breaks (markdown headers, horizontal rules, or problem/part labels)
+        const breaks = prefix.match(/(?:^|\n)(?:#{1,6}\s+|[-*_]{3,}\s*$|(?:\*{1,2})?(?:Problem|Part|Question|Exercise|Step\s+1(?!\d)|Task|Case)\s+[A-Za-z0-9]+[:.)])/gim);
+        claim.scopeId = breaks ? breaks.length : 0;
+      } else {
+        claim.scopeId = 0;
+      }
+    }
+  }
+
   return claims;
 }
 
@@ -1655,6 +2314,68 @@ function auditInternalConsistency(claims) {
           details: `Geometric contradiction: Triangle sides ${opp}, ${adj}, ${hyp} violate the Pythagorean theorem (${opp}^2 + ${adj}^2 = ${opp * opp + adj * adj} != ${hyp * hyp}).`
         });
       }
+    }
+  }
+
+  // Scoped Root Existence Contradiction Analysis
+  const noRealRootClaims = claims.filter(c => c.claim_type === 'root_existence' && c.data?.assertion === 'NO_REAL_ROOT');
+  const realRootClaims = claims.filter(c => c.claim_type === 'root_existence' && c.data?.assertion === 'REAL_ROOT_EXISTS');
+  const eqSolutionClaims = claims.filter(c => c.claim_type === 'equation_solution');
+
+  for (const noReal of noRealRootClaims) {
+    const noRealScope = noReal.scopeId !== undefined ? noReal.scopeId : 0;
+    const noRealVar = noReal.data?.variable;
+    const noRealEq = noReal.data?.equation;
+
+    // 1. Cross-check against explicit REAL_ROOT_EXISTS claims
+    for (const realRoot of realRootClaims) {
+      const realScope = realRoot.scopeId !== undefined ? realRoot.scopeId : 0;
+      const realVar = realRoot.data?.variable;
+      const realEq = realRoot.data?.equation;
+
+      // Section / Problem Scope isolation: Separate sections must NOT contradict
+      if (noRealScope !== realScope) continue;
+
+      // Variable isolation: Different variables must NOT contradict (e.g. x vs y)
+      if (noRealVar && realVar && noRealVar !== realVar) continue;
+
+      // Equation isolation: Explicitly different equations must NOT contradict
+      if (noRealEq && realEq && noRealEq !== realEq) continue;
+
+      contradictions.push({
+        type: 'ROOT_EXISTENCE_CONTRADICTION',
+        details: `Contradictory reasoning: Response asserts no real root exists ("${noReal.raw_match || 'no real root'}") while also claiming a real root exists ("${realRoot.raw_match || 'root exists'}").`,
+        scopeId: noRealScope
+      });
+    }
+
+    // 2. Cross-check against equation_solution claims proposing real numerical solutions
+    for (const eqSol of eqSolutionClaims) {
+      const eqScope = eqSol.scopeId !== undefined ? eqSol.scopeId : 0;
+      const eqVar = eqSol.data?.variable;
+      const eqStr = eqSol.data?.equation;
+      const sols = eqSol.data?.proposed_solutions;
+
+      if (!Array.isArray(sols) || sols.length === 0) continue;
+
+      // Real domain check: Solutions must include real numbers (not complex roots like 'i', '-i')
+      const hasRealNums = sols.some(s => typeof s === 'number' && !isNaN(s));
+      if (!hasRealNums) continue;
+
+      // Section / Problem Scope isolation: Separate sections must NOT contradict
+      if (noRealScope !== eqScope) continue;
+
+      // Variable isolation: Different variables must NOT contradict (e.g. x^2+1=0 vs y=4)
+      if (noRealVar && eqVar && noRealVar !== eqVar) continue;
+
+      // Equation isolation: Explicitly different equations must NOT contradict (e.g. x^2+1=0 vs 3x-6=0)
+      if (noRealEq && eqStr && noRealEq !== eqStr) continue;
+
+      contradictions.push({
+        type: 'ROOT_EXISTENCE_CONTRADICTION',
+        details: `Contradictory reasoning: Response asserts no real root exists ("${noReal.raw_match || 'no real root'}"), yet proposes real numerical solutions (${JSON.stringify(sols)}) for equation ${eqStr || noRealEq || 'in scope'}.`,
+        scopeId: noRealScope
+      });
     }
   }
 
@@ -2241,6 +2962,15 @@ async function runDeterministicVerification(claim, userPrompt = '') {
     return { verified: false, status: 'UNKNOWN', reason: 'Invalid claim structure' };
   }
 
+  if (claim.data && claim.data.is_malformed) {
+    return {
+      verified: false,
+      status: 'MALFORMED_EXPRESSION',
+      error_type: 'MALFORMED_SYNTAX',
+      reason: claim.data.malformed_reason || 'Expression notation is malformed or unsupported'
+    };
+  }
+
   const promptStr = (typeof userPrompt === 'string' && userPrompt.trim() ? userPrompt.trim() : '') ||
     (userPrompt?.prompt && typeof userPrompt.prompt === 'string' ? userPrompt.prompt.trim() : '') ||
     (typeof claim.userPrompt === 'string' ? claim.userPrompt.trim() : '') ||
@@ -2554,12 +3284,139 @@ async function verifyResponseClaims(content, userQueryText, abortSignal) {
   const invalidClaims = [];
 
   const verificationAudit = [];
+  const accumulatedLostRecords = [];
+
+  function checkSolutionViolatesLost(claim, s) {
+    if (s === undefined || s === null) return false;
+    const claimVar = claim.data?.variable || 'x';
+    const claimScope = claim.scopeId !== undefined ? claim.scopeId : 0;
+    const claimEq = claim.data?.equation || '';
+    const isComplexSol = typeof s === 'string' && (s.toLowerCase().includes('i') || s.toLowerCase().includes('j'));
+    const numS = !isComplexSol ? parseFloat(String(s).replace(/[^-\d.]/g, '')) : NaN;
+    const sExact = String(s).trim().toLowerCase();
+
+    return accumulatedLostRecords.some(rec => {
+      // 1. Variable Identity: Exclusion on x must NOT apply to y
+      if (rec.variable && claimVar && rec.variable !== claimVar) {
+        return false;
+      }
+
+      // 2. Scope / Derivation: Exclusion in Problem 1 must NOT apply to Problem 2
+      if (rec.scopeId !== undefined && claimScope !== undefined && rec.scopeId !== claimScope) {
+        return false;
+      }
+
+      // 3. Independent Equation with Legitimately Permitted Denominator or Independent Polynomial Equation
+      if (claimEq && rec.numeric !== null && !isNaN(numS)) {
+        if (claimEq.includes('/')) {
+          const denomMatch = claimEq.match(/\/\s*\(([^)]+)\)|\/\s*([a-zA-Z0-9^+\-*]+)/g);
+          if (denomMatch && denomMatch.length > 0) {
+            const vanishesOwnDenom = denomMatch.some(d => {
+              const cleanD = d.replace(/^\/\s*\(?/, '').replace(/\)?$/, '');
+              try {
+                const evaluated = math.evaluate(cleanD, { [claimVar]: numS });
+                return Math.abs(evaluated) < 1e-9;
+              } catch (_) {
+                return false;
+              }
+            });
+            if (!vanishesOwnDenom && !claimEq.includes(rec.exact)) {
+              return false;
+            }
+          }
+        } else {
+          // Polynomial / linear equation without fractions (e.g. 3x - 6 = 0).
+          // An exclusion from a canceled fraction applies only if this equation derives from that fraction
+          // (i.e. claimEq matches or contains the simplified expression expr2).
+          const simp = rec.expr2 || rec.simplifiedExpr;
+          if (simp) {
+            const normEq = claimEq.replace(/\s+/g, '');
+            const normSimp = String(simp).replace(/\*\*/g, '^').replace(/\s+/g, '');
+            const normLhs = claimEq.split('=')[0].replace(/\s+/g, '');
+            const isDerived = normEq.includes(normSimp) || (normLhs.length > 1 && normSimp.includes(normLhs));
+            if (!isDerived) {
+              return false; // Independent equation unrelated to the fraction!
+            }
+          } else {
+            return false;
+          }
+        }
+      }
+
+      // 4. Real vs. Complex Domain Check
+      if (rec.is_complex) {
+        // Complex singularity never matches a real solution
+        if (!isComplexSol && !isNaN(numS)) {
+          return false;
+        }
+        const recExact = rec.exact.trim().toLowerCase();
+        return sExact === recExact || (sExact === 'i' && recExact === 'i') || (sExact === '-i' && recExact === '-i');
+      } else {
+        // Real singularity
+        if (isComplexSol) {
+          return false;
+        }
+        if (!isNaN(numS) && rec.numeric !== null && Math.abs(numS - rec.numeric) < 1e-5) {
+          return true;
+        }
+        return sExact === rec.exact.trim().toLowerCase();
+      }
+    });
+  }
 
   for (let ci = 0; ci < claims.length; ci++) {
     if (abortSignal && abortSignal.aborted) break;
     const claim = claims[ci];
-    const verification = await runDeterministicVerification(claim, userQueryText || '');
+    let verification = await runDeterministicVerification(claim, userQueryText || '');
     if (verification) {
+      if (Array.isArray(verification.lost_exclusions_detailed)) {
+        for (const item of verification.lost_exclusions_detailed) {
+          accumulatedLostRecords.push({
+            variable: item.variable || verification.variable || claim.data?.variable || 'x',
+            exact: item.exact,
+            numeric: item.numeric,
+            is_complex: Boolean(item.is_complex),
+            scopeId: claim.scopeId !== undefined ? claim.scopeId : 0,
+            sourceExpr: claim.data?.expr1 || claim.raw_match || '',
+            expr1: item.expr1 || claim.data?.expr1,
+            expr2: item.expr2 || claim.data?.expr2
+          });
+        }
+      } else if (Array.isArray(verification.lost_exclusions)) {
+        for (const ex of verification.lost_exclusions) {
+          const isComp = typeof ex === 'string' && (ex.includes('j') || ex.includes('I'));
+          accumulatedLostRecords.push({
+            variable: verification.variable || claim.data?.variable || 'x',
+            exact: String(ex),
+            numeric: !isComp && typeof ex === 'number' ? ex : (!isComp && !isNaN(parseFloat(ex)) ? parseFloat(ex) : null),
+            is_complex: isComp,
+            scopeId: claim.scopeId !== undefined ? claim.scopeId : 0,
+            sourceExpr: claim.data?.expr1 || claim.raw_match || '',
+            expr1: claim.data?.expr1,
+            expr2: claim.data?.expr2
+          });
+        }
+      }
+
+      // If subsequent step asserts an equation solution that restores an accumulated lost exclusion in its scope,
+      // flag as EXTRANEOUS_ROOT
+      if (claim.claim_type === 'equation_solution' || claim.claim_type === 'substitution') {
+        const proposedSol = claim.data?.proposed_solution ?? claim.data?.proposed_solutions;
+        const sols = Array.isArray(proposedSol) ? proposedSol : [proposedSol];
+        for (const s of sols) {
+          if (checkSolutionViolatesLost(claim, s)) {
+            verification = {
+              verified: false,
+              status: 'EXTRANEOUS_ROOT',
+              error_type: 'EXTRANEOUS_ROOT',
+              extraneous_roots: [s],
+              details: `Proposed solution ${s} for variable ${claim.data?.variable || 'x'} restores an excluded singularity from a canceled denominator.`
+            };
+            break;
+          }
+        }
+      }
+
       verificationResults.push(verification);
       const auditStep = synthesizeVerificationStepAudit(claim, verification, ci);
       if (auditStep) {
@@ -2568,6 +3425,32 @@ async function verifyResponseClaims(content, userQueryText, abortSignal) {
     }
     if (verification && verification.verified === false && verification.status !== 'UNKNOWN') {
       invalidClaims.push({ claim, verification, claimIndex: ci });
+    }
+  }
+
+  // Cross-check: If any equation solution in the response proposes a root that was lost in its scope,
+  // ensure it is marked as EXTRANEOUS_ROOT and withheld even if extracted in earlier order
+  if (accumulatedLostRecords.length > 0) {
+    for (let ci = 0; ci < claims.length; ci++) {
+      const claim = claims[ci];
+      const v = verificationResults[ci];
+      if (v && v.verified && (claim.claim_type === 'equation_solution' || claim.claim_type === 'substitution')) {
+        const proposedSol = claim.data?.proposed_solution ?? claim.data?.proposed_solutions;
+        const sols = Array.isArray(proposedSol) ? proposedSol : [proposedSol];
+        for (const s of sols) {
+          if (checkSolutionViolatesLost(claim, s)) {
+            v.verified = false;
+            v.status = 'EXTRANEOUS_ROOT';
+            v.error_type = 'EXTRANEOUS_ROOT';
+            v.extraneous_roots = [s];
+            v.details = `Proposed solution ${s} for variable ${claim.data?.variable || 'x'} restores an excluded singularity from a canceled denominator.`;
+            if (!invalidClaims.some(ic => ic.claimIndex === ci)) {
+              invalidClaims.push({ claim, verification: v, claimIndex: ci });
+            }
+            break;
+          }
+        }
+      }
     }
   }
 

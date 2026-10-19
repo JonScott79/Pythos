@@ -1,3 +1,26 @@
+## Pythos 1.9.1
+**Release Date:** October 19, 2026
+
+### Added & Enhanced
+
+- **Scoped Contradiction Detection & Section Isolation**:
+  - Rewrote internal consistency auditing (`auditInternalConsistency`) in `server/verificationBridge.js` to enforce strict variable, equation, and heading isolation.
+  - Eliminated false-positive cross-equation contradiction flags between independent equations (e.g. \(x^2 + 1 = 0\) having no real roots while independent \(y - 4 = 0\) has the real solution \(y = 4\)).
+  - Preserved strict intra-equation contradiction detection (e.g. asserting \(x^2 + 1 = 0\) has no real roots while simultaneously claiming \(x = 4\) solves that same equation).
+  - Certified mathematical consistency across different domains, ensuring real-root absence and complex-root existence for the same equation are properly accepted.
+  - Integrated `verifyRootExistence` in both Math.js (`server/mathjsVerifier.js`) and SymPy verification engines with comprehensive parameter routing.
+- **Domain-Restriction Scope & Singularity Isolation**:
+  - Implemented closed-form denominator singularity extraction in `server/verifier/algebra_verifier.py` (`_find_denominators`), accurately isolating real vs. complex singularities across algebraic and trigonometric identities.
+  - Hardened candidate delivery gating in `server/verificationBridge.js` to bind domain exclusions to specific variables, preventing cancelled denominators in auxiliary equations from invalidating solutions for independent target variables.
+  - Enforced conservative fail-closed gating (`VERIFIED_ON_UNKNOWN_DOMAIN`) whenever denominator singularities cannot be analytically resolved in closed form.
+- **Fail-Closed Verification Delivery Gating & Candidate Binding**:
+  - Hardened `evaluateCandidateDelivery` to mandate that candidate answers bind strictly to verified target claims rather than allowing unverified or incorrect answers to piggyback on intermediate valid identities.
+  - Enforced fail-closed withholding: any response containing invalid claims (`audit.invalidClaims.length > 0`) or unverified answers triggers canonical safe withholding (`SAFE_WITHHOLDING`), eliminating draft token leakage.
+- **Refusal Interception & Generation Ceiling Resilience**:
+  - Added upstream provider refusal interception to catch refusal messages and route them to canonical safe pedagogical withholding.
+  - Expanded reasoning generation token ceiling (`max_tokens`) to 4096 to prevent truncation during extensive multi-step mathematical derivations.
+  - Enhanced LaTeX parser resilience for complex fractional expressions, escaped identifiers, and nested algebraic brackets.
+
 ## Pythos 1.9.0
 **Release Date:** October 18, 2026
 

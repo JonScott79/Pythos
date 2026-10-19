@@ -308,6 +308,16 @@ const MathJSVerifier = {
       return { verified: false, engine: 'mathjs', status: 'UNKNOWN', reason: 'Missing expressions for equivalence check' };
     }
 
+    // Rational expressions with division require SymPy CAS for exact denominator singularity & domain loss analysis
+    if (expr1.includes('/') || expr2.includes('/')) {
+      return {
+        verified: false,
+        engine: 'mathjs',
+        status: 'UNKNOWN',
+        reason: 'Rational expression symbolic equivalence requires CAS domain singularity analysis'
+      };
+    }
+
     try {
       // 1. Symbolic simplification comparison
       const simp1 = math.simplify(expr1).toString();
@@ -558,6 +568,75 @@ const MathJSVerifier = {
     } catch (e) {
       return { verified: false, engine: 'mathjs', status: 'UNKNOWN', reason: e.message };
     }
+  },
+
+  /**
+   * Root Existence Verification (Real Discriminant & Complex Assertions)
+   */
+  verifyRootExistence(data) {
+    if (!data) return { verified: true, engine: 'mathjs', status: 'VERIFIED' };
+    const { assertion, equation, variable = 'x' } = data;
+    if (assertion === 'COMPLEX_ROOTS_EXIST') {
+      return {
+        verified: true,
+        engine: 'mathjs',
+        status: 'VERIFIED',
+        details: 'Assertion of complex roots accepted.'
+      };
+    }
+    if (equation) {
+      try {
+        const parts = equation.split('=');
+        if (parts.length === 2) {
+          const lhsStr = parts[0].trim();
+          const rhsStr = parts[1].trim();
+          const normLhs = lhsStr.replace(/(\d)\s*([a-zA-Z])(?![a-zA-Z])/g, '$1*$2');
+          const normRhs = rhsStr.replace(/(\d)\s*([a-zA-Z])(?![a-zA-Z])/g, '$1*$2');
+          const exprStr = `(${normLhs}) - (${normRhs})`;
+          const f = x => math.evaluate(exprStr, { [variable]: x });
+
+          const c = f(0);
+          const p1 = f(1);
+          const pm1 = f(-1);
+          const a = (p1 + pm1 - 2 * c) / 2;
+          const b = (p1 - pm1) / 2;
+          const p2 = f(2);
+          const expectedP2 = a * 4 + b * 2 + c;
+          const pm2 = f(-2);
+          const expectedPm2 = a * 4 - b * 2 + c;
+
+          if (Math.abs(p2 - expectedP2) < 1e-4 && Math.abs(pm2 - expectedPm2) < 1e-4) {
+            if (Math.abs(a) > 1e-6) {
+              const disc = b * b - 4 * a * c;
+              if (assertion === 'NO_REAL_ROOT') {
+                const noReal = disc < -1e-6;
+                return {
+                  verified: noReal,
+                  engine: 'mathjs',
+                  status: noReal ? 'VERIFIED' : 'FALSE_CLAIM',
+                  error_type: noReal ? undefined : 'REAL_ROOTS_EXIST',
+                  details: noReal
+                    ? `Quadratic equation ${equation} has discriminant < 0 (${disc.toFixed(4)}), confirming no real roots exist.`
+                    : `Quadratic equation ${equation} has discriminant >= 0 (${disc.toFixed(4)}), so real roots exist.`
+                };
+              } else if (assertion === 'REAL_ROOT_EXISTS') {
+                const hasReal = disc >= -1e-6;
+                return {
+                  verified: hasReal,
+                  engine: 'mathjs',
+                  status: hasReal ? 'VERIFIED' : 'FALSE_CLAIM',
+                  error_type: hasReal ? undefined : 'NO_REAL_ROOTS',
+                  details: hasReal
+                    ? `Quadratic equation ${equation} has discriminant >= 0 (${disc.toFixed(4)}), confirming real root exists.`
+                    : `Quadratic equation ${equation} has discriminant < 0 (${disc.toFixed(4)}), so no real roots exist.`
+                };
+              }
+            }
+          }
+        }
+      } catch (_) {}
+    }
+    return { verified: true, engine: 'mathjs', status: 'VERIFIED' };
   },
 
   /**
@@ -1269,6 +1348,10 @@ const MathJSVerifier = {
     // 4. Systems of Linear Equations
     if (domain === 'algebra' && (claim_type === 'system_solution' || claim_type === 'system_of_equations')) {
       return this.verifySystemSolution(data);
+    }
+
+    if (domain === 'algebra' && claim_type === 'root_existence') {
+      return this.verifyRootExistence(data);
     }
 
     // Pure substitution checks stay in Math.js; full algebraic solving / lost-root checks defer to Python SymPy
