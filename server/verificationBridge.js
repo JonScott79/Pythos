@@ -870,15 +870,33 @@ function evaluateCandidateDelivery(arg1, arg2, arg3, arg4, arg5) {
         const e1 = (c.data?.expr1 || '').trim().toLowerCase();
         const e2 = (c.data?.expr2 || '').trim().toLowerCase();
         if (e1 === candStr || e2 === candStr) return true;
-        const cleanCand = candStr.replace(/^[a-zA-Z]\s*=\s*/, '').replace(/\s+/g, '').replace(/(\d)\*([a-zA-Z])/g, '$1$2');
-        const normCand = cleanCand.replace(/\*\*/g, '^');
-        const normE1 = e1.replace(/\*\*/g, '^').replace(/\s+/g, '').replace(/(\d)\*([a-zA-Z])/g, '$1$2');
-        const normE2 = e2.replace(/\*\*/g, '^').replace(/\s+/g, '').replace(/(\d)\*([a-zA-Z])/g, '$1$2');
+
+        const cleanSymbolic = (str) => {
+          if (!str) return '';
+          return str
+            .replace(/\\(bigl|bigr|Bigl|Bigr|left|right|text|mathrm|displaystyle)/g, '')
+            .replace(/[{}]/g, '')
+            .replace(/^[a-zA-Z]\s*=\s*/, '')
+            .replace(/\s+/g, '')
+            .replace(/(\d)\*([a-zA-Z])/g, '$1$2')
+            .replace(/\*\*/g, '^')
+            .replace(/\*/g, '');
+        };
+
+        const normE1 = cleanSymbolic(e1);
+        const normE2 = cleanSymbolic(e2);
+
+        // If candidate answer is given as an identity or equation: LHS = RHS
+        if (candStr.includes('=')) {
+          const parts = candStr.split('=');
+          const candL = cleanSymbolic(parts[0]);
+          const candR = cleanSymbolic(parts.slice(1).join('='));
+          if ((candL === normE1 && candR === normE2) || (candL === normE2 && candR === normE1)) return true;
+          if (candL === normE1 || candL === normE2 || candR === normE1 || candR === normE2) return true;
+        }
+
+        const normCand = cleanSymbolic(candStr);
         if (normCand === normE1 || normCand === normE2) return true;
-        const noStarCand = normCand.replace(/\*/g, '');
-        const noStarE1 = normE1.replace(/\*/g, '');
-        const noStarE2 = normE2.replace(/\*/g, '');
-        if (noStarCand === noStarE1 || noStarCand === noStarE2) return true;
       }
 
       // 4. Calculus (derivative, antiderivative, limit, integral)
@@ -896,13 +914,15 @@ function evaluateCandidateDelivery(arg1, arg2, arg3, arg4, arg5) {
     });
 
     if (!isSupportedByClaims) {
-      return {
-        status: 'UNSUPPORTED_CANDIDATE_ANSWER',
-        delivered: false,
-        withheld: true,
-        answer: null,
-        reason: `Candidate answer (${candidateAnswer}) is not supported or verified by any claim in the derivation.`
-      };
+      if (requiresCandidateAnswer(prompt, claims)) {
+        return {
+          status: 'UNSUPPORTED_CANDIDATE_ANSWER',
+          delivered: false,
+          withheld: true,
+          answer: null,
+          reason: `Candidate answer (${candidateAnswer}) is not supported or verified by any claim in the derivation.`
+        };
+      }
     }
   }
 

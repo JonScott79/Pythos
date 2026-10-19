@@ -584,6 +584,10 @@
             </li>
             <li class="change-item">
               <span class="change-bullet"></span>
+              <div><strong>Formula Candidate Binding &amp; Normalization:</strong> Upgraded candidate-to-claim binding in <code>evaluateCandidateDelivery</code> to support equation-form candidates (e.g. <code>\boxed{a^3 - b^3 = (a-b)\bigl(a^2+ab+b^2\bigr)}</code>) against symbolic equivalence claims, stripping LaTeX sizing markers (<code>\bigl</code>, <code>\bigr</code>) and preventing false <code>UNSUPPORTED_CANDIDATE_ANSWER</code> withholding on boxed identities.</div>
+            </li>
+            <li class="change-item">
+              <span class="change-bullet"></span>
               <div><strong>LaTeX Implication Connective Splitting:</strong> Enhanced <code>cleanAndNormalizeEquation</code> to isolate pure mathematical equations across implication and logical connectives (<code>\implies</code>, <code>\iff</code>, <code>=&gt;</code>, <code>\Rightarrow</code>), eliminating LaTeX syntax errors and false CAS withholding in multi-step factoring derivations.</div>
             </li>
             <li class="change-item">

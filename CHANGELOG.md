@@ -4,8 +4,9 @@
 ### Added & Enhanced
 
 - **Intent-Aware Delivery Gate & Conceptual Query Delivery**:
-  - Resolved false withholding on conceptual inquiries, definitions, and algebraic formulas (e.g. `whts the difference in cubes.`, `what is the quadratic formula?`) where scalar/boxed candidate answers do not exist.
+  - Resolved false withholding on conceptual inquiries, definitions, and algebraic formulas (e.g. `whts the difference in cubes.`, `what is the quadratic formula?`) where scalar/boxed candidate answers do not exist or where the model boxes the full algebraic identity.
   - Implemented `requiresCandidateAnswer(prompt, claims)` in `server/verificationBridge.js` to distinguish computational solving tasks (`solve`, `calculate`, standalone equations, quantitative word problems) from conceptual inquiries, allowing verified qualitative derivations with zero invalid claims to deliver cleanly without fail-closed withholding.
+  - Expanded candidate-to-claim binding in `evaluateCandidateDelivery` to support equation-form candidates (e.g. `\boxed{a^3 - b^3 = (a-b)\bigl(a^2+ab+b^2\bigr)}`) against symbolic equivalence claims, normalizing LaTeX sizing commands (`\bigl`, `\bigr`, `\left`, `\right`), preventing false `UNSUPPORTED_CANDIDATE_ANSWER` withholding on boxed identities.
 - **LaTeX Implication & Equivalence Connective Splitting**:
   - Enhanced `cleanAndNormalizeEquation` in `server/verificationBridge.js` to split across implication and logical connectives (`\implies`, `\iff`, `=>`, `\Rightarrow`). Prevents LaTeX connective symbols in multi-step factoring derivations from polluting equation strings and causing CAS syntax exceptions.
 - **Modular Congruence Routing & CAS Delegation**:
