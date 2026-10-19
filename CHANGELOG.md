@@ -1,3 +1,24 @@
+## Pythos 1.9.0
+**Release Date:** October 18, 2026
+
+### Added & Enhanced
+
+- **Specialized Calculus Engine & Persistent CAS Daemon**:
+  - Introduced native high-throughput Calculus Engine (`server/engines/calculusEngine.js` and `calculus_worker.py`) backed by a persistent SymPy background daemon (`--daemon`).
+  - Eliminates per-request Python process spawn overhead, achieving sub-10ms deterministic evaluations for symbolic differentiation, definite and indefinite integrals, limits, and extrema optimization.
+  - Added full support for Leibniz notation (`\frac{d}{dx}[...]`, `d/dt`, `d/dx of ...`) and trigonometric chain rule evaluations.
+  - Implemented bidirectional request ID correlation (`_id`) across stdio pipes to ensure strict request-response isolation and zero cross-request contamination under concurrent multi-worker loads.
+- **Specialized Right-Triangle Geometry Engine**:
+  - Integrated deterministic Geometry Engine (`server/engines/geometryEngine.js`) providing instant right-triangle solutions, exact radical forms, and automated interactive diagram spec generation.
+  - Direct integration into `domainSpecialistRouter.js` fast-path pipeline, bypassing cloud inference for verified geometric and trigonometric configurations.
+- **Multi-Tier Verification Bridge Hardening**:
+  - Enhanced derivative claim extraction in `server/verificationBridge.js` with mathematical operator filtering (`sin`, `cos`, `tan`, `log`, etc.) to prevent variable collisions.
+  - Qualified circle area verification to require explicit area intent in student prompts, preventing false-positive rejections on valid circumference and diameter questions.
+  - Hardened antiderivative verification in `server/verifier/calculus_verifier.py` with power-operator sanitization and registration of the arbitrary constant `$C$`.
+- **Error Taxonomy & Infrastructure Resiliency**:
+  - Corrected text provider rate-limiting status code mapping in `server/server.js` to return standard HTTP 429 (`UPSTREAM_RATE_LIMITED`) with active retry cooldown telemetry.
+  - Enforced clean process lifecycle teardown with guaranteed zero orphan background processes.
+
 ## Pythos 1.8.38
 **Release Date:** October 17, 2026
 
