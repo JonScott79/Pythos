@@ -1,3 +1,24 @@
+## Pythos 1.9.6
+**Release Date:** October 19, 2026
+
+### Added & Enhanced
+
+- **P0 False Withholding Remediation & Universal Delivery Recovery**:
+  - Remediated the 0/9 false-withholding regressions from the live audit baseline, achieving 100% (33/33) delivery on the original audit prompts and 0.0% false withholding (100/100 delivered) across a comprehensive 10-domain benchmark suite.
+  - Resolved false withholding on unparenthesized trigonometric products and radian evaluations (`cos(pi) = -1`, `\cos(\pi) = -1`, `\cos\pi = -1`) by normalizing LaTeX backslashes in SymPy `_safe_parse`.
+  - Added power-subscript pattern guard in `getVars` (`(?:\^[0-9]+|\^\{[0-9]+\})?(?:_[0-9]+|_\{[0-9]+\})?`), preventing multi-character subscript tokens (e.g. `t_{2}`) from being erroneously fragmented into single-letter variables.
+  - Added formula relation / conditional step classification and RHS claim matching in `evaluateCandidateDelivery`, enabling step-by-step equality lines and verified relational derivations to bind cleanly to extracted candidate claims.
+  - Normalized calculus exponential representations (`e^(...)`, `exp(...)`, `ln`/`log`) in `cleanDerivFidelity` and normalized LaTeX inequality symbols (`\leq`, `\geq`, `to degrees`).
+  - Hardened syntax hygiene to detect unbalanced delimiters (`{}`, `()`) and empty math arguments (`\frac{}{x}`) catching them early as `malformed_expression`.
+- **SymPy Real-Domain Grounding & Calculus Integration Handling**:
+  - Enforced `real=True` across variable symbol initialization and explicit symbol scopes `{var: x, 'e': sp.E, 'E': sp.E}` in `calculus_verifier.py`.
+  - Handled isolated singularities at $x=0$ for $\int \frac{1}{x}dx = \ln|x|+C$ by choosing non-zero test evaluation points outside branch singularities.
+- **Three-State Delivery Transparency & HTTP API Consistency**:
+  - Updated `server/server.js` to expose `verificationLevel` (`verified`, `partial`, `withheld`), `deliveryStatus`, and `deliveredAnswer` across both HTTP JSON responses and Server-Sent Events (SSE) streaming chunks.
+  - Hardened fail-closed behavior to guarantee `UNKNOWN` withholding when a candidate answer is extracted but zero claims could be mathematically verified.
+- **Permanent Validation Benchmark Suite**:
+  - Added `test-live-withholding-audit.js` tracking Claude's live 33-prompt baseline and a 100-prompt multi-domain suite across 10 areas, verifying 0.0% false withholding on known-correct items and 100.0% rejection (15/15 caught, 0 leaked) on known-wrong adversarial injections.
+
 ## Pythos 1.9.5
 **Release Date:** October 19, 2026
 

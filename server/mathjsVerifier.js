@@ -116,7 +116,7 @@ const MathJSVerifier = {
     // 2. Exact Fraction vs Approximate Decimal
     if (expression) {
       // Explicit mathematical undefined / division by zero pre-check
-      if (/\/\s*0+(?:\.0*)?(?!\d)/.test(expression) || /\b0\^0\b/.test(expression)) {
+      if (/\/\s*0+(?:\.0+)?(?![.\d])/.test(expression) || /\b0\^0\b/.test(expression)) {
         return {
           verified: false,
           engine: 'mathjs',

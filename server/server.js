@@ -1826,6 +1826,7 @@ app.post('/api/chat', async (req, res) => {
               verificationAudit,
               model: selectedModel,
               deterministic: true,
+              verificationLevel: delivery.verificationLevel || (delivery.status === 'VERIFIED' ? 'verified' : (delivery.delivered ? 'partial' : 'withheld')),
               deliveryStatus: delivery.status,
               deliveredAnswer: delivery.answer
             }) + '\n');
@@ -1846,6 +1847,7 @@ app.post('/api/chat', async (req, res) => {
             verificationAudit,
             deterministic: true,
             withheld: false,
+            verificationLevel: delivery.verificationLevel || (delivery.status === 'VERIFIED' ? 'verified' : (delivery.delivered ? 'partial' : 'withheld')),
             deliveryStatus: delivery.status,
             deliveredAnswer: delivery.answer,
             done: true
@@ -2952,9 +2954,15 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
         : 'guest';
 
       // Attach non-intrusive verification & diagnostic metadata
+      const vLevel = ollamaResponse.withheld
+        ? 'withheld'
+        : (candidateDelivery?.verificationLevel || (candidateDelivery?.status === 'VERIFIED' ? 'verified' : (candidateDelivery?.delivered ? 'partial' : 'withheld')));
       ollamaResponse.requestId = requestId;
       ollamaResponse.latencyMs = latencyMs;
       ollamaResponse.privacySafeUid = privacySafeUid;
+      ollamaResponse.verificationLevel = vLevel;
+      ollamaResponse.deliveryStatus = candidateDelivery?.status || null;
+      ollamaResponse.deliveredAnswer = candidateDelivery?.answer || null;
       ollamaResponse.claims = claims || [];
       ollamaResponse.verification = verificationResults;
       ollamaResponse.verificationAudit = verificationAudit || [];
@@ -2988,6 +2996,9 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           requestId,
           latencyMs,
           privacySafeUid,
+          verificationLevel: vLevel,
+          deliveryStatus: candidateDelivery?.status || null,
+          deliveredAnswer: candidateDelivery?.answer || null,
           domain: classification?.problemDomain || null,
           subtype: classification?.problemSubtype || null,
           intent: studentIntent?.intent || studentIntent?.type || null,

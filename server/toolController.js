@@ -356,7 +356,7 @@ async function executeTool(toolName, args, sessionContext = {}) {
         let formattedResult = '';
 
         // Explicit fail-closed guard: Division by zero or undefined operations
-        if (/\/\s*0+(?:\.0*)?(?!\d)/.test(cleanExpr) || /\b(?:0\^0)\b/.test(cleanExpr)) {
+        if (/\/\s*0+(?:\.0+)?(?![.\d])/.test(cleanExpr) || /\b(?:0\^0)\b/.test(cleanExpr)) {
           recordTelemetry(TELEMETRY_EVENTS.TOOL_FAILED, {
             tool: toolName,
             success: false,

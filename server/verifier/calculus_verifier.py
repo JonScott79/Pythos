@@ -27,9 +27,10 @@ def verify_derivative(claim: dict) -> dict:
         proposed_str = re.sub(r'(\d+)\s*([a-zA-Z])', r'\1*\2', proposed_str)
 
     try:
-        x = sp.Symbol(var_str)
-        expr = sp.sympify(expr_str, locals={var_str: x})
-        proposed = sp.sympify(proposed_str, locals={var_str: x})
+        x = sp.Symbol(var_str, real=True)
+        sym_locals = {var_str: x, 'e': sp.E, 'E': sp.E}
+        expr = sp.sympify(expr_str, locals=sym_locals)
+        proposed = sp.sympify(proposed_str, locals=sym_locals)
 
         actual_deriv = sp.diff(expr, x)
         diff = sp.simplify(actual_deriv - proposed)
@@ -75,13 +76,23 @@ def verify_antiderivative(claim: dict) -> dict:
         proposed_anti_str = re.sub(r'(\d+)\s*([a-zA-Z])', r'\1*\2', proposed_anti_str)
 
     try:
-        x = sp.Symbol(var_str)
+        x = sp.Symbol(var_str, real=True)
         c_sym = sp.Symbol('C')
-        integrand = sp.sympify(integrand_str, locals={var_str: x, 'C': c_sym})
-        proposed_anti = sp.sympify(proposed_anti_str, locals={var_str: x, 'C': c_sym})
+        sym_locals = {var_str: x, 'C': c_sym, 'e': sp.E, 'E': sp.E}
+        integrand = sp.sympify(integrand_str, locals=sym_locals)
+        proposed_anti = sp.sympify(proposed_anti_str, locals=sym_locals)
 
         deriv_of_anti = sp.diff(proposed_anti, x)
         diff = sp.simplify(deriv_of_anti - integrand)
+
+        if diff != 0:
+            x_nz = sp.Symbol(var_str, real=True, nonzero=True)
+            try:
+                diff_nz = sp.simplify(deriv_of_anti.subs(x, x_nz) - integrand.subs(x, x_nz))
+                if diff_nz == 0:
+                    diff = 0
+            except Exception:
+                pass
 
         if diff == 0:
             return {

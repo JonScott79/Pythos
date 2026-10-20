@@ -11,6 +11,9 @@ from message_helper import user_message, log_internal
 TRANSFORMATIONS = standard_transformations + (implicit_multiplication_application,)
 
 def _safe_parse(expr_str, evaluate=True):
+    if isinstance(expr_str, str):
+        import re
+        expr_str = expr_str.replace('\\pi', 'pi').replace('π', 'pi').replace('\\', '')
     try:
         return parse_expr(expr_str, transformations=TRANSFORMATIONS, evaluate=evaluate)
     except Exception:

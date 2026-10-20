@@ -277,7 +277,7 @@ async function runHttpDeliverySuite() {
 
       assert.strictEqual(res.status, 200);
       assert.strictEqual(Boolean(res.data.withheld), false, 'Algebraic simplification must NOT be withheld');
-      assert(res.data.message && res.data.message.content.includes('4x^{2} + 14'),
+      assert(res.data.message && (res.data.message.content.includes('4x^{2} + 14') || res.data.message.content.includes('4x^2 + 14')),
         'Simplified candidate expression must be delivered');
     });
 
