@@ -1517,7 +1517,7 @@ function appendMessage(role, text, images = null, metadata = {}) {
     // Only applied outside code blocks and outside already-delimited math
     const unwrappedMathPatterns = [
       // Standalone or chained equations with \frac (including nested radicals/text inside braces): e.g. \theta = \frac{15}{12} = \frac{5}{4} or \frac{x}{\sqrt{x^2+36}}
-      /(?:^|[ \t])((?:(?:[-+]|\\[a-zA-Z]+|[a-zA-Z\u0370-\u03ff])\s*=\s*)?[-+]?\\frac\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}(?:\s*[-+*\/=]\s*(?:[-+]?\\frac\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}|(?:\\[a-zA-Z]+|[a-zA-Z0-9.\u0370-\u03ff()])+))*)/g,
+      /(?:^|[ \t])((?:(?:[-+]|\\[a-zA-Z]+(?:\([^()]+\))?|[a-zA-Z\u0370-\u03ff])\s*=\s*)?[-+]?\\frac\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}(?:\s*[-+*\/=]\s*(?:[-+]?\\frac\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}|(?:\\[a-zA-Z]+|[a-zA-Z0-9.\u0370-\u03ff()])+))*)/g,
       // Standalone linear division steps: e.g. 2x/2 = 8/2 or 3x/3 = 15/3
       /(?:^|[ \t])([a-zA-Z0-9.\u0370-\u03ff]+\s*\/\s*\d+\s*=\s*[-+]?[a-zA-Z0-9.\u0370-\u03ff]+(?:\s*\/\s*\d+)?)/g,
       // Standalone quadratic equations: y^2 - 10y + 41 = 0 or x^2 + 5x + 6 = 0
@@ -1529,7 +1529,7 @@ function appendMessage(role, text, images = null, metadata = {}) {
       // Standalone vector assignments: \mathbf{a} + \mathbf{b} = \langle 2, 6 \rangle or a + b = <2, 6>
       /(?:^|[ \t])((?:\\[a-zA-Z]+(?:\{[^{}]*\})?|[a-zA-Z])(?:\s*[-+]\s*(?:\\[a-zA-Z]+(?:\{[^{}]*\})?|[a-zA-Z]))*\s*=\s*(?:\\langle|<)[^<>\n]+(?:\\rangle|>))/g,
       // Standalone radical expressions & equalities with coefficients and \cdot / \times: e.g. \sqrt{40} = \sqrt{4 \cdot 10} = 2\sqrt{10} or ||a+b|| = \sqrt{40} = 2\sqrt{10}
-      /(?:^|[ \t])((?:(?:\|\||\\lVert)?[a-zA-Z0-9_+^\\{}. -]+(?:\|\||\\rVert)?\s*=\s*)?(?:[-+]?\d*\.?\d+\s*)?\\sqrt\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}(?:\s*(?:[-+*\/=]|\\cdot|\\times)\s*(?:(?:[-+]?\d*\.?\d+\s*)?\\sqrt\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}|\\[a-zA-Z]+|[a-zA-Z0-9.\u0370-\u03ff()]+))*)/g
+      /(?:^|[ \t])((?:(?:\|\||\\lVert)?[a-zA-Z0-9_+^\\{}. -]+(?:\|\||\\rVert)?\s*=\s*)?(?:[-+]|\\pm|\\mp)?\s*(?:\d*\.?\d+\s*)?\\sqrt\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}(?:\s*(?:[-+*\/=]|\\cdot|\\times)\s*(?:(?:[-+]|\\pm|\\mp)?\s*(?:\d*\.?\d+\s*)?\\sqrt\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}|\\[a-zA-Z]+|[a-zA-Z0-9.\u0370-\u03ff()]+))*)/g
     ];
 
     unwrappedMathPatterns.forEach((pattern) => {
@@ -3979,6 +3979,9 @@ async function askPythos(userText) {
             } else if (ev.verificationLevel === "unverified") {
               statusBadge.style.color = "#6b7280";
               statusBadge.innerHTML = `<span style="color:#6b7280; font-weight:500;">Unverified</span>`;
+            } else if (ev.verificationLevel === "not_applicable" || ev.deliveryStatus === "NOT_APPLICABLE") {
+              statusBadge.style.display = "none";
+              statusBadge.innerHTML = "";
             } else {
               statusBadge.style.color = "#16a34a";
               statusBadge.innerHTML = `<span style="color:#16a34a; font-weight:500;">✓ Verified</span>`;

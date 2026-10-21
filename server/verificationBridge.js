@@ -131,25 +131,77 @@ function extractCandidateAnswer(text) {
 }
 
 /**
+ * Isolates a clean mathematical equation (LHS = RHS) from text,
+ * stripping surrounding conversational prose and ASCII emoticons.
+ * Returns null if the equality is non-mathematical (e.g. emoticons or prose like 'User = student').
+ */
+function cleanEquation(str) {
+  if (!str || typeof str !== 'string') return null;
+  const cleanSansEmoticons = str.replace(/(?:^|\s)=(?:\^[-._]?\^|[-~]?[PpdD()\/\\oO3|cCsS])=?(?:\s|$|[.?!,])/g, ' ').trim();
+  if (!cleanSansEmoticons.includes('=')) return null;
+  const parts = cleanSansEmoticons.split('=');
+  if (parts.length !== 2) return null;
+
+  const isProseWord = (w) => /^(?:the|this|that|and|what|with|from|have|got|think|know|like|please|maybe|because|about|step|definitely|actually|right|correct|wrong|why|how|where|when|can|could|would|should|if|whether|is|are|was|were|need|there|jon|scott|lanzar|me|you|say|saying|meant|tell|who|made|creator|solve|for|find|calculate|evaluate|simplify|now|haha|hey|hello|hi|ok|okay|user|student|let|apples|oranges)$/i.test(w);
+
+  const lhsTokens = parts[0].trim().split(/(\s+|[^a-zA-Z0-9_.\^+\-*/()\\]+)/).filter(t => t.trim().length > 0);
+  let mathStartIdx = -1;
+  for (let i = lhsTokens.length - 1; i >= 0; i--) {
+    const tok = lhsTokens[i];
+    if (isProseWord(tok)) break;
+    if (/[\d+*/^()\\]/.test(tok) || /^[a-zA-Z]$/.test(tok) || /\b(?:sin|cos|tan|sec|csc|cot|log|ln|sqrt)\b/i.test(tok) || /^\d+[a-zA-Z]$/.test(tok)) {
+      mathStartIdx = i;
+    } else if (mathStartIdx !== -1) {
+      break;
+    }
+  }
+
+  const rhsTokens = parts[1].trim().split(/(\s+|[^a-zA-Z0-9_.\^+\-*/()\\]+)/).filter(t => t.trim().length > 0);
+  let mathEndIdx = -1;
+  for (let i = 0; i < rhsTokens.length; i++) {
+    const tok = rhsTokens[i];
+    if (isProseWord(tok)) break;
+    if (/[\d+*/^()\\]/.test(tok) || /^[a-zA-Z]$/.test(tok) || /\b(?:sin|cos|tan|sec|csc|cot|log|ln|sqrt)\b/i.test(tok) || /^\d+[a-zA-Z]$/.test(tok)) {
+      mathEndIdx = i;
+    } else if (mathEndIdx !== -1) {
+      break;
+    }
+  }
+
+  if (mathStartIdx === -1 || mathEndIdx === -1) return null;
+  const lhs = lhsTokens.slice(mathStartIdx).join(' ').trim();
+  const rhs = rhsTokens.slice(0, mathEndIdx + 1).join(' ').trim().replace(/[?.!]+$/, '').trim();
+
+  const hasMath = (s) => /[\d+*/^()\\]/.test(s) || /\b(?:sin|cos|tan|sec|csc|cot|log|ln|sqrt|[xyzrstuvw])\b/i.test(s);
+  if (!hasMath(lhs) && !hasMath(rhs)) return null;
+
+  return `${lhs} = ${rhs}`;
+}
+
+/**
  * Determines whether a user prompt requires a solved numerical or algebraic candidate answer (fail-closed).
  * Conceptual questions, formula requests, definitions, explanations, and conversational turns
  * do not require a single scalar candidate answer, but still require mathematical claim verification.
  */
 function requiresCandidateAnswer(prompt = '', claims = []) {
   if (!prompt || typeof prompt !== 'string') return true;
-  const clean = prompt.trim();
+
+  // Strip ASCII emoticons containing '=' before math equality analysis (e.g. '=P', '=p', '=D', '=d', '=)', '=(', '=^.^=')
+  const cleanWithoutEmoticons = prompt.replace(/(?:^|\s)=(?:\^[-._]?\^|[-~]?[PpdD()\/\\oO3|cCsS])=?(?:\s|$|[.?!,])/g, ' ').trim();
+  const clean = cleanWithoutEmoticons;
   const lower = clean.toLowerCase();
 
   // 1. Explicit calculation, solving, or simplification directives strictly require a candidate answer
+  // (Unless the prompt is purely pedagogical explanation: 'explain how to solve')
   if (!/\b(?:show\s+me\s+how|explain\s+(?:how|why|the\s+steps)|teach\s+me\s+how|how\s+to|how\s+do\s+(?:i|we|you))\b/i.test(lower) &&
       /\b(?:solve|calculate|compute|evaluate|integrate|differentiate|find\s+(?:the\s+)?(?:value|root|solution|zeros?|x|y|z|answer)|simplify)\b/i.test(clean)) {
     return true;
   }
 
-  // 2. Contains standalone mathematical equations with equality to solve (e.g., "2x + 6 = 14", "3x - 6 = 0")
-  if (/(?:[a-zA-Z0-9^*/+\-.\s()]+\s*=\s*[a-zA-Z0-9^*/+\-.\s()]+)/.test(clean)) {
-    // If it contains an equation, verify if it's purely conceptual discussion vs an equation to solve
-    if (!/\b(?:what\s+does|meaning\s+of|explain|why\s+is|difference)\b/i.test(lower)) {
+  // 2. Contains standalone mathematical equations with equality to solve (e.g., '2x + 6 = 14', '3x - 6 = 0', or mixed '... and solve 2x = 8')
+  const validEq = cleanEquation(clean);
+  if (validEq) {
+    if (!/\b(?:what\s+does|meaning\s+of|explain|why\s+is|difference|identity|identities|formula)\b/i.test(lower)) {
       return true;
     }
   }
@@ -164,15 +216,24 @@ function requiresCandidateAnswer(prompt = '', claims = []) {
     return true;
   }
 
-  // 5. Conceptual, definitional, explanatory, or formula inquiry
-  // e.g. "whts the difference in cubes.", "what is the quadratic formula?", "explain integration by parts"
-  const isConceptual = /\b(?:whts|whats|what\s+is|what\s+are|what\s+does|explain|difference\s+(?:in|of|between)|how\s+to|how\s+do|how\s+does|why\s+is|why\s+does|define|definition|meaning|formula\s+for|concept|intuition|teach|guide|discuss|rule\s+for|theorem|property|law\s+of)\b/i.test(lower);
+  // 5. Conversational greetings, chit-chat, and conversational corrections
+  const isConversationalTurn =
+    /\b(?:i\s+need\s+to\s+correct\s+you|let\s+me\s+correct\s+you|to\s+correct\s+you|jon\s+is\s+lanzar|jon\s+scott\s+is\s+lanzar|who\s+is\s+lanzar|who\s+made\s+you|who\s+created\s+you|what\s+is\s+pythos|tell\s+me\s+about\s+pythos|who\s+are\s+you|creator\s+is|i\s+meant\s+to\s+say|i\s+meant\s+(?:identities|formulas|definitions)|actually\s+identities)\b/i.test(lower) ||
+    /^(?:hi|hello|hey|good\s+(?:morning|afternoon|evening)|howdy|greetings|thanks|thank\s+you|bye|goodbye)[!.,?]?$/i.test(clean);
+  if (isConversationalTurn) {
+    return false;
+  }
+
+  // 6. Conceptual, definitional, explanatory, or formula inquiry
+  // e.g. "whts the difference in cubes.", "what is the quadratic formula?", "explain integration by parts", "identities"
+  const isConceptual = /\b(?:whts|whats|what\s+is|what\s+are|what\s+does|explain|difference\s+(?:in|of|between)|how\s+to|how\s+do|how\s+does|why\s+is|why\s+does|define|definition|meaning|formula\s+for|formulas|identities|identity|concept|intuition|teach|guide|discuss|rule\s+for|theorem|property|law\s+of)\b/i.test(lower);
   if (isConceptual) {
     return false;
   }
 
-  // 6. Conversational / greetings / remarks without mathematical solving operators
-  if (!/[\d=+\-*/^]/.test(clean)) {
+  // 7. Conversational / remarks without mathematical solving operators
+  const hasMathOperators = /[\d+\-*/]/.test(clean) || /[a-zA-Z0-9)]\s*\^\s*[-+0-9(a-zA-Z]/.test(clean);
+  if (!hasMathOperators) {
     return false;
   }
 
@@ -1042,8 +1103,8 @@ function evaluateCandidateDelivery(arg1, arg2, arg3, arg4, arg5) {
 
         // 3. Symbolic Equivalence / Simplification
         if (c.claim_type === 'symbolic_equivalence') {
-          const e1 = (c.data?.expr1 || '').trim().toLowerCase();
-          const e2 = (c.data?.expr2 || '').trim().toLowerCase();
+          const e1 = (c.data?.expr1 || c.data?.expression || '').trim().toLowerCase();
+          const e2 = (c.data?.expr2 || c.data?.target || '').trim().toLowerCase();
           if (e1 === candStr || e2 === candStr) return true;
 
           const cleanSymbolic = (str) => {
@@ -1232,14 +1293,26 @@ function evaluateCandidateDelivery(arg1, arg2, arg3, arg4, arg5) {
     }
   }
 
-  const isConceptualPrompt = /\b(?:why|explain|meaning|concept|discuss|rule|what\s+does|difference)\b/i.test(prompt);
-  const isCalculationalContext = !isConceptualPrompt && (/[\d=+\-*/^]/.test(prompt) || /\b(?:speed|velocity|acceleration|projectile|height|range|time\s+of\s+flight)\b/i.test(prompt));
+  const cleanPromptSansEmoticons = prompt.replace(/(?:^|\s)=(?:\^[-._]?\^|[-~]?[PpdD()\/\\oO3|cCsS])=?(?:\s|$|[.?!,])/g, ' ').trim();
+  const isConceptualPrompt = /\b(?:why|explain|meaning|concept|discuss|rule|what\s+does|difference|identities|identity|formulas?|jon|lanzar|who|correct|hi|hello|hey)\b/i.test(cleanPromptSansEmoticons);
+  const hasMathOperators = /[\d+\-*/]/.test(cleanPromptSansEmoticons) || /[a-zA-Z0-9)]\s*\^\s*[-+0-9(a-zA-Z]/.test(cleanPromptSansEmoticons);
+  const isCalculationalContext = !isConceptualPrompt && (hasMathOperators || /\b(?:speed|velocity|acceleration|projectile|height|range|time\s+of\s+flight)\b/i.test(cleanPromptSansEmoticons));
 
   const allVerified = verifications.length === 0
     ? (isSupportedByClaims || (!isCalculationalContext && !requiresCandidateAnswer(prompt, claims)))
     : (verifications.every(v => v.verified === true) && (isSupportedByClaims || !requiresCandidateAnswer(prompt, claims)));
 
   if (allVerified) {
+    if (verifications.length === 0 && (!claims || claims.length === 0) && !isCalculationalContext && !requiresCandidateAnswer(prompt, claims)) {
+      return {
+        status: 'NOT_APPLICABLE',
+        delivered: true,
+        withheld: false,
+        verificationLevel: 'not_applicable',
+        answer: null,
+        reason: 'No mathematical claims or calculations required verification for this conversational or conceptual turn.'
+      };
+    }
     return {
       status: 'VERIFIED',
       delivered: true,
@@ -4380,6 +4453,7 @@ function closeVerifierDaemon() {
 }
 
 module.exports = {
+  cleanEquation,
   extractBoxedMatches,
   cleanLatexUnits,
   extractCandidateAnswer,

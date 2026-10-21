@@ -1,3 +1,16 @@
+## Pythos 1.9.9
+**Release Date:** October 21, 2026
+
+### Added & Enhanced
+
+- **Conversational Correction Routing, Mixed-Intent Equation Validation & Status Semantics**:
+  - Sanitized ASCII emoticons (`=P`, `=^.^=`, `=D`, etc.) across `problemClassifier.js` and `verificationBridge.js` before mathematical equality evaluation, eliminating phantom algebra classification on creator attribution and conversational turns.
+  - Refactored `requiresCandidateAnswer` in `verificationBridge.js` to prioritize explicit calculation directives at Step 1, structural equation matching at Step 2, and conversational/conceptual exemptions only when no mathematical operations or solving requests exist. Mixed-intent messages containing equations or calculation requests (e.g., `"Haha, can you solve 2x + 3 = 11 for me?"`, `"Jon is LANZAR, and solve 2x = 8."`) strictly mandate fail-closed mathematical verification.
+  - Added semantic verification status separation: casual and non-calculational conversational turns deliver with `status: 'NOT_APPLICABLE'` and `verificationLevel: 'not_applicable'`, suppressing misleading "✓ Verified" badges in the web frontend (`app.js`).
+  - Hardened multi-turn context management in `contextManager.js` to recognize subject and conversational corrections (`"I meant to say identities"`, `"Jon is LANZAR"`), archiving resolved problems and updating effective prompts cleanly without phantom problem creation.
+  - Updated KaTeX formatting expressions in `app.js` to wrap unwrapped half-angle radical identities and tangent formulas without text fragmentation.
+  - Added comprehensive 25-test regression suite `test-conversational-correction.js` validating all mixed-intent combinations, adversarial equality prose, status semantics, and full end-to-end multi-turn reproduction.
+
 ## Pythos 1.9.8
 **Release Date:** October 21, 2026
 

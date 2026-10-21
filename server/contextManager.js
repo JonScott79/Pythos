@@ -21,6 +21,7 @@ const { classifyProblem, DOMAINS, extractAnswerFormattingRequirements, extractRi
 const { resolveReferentialContext } = require('./deterministicRouter');
 const { evaluateLinearEquationStep, evaluateEquationCandidate } = require('./studentWorkEvaluator');
 const { isPracticeRequest } = require('./practiceProblemGenerator');
+const { cleanEquation } = require('./verificationBridge');
 
 // ── Bounded Context Budget Constants (8,192 Total Context Window) ────────────
 const TOTAL_CONTEXT_LIMIT = 8192;
@@ -67,7 +68,20 @@ function detectTopicTransitionIntent(userText) {
     };
   }
 
-  // 3. Explicit correction / modification of previous problem
+  // 3. Conversational corrections regarding identity, platform, or creator
+  const hasExplicitMathDirective = /\b(?:solve|calculate|compute|evaluate|simplify|differentiate|integrate)\b/i.test(lower);
+  const isConversationalCorrection =
+    (/\b(?:jon\s+is\s+lanzar|jon\s+scott\s+is\s+lanzar|lanzar\s+is\s+jon)\b/i.test(lower) ||
+    /\b(?:i\s+need\s+to\s+correct\s+you|let\s+me\s+correct\s+you|to\s+correct\s+you|correction[:\s]+(?:jon|pythos|lanzar))\b/i.test(lower)) &&
+    !hasExplicitMathDirective;
+  if (isConversationalCorrection) {
+    return {
+      type: 'CONVERSATIONAL_CORRECTION',
+      text
+    };
+  }
+
+  // 4. Explicit correction / modification of previous problem
   const isCorrection = /\b(?:wait|sorry|actually|correction|oops|no\s*wait|typo)\b.*?\b(?:is\s+actually|i\s+meant|i\s+mean|i\s+said|instead\s+of|actually\s+shows|actually\s+find|(?:the\s+)?equation\s+(?:was|is))\b/i.test(lower) ||
                        /\b(?:i\s+meant|meant\s+to\s+say|my\s+bad,?\s+i\s+meant|typo,?\s+meant|actually\s+the\s+third\s+side\s+is|actually\s+i\s+need|actually,?\s+solve\s+for|(?:the\s+)?equation\s+(?:was|is)\s+actually|actually[,\s]+(?:the\s+)?equation\s+(?:was|is))\b/i.test(lower);
   if (isCorrection) {
@@ -365,33 +379,16 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
       (classification.confidence === 'high' || classification.confidence === 'medium' || (typeof classification.confidence === 'number' && classification.confidence >= 0.70));
 
     // Extract algebraic equation or mathematical equality proposition (LHS = RHS)
-    let extractedEq = null;
+    let extractedEq = cleanEquation(msg.content);
     const cleanPrompt = msg.content
+      .replace(/(?:^|\s)=(?:\^[-._]?\^|[-~]?[PpdD()\/\\oO3|cCsS])=?(?:\s|$|[.?!,])/g, ' ')
       .replace(/^(?:please\s+)?(?:solve(?:\s+for\s+[a-zA-Z])?|(?:check|verify|test|see)(?:\s+(?:if|whether|that))?|\bdoes\b|\bis\b|now\s+solve)[:\s]*/i, '')
       .replace(/[?!.]+$/, '')
       .trim();
 
-    const isProse = (str) => /\b(?:the|this|that|and|what|with|from|have|got|think|know|like|please|maybe|because|about|step|definitely|actually|right|correct|wrong|why|how|where|when|can|could|would|should|if|whether)\b/i.test(str);
-
-    if (cleanPrompt.includes('=')) {
-      let targetForEq = cleanPrompt;
-      // If the prompt contains prose words around an equation, try to isolate the embedded equation
-      if (isProse(cleanPrompt)) {
-        const embeddedMatch = cleanPrompt.match(/(?:^|\s)([a-zA-Z0-9+\-*/^().\sπ]+=[a-zA-Z0-9+\-*/^().\sπ]+)(?:$|\s)/);
-        if (embeddedMatch) targetForEq = embeddedMatch[1].trim();
-      }
-
-      const eqParts = targetForEq.split('=');
-      if (eqParts.length === 2 && eqParts[0].trim() && eqParts[1].trim()) {
-        const lhs = eqParts[0].trim();
-        const rhs = eqParts[1].trim();
-        const validMath = /^[-+*/^0-9.()\s\\a-zA-Zπ_]+$/;
-        if (validMath.test(lhs) && validMath.test(rhs) && !isProse(lhs) && !isProse(rhs) &&
-            (/\d/.test(lhs) || /[a-zA-Zπ]/.test(lhs)) && (/\d/.test(rhs) || /[a-zA-Zπ]/.test(rhs))) {
-          extractedEq = `${lhs} = ${rhs}`;
-        }
-      }
-    }
+    const isProse = (str) =>
+      /\b(?:the|this|that|and|what|with|from|have|got|think|know|like|please|maybe|because|about|step|definitely|actually|right|correct|wrong|why|how|where|when|can|could|would|should|if|whether|is|are|was|were|need|there|jon|scott|lanzar|me|you|say|saying|meant|tell|who|made|creator)\b/i.test(str) ||
+      /\b[a-zA-Z]{3,}\s+[a-zA-Z]{3,}\b/.test(str);
     let extractedExpr = null;
     if (!cleanPrompt.includes('=') && !isProse(cleanPrompt) && /^[-+*/^0-9.()\s\\a-zA-Zπ_]+$/.test(cleanPrompt) &&
         (/\d/.test(cleanPrompt) || /[a-zA-Zπ]/.test(cleanPrompt)) && cleanPrompt.length <= 60 &&
@@ -487,21 +484,28 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
         nextOperation: null
       };
     } else if (currentActive) {
-      // Update active problem expression only on explicit correction or if previously unset
-      if (trans.type === 'CORRECTION' && activeMath) {
-        currentActive.activeExpression = activeMath;
-      } else if (!currentActive.activeExpression && activeMath && currentActive.domain !== 'PHYSICS' && !/^[a-zA-Z]\s*=\s*[-\d.]+$/.test(activeMath)) {
-        currentActive.activeExpression = activeMath;
-      }
-      if (classification && Object.keys(classification.knownQuantities).length > 0) {
-        currentActive.knownVariables = { ...currentActive.knownVariables, ...classification.knownQuantities };
-      }
-      if (!currentActive.formattingRequirements && fmtReqs) {
-        currentActive.formattingRequirements = fmtReqs;
-      }
-      if (!currentActive.targetValue && triTarget) {
-        currentActive.targetValue = triTarget.targetValue;
-        currentActive.formula = triTarget.formula;
+      // Archive active problem on conversational correction or subject shift
+      if (trans.type === 'CONVERSATIONAL_CORRECTION' || (trans.type === 'CORRECTION' && /\b(?:identities|formulas|definitions)\b/i.test(msg.content))) {
+        currentActive.status = 'ARCHIVED_IN_SESSION';
+        currentActive.isCompleted = true;
+        sessionProblems.push(currentActive);
+        currentActive = null;
+      } else {
+        if (trans.type === 'CORRECTION' && activeMath) {
+          currentActive.activeExpression = activeMath;
+        } else if (!currentActive.activeExpression && activeMath && currentActive.domain !== 'PHYSICS' && !/^[a-zA-Z]\s*=\s*[-\d.]+$/.test(activeMath)) {
+          currentActive.activeExpression = activeMath;
+        }
+        if (classification && Object.keys(classification.knownQuantities).length > 0) {
+          currentActive.knownVariables = { ...currentActive.knownVariables, ...classification.knownQuantities };
+        }
+        if (!currentActive.formattingRequirements && fmtReqs) {
+          currentActive.formattingRequirements = fmtReqs;
+        }
+        if (!currentActive.targetValue && triTarget) {
+          currentActive.targetValue = triTarget.targetValue;
+          currentActive.formula = triTarget.formula;
+        }
       }
     }
   }
@@ -814,6 +818,14 @@ function buildEffectivePrompt(messages = []) {
     return latestUser;
   }
 
+  // 1e. Conversational correction, greeting, or non-mathematical turn: prompt is the conversational turn itself
+  const latestTransition = detectTopicTransitionIntent(latestUser);
+  if (latestTransition.type === 'CONVERSATIONAL_CORRECTION' ||
+      /\b(?:jon\s+is\s+lanzar|jon\s+scott\s+is\s+lanzar|lanzar\s+is\s+jon|i\s+need\s+to\s+correct\s+you)\b/i.test(latestUser) ||
+      /^(?:hi|hello|hey|good\s+(?:morning|afternoon|evening)|thanks|thank\s+you|who\s+are\s+you|who\s+made\s+you|what\s+is\s+pythos)[.?!]?$/i.test(latestUser)) {
+    return latestUser;
+  }
+
   // 2. Identify base problem
   let basePrompt = firstUser;
   for (let i = 0; i < userMsgs.length - 1; i++) {
@@ -846,6 +858,18 @@ function buildEffectivePrompt(messages = []) {
 
   for (let i = 1; i < userMsgs.length; i++) {
     const turnText = userMsgs[i].content.trim();
+
+    // Subject/reference correction: "I meant to say identities", "i meant identities", "actually formulas"
+    const subjectCorrectionMatch = turnText.match(/(?:i\s+meant\s+to\s+say|i\s+meant|actually)\s+(?:the\s+)?(identities|trigonometric\s+identities|formulas|definitions)\b/i);
+    if (subjectCorrectionMatch) {
+      const remainder = turnText.slice(subjectCorrectionMatch.index + subjectCorrectionMatch[0].length).replace(/^[.,;:!\s]+/, '').trim();
+      if (remainder && (/\b(?:solve|calculate|compute|evaluate|integrate|differentiate|simplify|find)\b/i.test(remainder) || /[\d+\-*/^=]/.test(remainder))) {
+        effective = remainder;
+      } else {
+        effective = subjectCorrectionMatch[1].trim();
+      }
+      continue;
+    }
 
     // Equation correction
     const eqMatch = turnText.match(/(?:i\s+meant|solve|typo,?\s+meant|(?:actually|wait|sorry|no)[,\s]*(?:the\s+)?equation\s+(?:is|was)|actually)\s+([a-zA-Z0-9+\-*/^().\s=]+=[a-zA-Z0-9+\-*/^().\s=]+)/i);

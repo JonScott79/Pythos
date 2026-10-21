@@ -22,14 +22,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="assets/favicon.png">
-  <title>Pythos Release History &amp; Changelog | v1.9.8</title>
+  <title>Pythos Release History &amp; Changelog | v1.9.9</title>
   <meta name="description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://pythos.lanzar.me/changelog.html">
 
   <!-- OPEN GRAPH -->
-  <meta property="og:title" content="Pythos Release History &amp; Changelog | v1.9.8">
+  <meta property="og:title" content="Pythos Release History &amp; Changelog | v1.9.9">
   <meta property="og:description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta property="og:url" content="https://pythos.lanzar.me/changelog.html">
   <meta property="og:type" content="article">
@@ -41,7 +41,7 @@
 
   <!-- TWITTER CARD -->
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Pythos Release History &amp; Changelog | v1.9.8">
+  <meta name="twitter:title" content="Pythos Release History &amp; Changelog | v1.9.9">
   <meta name="twitter:description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="twitter:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
 
@@ -532,7 +532,7 @@
         <a href="nonprofit.html" class="nav-link">Mission &amp; Roadmap</a>
         <a href="license.html" class="nav-link">License</a>
         <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" class="nav-link">Facebook</a>
-        <a href="changelog.html#pythos-1-9-8" class="nav-link active" aria-current="page">v1.9.8</a>
+        <a href="changelog.html#pythos-1-9-9" class="nav-link active" aria-current="page">v1.9.9</a>
       </div>
     </div>
 
@@ -557,12 +557,55 @@
       <p>Authoritative release notes, verification engine milestones, and mathematical system updates.</p>
     </header>
 
+                                                                                                                                                                                    <!-- ==================== RELEASE 1.9.9 ==================== -->
+      <article class="release-card" id="pythos-1-9-9">
+        <div class="release-header">
+          <div class="release-title-wrap">
+            <h2 class="release-version">Pythos 1.9.9</h2>
+            <span class="release-badge">Latest Release</span>
+          </div>
+          <time class="release-date" datetime="2026-10-21">October 21, 2026</time>
+        </div>
+
+        <div class="section-group">
+          <div class="section-header">
+            <span class="badge-added">Enhancement</span>
+            <span class="section-title">Conversational Correction Routing, Mixed-Intent Equation Validation &amp; Verification Status Semantics</span>
+          </div>
+          <ul class="change-list">
+            <li class="change-item">
+              <span class="change-bullet"></span>
+              <div><strong>ASCII Emoticon Sanitization:</strong> Sanitized ASCII emoticons containing equality symbols (such as <code>=P</code>, <code>=^.^=</code>, and <code>=D</code>) in <code>problemClassifier.js</code> and <code>verificationBridge.js</code> prior to equation parsing, eliminating spurious algebraic classification on creator attribution and conversational responses.</div>
+            </li>
+            <li class="change-item">
+              <span class="change-bullet"></span>
+              <div><strong>Mixed-Intent Directive Prioritization:</strong> Re-architected <code>requiresCandidateAnswer</code> to enforce strict evaluation order: calculation directives (e.g., <em>solve</em>, <em>calculate</em>, <em>simplify</em>) are evaluated at Step 1, structural equation matching at Step 2, and conversational exemptions apply only when no mathematical problem exists. Mixed-intent queries (e.g., <em>"Haha, can you solve 2x + 3 = 11 for me?"</em> or <em>"Jon is LANZAR, and solve 2x = 8."</em>) strictly mandate fail-closed verification.</div>
+            </li>
+            <li class="change-item">
+              <span class="change-bullet"></span>
+              <div><strong>Verification Status Semantics &amp; Badge Suppression:</strong> Introduced transparent <code>NOT_APPLICABLE</code> status (<code>verificationLevel: "not_applicable"</code>) for non-calculational conversational and conceptual turns in <code>verificationBridge.js</code>, updating <code>app.js</code> to suppress misleading "✓ Verified" badges on conversational exchanges.</div>
+            </li>
+            <li class="change-item">
+              <span class="change-bullet"></span>
+              <div><strong>Context Manager Subject &amp; Reference Corrections:</strong> Enhanced <code>contextManager.js</code> to recognize conversational subject corrections (e.g., <em>"I meant to say identities"</em>), archiving previous active problems and updating prompts cleanly without phantom equation extraction.</div>
+            </li>
+            <li class="change-item">
+              <span class="change-bullet"></span>
+              <div><strong>KaTeX Formatting Preservation:</strong> Hardened frontend regex patterns in <code>app.js</code> to wrap unwrapped half-angle radicals ($\pm\sqrt{\dots}$) and tangent identities into native KaTeX math blocks without splitting expressions across spans.</div>
+            </li>
+            <li class="change-item">
+              <span class="change-bullet"></span>
+              <div><strong>Automated Regression Suite:</strong> Added <code>test-conversational-correction.js</code> with 25 comprehensive tests validating mixed-intent combinations, adversarial equality prose, status semantics, and full end-to-end multi-turn reproduction.</div>
+            </li>
+          </ul>
+        </div>
+      </article>
+
                                                                                                                                                                                     <!-- ==================== RELEASE 1.9.8 ==================== -->
       <article class="release-card" id="pythos-1-9-8">
         <div class="release-header">
           <div class="release-title-wrap">
             <h2 class="release-version">Pythos 1.9.8</h2>
-            <span class="release-badge">Latest Release</span>
           </div>
           <time class="release-date" datetime="2026-10-21">October 21, 2026</time>
         </div>
@@ -2420,7 +2463,7 @@
 
   <footer>
     <div>🏛️ Pythos — Free AI Mathematics &amp; Physics Education Initiative. Developed by LANZAR.</div>
-    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-9-8" style="color:var(--primary-color); text-decoration:none;">v1.9.8</a></div>
+    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-9-9" style="color:var(--primary-color); text-decoration:none;">v1.9.9</a></div>
   </footer>
 
   <script>

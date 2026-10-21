@@ -478,7 +478,8 @@ function classifyProblem(userText) {
     };
   }
 
-  const text = userText.trim();
+  const cleanSansEmoticons = userText.replace(/(?:^|\s)=(?:\^[-._]?\^|[-~]?[PpdD()\/\\oO3|cCsS])=?(?:\s|$|[.?!,])/g, ' ').trim();
+  const text = cleanSansEmoticons;
   const lower = text.toLowerCase();
 
   const knowns = extractKnownQuantities(text);
@@ -661,7 +662,11 @@ function classifyProblem(userText) {
       const lhs = eqParts[0].trim();
       const rhs = eqParts[1].trim();
       const validMath = /^[-+*/^0-9.()\s\\a-zA-Zπ_]+$/;
-      if (validMath.test(lhs) && validMath.test(rhs) && (/\d/.test(lhs) || /[a-zA-Zπ]/.test(lhs)) && (/\d/.test(rhs) || /[a-zA-Zπ]/.test(rhs))) {
+      const isProse = (str) =>
+        /\b(?:the|this|that|and|what|with|from|have|got|think|know|like|please|maybe|because|about|step|definitely|actually|right|correct|wrong|why|how|where|when|can|could|would|should|if|whether|is|are|was|were|need|there|jon|scott|lanzar|me|you|say|saying|meant|tell|who|made|creator|user|student)\b/i.test(str) ||
+        /\b[a-zA-Z]{3,}\s+[a-zA-Z]{3,}\b/.test(str);
+      const hasMathTokens = (str) => /[\d+*/^()\\]/.test(str) || /\b(?:sin|cos|tan|sec|csc|cot|log|ln|sqrt|[xyzrstuvw])\b/i.test(str);
+      if (validMath.test(lhs) && validMath.test(rhs) && !isProse(lhs) && !isProse(rhs) && (hasMathTokens(lhs) || hasMathTokens(rhs))) {
         const lettersWithoutPi = cleanAlg.replace(/\\pi|π|pi/gi, '').match(/[a-zA-Z]/g) || [];
         if (lettersWithoutPi.length > 0) {
           return {

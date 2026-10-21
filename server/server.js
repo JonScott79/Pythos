@@ -263,6 +263,17 @@ For non-trivial mathematical and physical problems (word problems, optimization,
     2. Square root $\sqrt{g(x)}$ in numerator: $g(x) \ge 0$.
     3. Logarithms $\ln(g(x))$: $g(x) > 0$.
     4. Rational denominator $\frac{1}{h(x)}$: $h(x) \neq 0$.
+    5. Trigonometric Identities & Domain Singularities:
+       * Half-angle formulas and radical grouping:
+         - Group entire fractions strictly inside radicals: $\sin\left(\frac{\theta}{2}\right) = \pm\sqrt{\frac{1-\cos\theta}{2}}$ and $\cos\left(\frac{\theta}{2}\right) = \pm\sqrt{\frac{1+\cos\theta}{2}}$. The sign ($\pm$) is determined solely by the quadrant of the half-angle $\frac{\theta}{2}$, NOT the quadrant of $\theta$.
+         - For $\tan\left(\frac{\theta}{2}\right) = \pm\sqrt{\frac{1-\cos\theta}{1+\cos\theta}} = \frac{1-\cos\theta}{\sin\theta} = \frac{\sin\theta}{1+\cos\theta}$, domain restrictions: $\theta \neq (2k+1)\pi$ for the first two forms (where $\cos\theta = -1$) and $\theta \neq 2k\pi$ for the third form (where $\sin\theta = 0$).
+       * Tangent sum, difference, and double-angle denominators:
+         - $\tan(\alpha \pm \beta) = \frac{\tan\alpha \pm \tan\beta}{1 \mp \tan\alpha\tan\beta}$ requires $\alpha, \beta, \alpha \pm \beta \neq \frac{\pi}{2} + k\pi$ AND $1 \mp \tan\alpha\tan\beta \neq 0$ ($\tan\alpha\tan\beta \neq \pm 1$).
+         - $\tan(2\theta) = \frac{2\tan\theta}{1-\tan^2\theta}$ requires $\theta \neq \frac{\pi}{2} + k\pi$ and $\theta \neq \frac{\pi}{4} + \frac{k\pi}{2}$ (where $\tan^2\theta = 1$, making denominator 0).
+       * Reciprocal and quotient identities (denominators can never be zero):
+         - $\tan\theta = \frac{\sin\theta}{\cos\theta}$ and $\sec\theta = \frac{1}{\cos\theta}$ require $\cos\theta \neq 0 \implies \theta \neq \frac{\pi}{2} + k\pi, \, k \in \mathbb{Z}$.
+         - $\cot\theta = \frac{\cos\theta}{\sin\theta}$ and $\csc\theta = \frac{1}{\sin\theta}$ require $\sin\theta \neq 0 \implies \theta \neq k\pi, \, k \in \mathbb{Z}$.
+         - Always state these domain restrictions explicitly when presenting identity reference sheets so identities are not stated as unconditional equivalences across all real numbers.
 - SQUARING BINOMIALS: When squaring an expression $(x - c)^2$, remember $(x - c)^2 = x^2 - 2cx + c^2$. NEVER confuse squaring $(x - c)^2$ with the difference of squares $(x - c)(x + c)$.
 - RADICAL EQUATIONS & EXTRANEOUS ROOTS: Always test candidate solutions in the ORIGINAL radical equation. For $\\sqrt{x + 3} = x - 3$, squaring gives $x + 3 = (x - 3)^2 = x^2 - 6x + 9 \\Rightarrow x^2 - 7x + 6 = 0 \\Rightarrow (x-6)(x-1)=0$. $x=6$ yields $\\sqrt{9}=3$ (Valid), but $x=1$ yields $\\sqrt{4} = -2$ which is FALSE ($x=1$ is extraneous).
 - FALLACY & PROOF TRAPS: Watch for division by zero. In the classic "2 = 1" fallacy where $a = b$, dividing both sides of $(a - b)(a + b) = b(a - b)$ by $(a - b)$ is illegal because $a - b = 0$, and division by zero is undefined. Always pinpoint division by zero as the exact flaw.
@@ -1841,7 +1852,7 @@ app.post('/api/chat', async (req, res) => {
               verificationAudit,
               model: selectedModel,
               deterministic: true,
-              verificationLevel: delivery.verificationLevel || (delivery.status === 'VERIFIED' ? 'verified' : (delivery.delivered ? 'partial' : 'withheld')),
+              verificationLevel: delivery.verificationLevel || (delivery.status === 'NOT_APPLICABLE' ? 'not_applicable' : (delivery.status === 'VERIFIED' ? 'verified' : (delivery.delivered ? 'partial' : 'withheld'))),
               deliveryStatus: delivery.status,
               deliveredAnswer: delivery.answer
             }) + '\n');
@@ -2971,7 +2982,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
       // Attach non-intrusive verification & diagnostic metadata
       const vLevel = ollamaResponse.withheld
         ? 'withheld'
-        : (candidateDelivery?.verificationLevel || (candidateDelivery?.status === 'VERIFIED' ? 'verified' : (candidateDelivery?.delivered ? 'partial' : 'withheld')));
+        : (candidateDelivery?.verificationLevel || (candidateDelivery?.status === 'NOT_APPLICABLE' ? 'not_applicable' : (candidateDelivery?.status === 'VERIFIED' ? 'verified' : (candidateDelivery?.delivered ? 'partial' : 'withheld'))));
       ollamaResponse.requestId = requestId;
       ollamaResponse.latencyMs = latencyMs;
       ollamaResponse.privacySafeUid = privacySafeUid;
