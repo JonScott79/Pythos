@@ -30,16 +30,16 @@
   <meta name="theme-color" content="#2563eb">
   
   <!-- SEO METADATA -->
-  <title>Pythos | Free AI Mathematics & Physics Tutor</title>
-  <meta name="description" content="Free AI mathematics & physics tutor for students. Master algebra, calculus, and physics with Socratic guidance, verified derivations, and graphing tools.">
-  <meta name="keywords" content="AI math tutor, free AI math tutor, AI physics tutor, college math help, calculus help, algebra problem solver, graphing calculator, LANZAR">
+  <title>Pythos | Free AI Math & Physics Tutor — Step-by-Step Solver</title>
+  <meta name="description" content="Free AI math & physics tutor. Master algebra, AP Calculus, and physics with verified step-by-step Socratic problem solving, graphing, and simulation tools.">
+  <meta name="keywords" content="free AI math tutor, AI physics tutor, step by step math solver, college algebra help, calculus solver with steps, physics problem solver, graphing calculator, Socratic AI tutor, free math solver, LANZAR">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://pythos.lanzar.me/">
 
   <!-- OPEN GRAPH -->
-  <meta property="og:title" content="Pythos | Free AI Mathematics & Physics Tutor">
-  <meta property="og:description" content="Free AI mathematics & physics tutor for students. Master algebra, calculus, and physics with Socratic guidance, verified derivations, and graphing tools.">
+  <meta property="og:title" content="Pythos | Free AI Math & Physics Tutor — Step-by-Step Solver">
+  <meta property="og:description" content="Free AI math & physics tutor. Master algebra, AP Calculus, and physics with verified step-by-step Socratic problem solving, graphing, and simulation tools.">
   <meta property="og:url" content="https://pythos.lanzar.me/">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Pythos">
@@ -51,8 +51,8 @@
 
   <!-- TWITTER CARD -->
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Pythos | Free AI Mathematics & Physics Tutor">
-  <meta name="twitter:description" content="Free AI mathematics & physics tutor for students. Master algebra, calculus, and physics with Socratic guidance, verified derivations, and graphing tools.">
+  <meta name="twitter:title" content="Pythos | Free AI Math & Physics Tutor — Step-by-Step Solver">
+  <meta name="twitter:description" content="Free AI math & physics tutor. Master algebra, AP Calculus, and physics with verified step-by-step Socratic problem solving, graphing, and simulation tools.">
   <meta name="twitter:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
   <meta name="twitter:image:alt" content="Pythos Oracle Avatar">
 
@@ -125,6 +125,44 @@
         "publisher": {
           "@id": "https://lanzar.me/#organization"
         }
+      },
+      {
+        "@type": "FAQPage",
+        "@id": "https://pythos.lanzar.me/#faq",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "How does Pythos solve mathematics and physics problems step-by-step?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Pythos uses a multi-tier Socratic solver combining conversational pedagogy with deterministic computer algebra verification. It breaks down linear algebra, polynomials, calculus derivatives, and physics equations step-by-step with KaTeX rendering."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is Pythos completely free for students?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes, Pythos is 100% free with no paywall, no ads, no subscriptions, and no credit card required. It is an independent education initiative built by a student for students."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What math and physics subjects are supported?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Pythos supports algebra (quadratics, polynomials, matrices), AP Calculus (limits, derivatives, integration, series), trigonometry, and classical physics (kinematics, Newton laws, energy, rotational motion) with interactive graphing tools and simulation labs."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How does Pythos prevent AI math errors and hallucinations?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Standard large language models frequently fail at calculation. Pythos pairs language models with deterministic computer algebra engines (math.js) and a 50,000-problem stress verification benchmark to verify mathematical derivations."
+            }
+          }
+        ]
       }
     ]
   }
@@ -2064,6 +2102,12 @@
     }
 
     /* Markdown Data Table Styling */
+    .message.has-table,
+    .message:has(.pythos-table-wrap) {
+      width: min(96%, 980px) !important;
+      max-width: 96% !important;
+    }
+
     .pythos-table-wrap {
       width: 100%;
       overflow-x: auto;
@@ -2072,10 +2116,12 @@
       border-radius: 8px;
       background: var(--surface-color);
       box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+      -webkit-overflow-scrolling: touch;
     }
 
     .pythos-table {
       width: 100%;
+      min-width: 580px;
       border-collapse: collapse;
       text-align: left;
       font-size: 0.95rem;
@@ -2083,8 +2129,10 @@
 
     .pythos-table th,
     .pythos-table td {
-      padding: 8px 14px;
+      padding: 10px 16px;
       border-bottom: 1px solid var(--border-color);
+      vertical-align: top;
+      line-height: 1.5;
     }
 
     .pythos-table th {
@@ -3966,6 +4014,187 @@
       transform: translateY(-1px);
     }
 
+
+    /* ==================================================
+       DISCREET FLOATING STUDY HUB & SEO FAQ DRAWER
+    ================================================== */
+    .study-hub-drawer {
+      position: fixed;
+      bottom: 12px;
+      right: 14px;
+      z-index: 1000;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    .study-hub-details {
+      position: relative;
+    }
+
+    .study-hub-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: var(--surface-color);
+      color: var(--text-muted);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 600;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      transition: all 0.2s ease;
+      user-select: none;
+      list-style: none;
+    }
+
+    .study-hub-toggle::-webkit-details-marker {
+      display: none;
+    }
+
+    .study-hub-toggle:hover {
+      color: var(--text-main);
+      border-color: var(--primary-color);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      transform: translateY(-1px);
+    }
+
+    .study-hub-chevron {
+      transition: transform 0.2s ease;
+    }
+
+    .study-hub-details[open] .study-hub-chevron {
+      transform: rotate(180deg);
+    }
+
+    .study-hub-content {
+      position: absolute;
+      bottom: 38px;
+      right: 0;
+      width: min(440px, calc(100vw - 28px));
+      max-height: min(65vh, 520px);
+      background: var(--surface-color);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.25);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      animation: studyHubSlideUp 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes studyHubSlideUp {
+      from { opacity: 0; transform: translateY(10px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .study-hub-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-color);
+      background: var(--window-header-bg);
+    }
+
+    .study-hub-header h2 {
+      font-size: 13px;
+      font-weight: 700;
+      font-family: 'Cinzel', serif;
+      color: var(--primary-color);
+      margin: 0;
+      letter-spacing: 0.5px;
+    }
+
+    .study-hub-close {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 20px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0 4px;
+    }
+
+    .study-hub-close:hover {
+      color: var(--text-main);
+    }
+
+    .study-hub-scroll {
+      padding: 16px;
+      overflow-y: auto;
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--text-main);
+    }
+
+    .study-hub-desc {
+      margin: 0 0 14px;
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+
+    .study-hub-subtitle {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--primary-color);
+      margin: 14px 0 8px;
+    }
+
+    .study-hub-nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+
+    .study-nav-chip {
+      display: inline-block;
+      padding: 4px 10px;
+      background: var(--bg-color);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.15s ease;
+    }
+
+    .study-nav-chip:hover {
+      border-color: var(--primary-color);
+      color: var(--primary-color);
+      background: var(--surface-color);
+    }
+
+    .study-faq-item {
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .study-faq-item:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .study-faq-item h3 {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin: 0 0 4px;
+    }
+
+    .study-faq-item p {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin: 0;
+      line-height: 1.5;
+    }
+
   </style>
 </head>
 <body>
@@ -4014,7 +4243,7 @@
           <a href="nonprofit.html">Mission &amp; Roadmap</a>
           <a href="license.html">License</a>
           <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" title="Official Facebook Page" aria-label="Official Facebook Page">Facebook</a>
-          <a href="changelog.html#pythos-1-9-7" title="View Changelog" aria-label="Version 1.9.7 Release Notes">v1.9.7</a>
+          <a href="changelog.html#pythos-1-9-8" title="View Changelog" aria-label="Version 1.9.8 Release Notes">v1.9.8</a>
         </nav>
       </div>
     </aside>
@@ -4032,7 +4261,7 @@
         <header class="header">
           <img class="header-avatar" src="assets/pythos_avatar.jpg" alt="Pythos Oracle" width="40" height="40" />
           <div class="header-info">
-            <h1>PYTHOS <a href="changelog.html#pythos-1-9-7" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.9.7)" aria-label="Version 1.9.7 Release Notes">v1.9.7</a></h1>
+            <h1>PYTHOS <a href="changelog.html#pythos-1-9-8" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.9.8)" aria-label="Version 1.9.8 Release Notes">v1.9.8</a></h1>
             <p>Mathematics & Physics Oracle</p>
           </div>
           <button id="themeToggleBtn" class="theme-toggle-btn" title="Toggle Dark/Light Mode" aria-label="Toggle Dark and Light Theme">
@@ -4142,43 +4371,43 @@
             <span class="sr-only">Choose your preferred language or type in your native tongue:</span>
             <div class="lang-chips-grid" role="group" aria-label="Quick language selector">
               <button type="button" class="lang-chip active" data-lang="en" data-lang-name="English" aria-pressed="true" aria-label="Selected Language: English">
-                <img src="https://flagcdn.com/w40/us.png" alt="" aria-hidden="true" class="lang-flag" />
+                <img src="https://flagcdn.com/w40/us.png" alt="United States Flag (English)" class="lang-flag" />
                 <span class="lang-text">English</span>
               </button>
               <button type="button" class="lang-chip" data-lang="es" data-lang-name="Español" aria-pressed="false" aria-label="Switch language to Español">
-                <img src="https://flagcdn.com/w40/mx.png" alt="" aria-hidden="true" class="lang-flag" />
+                <img src="https://flagcdn.com/w40/mx.png" alt="Mexico Flag (Español)" class="lang-flag" />
                 <span class="lang-text">Español</span>
               </button>
               <button type="button" class="lang-chip" data-lang="fr" data-lang-name="Français" aria-pressed="false" aria-label="Switch language to Français">
-                <img src="https://flagcdn.com/w40/fr.png" alt="" aria-hidden="true" class="lang-flag" />
+                <img src="https://flagcdn.com/w40/fr.png" alt="France Flag (Français)" class="lang-flag" />
                 <span class="lang-text">Français</span>
               </button>
               <button type="button" class="lang-chip" data-lang="de" data-lang-name="Deutsch" aria-pressed="false" aria-label="Switch language to Deutsch">
-                <img src="https://flagcdn.com/w40/de.png" alt="" aria-hidden="true" class="lang-flag" />
+                <img src="https://flagcdn.com/w40/de.png" alt="Germany Flag (Deutsch)" class="lang-flag" />
                 <span class="lang-text">Deutsch</span>
               </button>
               <button type="button" class="lang-chip" data-lang="ja" data-lang-name="日本語" aria-pressed="false" aria-label="Switch language to 日本語 (Japanese)">
-                <img src="https://flagcdn.com/w40/jp.png" alt="" aria-hidden="true" class="lang-flag" />
+                <img src="https://flagcdn.com/w40/jp.png" alt="Japan Flag (日本語)" class="lang-flag" />
                 <span class="lang-text">日本語</span>
               </button>
               <button type="button" class="lang-chip" data-lang="zh" data-lang-name="中文" aria-pressed="false" aria-label="Switch language to 中文 (Chinese)">
-                <img src="https://flagcdn.com/w40/cn.png" alt="" aria-hidden="true" class="lang-flag" />
+                <img src="https://flagcdn.com/w40/cn.png" alt="China Flag (中文)" class="lang-flag" />
                 <span class="lang-text">中文</span>
               </button>
               <button type="button" class="lang-chip" data-lang="ko" data-lang-name="한국어" aria-pressed="false" aria-label="Switch language to 한국어 (Korean)">
-                <img src="https://flagcdn.com/w40/kr.png" alt="" aria-hidden="true" class="lang-flag" />
+                <img src="https://flagcdn.com/w40/kr.png" alt="South Korea Flag (한국어)" class="lang-flag" />
                 <span class="lang-text">한국어</span>
               </button>
               <button type="button" class="lang-chip" data-lang="it" data-lang-name="Italiano" aria-pressed="false" aria-label="Switch language to Italiano">
-                <img src="https://flagcdn.com/w40/it.png" alt="" aria-hidden="true" class="lang-flag" />
+                <img src="https://flagcdn.com/w40/it.png" alt="Italy Flag (Italiano)" class="lang-flag" />
                 <span class="lang-text">Italiano</span>
               </button>
               <button type="button" class="lang-chip" data-lang="hi" data-lang-name="हिन्दी" aria-pressed="false" aria-label="Switch language to हिन्दी (Hindi)">
-                <img src="https://flagcdn.com/w40/in.png" alt="" aria-hidden="true" class="lang-flag" />
+                <img src="https://flagcdn.com/w40/in.png" alt="India Flag (हिन्दी)" class="lang-flag" />
                 <span class="lang-text">हिन्दी</span>
               </button>
               <button type="button" class="lang-chip" data-lang="pt" data-lang-name="Português" aria-pressed="false" aria-label="Switch language to Português">
-                <img src="https://flagcdn.com/w40/br.png" alt="" aria-hidden="true" class="lang-flag" />
+                <img src="https://flagcdn.com/w40/br.png" alt="Brazil Flag (Português)" class="lang-flag" />
                 <span class="lang-text">Português</span>
               </button>
             </div>
@@ -4961,6 +5190,63 @@
       </div>
     </div>
   </div>
+
+  <!-- FLOATING STUDY HUB & SEO FAQ DRAWER (DISCREET BOTTOM-RIGHT ACCORDION) -->
+  <aside id="studyHubDrawer" class="study-hub-drawer" aria-label="Study Guides and Frequently Asked Questions">
+    <details id="studyHubDetails" class="study-hub-details">
+      <summary class="study-hub-toggle" title="Explore Subject Study Guides, Curriculums & FAQ" aria-label="Open Study Guides and FAQ">
+        <span>📚 Guides &amp; FAQ</span>
+        <svg class="study-hub-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      </summary>
+      <div class="study-hub-content" role="region" aria-label="Study Guide and FAQ details">
+        <div class="study-hub-header">
+          <h2>Pythos STEM Study Hub &amp; FAQ</h2>
+          <button type="button" class="study-hub-close" onclick="document.getElementById('studyHubDetails').removeAttribute('open')" aria-label="Close Study Guides">&times;</button>
+        </div>
+        <div class="study-hub-scroll">
+          <p class="study-hub-desc">
+            <strong>Pythos</strong> is an independent, 100% free AI mathematics and physics tutor engineered by a student for students. Master algebra, AP Calculus, and classical mechanics with verified Socratic problem-solving derivations, 2D function graphing, and interactive PhET-style physics simulations.
+          </p>
+
+          <div class="study-hub-subtitle">Curriculum Study Guides &amp; Tools</div>
+          <nav class="study-hub-nav" aria-label="Curriculum Guides">
+            <a href="algebra/" class="study-nav-chip">📐 Algebra Guide</a>
+            <a href="calculus/" class="study-nav-chip">📈 Calculus Guide</a>
+            <a href="physics/" class="study-nav-chip">⚛️ Physics Guide</a>
+            <a href="subjects/" class="study-nav-chip">📚 All Subjects</a>
+            <a href="tools/" class="study-nav-chip">🧮 Interactive Tools</a>
+            <a href="validation/" class="study-nav-chip">🛡️ Math Verifier Record</a>
+            <a href="about/" class="study-nav-chip">🏛️ About Pythos</a>
+            <a href="nonprofit.html" class="study-nav-chip">🌱 Mission Roadmap</a>
+          </nav>
+
+          <div class="study-hub-subtitle">Frequently Asked Questions</div>
+          
+          <div class="study-faq-item">
+            <h3>Can Pythos solve calculus and algebra step-by-step?</h3>
+            <p>Yes. Pythos combines Socratic dialogue with deterministic computer algebra verification. Whether finding derivatives, computing integrals, evaluating limits, or factoring quadratic polynomials, Pythos breaks down each step with KaTeX-rendered mathematical rigor.</p>
+          </div>
+
+          <div class="study-faq-item">
+            <h3>How does Pythos prevent AI math hallucinations?</h3>
+            <p>Standard language models frequently make calculation errors. Pythos incorporates deterministic math solvers, symbolic manipulation engines, and a 50,000-problem stress verification benchmark ensuring mathematical derivations are mathematically sound.</p>
+          </div>
+
+          <div class="study-faq-item">
+            <h3>Is Pythos free to use for students?</h3>
+            <p>Yes. Pythos is completely free with no paywall, no ads, no subscription, and no account required. Built under the LANZAR educational initiative, our mission is to ensure every STEM student has access to world-class tutoring.</p>
+          </div>
+
+          <div class="study-faq-item">
+            <h4>What physics topics and simulations are covered?</h4>
+            <p>Pythos covers classical mechanics, 1D and 2D kinematics, projectile motion, Newton laws of motion, rotational dynamics, work-energy theorem, and includes an interactive 17-experiment Simulation Lab with real-time visual exploration.</p>
+          </div>
+        </div>
+      </div>
+    </details>
+  </aside>
 
 </body>
 </html>

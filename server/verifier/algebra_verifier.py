@@ -158,6 +158,33 @@ def verify_algebra(claim: dict) -> dict:
         true_sol_vals = [complex(s.evalf()).real if s.is_real else None for s in true_solutions]
         true_sol_vals = [s for s in true_sol_vals if s is not None]
 
+        # Trigonometric Equation Real Domain & Feasibility Check
+        is_trig_eq = any(fn in eq_str.lower() for fn in ['sin', 'cos', 'tan', 'sec', 'csc', 'cot'])
+        if is_trig_eq:
+            real_solutions = [s for s in true_solutions if s.is_real]
+            if not real_solutions:
+                # Equation has no real solutions (e.g. sin(x) = 3/2 or cos(x) = 2)
+                if proposed_solutions:
+                    return {
+                        "verified": False,
+                        "status": "IMPOSSIBLE_EQUATION",
+                        "error_type": "IMPOSSIBLE_EQUATION",
+                        "extraneous_roots": proposed_solutions,
+                        "has_real_solutions": False,
+                        "details": f"Trigonometric equation {eq_str} has no real solutions (range of sine/cosine on R is [-1, 1]). Proposed solution(s) {proposed_solutions} are invalid."
+                    }
+                else:
+                    return {
+                        "verified": True,
+                        "status": "VERIFIED",
+                        "has_real_solutions": False,
+                        "solutions": [],
+                        "details": f"Trigonometric equation {eq_str} has no real solutions on the real domain (sine/cosine range is [-1, 1])."
+                    }
+            else:
+                true_solutions = real_solutions
+                true_sol_vals = [complex(s.evalf()).real for s in true_solutions]
+
         # 1. Extraneous root check by direct substitution into original equation
         extraneous_found = []
         for prop in proposed_solutions:

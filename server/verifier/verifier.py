@@ -9,7 +9,7 @@ import traceback
 from arithmetic_verifier import verify_arithmetic
 from algebra_verifier import verify_algebra, verify_symbolic_equivalence
 from probability_verifier import verify_birthday_problem
-from physics_verifier import verify_conical_pendulum, verify_free_fall_kinematics
+from physics_verifier import verify_conical_pendulum, verify_free_fall_kinematics, verify_projectile_motion
 from calculus_verifier import verify_derivative, verify_antiderivative, verify_change_of_variables, verify_definite_integral, verify_limit
 from calculus_improper_verifier import verify_improper_integral
 from calculus_singularity_verifier import verify_singularity_classification
@@ -78,6 +78,8 @@ def dispatch_verification(payload: dict) -> dict:
                 return verify_conical_pendulum(data)
             elif claim_type == "free_fall":
                 return verify_free_fall_kinematics(data)
+            elif claim_type in ["projectile_motion", "projectile"]:
+                return verify_projectile_motion(data)
             elif claim_type == "dimensions" or claim_type == "dimensional_analysis":
                 return verify_dimensions(data)
             elif claim_type == "conservation_law" or claim_type == "conservation_of_energy":

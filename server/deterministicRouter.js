@@ -515,33 +515,68 @@ function extractPreflightDeterministicFacts(userText, conversationHistory = []) 
     }
   }
 
-  // 6. Physics Kinematics: Projectile Motion from ground (e.g. "20 m/s at 30 degrees", "g = 9.8")
-  const projectileMatch = text.match(/(?:launched|thrown|fired|shot|projectile).*?(\d+(?:\.\d+)?)\s*(?:m\/s|meters\/second).*?(\d+(?:\.\d+)?)\s*(?:degrees|deg|°)/i);
-  if (projectileMatch) {
-    const v0 = parseFloat(projectileMatch[1]);
-    const deg = parseFloat(projectileMatch[2]);
-    const gMatch = text.match(/g\s*=\s*(\d+(?:\.\d+)?)/i);
-    const g = gMatch ? parseFloat(gMatch[1]) : 9.8;
+  // 6. Physics Kinematics: Projectile Motion (ground or cliff launch)
+  const hasProjectile = /\b(?:projectile|launched|thrown|fired|shot|trajectory|flight\s+time|horizontal\s+range|cliff|initial\s+speed|launch\s+angle)\b/i.test(text);
+  if (hasProjectile) {
+    const v0Match = text.match(/(?:initial\s+speed|initial\s+velocity|v_?0|speed)\s*[:=]?\s*(\d+(?:\.\d+)?)/i) ||
+                    text.match(/(\d+(?:\.\d+)?)\s*(?:m\/s|meters\/second)/i);
+    const angleMatch = text.match(/(?:launch\s+angle|angle|\btheta\b)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:degrees|deg|°)?/i) ||
+                       text.match(/(\d+(?:\.\d+)?)\s*(?:degrees|deg|°)/i);
+    const hMatch = text.match(/(?:cliff\s+height|initial\s+height|\bh\b|height)\s*[:=]?\s*(?:h\s*=\s*)?(\d+(?:\.\d+)?)\s*(?:m|meters)?\b/i) ||
+                   text.match(/(\d+(?:\.\d+)?)\s*(?:m|meters)?\s*(?:high\s+)?cliff/i);
+    const gMatch = text.match(/(?:gravitational\s+acceleration|gravity|\bg\b)\s*[:=]?\s*(\d+(?:\.\d+)?)/i);
 
-    if (v0 > 0 && deg > 0 && g > 0) {
-      const rad = (deg * Math.PI) / 180.0;
-      const v0y = v0 * Math.sin(rad);
-      const v0x = v0 * Math.cos(rad);
-      const tFlight = (2 * v0y) / g;
-      const hMax = (v0y * v0y) / (2 * g);
-      const range = v0x * tFlight;
+    if (v0Match && angleMatch) {
+      const v0 = parseFloat(v0Match[1]);
+      const deg = parseFloat(angleMatch[1]);
+      const h0 = hMatch ? parseFloat(hMatch[1]) : 0;
+      const g = gMatch ? parseFloat(gMatch[1]) : 9.81;
 
+      if (v0 > 0 && deg > 0 && g > 0) {
+        const rad = (deg * Math.PI) / 180.0;
+        const v0x = v0 * Math.cos(rad);
+        const v0y = v0 * Math.sin(rad);
+        const disc = v0y * v0y + 2.0 * g * h0;
+        const tFlight = (v0y + Math.sqrt(disc)) / g;
+        const hMax = h0 + (v0y * v0y) / (2.0 * g);
+        const range = v0x * tFlight;
+
+        facts.push({
+          type: 'PROJECTILE_MOTION',
+          v0,
+          deg,
+          h0,
+          g,
+          v0x: parseFloat(v0x.toFixed(4)),
+          v0y: parseFloat(v0y.toFixed(4)),
+          tFlight: parseFloat(tFlight.toFixed(4)),
+          hMax: parseFloat(hMax.toFixed(4)),
+          range: parseFloat(range.toFixed(4)),
+          summary: `Projectile Motion (h0 = ${h0} m, v0 = ${v0} m/s, theta = ${deg}°, g = ${g} m/s²): v0x = v0*cos(theta) = ${v0x.toFixed(2)} m/s, v0y = v0*sin(theta) = ${v0y.toFixed(2)} m/s. Max Height h_max = h0 + (v0y)^2 / (2g) = ${h0} + (${v0y.toFixed(2)})^2 / (2*${g}) = ${hMax.toFixed(2)} m. Flight Time t_flight = (v0y + sqrt((v0y)^2 + 2*g*h0)) / g = ${tFlight.toFixed(2)} s. Horizontal Range R = v0x * t_flight = ${v0x.toFixed(2)} * ${tFlight.toFixed(2)} = ${range.toFixed(2)} m.`
+        });
+      }
+    }
+  }
+
+  // 6c. Trigonometric Equation Real Range & Feasibility (e.g. sin(x) = 3/2 or cos(x) = 2)
+  const trigEqRangeMatch = text.match(/(?:\\?sin|\\?cos)\s*(?:\(?\s*([a-zA-Z])\s*\)?|\s+([a-zA-Z]))\s*=\s*([-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?)/i);
+  if (trigEqRangeMatch) {
+    const rawValStr = trigEqRangeMatch[3];
+    let valNum = NaN;
+    if (rawValStr.includes('/')) {
+      const parts = rawValStr.split('/');
+      valNum = parseFloat(parts[0]) / parseFloat(parts[1]);
+    } else {
+      valNum = parseFloat(rawValStr);
+    }
+
+    if (!isNaN(valNum) && Math.abs(valNum) > 1.0 + 1e-4) {
       facts.push({
-        type: 'PROJECTILE_MOTION',
-        v0,
-        deg,
-        g,
-        v0x: parseFloat(v0x.toFixed(4)),
-        v0y: parseFloat(v0y.toFixed(4)),
-        tFlight: parseFloat(tFlight.toFixed(4)),
-        hMax: parseFloat(hMax.toFixed(4)),
-        range: parseFloat(range.toFixed(4)),
-        summary: `Initial velocity components: v0x = ${v0}*cos(${deg}°) = ${v0x.toFixed(2)} m/s, v0y = ${v0}*sin(${deg}°) = ${v0y.toFixed(2)} m/s. Max Height H = (v0y)^2 / (2g) = (${v0y.toFixed(2)})^2 / (2*${g}) = ${hMax.toFixed(2)} m. Flight Time T = 2*v0y / g = 2*(${v0y.toFixed(2)}) / ${g} = ${tFlight.toFixed(2)} s.`
+        type: 'IMPOSSIBLE_TRIG_EQUATION',
+        valStr: rawValStr,
+        valNum,
+        hasRealSolutions: false,
+        summary: `Trigonometric Feasibility: For all real x, -1 <= sin(x) <= 1 and -1 <= cos(x) <= 1. Since |${rawValStr}| = ${valNum} > 1, the equation has NO real solutions on [0, 2pi) or on the real line R. There are no real unit circle angles intersecting this value.`
       });
     }
   }

@@ -22,14 +22,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="assets/favicon.png">
-  <title>Pythos Release History &amp; Changelog | v1.9.7</title>
+  <title>Pythos Release History &amp; Changelog | v1.9.8</title>
   <meta name="description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://pythos.lanzar.me/changelog.html">
 
   <!-- OPEN GRAPH -->
-  <meta property="og:title" content="Pythos Release History &amp; Changelog | v1.9.7">
+  <meta property="og:title" content="Pythos Release History &amp; Changelog | v1.9.8">
   <meta property="og:description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta property="og:url" content="https://pythos.lanzar.me/changelog.html">
   <meta property="og:type" content="article">
@@ -41,7 +41,7 @@
 
   <!-- TWITTER CARD -->
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Pythos Release History &amp; Changelog | v1.9.7">
+  <meta name="twitter:title" content="Pythos Release History &amp; Changelog | v1.9.8">
   <meta name="twitter:description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="twitter:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
 
@@ -532,7 +532,7 @@
         <a href="nonprofit.html" class="nav-link">Mission &amp; Roadmap</a>
         <a href="license.html" class="nav-link">License</a>
         <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" class="nav-link">Facebook</a>
-        <a href="changelog.html#pythos-1-9-7" class="nav-link active" aria-current="page">v1.9.7</a>
+        <a href="changelog.html#pythos-1-9-8" class="nav-link active" aria-current="page">v1.9.8</a>
       </div>
     </div>
 
@@ -557,12 +557,63 @@
       <p>Authoritative release notes, verification engine milestones, and mathematical system updates.</p>
     </header>
 
+                                                                                                                                                                                    <!-- ==================== RELEASE 1.9.8 ==================== -->
+      <article class="release-card" id="pythos-1-9-8">
+        <div class="release-header">
+          <div class="release-title-wrap">
+            <h2 class="release-version">Pythos 1.9.8</h2>
+            <span class="release-badge">Latest Release</span>
+          </div>
+          <time class="release-date" datetime="2026-10-21">October 21, 2026</time>
+        </div>
+
+        <div class="section-group">
+          <div class="section-header">
+            <span class="badge-added">Enhancement</span>
+            <span class="section-title">Trigonometry &amp; Kinematics Verification Hardening, Elevation-Aware Trajectories &amp; Domain Guardrails</span>
+          </div>
+          <ul class="change-list">
+            <li class="change-item">
+              <span class="change-bullet"></span>
+              <div><strong>Elevation-Aware Projectile Kinematics:</strong> Implemented deterministic 2D projectile motion verification in <code>physics_verifier.py</code> supporting launch from elevation ($h_0 \ge 0$), degree and radian conventions, exact quadratic root-finding for flight time ($y(t) = h_0 + v_{0y}t - \frac{1}{2}gt^2 = 0$), horizontal range ($R = v_{0x} t_{\text{flight}}$), and peak altitude above ground ($h_{\max} = h_0 + \frac{v_{0y}^2}{2g}$).</div>
+            </li>
+            <li class="change-item">
+              <span class="change-bullet"></span>
+              <div><strong>Preflight Physical Fact Extraction:</strong> Upgraded <code>deterministicRouter.js</code> (Section 6) to extract elevation and cliff parameters from problem prompts, grounding LLM reasoning with exact kinematic preflight facts.</div>
+            </li>
+            <li class="change-item">
+              <span class="change-bullet"></span>
+              <div><strong>Fail-Closed Physical Delivery Safeguards:</strong> Added Gate 10b to <code>verificationBridge.js</code> to cross-check claimed projectile flight times, ranges, and maximum heights against independent deterministic kinematics, rejecting and withholding inaccurate prose even when valid kinematic formulas are quoted.</div>
+            </li>
+            <li class="change-item">
+              <span class="change-bullet"></span>
+              <div><strong>Trigonometric Equation Real-Domain Feasibility:</strong> Hardened <code>algebra_verifier.py</code> with real domain constraints for trigonometric equations ($\sin, \cos \in [-1, 1]$ and $|\sec|, |\csc| \ge 1$). Equations without real solutions (such as $\sin x = 3/2$ on $[0, 2\pi)$) are certified as having no real solutions, and candidate answers asserting real roots are strictly withheld with explicit citations of the real range of sine/cosine.</div>
+            </li>
+            <li class="change-item">
+              <span class="change-bullet"></span>
+              <div><strong>Practice Problem Generation Bounds:</strong> Injected range-feasibility validation into <code>practiceProblemGenerator.js</code> to ensure impossible trigonometric equations are never generated for student practice.</div>
+            </li>
+            <li class="change-item">
+              <span class="change-bullet"></span>
+              <div><strong>Vector Notation &amp; KaTeX Formatting Integrity:</strong> Eliminated formula character encoding corruptions in system prompts and hardened frontend regular expressions in <code>app.js</code> to prevent radical expressions, vector norms, and vector assignments from splitting across spans.</div>
+            </li>
+            <li class="change-item">
+              <span class="change-bullet"></span>
+              <div><strong>Three-State Verification Transparency:</strong> Updated UI status badges in <code>app.js</code> to transparently display <code>Partially Verified</code> and <code>Unverified</code> states, ensuring unverified numerical calculations never falsely display full verification badges.</div>
+            </li>
+            <li class="change-item">
+              <span class="change-bullet"></span>
+              <div><strong>Automated Regression Suite:</strong> Added permanent regression suite <code>test-trig-physics-verification.js</code> with 22 targeted tests covering exact projectile motion, rejection of invalid values, degree/radian consistency, real trigonometric feasibility, KaTeX formatting, and verification level fidelity.</div>
+            </li>
+          </ul>
+        </div>
+      </article>
+
                                                                                                                                                                                     <!-- ==================== RELEASE 1.9.7 ==================== -->
       <article class="release-card" id="pythos-1-9-7">
         <div class="release-header">
           <div class="release-title-wrap">
             <h2 class="release-version">Pythos 1.9.7</h2>
-            <span class="release-badge">Latest Release</span>
           </div>
           <time class="release-date" datetime="2026-10-21">October 21, 2026</time>
         </div>
@@ -2369,7 +2420,7 @@
 
   <footer>
     <div>🏛️ Pythos — Free AI Mathematics &amp; Physics Education Initiative. Developed by LANZAR.</div>
-    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-9-7" style="color:var(--primary-color); text-decoration:none;">v1.9.7</a></div>
+    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-9-8" style="color:var(--primary-color); text-decoration:none;">v1.9.8</a></div>
   </footer>
 
   <script>

@@ -141,7 +141,8 @@ function requiresCandidateAnswer(prompt = '', claims = []) {
   const lower = clean.toLowerCase();
 
   // 1. Explicit calculation, solving, or simplification directives strictly require a candidate answer
-  if (/\b(?:solve|calculate|compute|evaluate|integrate|differentiate|find\s+(?:the\s+)?(?:value|root|solution|zeros?|x|y|z|answer)|simplify)\b/i.test(clean)) {
+  if (!/\b(?:show\s+me\s+how|explain\s+(?:how|why|the\s+steps)|teach\s+me\s+how|how\s+to|how\s+do\s+(?:i|we|you))\b/i.test(lower) &&
+      /\b(?:solve|calculate|compute|evaluate|integrate|differentiate|find\s+(?:the\s+)?(?:value|root|solution|zeros?|x|y|z|answer)|simplify)\b/i.test(clean)) {
     return true;
   }
 
@@ -211,9 +212,39 @@ function evaluateCandidateDelivery(arg1, arg2, arg3, arg4, arg5) {
       status: 'UNDEFINED_OPERATION',
       delivered: false,
       withheld: true,
+      verificationLevel: 'withheld',
       answer: null,
       reason: 'Prompt attempts division by zero, which is mathematically undefined.'
     };
+  }
+
+  // 11b. Impossible Problems: Real solutions requested for impossible trigonometric equation (|sin| > 1 or |cos| > 1)
+  const trigImpossibleMatch = prompt.match(/(?:\\?sin|\\?cos)\s*(?:\(?\s*([a-zA-Z])\s*\)?|\s+([a-zA-Z]))\s*=\s*([-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?)/i);
+  if (trigImpossibleMatch) {
+    const rawValStr = trigImpossibleMatch[3];
+    let valNum = NaN;
+    if (rawValStr.includes('/')) {
+      const parts = rawValStr.split('/');
+      valNum = parseFloat(parts[0]) / parseFloat(parts[1]);
+    } else {
+      valNum = parseFloat(rawValStr);
+    }
+    if (!isNaN(valNum) && Math.abs(valNum) > 1.0 + 1e-4) {
+      const candStr = String(candidateAnswer || '').toLowerCase();
+      const candAssertsSolution = candidateAnswer !== null && candidateAnswer !== undefined &&
+        !/\b(?:no\s+(?:real\s+)?solutions?|none|impossible|undefined|null|empty|no\s+intersection)\b/i.test(candStr);
+
+      if (candAssertsSolution) {
+        return {
+          status: 'IMPOSSIBLE_PROBLEM',
+          delivered: false,
+          withheld: true,
+          verificationLevel: 'withheld',
+          answer: null,
+          reason: `Equation has no real solutions because range of sine/cosine is [-1, 1] (|${rawValStr}| > 1). Candidate failed to identify the impossible premise.`
+        };
+      }
+    }
   }
 
   // Reject non-finite or undefined candidate answers on queries requiring a solved candidate answer
@@ -224,6 +255,7 @@ function evaluateCandidateDelivery(arg1, arg2, arg3, arg4, arg5) {
         status: 'NO_CANDIDATE_ANSWER',
         delivered: false,
         withheld: true,
+        verificationLevel: 'withheld',
         answer: null,
         reason: 'No valid finite candidate answer could be extracted (fail-closed).'
       };
@@ -240,6 +272,7 @@ function evaluateCandidateDelivery(arg1, arg2, arg3, arg4, arg5) {
       status: 'INVALID_CLAIMS_DETECTED',
       delivered: false,
       withheld: true,
+      verificationLevel: 'withheld',
       answer: null,
       reason: 'Candidate output contained contradictory or disproven mathematical claims.'
     };
@@ -485,6 +518,8 @@ function evaluateCandidateDelivery(arg1, arg2, arg3, arg4, arg5) {
     }
   }
 
+
+
   // 5. Impossible Problems: Probability distribution sum > 1.0
   if (/\bprobabilit(?:y|ies)\b/i.test(prompt) && /\bmutually\s+exclusive\b/i.test(prompt)) {
     const probNums = (prompt.match(/0\.\d+|1(?:\.0+)?/g) || []).map(Number);
@@ -571,6 +606,78 @@ function evaluateCandidateDelivery(arg1, arg2, arg3, arg4, arg5) {
         answer: null,
         reason: 'Prompt requested average speed (expected 50 mph), but candidate answered total distance (100 miles).'
       };
+    }
+  }
+
+  // 10b. Projectile Motion Kinematic Verification Gate:
+  // If prompt specifies projectile motion parameters (v0, angle, cliff height, gravity)
+  // verify candidate output claims against exact independent kinematic calculation.
+  const hasProjectileFidelity = /\b(?:projectile|launched|thrown|fired|shot|trajectory|flight\s+time|horizontal\s+range|cliff|initial\s+speed|launch\s+angle)\b/i.test(prompt);
+  if (hasProjectileFidelity) {
+    const v0M = prompt.match(/(?:initial\s+speed|initial\s+velocity|v_?0|speed)\s*[:=]?\s*(\d+(?:\.\d+)?)/i) ||
+                prompt.match(/(\d+(?:\.\d+)?)\s*(?:m\/s|meters\/second)/i);
+    const angleM = prompt.match(/(?:launch\s+angle|angle|\btheta\b)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:degrees|deg|°)?/i) ||
+                   prompt.match(/(\d+(?:\.\d+)?)\s*(?:degrees|deg|°)/i);
+    const radM = prompt.match(/(\d+(?:\.\d+)?)\s*(?:radians|rad)\b/i);
+    const hM = prompt.match(/(?:cliff\s+height|initial\s+height|\bh\b|height)\s*[:=]?\s*(?:h\s*=\s*)?(\d+(?:\.\d+)?)\s*(?:m|meters)?\b/i) ||
+               prompt.match(/(\d+(?:\.\d+)?)\s*(?:m|meters)?\s*(?:high\s+)?cliff/i);
+    const gM = prompt.match(/(?:gravitational\s+acceleration|gravity|\bg\b)\s*[:=]?\s*(\d+(?:\.\d+)?)/i);
+
+    if (v0M && (angleM || radM)) {
+      const v0 = parseFloat(v0M[1]);
+      const angle = parseFloat(angleM ? angleM[1] : radM[1]);
+      const isRad = Boolean(radM && !angleM);
+      const theta_rad = isRad ? angle : (angle * Math.PI / 180.0);
+      const h0 = hM ? parseFloat(hM[1]) : 0;
+      const g = gM ? parseFloat(gM[1]) : 9.81;
+
+      if (v0 > 0 && g > 0) {
+        const v0x = v0 * Math.cos(theta_rad);
+        const v0y = v0 * Math.sin(theta_rad);
+        const disc = v0y * v0y + 2.0 * g * h0;
+        const exactT = (v0y + Math.sqrt(disc)) / g;
+        const exactR = v0x * exactT;
+        const exactH = h0 + (v0y * v0y) / (2.0 * g);
+
+        const candStr = String(candidateAnswer || '') + ' ' + (verifications.map(v => v.details || '').join(' '));
+        const tPropM = candStr.match(/(?:time\s+of\s+flight|flight\s+time|\bt\b)\s*(?:is|[:=]|approximately|approx\.?|about)?\s*[$]?\s*(\d+(?:\.\d+)?)\s*(?:s|seconds)?\b/i);
+        const rPropM = candStr.match(/(?:horizontal\s+range|\brange\b|\bR\b)\s*(?:is|[:=]|approximately|approx\.?|about)?\s*[$]?\s*(\d+(?:\.\d+)?)\s*(?:m|meters)?\b/i);
+        const hPropM = candStr.match(/(?:maximum\s+height|max\s+height|height\s+above\s+ground|\bh_?max\b|\bH\b)\s*(?:is|[:=]|approximately|approx\.?|about)?\s*[$]?\s*(\d+(?:\.\d+)?)\s*(?:m|meters)?\b/i);
+
+        const tolTime = Math.max(0.05, 0.02 * exactT);
+        const tolDist = Math.max(0.5, 0.02 * Math.max(exactR, exactH));
+
+        const mismatches = [];
+        if (tPropM) {
+          const pt = parseFloat(tPropM[1]);
+          if (Math.abs(pt - exactT) > tolTime) {
+            mismatches.push(`time of flight proposed ${pt} s != expected ${exactT.toFixed(2)} s`);
+          }
+        }
+        if (rPropM) {
+          const pr = parseFloat(rPropM[1]);
+          if (Math.abs(pr - exactR) > tolDist) {
+            mismatches.push(`horizontal range proposed ${pr} m != expected ${exactR.toFixed(2)} m`);
+          }
+        }
+        if (hPropM) {
+          const ph = parseFloat(hPropM[1]);
+          if (Math.abs(ph - exactH) > tolDist) {
+            mismatches.push(`max height proposed ${ph} m != expected ${exactH.toFixed(2)} m`);
+          }
+        }
+
+        if (mismatches.length > 0) {
+          return {
+            status: 'INVALID_CLAIMS_DETECTED',
+            delivered: false,
+            withheld: true,
+            verificationLevel: 'withheld',
+            answer: null,
+            reason: `Candidate projectile calculation contradicts independent kinematic calculation: ${mismatches.join('; ')}.`
+          };
+        }
+      }
     }
   }
 
@@ -979,6 +1086,22 @@ function evaluateCandidateDelivery(arg1, arg2, arg3, arg4, arg5) {
           if (prop === candStr || actual === candStr || normCand === normProp || normCand === normActual) return true;
         }
 
+        // 5. Physics - Projectile Motion
+        if (c.claim_type === 'projectile_motion' || c.domain === 'physics') {
+          if (v.exact) {
+            const vals = [v.exact.t_flight, v.exact.range, v.exact.h_max, v.exact.v0x, v.exact.v0y];
+            if (vals.some(val => !isNaN(candNum) && Math.abs(val - candNum) < 0.5)) return true;
+          }
+          if (c.data) {
+            const pVals = [c.data.proposed_time, c.data.proposed_range, c.data.proposed_h_max];
+            if (pVals.some(pval => pval !== null && pval !== undefined && !isNaN(candNum) && Math.abs(pval - candNum) < 0.5)) return true;
+          }
+          if (v.details) {
+            const nums = (v.details.match(/\d+(?:\.\d+)?/g) || []).map(Number);
+            if (nums.some(n => !isNaN(candNum) && Math.abs(n - candNum) < 0.5)) return true;
+          }
+        }
+
         return false;
       });
     }
@@ -1109,8 +1232,11 @@ function evaluateCandidateDelivery(arg1, arg2, arg3, arg4, arg5) {
     }
   }
 
+  const isConceptualPrompt = /\b(?:why|explain|meaning|concept|discuss|rule|what\s+does|difference)\b/i.test(prompt);
+  const isCalculationalContext = !isConceptualPrompt && (/[\d=+\-*/^]/.test(prompt) || /\b(?:speed|velocity|acceleration|projectile|height|range|time\s+of\s+flight)\b/i.test(prompt));
+
   const allVerified = verifications.length === 0
-    ? (!requiresCandidateAnswer(prompt, claims) || isSupportedByClaims)
+    ? (isSupportedByClaims || (!isCalculationalContext && !requiresCandidateAnswer(prompt, claims)))
     : (verifications.every(v => v.verified === true) && (isSupportedByClaims || !requiresCandidateAnswer(prompt, claims)));
 
   if (allVerified) {
@@ -2507,6 +2633,53 @@ function extractClaims(text, userPrompt = '') {
           hypotenuse: c
         }
       });
+    }
+  }
+
+  // 9b. Projectile Motion Claims (e.g. flight time, horizontal range, maximum height)
+  const combinedPhysicsText = `${promptStr || ''} ${text || ''}`;
+  const hasProjectileKeywords = /\b(?:projectile|flight\s+time|time\s+of\s+flight|horizontal\s+range|maximum\s+height|max\s+height|cliff\s+height|launch\s+angle)\b/i.test(combinedPhysicsText);
+  if (hasProjectileKeywords) {
+    const v0M = combinedPhysicsText.match(/(?:initial\s+speed|initial\s+velocity|v_?0|speed)\s*[:=]?\s*(\d+(?:\.\d+)?)/i) ||
+                combinedPhysicsText.match(/(\d+(?:\.\d+)?)\s*(?:m\/s|meters\/second)/i);
+    const angleM = combinedPhysicsText.match(/(?:launch\s+angle|angle|\btheta\b)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:degrees|deg|°)?/i) ||
+                   combinedPhysicsText.match(/(\d+(?:\.\d+)?)\s*(?:degrees|deg|°)/i);
+    const radM = combinedPhysicsText.match(/(\d+(?:\.\d+)?)\s*(?:radians|rad)\b/i);
+    const hM = combinedPhysicsText.match(/(?:cliff\s+height|initial\s+height|\bh\b|height)\s*[:=]?\s*(?:h\s*=\s*)?(\d+(?:\.\d+)?)\s*(?:m|meters)?\b/i) ||
+               combinedPhysicsText.match(/(\d+(?:\.\d+)?)\s*(?:m|meters)?\s*(?:high\s+)?cliff/i);
+    const gM = combinedPhysicsText.match(/(?:gravitational\s+acceleration|gravity|\bg\b)\s*[:=]?\s*(\d+(?:\.\d+)?)/i);
+
+    if (v0M && (angleM || radM)) {
+      const v0 = parseFloat(v0M[1]);
+      const angle = parseFloat(angleM ? angleM[1] : radM[1]);
+      const angle_unit = radM && !angleM ? 'radians' : 'degrees';
+      const h0 = hM ? parseFloat(hM[1]) : 0;
+      const g = gM ? parseFloat(gM[1]) : 9.81;
+
+      // Extract proposed values from response text
+      const tPropM = text.match(/(?:time\s+of\s+flight|flight\s+time|\bt\b)\s*(?:[:=]|\bis\b|\bapproximately\b|\bapprox\.?\b|\babout\b|\baround\b|\s)*[$]?\s*(\d+(?:\.\d+)?)\s*(?:s|seconds)?\b/i);
+      const rPropM = text.match(/(?:horizontal\s+range|\brange\b|\bR\b)\s*(?:[:=]|\bis\b|\bapproximately\b|\bapprox\.?\b|\babout\b|\baround\b|\s)*[$]?\s*(\d+(?:\.\d+)?)\s*(?:m|meters)?\b/i);
+      const hPropM = text.match(/(?:maximum\s+height|max\s+height|height\s+above\s+ground|\bh_?max\b|\bH\b)\s*(?:[:=]|\bis\b|\bapproximately\b|\bapprox\.?\b|\babout\b|\baround\b|\s)*[$]?\s*(\d+(?:\.\d+)?)\s*(?:m|meters)?\b/i);
+
+      if (tPropM || rPropM || hPropM) {
+        claims.push({
+          domain: 'physics',
+          claim_type: 'projectile_motion',
+          raw_match: text.slice(0, 150),
+          data: {
+            v0,
+            angle,
+            angle_unit,
+            h0,
+            g,
+            proposed_time: tPropM ? parseFloat(tPropM[1]) : null,
+            proposed_range: rPropM ? parseFloat(rPropM[1]) : null,
+            proposed_h_max: hPropM ? parseFloat(hPropM[1]) : null,
+            userPrompt: promptStr
+          },
+          userPrompt: promptStr
+        });
+      }
     }
   }
 

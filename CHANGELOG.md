@@ -1,3 +1,18 @@
+## Pythos 1.9.8
+**Release Date:** October 21, 2026
+
+### Added & Enhanced
+
+- **Trigonometry & Kinematics Verification Hardening, Elevation-Aware Trajectories & Domain Guardrails**:
+  - Deterministic 2D projectile motion verifier added in `server/verifier/physics_verifier.py`, providing closed-form calculation and verification of launch from elevation ($h_0 \ge 0$), degree/radian conversions, flight time via quadratic root-finding, horizontal range, and maximum height above ground.
+  - Preflight deterministic facts updated in `server/deterministicRouter.js` to extract elevation parameters from prompt text and provide exact kinematic reference figures to the reasoning pipeline.
+  - Fail-closed delivery gates in `server/verificationBridge.js` updated to verify projectile motion calculations against independent physical calculations, withholding inaccurate flight times or ranges even when accompanied by valid formulas.
+  - Grounded trigonometric equation solving in real domain constraints in `server/verifier/algebra_verifier.py`. Equations lacking real solutions (e.g. $\sin x = 3/2$ on $[0, 2\pi)$) are certified as having no real solutions on $\mathbb{R}$, and candidate solutions asserting real values are strictly withheld with explicit citations of real range bounds.
+  - Added structural feasibility checks in `server/practiceProblemGenerator.js` to prevent generating impossible trigonometric equations with values outside the range of sine and cosine.
+  - Resolved character encoding artifacts in system prompt formulas and hardened frontend KaTeX math auto-delimiters in `app.js` to preserve multi-radical equations, vector norms, and vector assignments without text fragmentation.
+  - Updated client verification status badges in `app.js` to display transparent `Partially Verified` and `Unverified` states alongside `✓ Verified`, preventing unverified numerical calculations from displaying full verification badges.
+  - Added permanent regression suite `test-trig-physics-verification.js` with 22 tests verifying exact projectile motion, rejection of incorrect values, radian/degree consistency, real trigonometric feasibility, KaTeX formatting, and verification level fidelity.
+
 ## Pythos 1.9.7
 **Release Date:** October 21, 2026
 

@@ -1526,8 +1526,10 @@ function appendMessage(role, text, images = null, metadata = {}) {
       /(?:^|[ \t])(\\boxed\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\})/g,
       // Standalone or composite trig / inverse-trig expressions: e.g. \sec\left(\sin^{-1}\left(\frac{x}{\sqrt{x^2+36}}\right)\right)
       /(?:^|[ \t])(\\(?:sec|csc|sin|cos|tan|cot)(?:_\{[^{}]+\})?(?:\^\{[-0-9]+\}|\^[-?]1)?(?:\\left)?\((?:[^()]+|\([^()]*\))*\\right\))/g,
-      // Standalone radical expressions: e.g. \sqrt{x^2 + 36} or c = \sqrt{a^2 + b^2}
-      /(?:^|[ \t])((?:(?:[a-zA-Z\u0370-\u03ff]|\\[a-zA-Z]+)\s*=\s*)?\\sqrt\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}(?:\s*[-+*\/=]\s*(?:\\sqrt\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}|[a-zA-Z0-9.\u0370-\u03ff()]+))*)/g
+      // Standalone vector assignments: \mathbf{a} + \mathbf{b} = \langle 2, 6 \rangle or a + b = <2, 6>
+      /(?:^|[ \t])((?:\\[a-zA-Z]+(?:\{[^{}]*\})?|[a-zA-Z])(?:\s*[-+]\s*(?:\\[a-zA-Z]+(?:\{[^{}]*\})?|[a-zA-Z]))*\s*=\s*(?:\\langle|<)[^<>\n]+(?:\\rangle|>))/g,
+      // Standalone radical expressions & equalities with coefficients and \cdot / \times: e.g. \sqrt{40} = \sqrt{4 \cdot 10} = 2\sqrt{10} or ||a+b|| = \sqrt{40} = 2\sqrt{10}
+      /(?:^|[ \t])((?:(?:\|\||\\lVert)?[a-zA-Z0-9_+^\\{}. -]+(?:\|\||\\rVert)?\s*=\s*)?(?:[-+]?\d*\.?\d+\s*)?\\sqrt\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}(?:\s*(?:[-+*\/=]|\\cdot|\\times)\s*(?:(?:[-+]?\d*\.?\d+\s*)?\\sqrt\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}|\\[a-zA-Z]+|[a-zA-Z0-9.\u0370-\u03ff()]+))*)/g
     ];
 
     unwrappedMathPatterns.forEach((pattern) => {
@@ -3971,6 +3973,12 @@ async function askPythos(userText) {
               contentDiv.textContent = streamedText;
               statusBadge.style.color = "#d97706";
               statusBadge.innerHTML = `<span style="color:#d97706; font-weight:500;">Clarification Needed</span>`;
+            } else if (ev.verificationLevel === "partial") {
+              statusBadge.style.color = "#3b82f6";
+              statusBadge.innerHTML = `<span style="color:#3b82f6; font-weight:500;">Partially Verified</span>`;
+            } else if (ev.verificationLevel === "unverified") {
+              statusBadge.style.color = "#6b7280";
+              statusBadge.innerHTML = `<span style="color:#6b7280; font-weight:500;">Unverified</span>`;
             } else {
               statusBadge.style.color = "#16a34a";
               statusBadge.innerHTML = `<span style="color:#16a34a; font-weight:500;">✓ Verified</span>`;
