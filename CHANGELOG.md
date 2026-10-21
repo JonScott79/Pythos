@@ -1,3 +1,17 @@
+## Pythos 1.9.7
+**Release Date:** October 21, 2026
+
+### Added & Enhanced
+
+- **Conversation Reform, Phantom Problem Prevention & Student Intent Alignment**:
+  - Remediated excessive instructional momentum and conversational misalignment where student jokes, expressions of relief, sarcasm, or career banter (e.g. "pfffft Im going into IT, never have to do that again", "not trig, the physics of throwing a rock off a cliff") triggered extended, unprompted STEM lectures.
+  - Resolved phantom active problem creation in `server/contextManager.js`: restricted assistant-message problem extraction to authentic learning contexts (image upload transcriptions, terse help requests, and practice problem generation), preventing casual tutor remarks mentioning STEM fields from spawning active, in-progress problem states.
+  - Injected conversational guidance into `formatActiveProblemContext`, ensuring session context explicitly directs the model to acknowledge conversational remarks rather than forcing students back to prior problems.
+  - Added `# CONVERSATIONAL FIT, RAPPORT & STUDENT INTENT ALIGNMENT` to `PYTHOS_SYSTEM_PROMPT` in `server/server.js`, instructing Pythos to recognize communicative intent first, match lighthearted energy concisely (1–2 sentences), and refrain from forcing unprompted derivations or lectures.
+  - Harmonized `TOKEN EFFICIENCY` and `SUBJECT DRIFT` guidelines in the system prompt to clarify that removing mechanical filler must never suppress human empathy, brief rapport, or natural conversational flow.
+  - Updated the default `NEUTRAL_QUESTION` directive in `server/learnerState.js` to acknowledge casual banter and jokes warmly without forcing unprompted derivations or lectures, while preserving all existing mathematical verification safeguards.
+  - Added dedicated automated regression test suite `test-conversation-reform.js` verifying that casual banter does not spawn phantom math state, that terse help prompts still establish active problems, and that all prompt and learner state directives adhere to conversational alignment standards.
+
 ## Pythos 1.9.6
 **Release Date:** October 19, 2026
 

@@ -20,6 +20,7 @@ const math = require('mathjs');
 const { classifyProblem, DOMAINS, extractAnswerFormattingRequirements, extractRightTriangleTarget } = require('./problemClassifier');
 const { resolveReferentialContext } = require('./deterministicRouter');
 const { evaluateLinearEquationStep, evaluateEquationCandidate } = require('./studentWorkEvaluator');
+const { isPracticeRequest } = require('./practiceProblemGenerator');
 
 // ── Bounded Context Budget Constants (8,192 Total Context Window) ────────────
 const TOTAL_CONTEXT_LIMIT = 8192;
@@ -112,7 +113,7 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
                                        (typeof prevMsg.content === 'string' && prevMsg.content.includes('[IMAGE_ATTACHED]')) ||
                                        prevMsg.hasHistoricalImage === true);
       const prevIsTerseOrGeneric = prevMsg && !prevHadImage &&
-        /^(?:(?:can\s+you\s+)?(?:please\s+)?(?:help(?:\s+me)?|solve|check|work\s+out|look\s+at)\s+(?:this|my\s+work)|here\s+(?:is|'s)\s+(?:my\s+)?(?:problem|work|homework)|solve\s+this|what\s+is\s+this|check\s+this)[.?!]?$/i.test(prevMsg.content.trim());
+        /^(?:(?:can\s+you\s+)?(?:please\s+)?(?:help(?:\s+me)?(?:\s+with)?|solve|check|work\s+out|look\s+at)\s+(?:this|my\s+work|my\s+homework|this\s+problem)|here\s+(?:is|'s)\s+(?:my\s+)?(?:problem|work|homework)|solve\s+this|what\s+is\s+this|check\s+this)[.?!]?$/i.test(prevMsg.content.trim());
 
       // Extract explicit geometric diagram or function graph if rendered by assistant
       const geomMatch = msg.content.match(/\[GEOMETRY:\s*([a-zA-Z]+),?\s*([^\]]+)\]/i);
@@ -175,7 +176,9 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
         }
       }
 
-      if (!currentActive || prevHadImage || prevIsTerseOrGeneric) {
+      const prevIsPractice = prevMsg && typeof prevMsg.content === 'string' && isPracticeRequest(prevMsg.content);
+      const asstIsPracticeProblem = msg && typeof msg.content === 'string' && /practice problem|here'?s another (?:practice )?problem/i.test(msg.content);
+      if (prevHadImage || prevIsTerseOrGeneric || prevIsPractice || asstIsPracticeProblem) {
         const assistantCls = classifyProblem(msg.content);
         if (assistantCls && assistantCls.problemDomain !== 'UNKNOWN' && assistantCls.problemDomain !== 'OFF_TOPIC') {
           let extractedMath = null;
@@ -651,6 +654,8 @@ function formatActiveProblemContext(state) {
     const norms = act.knownVariables.normalizedLengths.map(n => `${n.original} = ${n.normalized}`).join(', ');
     out += `- **CRITICAL DIMENSIONAL UNIT NOTICE**: The problem contains mixed units of the same dimension (${norms}). Before computing ratios, products, or formulas (e.g., arc length $\\theta = s/r$), you MUST convert all quantities to consistent units. If the student divides incompatible raw numbers (e.g. 700 / 6), gently point out the unit discrepancy and show the converted calculation.\n`;
   }
+
+  out += `- **Conversational Guidance**: If the student's latest turn is a casual remark, joke, expression of relief, or topic shift rather than proposing mathematical work, respond to their conversational intent naturally. Do NOT force them back to this problem.\n`;
 
   // If there are archived problems in this session, provide a brief 1-line note
   if (state.archived && state.archived.length > 0) {

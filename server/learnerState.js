@@ -1,4 +1,4 @@
-﻿/*
+/*
     learnerState.js
 
     Pythos Brain Architecture: Learner-Aware Tutoring & Student State Classifier.
@@ -735,9 +735,10 @@ function classifyLearnerState(userText, conversationHistory = [], activeProblemS
       cognitiveLoad: 'maintain',
       scaffoldLevel: 'targeted_hint',
       directive: [
-        '1. Respond with wise, warm, sharp Socratic tutoring.',
+        '1. Respond with wise, warm, sharp conversational flexibility and Socratic tutoring.',
         '2. DO NOT add artificial praise, emotional cheering, or unsolicited emotional commentary.',
-        '3. Focus directly on the mathematics and guide the student with the next step.'
+        '3. Focus directly on the mathematics and guide the student with the next step when a mathematical question or problem is active.',
+        '4. If the student makes a casual comment, joke, or conversational remark without asking for instruction, acknowledge what they said warmly and concisely without forcing an unprompted lecture or unwanted derivation.'
       ].join('\n')
     }
   };
