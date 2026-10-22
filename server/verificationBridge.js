@@ -84,6 +84,8 @@ function extractCandidateAnswer(text) {
     }
     // Clean trailing units from scalar answers (e.g. "3 s", "4 m/s^2", "10 J", "300^\circ")
     clean = clean.replace(/\\circ|\^\\circ|\^\{\\circ\}/g, '');
+    clean = clean.replace(/[.,;]+$/, '').trim();
+    if (clean.length === 0) return null;
     const unitMatch = clean.match(/^([-+]?\d+(?:\.\d+)?)\s*(?:s|sec|seconds?|m\/s\^?2?|m|meters?|km\/h|J|joules?|kg|ohms?|Hz|rad|deg|degrees?|apples?)\b/i);
     if (unitMatch) {
       return unitMatch[1];
@@ -125,6 +127,13 @@ function extractCandidateAnswer(text) {
   const inlineMatch = text.match(/(?:final\s+answer|answer|result|x|y|z|v|velocity|force|energy)(?:\s*=\s*|\s+is\s+)(?:\\\(|\$)?\s*(\\?(?:d|t)?frac\{[^{}]+\}\{[^{}]+\}|[-+]?\d*\s*\\sqrt\{[^{}]+\}|[-\d./]+(?:\s*[a-zA-Z/^2]+)?)/i);
   if (inlineMatch) {
     const sanitized = sanitizeExtracted(inlineMatch[1]);
+    if (sanitized) return sanitized;
+  }
+
+  // Inline LaTeX or plain calculation result: e.g. "\(79 \times 2 = 158\)" or "79 * 2 = 158" or "79 * 2 is 158."
+  const calcEqMatch = text.match(/(?:\\\(|\$)?\s*\d+(?:\.\d+)?\s*(?:[-+*/^×÷]|\\times|\\cdot|\\div)\s*\d+(?:\.\d+)?(?:\s*(?:[-+*/^×÷]|\\times|\\cdot|\\div)\s*\d+(?:\.\d+)?)*\s*(?:=|\s+is\s+|\s+equals?\s+)\s*(\\?(?:d|t)?frac\{[^{}]+\}\{[^{}]+\}|[-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+(?:\.\d+)?)?)\s*(?:\\\)|\$)?/i);
+  if (calcEqMatch) {
+    const sanitized = sanitizeExtracted(cleanLatexUnits(calcEqMatch[1]));
     if (sanitized) return sanitized;
   }
   
@@ -1252,7 +1261,8 @@ function evaluateCandidateDelivery(arg1, arg2, arg3, arg4, arg5) {
       // 3. Independent Math.js evaluation fallback for arithmetic/trig/log problems
       if (!independentlyVerified && !independentContradiction) {
         try {
-          let cleanP = prompt.replace(/\b(?:what\s+is|find|calculate|evaluate|compute|simplify)\b/gi, '')
+          let cleanP = prompt.replace(/\b(?:what(?:'s|s|\s+is|\s+would\s+be)|whts|how\s+much\s+is|find(?:\s+the\s+value\s+of)?|calculate|evaluate|compute|simplify)\b/gi, '')
+                             .replace(/[?!.]+$/g, '')
                              .replace(/degrees?/gi, 'deg')
                              .replace(/%(\s+of)?/g, ' * 0.01 *')
                              .trim();
@@ -2468,7 +2478,7 @@ function extractClaims(text, userPrompt = '') {
       .replace(/(=[^=]+\S\s*)\\boxed\{([^{}=]+)\}/g, '$1')
       .replace(/\\boxed\{([^{}]+)\}/g, '$1')
       .replace(/\\text\{([^{}]+)\}/g, '$1')
-      .replace(/[$]/g, ' ')
+      .replace(/[$]|\\\(|\\\)|\\\[|\\\]/g, ' ')
       .replace(/\\(?:left|right)/g, '')
       .replace(/\\(sin|cos|tan|sec|csc|cot)\b/gi, '$1');
 

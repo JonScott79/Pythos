@@ -272,6 +272,68 @@ async function verifyAndEvaluate(messagesOrPrompt, responseText) {
     assert.strictEqual(delivery.delivered, true, `Expected delivered=true, got status=${delivery.status}`);
   });
 
+  // ---------------------------------------------------------------------------
+  // 7. EXACT MULTI-TURN REGRESSION: "calculate 2 + 2" -> "whats 79 * 2?"
+  // ---------------------------------------------------------------------------
+  console.log('\n▶ 7. Exact Multi-Turn Regression: "calculate 2 + 2" -> "whats 79 * 2?"');
+
+  await runTest('7.1: Turn 1 "calculate 2 + 2" -> Turn 2 "whats 79 * 2?" (classification, activeProblemState, router, and verification)', async () => {
+    const { classifyProblem } = require('./server/problemClassifier');
+    const { extractActiveProblemState } = require('./server/contextManager');
+
+    const history = [
+      { role: 'user', content: 'calculate 2 + 2' },
+      {
+        role: 'assistant',
+        content: "✅ Here is the exact calculation:\n\n$$\n2 + 2 = 4\n$$\n\nIs there another step or concept you'd like to explore with this problem?"
+      },
+      { role: 'user', content: 'whats 79 * 2?' }
+    ];
+
+    // 1. Problem classification must be ARITHMETIC (not CONCEPTUAL)
+    const cls = classifyProblem('whats 79 * 2?');
+    assert.strictEqual(cls.problemDomain, 'ARITHMETIC', `Expected ARITHMETIC, got ${cls.problemDomain}`);
+
+    // 2. Active problem state must update to "79 * 2" and NOT remain contaminated by "calculate 2 + 2"
+    const state = extractActiveProblemState(history);
+    assert(state && state.active, 'Expected active problem state');
+    assert.strictEqual(state.active.initialUserPrompt, 'whats 79 * 2?');
+    assert.strictEqual(state.active.activeExpression, '79 * 2');
+
+    // 3. Deterministic router must resolve "whats 79 * 2?" to 158 even with Turn 1 in history
+    const intent = analyzeDeterministicIntent('whats 79 * 2?', history);
+    assert(intent, 'Expected non-null deterministic intent for "whats 79 * 2?"');
+    assert.strictEqual(intent.type, 'ARITHMETIC');
+    assert.strictEqual(intent.result, 158);
+
+    // 4. Verification & delivery gate on inline LaTeX response "\(79 \times 2 = 158\)"
+    const { effectivePrompt, candidateAnswer, delivery } = await verifyAndEvaluate(
+      history,
+      'I’m confident that \\(79 \\times 2 = 158\\).'
+    );
+    assert.strictEqual(effectivePrompt, 'whats 79 * 2?');
+    assert.strictEqual(candidateAnswer, '158');
+    assert.strictEqual(delivery.delivered, true, `Expected delivered=true, got status=${delivery.status}`);
+    assert.strictEqual(delivery.answer, '158');
+  });
+
+  await runTest('7.2: Negative control: Turn 1 "calculate 2 + 2" -> Turn 2 "whats 79 * 2?" with wrong answer 159 MUST be withheld', async () => {
+    const history = [
+      { role: 'user', content: 'calculate 2 + 2' },
+      {
+        role: 'assistant',
+        content: "✅ Here is the exact calculation:\n\n$$\n2 + 2 = 4\n$$\n\nIs there another step or concept you'd like to explore with this problem?"
+      },
+      { role: 'user', content: 'whats 79 * 2?' }
+    ];
+    const { delivery } = await verifyAndEvaluate(
+      history,
+      'I’m confident that \\(79 \\times 2 = 159\\).'
+    );
+    assert.strictEqual(delivery.delivered, false, 'Wrong answer 159 must be rejected');
+    assert.strictEqual(delivery.withheld, true);
+  });
+
   closeVerifierDaemon();
   console.log(`\n========================================================================`);
   console.log(`🎉 ALL ${passed}/${total} AUDIT REGRESSION TESTS PASSED!`);

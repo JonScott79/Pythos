@@ -382,7 +382,7 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
     let extractedEq = cleanEquation(msg.content);
     const cleanPrompt = msg.content
       .replace(/(?:^|\s)=(?:\^[-._]?\^|[-~]?[PpdD()\/\\oO3|cCsS])=?(?:\s|$|[.?!,])/g, ' ')
-      .replace(/^(?:please\s+)?(?:solve(?:\s+for\s+[a-zA-Z])?|(?:check|verify|test|see)(?:\s+(?:if|whether|that))?|\bdoes\b|\bis\b|now\s+solve)[:\s]*/i, '')
+      .replace(/^(?:please\s+)?(?:solve(?:\s+for\s+[a-zA-Z])?|calculate|compute|evaluate|find(?:\s+the\s+value\s+of)?|what(?:'s|s|\s+is|\s+would\s+be)|whts|how\s+much\s+is|(?:check|verify|test|see)(?:\s+(?:if|whether|that))?|\bdoes\b|\bis\b|now\s+solve)[:\s]*/i, '')
       .replace(/[?!.]+$/, '')
       .trim();
 
@@ -415,8 +415,9 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
 
     // Distinguish genuine new problems from terse student work/follow-ups
     const isExplicitNewProblem = trans.type === 'NEW_TOPIC_EXPLICIT' ||
-      /^(?:(?:now|can\s+you|please|let's)\s+)?(?:solve|do|try|calculate|work\s+out)\s+([a-zA-Z0-9+\-*/^()=.\s]+)$/i.test(msg.content) ||
-      /^(?:new|next|different)\s+problem/i.test(msg.content);
+      /^(?:(?:now|can\s+you|please|let's)\s+)?(?:solve|do|try|calculate|compute|evaluate|what(?:'s|s|\s+is)|whts|how\s+much\s+is|work\s+out)\s+([a-zA-Z0-9+\-*/^()=.\s?!]+)$/i.test(msg.content) ||
+      /^(?:new|next|different)\s+problem/i.test(msg.content) ||
+      Boolean(currentActive && currentActive.initialUserPrompt && isIndependentProblem(msg.content, currentActive.initialUserPrompt));
 
     const isQuestionOrValidation = /^(?:is\s+|why\s+|how\s+|what\s+|can\s+you|did\s+i|check\b)/i.test(msg.content.trim()) ||
       /\b(?:right|correct|wrong)\??$/i.test(msg.content.trim());

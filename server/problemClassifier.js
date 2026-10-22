@@ -493,13 +493,13 @@ function classifyProblem(userText) {
   const hasConceptual = conceptualKeywords.test(text);
 
   const nonMathKeywords = lower
-    .replace(/[-+*/^0-9.(),\s\n\r]/g, ' ')
-    .replace(/\b(calculate|compute|evaluate|what|is|find|these|the|following|four|three|two|one|rates|rate|percentages|percentage|values|value|return|only|per|line|just|answer|percentages|fractions|decimals)\b/g, ' ')
+    .replace(/[-+*/^0-9.(),\s\n\r?!]/g, ' ')
+    .replace(/\b(calculate|compute|evaluate|what's|whats|whts|what|is|find|these|the|following|four|three|two|one|rates|rate|percentages|percentage|values|value|return|only|per|line|just|answer|percentages|fractions|decimals)\b/g, ' ')
     .trim();
 
   const isPureArithmetic = !hasConceptual && /\d/.test(text) && (
     nonMathKeywords.length === 0 ||
-    /^(?:calculate|compute|evaluate|what is|find)?\s*[-+*/^0-9.(),\s\n\r]+$/i.test(text)
+    /^(?:calculate|compute|evaluate|what(?:'s|s|\s+is)|whts|find)?\s*[-+*/^0-9.(),\s\n\r?!]+$/i.test(text)
   );
 
   if (isPureArithmetic) {

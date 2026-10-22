@@ -245,7 +245,7 @@ function extractArithmeticExpressions(text) {
   const isQuestionOrProse = /[?]$/.test(text.trim()) ||
     /\b(?:is\s+(?:that|this|it)|same\s+thing|same\s+as|the\s+same|equivalent|what\s+about|why|how|explain|does\s+(?:this|that))\b/i.test(text) ||
     /\b(?:accuracy|accurate|validation|validated|benchmark|withheld|incorrect\s+answers?|correct\s+answers?|answers?\s+returned|error\s+rate|pythos|tutor|model)\b/i.test(text);
-  const isExplicitStandaloneCalc = /^(?:(?:just\s+(?:give\s+me|tell\s+me)\s+(?:the\s+answer)?|(?:don't|do not|without)\s+(?:check(?:ing)?|verify(?:ing)?)(?:\s+(?:it|this|anything))?)[,\s:]*)*(?:pythos[,\s]+)?(?:(?:please|kindly)\s+)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?)?(?:help\s+(?:me\s+)?(?:to\s+)?)?(?:calculate|compute|evaluate|determine|solve(?:\s+for)?|find|simplify|work\s+out|give\s+me|what\s+is|what\s+would\s+be|how\s+much\s+is|is)(?:\s+(?:the\s+)?(?:result|value|answer|evaluation|solution|sum|difference|product|quotient)(?:\s+(?:of|to|for))?)?[:\s]/i.test(text.trim());
+  const isExplicitStandaloneCalc = /^(?:(?:just\s+(?:give\s+me|tell\s+me)\s+(?:the\s+answer)?|(?:don't|do not|without)\s+(?:check(?:ing)?|verify(?:ing)?)(?:\s+(?:it|this|anything))?)[,\s:]*)*(?:pythos[,\s]+)?(?:(?:please|kindly)\s+)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?)?(?:help\s+(?:me\s+)?(?:to\s+)?)?(?:calculate|compute|evaluate|determine|solve(?:\s+for)?|find|simplify|work\s+out|give\s+me|what(?:'s|s|\s+is|\s+would\s+be)|whts|how\s+much\s+is|is)(?:\s+(?:the\s+)?(?:result|value|answer|evaluation|solution|sum|difference|product|quotient)(?:\s+(?:of|to|for))?)?[:\s]/i.test(text.trim());
   if (isQuestionOrProse && !isExplicitStandaloneCalc) {
     return expressions;
   }
@@ -271,7 +271,7 @@ function extractArithmeticExpressions(text) {
     // General conversational prefix and correction normalization
     const cleanExprLine = cleanLine
       .replace(/^(?:wait,?\s+)?(?:i\s+meant|actually|correction|typo,?\s+meant)[:\s]*/i, '')
-      .replace(/^(?:(?:just\s+(?:give\s+me|tell\s+me)\s+(?:the\s+answer)?|(?:don't|do not|without)\s+(?:check(?:ing)?|verify(?:ing)?)(?:\s+(?:it|this|anything))?)[,\s:]*)*(?:pythos[,\s]+)?(?:(?:please|kindly)\s+)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?)?(?:help\s+(?:me\s+)?(?:to\s+)?)?(?:what\s+(?:is|would\s+be)|calculate|compute|evaluate|determine|solve(?:\s+for)?|find|simplify|work\s+out|give\s+me|how\s+much\s+is|is)(?:\s+(?:the\s+)?(?:result|value|answer|evaluation|solution|sum|difference|product|quotient)(?:\s+(?:of|to|for))?)?[:\s]+/i, '')
+      .replace(/^(?:(?:just\s+(?:give\s+me|tell\s+me)\s+(?:the\s+answer)?|(?:don't|do not|without)\s+(?:check(?:ing)?|verify(?:ing)?)(?:\s+(?:it|this|anything))?)[,\s:]*)*(?:pythos[,\s]+)?(?:(?:please|kindly)\s+)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?)?(?:help\s+(?:me\s+)?(?:to\s+)?)?(?:what(?:'s|s|\s+is|\s+would\s+be)|whts|calculate|compute|evaluate|determine|solve(?:\s+for)?|find|simplify|work\s+out|give\s+me|how\s+much\s+is|is)(?:\s+(?:the\s+)?(?:result|value|answer|evaluation|solution|sum|difference|product|quotient)(?:\s+(?:of|to|for))?)?[:\s]+/i, '')
       .replace(/[?!.]+$/, '')
       .trim();
 
@@ -2879,7 +2879,7 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
         // If an active problem exists in the conversation (equation like 42pi/18 = 2pi, or expression like 23pi/7),
         // terse arithmetic like 7/3 or (7/3)pi or candidate values are student work/inquiry, not standalone calculation
         if (state.active.activeExpression) {
-          const isExplicitStandalone = isExplicitStandaloneCalc || /^(?:calculate|compute|what\s+is|evaluate|how\s+much\s+is|find\s+the\s+value\s+of|new\s+problem)[:\s]/i.test(clean);
+          const isExplicitStandalone = /^(?:(?:just\s+(?:give\s+me|tell\s+me)\s+(?:the\s+answer)?|(?:don't|do not|without)\s+(?:check(?:ing)?|verify(?:ing)?)(?:\s+(?:it|this|anything))?)[,\s:]*)*(?:pythos[,\s]+)?(?:(?:please|kindly)\s+)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?)?(?:help\s+(?:me\s+)?(?:to\s+)?)?(?:calculate|compute|what(?:'s|s|\s+is|\s+would\s+be)|whts|evaluate|how\s+much\s+is|find(?:\s+the\s+value\s+of)?|new\s+problem)[:\s]/i.test(clean);
           if (!isExplicitStandalone) {
             return null;
           }

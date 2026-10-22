@@ -22,14 +22,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="assets/favicon.png">
-  <title>Pythos Release History &amp; Changelog | v1.9.10</title>
+  <title>Pythos Release History &amp; Changelog | v1.9.11</title>
   <meta name="description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://pythos.lanzar.me/changelog.html">
 
   <!-- OPEN GRAPH -->
-  <meta property="og:title" content="Pythos Release History &amp; Changelog | v1.9.10">
+  <meta property="og:title" content="Pythos Release History &amp; Changelog | v1.9.11">
   <meta property="og:description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta property="og:url" content="https://pythos.lanzar.me/changelog.html">
   <meta property="og:type" content="article">
@@ -41,7 +41,7 @@
 
   <!-- TWITTER CARD -->
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Pythos Release History &amp; Changelog | v1.9.10">
+  <meta name="twitter:title" content="Pythos Release History &amp; Changelog | v1.9.11">
   <meta name="twitter:description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="twitter:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
 
@@ -532,7 +532,7 @@
         <a href="nonprofit.html" class="nav-link">Mission &amp; Roadmap</a>
         <a href="license.html" class="nav-link">License</a>
         <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" class="nav-link">Facebook</a>
-        <a href="changelog.html#pythos-1-9-10" class="nav-link active" aria-current="page">v1.9.10</a>
+        <a href="changelog.html#pythos-1-9-11" class="nav-link active" aria-current="page">v1.9.11</a>
       </div>
     </div>
 
@@ -557,12 +557,47 @@
       <p>Authoritative release notes, verification engine milestones, and mathematical system updates.</p>
     </header>
 
+                                                                                                                                                                                    <!-- ==================== RELEASE 1.9.11 ==================== -->
+      <article class="release-card" id="pythos-1-9-11">
+        <div class="release-header">
+          <div class="release-title-wrap">
+            <h2 class="release-version">Pythos 1.9.11</h2>
+            <span class="release-badge">Latest Release</span>
+          </div>
+          <time class="release-date" datetime="2026-10-21">October 21, 2026</time>
+        </div>
+
+        <div class="section-group">
+          <div class="section-header">
+            <span class="badge-added">Enhancement</span>
+            <span class="section-title">Multi-Turn Colloquial Arithmetic Routing, Active Problem State Archiving &amp; Inline LaTeX Verification</span>
+          </div>
+          <ul class="change-list">
+            <li class="change-item">
+              <span class="change-bullet"></span>
+              <div><strong>Colloquial Arithmetic Classification:</strong> Updated <code>classifyProblem</code> in <code>problemClassifier.js</code> to normalize colloquial question prefixes (<code>whats</code>, <code>what's</code>, <code>whts</code>) and trailing punctuation (<code>?</code>, <code>!</code>) when evaluating <code>isPureArithmetic</code>, preventing calculation questions like <code>"whats 79 * 2?"</code> from misclassifying as <code>CONCEPTUAL</code>.</div>
+            </li>
+            <li class="change-item">
+              <span class="change-bullet"></span>
+              <div><strong>Multi-Turn Active State Archiving:</strong> Updated <code>extractActiveProblemState</code> in <code>contextManager.js</code> to strip calculation/question prefixes and consult <code>isIndependentProblem</code>, ensuring independent multi-turn math questions archive prior active problems instead of retaining Turn 1's <code>activeExpression</code>.</div>
+            </li>
+            <li class="change-item">
+              <span class="change-bullet"></span>
+              <div><strong>Deterministic Router Standalone Directives:</strong> Expanded <code>extractArithmeticExpressions</code> and <code>analyzeDeterministicIntent</code> in <code>deterministicRouter.js</code> to recognize <code>whats</code>, <code>what's</code>, and <code>whts</code> as explicit standalone calculation directives even when a prior active problem exists in conversation history.</div>
+            </li>
+            <li class="change-item">
+              <span class="change-bullet"></span>
+              <div><strong>Inline LaTeX Claim &amp; Candidate Extraction:</strong> Updated <code>extractClaims</code>, <code>extractCandidateAnswer</code>, and <code>evaluateCandidateDelivery</code> in <code>verificationBridge.js</code> to strip inline LaTeX delimiters (<code>\(</code>, <code>\)</code>, <code>\[</code>, <code>\]</code>), extract unboxed inline calculation results (e.g. <code>\(79 \times 2 = 158\)</code>), and normalize colloquial prefixes in the independent Math.js fallback.</div>
+            </li>
+          </ul>
+        </div>
+      </article>
+
                                                                                                                                                                                     <!-- ==================== RELEASE 1.9.10 ==================== -->
       <article class="release-card" id="pythos-1-9-10">
         <div class="release-header">
           <div class="release-title-wrap">
             <h2 class="release-version">Pythos 1.9.10</h2>
-            <span class="release-badge">Latest Release</span>
           </div>
           <time class="release-date" datetime="2026-10-21">October 21, 2026</time>
         </div>
@@ -2502,7 +2537,7 @@
 
   <footer>
     <div>🏛️ Pythos — Free AI Mathematics &amp; Physics Education Initiative. Developed by LANZAR.</div>
-    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-9-10" style="color:var(--primary-color); text-decoration:none;">v1.9.10</a></div>
+    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-9-11" style="color:var(--primary-color); text-decoration:none;">v1.9.11</a></div>
   </footer>
 
   <script>

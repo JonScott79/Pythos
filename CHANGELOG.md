@@ -1,3 +1,15 @@
+## Pythos 1.9.11
+**Release Date:** October 21, 2026
+
+### Added & Enhanced
+
+- **Multi-Turn Colloquial Arithmetic Routing (`whats` / `what's` + `?`), Active Problem State Archiving & Inline LaTeX Verification**:
+  - Updated `classifyProblem` in `problemClassifier.js` to strip colloquial question prefixes (`whats`, `what's`, `whts`) and trailing punctuation (`?`, `!`) when checking `isPureArithmetic`, preventing arithmetic questions like `"whats 79 * 2?"` from misclassifying as `CONCEPTUAL`.
+  - Updated `extractActiveProblemState` in `contextManager.js` to strip calculation/question prefixes (`calculate`, `compute`, `evaluate`, `whats`, `what's`, `how much is`) and consult `isIndependentProblem`, ensuring independent multi-turn math questions archive prior active problems instead of retaining Turn 1's `activeExpression`.
+  - Expanded `extractArithmeticExpressions` and `analyzeDeterministicIntent` in `deterministicRouter.js` to recognize `whats`, `what's`, and `whts` as explicit standalone calculation directives even when a prior active problem exists in conversation history.
+  - Updated `extractClaims`, `extractCandidateAnswer`, and `evaluateCandidateDelivery` in `verificationBridge.js` to strip inline LaTeX delimiters (`\(`, `\)`, `\[`, `\]`), extract unboxed inline calculation results (e.g. `\(79 \times 2 = 158\)`), and normalize colloquial prefixes in the independent Math.js fallback.
+  - Expanded `test-withholding-audit-regressions.js` to 17 tests with the exact multi-turn sequence (`calculate 2 + 2` -> `whats 79 * 2?`) and negative control (`159` withheld).
+
 ## Pythos 1.9.10
 **Release Date:** October 21, 2026
 
