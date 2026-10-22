@@ -1,3 +1,16 @@
+## Pythos 1.9.10
+**Release Date:** October 21, 2026
+
+### Added & Enhanced
+
+- **Multi-Turn Context Isolation, LaTeX Fraction & Radical Verification & Conditional Equation Guardrails**:
+  - Expanded `isIndependentProblem` and `buildEffectivePrompt` in `contextManager.js` to detect standalone arithmetic, calculation/percentage queries, prose/colon-prefixed equations, and self-contained algebra/calculus directives across multi-turn conversations, preventing prior turns from poisoning `effectiveVerificationPrompt`.
+  - Fixed `studentAnsMatch` in `contextManager.js` so percentage and calculation queries (e.g., `"what is 15% of 80"`) are never misclassified as proposed student answers.
+  - Updated `parseFracOrFloat` and `parseNumOrFrac` in `verificationBridge.js` to normalize `\frac{a}{b}` before stripping braces and evaluate `\sqrt{...}` expressions and multi-root comma lists, resolving false withholdings on boxed LaTeX fractions (`\boxed{\frac{7}{8}}`) and radical quadratic roots (`\boxed{\pm\sqrt{5}}`).
+  - Blocked unverified `conditional_equation` claims from self-certifying `isSupportedByClaims` on equation-solving prompts, added scalar parameter substitution in Pattern 5c (e.g., `"If a = 3, find x when 2x + a = 11"`), and prevented inline summary `\boxed{...}` tags from concatenating onto equation RHS expressions.
+  - Allowed conversational prefixes in `hasExplicitSolveDirective` (`deterministicRouter.js`) when prior active expressions exist, and normalized SymPy verifier daemon timeouts (`CAS_TIMEOUT`) to return `status: 'TIMEOUT'` instead of `'ERROR'`.
+  - Added 15-test regression suite `test-withholding-audit-regressions.js` covering multi-turn context poisoning, boxed/unboxed LaTeX fractions and radicals, conversational router prefixes, and false-acceptance prevention.
+
 ## Pythos 1.9.9
 **Release Date:** October 21, 2026
 

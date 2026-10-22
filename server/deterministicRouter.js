@@ -2189,7 +2189,7 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
 
     // If an active problem exists and student did not explicitly command "solve...", defer to contextual student work evaluation
     const hasPriorAssistant = Array.isArray(conversationHistory) && conversationHistory.some(m => m && m.role === 'assistant');
-    const hasExplicitSolveDirective = /^(?:solve|find\s+(?:the\s+)?(?:root|roots|solution)|calculate|determine|(?:actually|wait|sorry)[,\s]+(?:the\s+)?equation\s+(?:was|is))\b/i.test(clean);
+    const hasExplicitSolveDirective = /^(?:(?:okay|ok|now|pythos|please|kindly|hey|hi|hello|can\s+you|could\s+you|actually|wait|sorry|no)[,\s]+)*(?:solve|find|calculate|determine|(?:the\s+)?equation\s+(?:was|is)|i\s+meant)\b/i.test(clean);
     if (!hasExplicitSolveDirective && hasPriorAssistant) {
       try {
         const { extractActiveProblemState } = require('./contextManager');

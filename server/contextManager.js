@@ -757,7 +757,7 @@ function isIndependentProblem(text, priorPrompt) {
   if (!text || typeof text !== 'string') return false;
   const t = text.trim();
   // Conversational corrections, amendments, or continuations
-  if (/^(?:i\s+meant|actually|wait|sorry|no|typo|instead|what\s+about|how\s+about|and|then|now|what\s+if)\b/i.test(t)) {
+  if (/^(?:i\s+meant|actually|wait|sorry|no|typo|instead|what\s+about|how\s+about|and|then|now|what\s+if|also|isn't|isnt|that's|thats|i\s+got|it's|its|the\s+diagram|i\s+only\s+want)\b/i.test(t)) {
     return false;
   }
   // Bare variable assignments or bare numbers (e.g. "x = 3", "3", "y = 4") represent student work
@@ -765,12 +765,14 @@ function isIndependentProblem(text, priorPrompt) {
     return false;
   }
   // 1. Standalone equation with operations on LHS or RHS (e.g. "3x-9=0", "5x-6=0", "2x^2+14x+12=0", "3x-9=")
-  if (/^[a-zA-Z0-9^+\-*/()÷\\.\s]+=[a-zA-Z0-9^+\-*/()÷\\.\s]*$/.test(t) && /[+*^/\-]/.test(t.split('=')[0])) {
+  if (priorPrompt && /^(?:hi|hello|hey|yo|sup|good\s+(?:morning|afternoon|evening)|thanks|thank\s+you|who\s+are\s+you|who\s+made\s+you|what\s+is\s+pythos|who\s+is\s+jon(?:\s+scott)?)[.?!\s]*$/i.test(priorPrompt.trim()) && (/[0-9+\-*/^=()]/.test(t) || /\b(?:solve|simplify|factor|expand|evaluate|calculate|compute|derivative|differentiate|integrate|limit|area|perimeter|triangle|circle|velocity|speed|acceleration)\b/i.test(t))) return true;
+  if ((/^[a-zA-Z0-9^+\-*/()÷\\.\s]+=[a-zA-Z0-9^+\-*/()÷\\.\s]*$/.test(t) && /[+*^/\-]/.test(t.split('=')[0])) || (cleanEquation(t) && !/^[a-zA-Z]\s*=\s*[-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?$/i.test(cleanEquation(t)) && /[+*^/\-]/.test(cleanEquation(t)) && !/\b(?:it|its|that|this|again)\b/i.test(t))) {
     return true;
   }
   // 2. Standalone algebraic expression without = (e.g. "2x^2+14x+12", "(2x+4)(3+5x)")
   const cleanAlg = t.replace(/\b(?:sin|cos|tan|sec|csc|cot|log|ln|exp|sqrt)\b/gi, '');
-  if (/^[a-zA-Z0-9^+\-*/().\s]+$/.test(t) && !/\b[a-zA-Z]{3,}\b/.test(cleanAlg) && /[a-zA-Z]/.test(t) && /[+*^/\-]/.test(t) && !/[?!]/.test(t)) {
+  if ((/^[-+*/^%0-9.()\s÷×]+[\d)]\s*[?]?$/.test(t) && /[+*/^%\-÷×]/.test(t) && !/^[-+]?\d+(?:\.\d+)?\s*[?]?$/.test(t)) || /^(?:(?:hey|hi|hello|okay|ok|please|can\s+you|could\s+you)[,\s]+)*(?:what\s+is|what's|whats|calculate|compute|evaluate)\s+(?:\d+(?:\.\d+)?%\s+of\s+\d+(?:\.\d+)?|[-+*/^%0-9.()\s÷×]+\d[-+*/^%0-9.()\s÷×]*)[?.!]*$/i.test(t)) return true;
+  if ((/^[a-zA-Z0-9^+\-*/().\s]+$/.test(t) && !/\b[a-zA-Z]{3,}\b/.test(cleanAlg) && /[a-zA-Z]/.test(t) && /[+*^/\-]/.test(t) && !/[?!]/.test(t)) || (/^(?:(?:hey|hi|hello|okay|ok|please|can\s+you|could\s+you)[,\s]+)*(?:simplify|factor|expand|rationalize|differentiate|integrate|(?:find\s+)?(?:the\s+)?(?:derivative|integral|limit)\s+of)\s+/i.test(t) && (/[0-9+\-*/^=()\\]/.test(t) || /\b(?:sin|cos|tan|sec|csc|cot|log|ln|sqrt)\b/i.test(t)) && !/\b(?:it|its|that|this|previous|above)\b/i.test(t))) {
     return true;
   }
   // 3. Standalone calculus Leibniz derivative or integral (e.g. "d/dx ln(x)", "d/dx [sin(x)]", "\int x^2 dx")
@@ -814,7 +816,7 @@ function buildEffectivePrompt(messages = []) {
   }
 
   // 1d. Independent mathematical problem or domain transition
-  if (isIndependentProblem(latestUser, firstUser)) {
+  if (isIndependentProblem(latestUser, firstUser) || (userMsgs.length > 2 && isIndependentProblem(latestUser, userMsgs[userMsgs.length - 2].content.trim()))) {
     return latestUser;
   }
 
@@ -828,15 +830,16 @@ function buildEffectivePrompt(messages = []) {
 
   // 2. Identify base problem
   let basePrompt = firstUser;
+  let baseIdx = 0;
   for (let i = 0; i < userMsgs.length - 1; i++) {
     const um = userMsgs[i].content.trim();
     const npm = um.match(/^(?:never\s+mind[.,]?\s*|new\s+problem[:\s]+)(.*)/i);
     if (npm && npm[1].trim()) {
       let np = npm[1].trim();
       if (!/^(?:solve|calculate|what|find)\b/i.test(np)) np = 'Solve ' + np;
-      basePrompt = np;
-    } else if (isIndependentProblem(um, firstUser)) {
-      basePrompt = um;
+      basePrompt = np; baseIdx = i;
+    } else if (isIndependentProblem(um, basePrompt)) {
+      basePrompt = um; baseIdx = i;
     }
   }
 
@@ -856,7 +859,7 @@ function buildEffectivePrompt(messages = []) {
     }
   }
 
-  for (let i = 1; i < userMsgs.length; i++) {
+  for (let i = baseIdx + 1; i < userMsgs.length; i++) {
     const turnText = userMsgs[i].content.trim();
 
     // Subject/reference correction: "I meant to say identities", "i meant identities", "actually formulas"
@@ -985,7 +988,7 @@ function buildEffectivePrompt(messages = []) {
       effective += ' (User claims: ' + userClaimMatch[1] + ')';
       continue;
     }
-    const studentAnsMatch = turnText.match(/\b(?:it\x27?s|its|it\s+is|is\s+it|answer\s+is|is|i\s+got|got)\s+(?:flipping\s+|literally\s+|obviously\s+|clearly\s+|just\s+|definitely\s+|freaking\s+|totally\s+)?([-+]?\d+(?:\.\d+)?)\b/i) ||
+    const studentAnsMatch = turnText.match(/(?:^(?:is\s+it|it\x27?s|its|it\s+is)|(?<!\b(?:what|how|where|when|which|who|there)\s)\b(?:it\x27?s|its|it\s+is|is\s+it|the\s+answer\s+is|my\s+answer\s+is|answer\s+is|i\s+got|got))\s+(?:flipping\s+|literally\s+|obviously\s+|clearly\s+|just\s+|definitely\s+|freaking\s+|totally\s+)?([-+]?\d+(?:\.\d+)?)(?!\s*%)\b/i) ||
                             turnText.match(/\b(?:flipping|literally|obviously|clearly)\s+([-+]?\d+(?:\.\d+)?)\b/i);
     if (studentAnsMatch) {
       const pAns = studentAnsMatch[1];

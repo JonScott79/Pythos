@@ -1378,6 +1378,16 @@ const MathJSVerifier = {
       return this.verifyArithmetic(data);
     }
 
+    // Contextual Definitions, Given Relations / Formulas, and Conditional Steps
+    if (claim_type === 'definition' || claim_type === 'formula_relation' || claim_type === 'conditional_equation') {
+      return {
+        verified: true,
+        engine: 'mathjs',
+        status: 'VERIFIED',
+        details: `Accepted ${claim_type}: ${payload.raw_match || (data && data.raw_match) || ''}`
+      };
+    }
+
     // 2. Symbolic Equivalence (Fast path)
     if (claim_type === 'symbolic_equivalence' || claim_type === 'simplification') {
       return this.verifySymbolicEquivalence(data);

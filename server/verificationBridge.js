@@ -77,7 +77,8 @@ function extractCandidateAnswer(text) {
       return null;
     }
     // Normalize \pm 4 to "4, -4" or "±4"
-    if (/^\\pm\s*(\d+(?:\.\d+)?)$/.test(clean)) {
+    if (/^\\pm\s*(.+)$/.test(clean)) { const num = clean.match(/^\\pm\s*(.+)$/)[1].trim(); return `${num}, -${num}`; }
+    if (false) {
       const num = clean.match(/^\\pm\s*(\d+(?:\.\d+)?)$/)[1];
       return `${num}, -${num}`;
     }
@@ -108,20 +109,20 @@ function extractCandidateAnswer(text) {
   }
   
   // Bolded final answer e.g. **300^\circ** or **\(300^\circ\)** or **4**
-  const boldedMatch = text.match(/\*\*(?:\\\(|\$)?\s*([-\d./]+(?:\^\{?\\?circ\}?|\\circ|deg|degrees?)?)\s*(?:\\\)|\$)?\*\*/i);
+  const boldedMatch = text.match(/\*\*(?:\\\(|\$)?\s*((?:\\(?:d|t)?frac\{[^{}]+\}\{[^{}]+\}|[-+]?\d*\s*\\sqrt\{[^{}]+\}|[-\d./]+)(?:\^\{?\\?circ\}?|\\circ|deg|degrees?)?)\s*(?:\\\)|\$)?\*\*/i);
   if (boldedMatch) {
     const sanitized = sanitizeExtracted(cleanLatexUnits(boldedMatch[1]));
     if (sanitized) return sanitized;
   }
 
   // Explicit conclusion statements: e.g. "equals **300^\circ**" or "result is 4"
-  const conclusionMatch = text.match(/(?:equals?|is|equal\s+to|gives?)\s+(?:\\\(|\$|\*\*)?\s*([-\d./]+(?:\^\{?\\?circ\}?|\\circ|deg|degrees?)?)\s*(?:\\\)|\$|\*\*)?[.,;]?\s*$/im);
+  const conclusionMatch = text.match(/(?:equals?|is|equal\s+to|gives?)\s+(?:\\\(|\$|\*\*)?\s*((?:\\(?:d|t)?frac\{[^{}]+\}\{[^{}]+\}|[-+]?\d*\s*\\sqrt\{[^{}]+\}|[-\d./]+)(?:\^\{?\\?circ\}?|\\circ|deg|degrees?)?)\s*(?:\\\)|\$|\*\*)?[.,;]?\s*$/im);
   if (conclusionMatch) {
     const sanitized = sanitizeExtracted(cleanLatexUnits(conclusionMatch[1]));
     if (sanitized) return sanitized;
   }
 
-  const inlineMatch = text.match(/(?:final\s+answer|answer|result|x|y|z|v|velocity|force|energy)(?:\s*=\s*|\s+is\s+)([-\d./]+(?:\s*[a-zA-Z/^2]+)?)/i);
+  const inlineMatch = text.match(/(?:final\s+answer|answer|result|x|y|z|v|velocity|force|energy)(?:\s*=\s*|\s+is\s+)(?:\\\(|\$)?\s*(\\?(?:d|t)?frac\{[^{}]+\}\{[^{}]+\}|[-+]?\d*\s*\\sqrt\{[^{}]+\}|[-\d./]+(?:\s*[a-zA-Z/^2]+)?)/i);
   if (inlineMatch) {
     const sanitized = sanitizeExtracted(inlineMatch[1]);
     if (sanitized) return sanitized;
@@ -1024,7 +1025,11 @@ function evaluateCandidateDelivery(arg1, arg2, arg3, arg4, arg5) {
   function parseFracOrFloat(val) {
     if (val === null || val === undefined) return NaN;
     if (typeof val === 'number') return val;
-    const s = String(val).trim().replace(/[{}]/g, '');
+    let raw = String(val).trim().replace(/^[a-zA-Z]\s*=\s*/, '').replace(/(?<=\d),(?=\d{3}(?:\D|$))/g, '');
+    if (/(?:,|;|\bor\b|\band\b)/i.test(raw)) return NaN;
+    raw = raw.replace(/\\(?:d|t)?frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g, '($1)/($2)');
+    if (/sqrt/i.test(raw)) { try { const sq = raw.replace(/(\d)\s*\\?sqrt/gi, '$1*sqrt').replace(/\\sqrt\s*\{([^{}]+)\}/gi, 'sqrt($1)').replace(/[{}]/g, '').replace(/\\/g, ''); const ev = math.evaluate(sq); if (typeof ev === 'number' && !isNaN(ev)) return ev; } catch (_) {} return NaN; }
+    const s = raw.replace(/[{}()]/g, '').trim();
     if (/^[-+]?\d+(?:\.\d+)?\s*\/\s*[-+]?\d+(?:\.\d+)?$/.test(s)) {
       const parts = s.split('/');
       return parseFloat(parts[0]) / parseFloat(parts[1]);
@@ -1047,7 +1052,8 @@ function evaluateCandidateDelivery(arg1, arg2, arg3, arg4, arg5) {
         return s.startsWith('-') ? -Math.PI : Math.PI;
       }
     }
-    return parseFloat(s.replace(/[^-\d.]/g, ''));
+    const leadNum = s.replace(/^[$£€\\\s]+/, '').match(/^[-+]?\d+(?:\.\d+)?(?:e[-+]?\d+)?/i);
+    return leadNum ? parseFloat(leadNum[0]) : NaN;
   }
 
   // Candidate-to-Claim Binding Guard:
@@ -1065,6 +1071,8 @@ function evaluateCandidateDelivery(arg1, arg2, arg3, arg4, arg5) {
         // 1. Equation solutions
         if (c.claim_type === 'equation_solution' || c.claim_type === 'system_solution') {
           const sols = Array.isArray(c.data?.proposed_solutions) ? c.data.proposed_solutions : [c.data?.proposed_solution];
+          const candParts = candStr.includes(',') ? candStr.split(/\s*,\s*/).map(parseFracOrFloat).filter(n => !isNaN(n)) : [];
+          if (candParts.length > 1 && sols.length === candParts.length && candParts.every(cp => sols.some(s => Math.abs(parseFracOrFloat(s) - cp) < 1e-4))) return true;
           return sols.some(s => {
             if (s === undefined || s === null) return false;
             const sNum = parseFracOrFloat(s);
@@ -1085,14 +1093,16 @@ function evaluateCandidateDelivery(arg1, arg2, arg3, arg4, arg5) {
           if (String(c.data.proposed_value).trim().toLowerCase() === candStr) return true;
         }
         const rawClaimStr = typeof c === 'string' ? c : (typeof v.claim === 'string' ? v.claim : (c?.raw_match || null));
-        if (rawClaimStr && rawClaimStr.includes('=')) {
+        const isEqSolvePrompt1 = /\b(?:solve|find\s+(?:the\s+)?(?:root|roots|solution|solutions|value\s+of\s+[a-zA-Z]|[a-zA-Z]\s+(?:when|if|in|for)))\b/i.test(prompt) && /(?<![<>!])=(?![=])/.test(prompt);
+        if (rawClaimStr && rawClaimStr.includes('=') && !(c.claim_type === 'conditional_equation' && isEqSolvePrompt1)) {
           const parts = rawClaimStr.split('=');
           const rhs = parts.slice(1).join('=').trim();
           const rhsNum = parseFracOrFloat(rhs);
           if (!isNaN(candNum) && !isNaN(rhsNum) && Math.abs(candNum - rhsNum) < 1e-4) return true;
           if (rhs.toLowerCase() === candStr) return true;
         }
-        if (c.claim_type === 'conditional_equation' || c.claim_type === 'formula_relation' || c.claim_type === 'definition') {
+        const isEqSolvePrompt = /\b(?:solve|find\s+(?:the\s+)?(?:root|roots|solution|solutions|value\s+of\s+[a-zA-Z]|[a-zA-Z]\s+(?:when|if|in|for)))\b/i.test(prompt) && /(?<![<>!])=(?![=])/.test(prompt);
+        if ((c.claim_type === 'conditional_equation' && !isEqSolvePrompt) || c.claim_type === 'formula_relation' || c.claim_type === 'definition') {
           const rhs = c.data?.rhs || (c.raw_match && c.raw_match.includes('=') ? c.raw_match.split('=').slice(1).join('=').trim() : null);
           if (rhs) {
             const rhsNum = parseFracOrFloat(rhs);
@@ -1507,7 +1517,8 @@ function extractClaims(text, userPrompt = '') {
 
   function parseNumOrFrac(str) {
     if (!str) return NaN;
-    str = String(str).trim();
+    str = String(str).trim().replace(/\\(?:d|t)?frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g, '$1/$2');
+    if (/sqrt/i.test(str)) { try { const sq = str.replace(/(\d)\s*\\?sqrt/gi, '$1*sqrt').replace(/\\sqrt\s*\{([^{}]+)\}/gi, 'sqrt($1)').replace(/[{}]/g, '').replace(/\\/g, ''); const ev = math.evaluate(sq); if (typeof ev === 'number' && !isNaN(ev)) return ev; } catch (_) {} }
     if (/^[-+]?[iI]$/.test(str)) {
       return str.toLowerCase();
     }
@@ -1671,9 +1682,12 @@ function extractClaims(text, userPrompt = '') {
   }
 
   // Pattern 5c: Solved equation from prompt/context where candidate states solution (e.g. "x = -5", "\boxed{x = -5}", "\boxed{3, 9}", or "\boxed{\,x=3,\;9\,}")
-  const isSystemPrompt = ((promptStr.match(/=/g) || []).length >= 2) || /\bsystem\s+of\s+(?:linear\s+)?equations\b/i.test(promptStr) || /\bsystem\s*:/i.test(promptStr);
+  let normPrompt5c = (promptStr || '').replace(/\s*\((?:User claims:|Student proposes answer:|what|why|how|can|is|isn't|does|where|if)[^)]*\)/gi, '').trim();
+  const paramAssignMatch = normPrompt5c.match(/\b(?:if|given|when|where|let|for)\s+([a-zA-Z])\s*=\s*([-+]?\d+(?:\.\d+)?)\s*[,;]\s*(.+)$/i);
+  if (paramAssignMatch && paramAssignMatch[3].includes('=')) { const pVar = paramAssignMatch[1]; const pVal = paramAssignMatch[2]; normPrompt5c = paramAssignMatch[3].replace(new RegExp(`\\b${pVar}\\b`, 'g'), `(${pVal})`); }
+  const isSystemPrompt = ((normPrompt5c.match(/=/g) || []).length >= 2) || /\bsystem\s+of\s+(?:linear\s+)?equations\b/i.test(normPrompt5c) || /\bsystem\s*:/i.test(normPrompt5c);
   if (promptStr && !isSystemPrompt) {
-    let promptEqMatch = promptStr.match(/([a-zA-Z0-9^+\-*/()÷\\.\s]+=(?:[a-zA-Z0-9^+\-*/()÷\\.\s]+)?)/);
+    let promptEqMatch = normPrompt5c.match(/([a-zA-Z0-9^+\-*/()÷\\.\s]+=(?:[a-zA-Z0-9^+\-*/()÷\\.\s]+)?)/);
     const modMatch5c = promptStr.match(/(?:\\pmod\s*\{?|\(mod\s*|\bmodulo\s+|\bmod\s+)(\d+)\)?/i) ||
                        text.match(/(?:\\pmod\s*\{?|\(mod\s*|\bmodulo\s+|\bmod\s+)(\d+)\)?/i);
     let mod5c = modMatch5c ? parseInt(modMatch5c[1], 10) : null;
@@ -1725,8 +1739,8 @@ function extractClaims(text, userPrompt = '') {
                 } else {
                   let cleanBoxed = rawBoxed.replace(/\\text\{[^}]*\}|\([^)]*\)/g, '').trim();
                   cleanBoxed = cleanBoxed.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '$1/$2');
-                  cleanBoxed = cleanBoxed.replace(/^[a-zA-Z]\s*=\s*/, '').trim();
-                  const isNumberOrFracList = /^[-+]?\d+(?:\.\d+)?(?:\/\d+)?(?:\s*(?:,|and|or|;)\s*(?:[a-zA-Z]\s*=)?\s*[-+]?\d+(?:\.\d+)?(?:\/\d+)?)*\s*$/i.test(cleanBoxed);
+                  cleanBoxed = cleanBoxed.replace(/^[a-zA-Z]\s*=\s*/, '').replace(/^\\pm\s*(.+)$/, '$1, -$1').trim();
+                  const isNumberOrFracList = /^(?:[-+]?\d*(?:\.\d+)?\s*\\?sqrt\{[^{}]+\}|[-+]?\d+(?:\.\d+)?(?:\/\d+)?)(?:\s*(?:,|and|or|;)\s*(?:[a-zA-Z]\s*=)?\s*(?:[-+]?\d*(?:\.\d+)?\s*\\?sqrt\{[^{}]+\}|[-+]?\d+(?:\.\d+)?(?:\/\d+)?))*\s*$/i.test(cleanBoxed);
                   if (isNumberOrFracList) {
                     const items = cleanBoxed.split(/\s*(?:,|and|or|;)\s*/);
                     const parsedSols = items.map(it => parseNumOrFrac(it.replace(/^[a-zA-Z]\s*=\s*/, ''))).filter(n => n !== null && !isNaN(n));
@@ -2127,6 +2141,7 @@ function extractClaims(text, userPrompt = '') {
 
   for (let rawEqLine of rawEqLines) {
     let eqLine = rawEqLine
+      .replace(/(=[^=]+\S\s*)\\boxed\{([^{}=]+)\}/g, '$1')
       .replace(/\\boxed\{([^{}]+)\}/g, '$1')
       .replace(/\\(?:,|:|;|!)\s*/g, ' ')
       .trim();
@@ -2450,6 +2465,7 @@ function extractClaims(text, userPrompt = '') {
       .replace(/\^\{\s*\\?circ\s*\}/gi, '')
       .replace(/\^\\?circ\b/gi, '')
       .replace(/°/g, '')
+      .replace(/(=[^=]+\S\s*)\\boxed\{([^{}=]+)\}/g, '$1')
       .replace(/\\boxed\{([^{}]+)\}/g, '$1')
       .replace(/\\text\{([^{}]+)\}/g, '$1')
       .replace(/[$]/g, ' ')
@@ -3393,7 +3409,7 @@ function getVerifierDaemonProcess() {
     thisProc.on('close', () => {
       if (verifierDaemonProc === thisProc) {
         for (const [, task] of verifierDaemonPending.entries()) {
-          task.resolve({ verified: false, status: 'ERROR', error: 'Verifier daemon closed' });
+          task.resolve({ verified: false, status: 'TIMEOUT', error: 'Verifier daemon closed' });
         }
         verifierDaemonPending.clear();
         verifierDaemonProc = null;
@@ -3916,7 +3932,7 @@ async function runDeterministicVerification(claim, userPrompt = '') {
           resolve({
             verified: false,
             status: 'ERROR',
-            error_type: 'CAS_TIMEOUT',
+            error_type: 'CAS_TIMEOUT', status: 'TIMEOUT',
             reason: 'Verifier timeout after 5000ms'
           });
         }, 5000);
@@ -3975,7 +3991,7 @@ async function runDeterministicVerification(claim, userPrompt = '') {
               resolve({
                 verified: false,
                 status: 'ERROR',
-                error_type: 'CAS_TIMEOUT',
+                error_type: 'CAS_TIMEOUT', status: 'TIMEOUT',
                 reason: 'Verifier timeout after 5000ms'
               });
             }
@@ -3987,7 +4003,7 @@ async function runDeterministicVerification(claim, userPrompt = '') {
             resolve({
               verified: false,
               status: 'ERROR',
-              error_type: 'CAS_TIMEOUT',
+              error_type: 'CAS_TIMEOUT', status: 'TIMEOUT',
               reason: 'Verifier timeout after 5000ms'
             });
           });
@@ -4378,7 +4394,7 @@ function auditPromptClaimFidelity(claims, prompt) {
   }
 
   // 2. Algebraic Equation Solving Queries (strictly equals '=', excluding inequalities '<=', '>=')
-  if (/\bsolve\b/i.test(prompt) && /(?<![<>!])=(?![=])/.test(prompt)) {
+  if (/\b(?:solve|find\s+(?:the\s+)?(?:root|roots|solution|solutions|value\s+of\s+[a-zA-Z]|[a-zA-Z]\s+(?:when|if|in|for)))\b/i.test(prompt) && /(?<![<>!])=(?![=])/.test(prompt) && !/\bf\s*\([-\d.]+\)/i.test(prompt)) {
     const hasEquationSol = claims.some(c => c.claim_type === 'equation_solution' || c.claim_type === 'system_solution');
     if (!hasEquationSol) {
       return {
