@@ -4270,6 +4270,18 @@
           </button>
         </header>
 
+        <!-- TEMPORARY SERVICE NOTICE BANNER (RAILWAY OUTAGE) -->
+        <section id="serviceNoticeBanner" role="region" aria-label="Temporary Service Notice" style="margin: 12px 16px 0 16px; padding: 14px 18px; background: rgba(251, 146, 60, 0.10); border: 1px solid rgba(251, 146, 60, 0.45); border-left: 4px solid var(--accent-orange, #fb923c); border-radius: 10px; color: var(--text-main); font-size: 0.88rem; line-height: 1.5; position: relative; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);">
+          <button type="button" onclick="document.getElementById('serviceNoticeBanner').style.display='none'" aria-label="Dismiss service notice" title="Dismiss notice" style="position: absolute; top: 10px; right: 12px; background: transparent; border: none; color: var(--text-muted); font-size: 1.2rem; line-height: 1; cursor: pointer; padding: 4px 6px; border-radius: 4px;">&times;</button>
+          <div style="font-weight: 700; font-size: 0.96rem; color: var(--accent-orange, #fb923c); margin-bottom: 6px; display: flex; align-items: center; gap: 6px; padding-right: 24px;">
+            <span aria-hidden="true">⚠️</span> Temporary Service Notice
+          </div>
+          <p style="margin: 0 0 8px 0;">We're currently experiencing service issues due to an outage affecting our backend hosting provider, Railway. Deployments have been temporarily suspended while they address the incident.</p>
+          <p style="margin: 0 0 8px 0;">As a result, recent fixes and improvements to Pythos have not yet reached the live service.</p>
+          <p style="margin: 0 0 8px 0;"><strong>Your work is continuing behind the scenes.</strong> We're monitoring the situation and will deploy and verify our updates as soon as service is restored. In the meantime, all interactive <strong>Tools</strong> (Calc, Graph, Check Work, Units, Matrix, Equation Builder) and the <strong>Sim Lab</strong> run locally in your browser and remain fully available to explore and use!</p>
+          <p style="margin: 0; color: var(--text-muted); font-size: 0.84rem;">Thank you for your patience and for helping us improve Pythos. &mdash; <strong>The Pythos Team</strong></p>
+        </section>
+
         <!-- STATIC CRAWLABLE FALLBACK (FOR SEARCH ENGINES & NO-JS) -->
         <noscript>
           <div style="padding: 20px; background: var(--surface-color); border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 16px;">
