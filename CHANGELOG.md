@@ -1,3 +1,16 @@
+## Pythos 1.9.12
+**Release Date:** October 22, 2026
+
+### Added & Enhanced
+
+- **Multi-Turn Self-Blocking Elimination, Display-Math Candidate Answer Isolation, Word-Based & LaTeX Fraction Normalization & Withheld Audit Badge Guard**:
+  - Fixed `analyzeDeterministicIntent` in `deterministicRouter.js` (Step 3 equation solving and Step 4a arithmetic context check) to pass `priorHistory = conversationHistory.slice(0, -1)` to `extractActiveProblemState` instead of the full history including the current message, preventing bare expressions (`\frac{7}{8}`, `7/8`) and bare equations (`3x+6=22`) from blocking themselves.
+  - Updated `extractCandidateAnswer` in `verificationBridge.js` to scan display math blocks (`$$...$$` and `\[...\]`) from bottom to top, skip unisolated multi-term algebraic problem statements (such as `$$3x + 6 = 22$$`), strip trailing parenthetical approximations (`(\text{about } 5.33)` / `\approx ...`), and extract LaTeX fraction roots (`\frac{16}{3}`).
+  - Normalized LaTeX fractions (`\frac{a}{b}`, `\dfrac{a}{b}`, `\tfrac{a}{b}`) and spoken arithmetic operators (`multiplied by`, `divided by`, `added to`, `subtracted from`, `times`, `plus`, `minus`) across `contextManager.js`, `problemClassifier.js`, `deterministicRouter.js`, and `verificationBridge.js`.
+  - Updated `checkPromptClaimFidelity` in `verificationBridge.js` to respect approximate claim tolerances on non-arithmetic prompts and execute atomic fraction/number equivalence checks outside `math.parse(target.expr)` so equation prompts containing `=` never skip rational root validation.
+  - Guarded the `🛡️ Verified (...)` derivation audit button in `app.js` with `!isWithheld && verifiedStepCount > 0` so withheld fallback messages never display a verified badge.
+  - Expanded `test-withholding-audit-regressions.js` to 19 tests covering the full 7-turn multi-problem session (`16+5` -> `3x+6=22?` -> `17*5+2` -> `\frac{7}{8}` -> `\frac{7}{8}` -> `What is 79 multiplied by 2?` -> `3x+6=22`) and negative controls.
+
 ## Pythos 1.9.11
 **Release Date:** October 21, 2026
 

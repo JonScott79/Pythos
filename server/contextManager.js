@@ -383,6 +383,16 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
     const cleanPrompt = msg.content
       .replace(/(?:^|\s)=(?:\^[-._]?\^|[-~]?[PpdD()\/\\oO3|cCsS])=?(?:\s|$|[.?!,])/g, ' ')
       .replace(/^(?:please\s+)?(?:solve(?:\s+for\s+[a-zA-Z])?|calculate|compute|evaluate|find(?:\s+the\s+value\s+of)?|what(?:'s|s|\s+is|\s+would\s+be)|whts|how\s+much\s+is|(?:check|verify|test|see)(?:\s+(?:if|whether|that))?|\bdoes\b|\bis\b|now\s+solve)[:\s]*/i, '')
+      .replace(/\\(?:d|t)?frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/gi, '($1)/($2)')
+      .replace(/\bmultiplied\s+by\b/gi, '*')
+      .replace(/\bdivided\s+by\b/gi, '/')
+      .replace(/\badded\s+to\b/gi, '+')
+      .replace(/\bsubtracted\s+from\b/gi, '-')
+      .replace(/(?<=[\d)])\s+\b(?:times|plus|minus)\b\s+(?=[-+(\d\\])/gi, (m) => {
+        if (/times/i.test(m)) return ' * ';
+        if (/plus/i.test(m)) return ' + ';
+        return ' - ';
+      })
       .replace(/[?!.]+$/, '')
       .trim();
 
@@ -553,10 +563,16 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
         }
       }
 
-      const rootMatch = text.match(/\b([a-zA-Z])\s*=\s*([-\d.]+)\b/);
+      if (m.role === 'assistant' && currentActive.domain === 'ARITHMETIC' && !currentActive.isPracticeProblem && (text.includes('=') || /exact\s+calculation/i.test(text))) {
+        currentActive.isCompleted = true;
+      }
+
+      const rootMatch = text.match(/\b([a-zA-Z])\s*=\s*(?:\\(?:d|t)?frac\s*\{([-\d.]+)\}\s*\{([-\d.]+)\}|([-\d.]+)\s*\/\s*([-\d.]+)|([-\d.]+)\b)/);
       if (rootMatch) {
         const vName = rootMatch[1];
-        const vVal = parseFloat(rootMatch[2]);
+        const vVal = rootMatch[2] !== undefined
+          ? parseFloat(rootMatch[2]) / parseFloat(rootMatch[3])
+          : (rootMatch[4] !== undefined ? parseFloat(rootMatch[4]) / parseFloat(rootMatch[5]) : parseFloat(rootMatch[6]));
         if (currentActive.activeExpression && currentActive.activeExpression.includes('=')) {
           try {
             const eqParts = currentActive.activeExpression.split('=');
@@ -756,11 +772,22 @@ function buildBoundedConversationContext(rawMessages = [], options = {}) {
 
 function isIndependentProblem(text, priorPrompt) {
   if (!text || typeof text !== 'string') return false;
-  const t = text.trim();
+  const rawTrimmed = text.trim();
   // Conversational corrections, amendments, or continuations
-  if (/^(?:i\s+meant|actually|wait|sorry|no|typo|instead|what\s+about|how\s+about|and|then|now|what\s+if|also|isn't|isnt|that's|thats|i\s+got|it's|its|the\s+diagram|i\s+only\s+want)\b/i.test(t)) {
+  if (/^(?:i\s+meant|actually|wait|sorry|no|typo|instead|what\s+about|how\s+about|and|then|now|what\s+if|also|isn't|isnt|that's|thats|i\s+got|it's|its|the\s+diagram|i\s+only\s+want)\b/i.test(rawTrimmed)) {
     return false;
   }
+  // Normalize LaTeX fractions (\frac{a}{b}) and spoken arithmetic operators ("multiplied by", "divided by", etc.)
+  const t = rawTrimmed
+    .replace(/\\(?:d|t)?frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/gi, '($1)/($2)')
+    .replace(/\bmultiplied\s+by\b/gi, '*')
+    .replace(/\bdivided\s+by\b/gi, '/')
+    .replace(/\badded\s+to\b/gi, '+')
+    .replace(/(?<=[\d)])\s+\b(?:times|plus|minus)\b\s+(?=[-+(\d\\])/gi, (m) => {
+      if (/times/i.test(m)) return ' * ';
+      if (/plus/i.test(m)) return ' + ';
+      return ' - ';
+    });
   // Bare variable assignments or bare numbers (e.g. "x = 3", "3", "y = 4") represent student work
   if (/^[a-zA-Z]\s*=\s*[-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?$/i.test(t) || /^[-+]?\d+(?:\.\d+)?$/i.test(t)) {
     return false;

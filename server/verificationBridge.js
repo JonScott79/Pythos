@@ -104,10 +104,39 @@ function extractCandidateAnswer(text) {
     if (sanitized) return sanitized;
   }
   
-  const dispEqMatch = text.match(/\$\$\s*[\s\S]*?=\s*([-\d./]+(?:\s*[a-zA-Z/^2]+)?)\s*\$\$/);
-  if (dispEqMatch) {
-    const sanitized = sanitizeExtracted(dispEqMatch[1]);
-    if (sanitized) return sanitized;
+  const dispBlockRegex = /\$\$([\s\S]*?)\$\$|\\\[([\s\S]*?)\\\]/g;
+  const dispBlocks = [];
+  let dispBlockMatch;
+  while ((dispBlockMatch = dispBlockRegex.exec(text)) !== null) {
+    dispBlocks.push((dispBlockMatch[1] ?? dispBlockMatch[2] ?? '').trim());
+  }
+  for (let bIdx = dispBlocks.length - 1; bIdx >= 0; bIdx--) {
+    const block = dispBlocks[bIdx]
+      .replace(/\\(?:begin|end)\s*\{(?:aligned|align\*?|array|gather\*?|split)\}/gi, '')
+      .replace(/&/g, '');
+    const lines = block.split(/(?:\\\\|\r?\n)+/).map(l => l.trim()).filter(Boolean);
+    for (let lIdx = lines.length - 1; lIdx >= 0; lIdx--) {
+      const cleanedLine = lines[lIdx]
+        .replace(/\(\s*(?:\\text\s*\{\s*)?(?:about|approx(?:imately)?)\b[\s\S]*$/i, '')
+        .replace(/\\approx\s*[-+\d./]+.*$/i, '')
+        .replace(/[\\;,.\s]+$/, '')
+        .trim();
+      const eqIdx = cleanedLine.lastIndexOf('=');
+      if (eqIdx === -1) continue;
+      const lhs = cleanedLine.slice(0, eqIdx).trim();
+      const rhs = cleanedLine.slice(eqIdx + 1).trim();
+      const lhsSansFuncs = lhs.replace(/\\(?:d|t)?frac|\\sqrt|\\times|\\cdot|\\div|\\pi|\\sin|\\cos|\\tan|\\sec|\\csc|\\cot|\\log|\\ln|\\text\{[^}]*\}|\b(?:pi|sin|cos|tan|sec|csc|cot|log|ln|sqrt)\b/gi, '');
+      const hasAlgebraVar = /[a-zA-Z]/.test(lhsSansFuncs);
+      const isIsolatedVarLhs = /^[a-zA-Z](?:_[a-zA-Z0-9]+|\([a-zA-Z0-9,\s]+\))?$/.test(lhs.replace(/^\\+\s*/, '').trim());
+      if (hasAlgebraVar && !isIsolatedVarLhs && /^[-+]?\d+(?:\.\d+)?$/.test(rhs)) {
+        continue;
+      }
+      const rhsMatch = rhs.match(/^((?:[-+]?\s*\\(?:d|t)?frac\s*\{[^{}]+\}\s*\{[^{}]+\}|[-+]?\d*\s*\\sqrt\s*\{[^{}]+\}|[-\d./]+(?:\s*[a-zA-Z/^2]+)?))$/);
+      if (rhsMatch) {
+        const sanitized = sanitizeExtracted(cleanLatexUnits(rhsMatch[1]));
+        if (sanitized) return sanitized;
+      }
+    }
   }
   
   // Bolded final answer e.g. **300^\circ** or **\(300^\circ\)** or **4**
@@ -221,8 +250,17 @@ function requiresCandidateAnswer(prompt = '', claims = []) {
     return true;
   }
 
-  // 4. Pure arithmetic or algebra expression: e.g. "3x-6?", "2+2", "15 * 3"
-  if (/^[\d\s+\-*/^().a-zA-Z?=]+$/.test(clean) && /[\d]/.test(clean)) {
+  // 4. Pure arithmetic or algebra expression: e.g. "3x-6?", "2+2", "15 * 3", "\frac{7}{8}", "What is 79 multiplied by 2?"
+  const normalizedArithClean = clean
+    .replace(/^(?:(?:hey|hi|hello|okay|ok|please|can\s+you|could\s+you)[,\s]+)*(?:what(?:'s|s|\s+is|\s+would\s+be)|whts|how\s+much\s+is)[:\s]+/i, '')
+    .replace(/\\(?:d|t)?frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/gi, '($1)/($2)')
+    .replace(/\bmultiplied\s+by\b/gi, '*')
+    .replace(/\bdivided\s+by\b/gi, '/')
+    .replace(/\badded\s+to\b/gi, '+')
+    .replace(/\bsubtracted\s+from\b/gi, '-')
+    .replace(/(?<=[\d)])\s+\b(?:times|plus|minus)\b\s+(?=[-+(\d\\])/gi, ' * ')
+    .trim();
+  if (/^[\d\s+\-*/^().a-zA-Z?=]+$/.test(normalizedArithClean) && /[\d]/.test(normalizedArithClean)) {
     return true;
   }
 
@@ -1262,6 +1300,12 @@ function evaluateCandidateDelivery(arg1, arg2, arg3, arg4, arg5) {
       if (!independentlyVerified && !independentContradiction) {
         try {
           let cleanP = prompt.replace(/\b(?:what(?:'s|s|\s+is|\s+would\s+be)|whts|how\s+much\s+is|find(?:\s+the\s+value\s+of)?|calculate|evaluate|compute|simplify)\b/gi, '')
+                             .replace(/\\(?:d|t)?frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/gi, '($1)/($2)')
+                             .replace(/\bmultiplied\s+by\b/gi, '*')
+                             .replace(/\bdivided\s+by\b/gi, '/')
+                             .replace(/\badded\s+to\b/gi, '+')
+                             .replace(/\bsubtracted\s+from\b/gi, '-')
+                             .replace(/(?<=[\d)])\s+\b(?:times|plus|minus)\b\s+(?=[-+(\d\\])/gi, (m) => /times/i.test(m) ? ' * ' : (/plus/i.test(m) ? ' + ' : ' - '))
                              .replace(/[?!.]+$/g, '')
                              .replace(/degrees?/gi, 'deg')
                              .replace(/%(\s+of)?/g, ' * 0.01 *')
@@ -1647,7 +1691,7 @@ function extractClaims(text, userPrompt = '') {
   }
 
   // Pattern 5b: Equation followed by explicit solution assignment (e.g. "2x + 3 = 11, x = 4", "y - 4 = 0 has the real solution y = 4", or "x^2 - 5x + 6 = 0, x = 2 or x = 3")
-  const eqVarRegex = /([a-zA-Z0-9^+\-*/()÷\\.\s]+=[a-zA-Z0-9^+\-*/()÷\\.\s]+)[,;:\s]+(?:=>\s*|\\implies\s+|so\s+|therefore\s+|has\s+(?:the\s+)?(?:real\s+)?(?:solution|root)s?\s+(?:is\s+|as\s+)?|(?:the\s+)?(?:real\s+)?(?:solution|root)s?\s+(?:is|are)\s+|with\s+(?:the\s+)?(?:real\s+)?(?:solution|root)s?\s+|which\s+gives\s+|giving\s+)?([a-zA-Z])\s*=\s*([-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?|[-+]?[iI]\b)(?:\s*(?:,|and|or|\\text\{\s*(?:and|or)\s*\}|\\lor)\s*(?:\2\s*=\s*)?([-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?|[-+]?[iI]\b))?/gi;
+  const eqVarRegex = /([a-zA-Z0-9^+\-*/()÷\\.\s]+=[a-zA-Z0-9^+\-*/()÷\\.\s]+)[,;:\s]+(?:=>\s*|\\implies\s+|so\s+|therefore\s+|has\s+(?:the\s+)?(?:real\s+)?(?:solution|root)s?\s+(?:is\s+|as\s+)?|(?:the\s+)?(?:real\s+)?(?:solution|root)s?\s+(?:is|are)\s+|with\s+(?:the\s+)?(?:real\s+)?(?:solution|root)s?\s+|which\s+gives\s+|giving\s+)?([a-zA-Z])\s*=\s*([-+]?\s*\\(?:d|t)?frac\s*\{[^{}]+\}\s*\{[^{}]+\}|[-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?|[-+]?[iI]\b)(?:\s*(?:,|and|or|\\text\{\s*(?:and|or)\s*\}|\\lor)\s*(?:\2\s*=\s*)?([-+]?\s*\\(?:d|t)?frac\s*\{[^{}]+\}\s*\{[^{}]+\}|[-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?|[-+]?[iI]\b))?/gi;
   let eqVarMatch;
   while ((eqVarMatch = eqVarRegex.exec(text)) !== null) {
     const rawEq = eqVarMatch[1].trim();
@@ -1765,9 +1809,10 @@ function extractClaims(text, userPrompt = '') {
             }
           }
 
-          // If not in boxed, check explicit assignments like x = 3 or x = 9, or x = 3, 9
+          // If not in boxed, check explicit assignments like x = 3 or x = 9, or x = \frac{16}{3}
           if (sols.length === 0) {
-            const assignRegex = new RegExp(`(?:\\b${v}\\s*=\\s*|solutions?:?\\s*|roots?:?\\s*)([-+]?\\d+(?:\\.\\d+)?(?:\\s*\/\\s*\\d+)?|[-+]?[iI]\\b)(?:\\s*(?:,|and|or|;)?\\s*(?:${v}\\s*=\\s*)?([-+]?\\d+(?:\\.\\d+)?(?:\\s*\/\\s*\\d+)?|[-+]?[iI]\\b))?`, 'gi');
+            const solAtom = `(?:[-+]?\\s*\\\\(?:d|t)?frac\\s*\\{[^{}]+\\}\\s*\\{[^{}]+\\}|[-+]?\\d+(?:\\.\\d+)?(?:\\s*\\/\\s*\\d+)?|[-+]?[iI]\\b)`;
+            const assignRegex = new RegExp(`(?:\\b${v}\\s*=\\s*|solutions?:?\\s*|roots?:?\\s*)(${solAtom})(?:\\s*(?:,|and|or|;)?\\s*(?:${v}\\s*=\\s*)?(${solAtom}))?`, 'gi');
             let m;
             while ((m = assignRegex.exec(text)) !== null) {
               const pre = text.substring(Math.max(0, m.index - 30), m.index);
@@ -3516,9 +3561,10 @@ function checkPromptClaimFidelity(claim, userPrompt) {
       claimEval = Number(math.evaluate(claimExpr));
     } catch (_) {}
 
-    // In word problems (no explicit arithmetic formulas in prompt), valid intermediate arithmetic steps are permitted
+    // In word problems or algebraic equations (no explicit standalone arithmetic formulas in prompt), valid intermediate arithmetic steps are permitted
+    const claimTol = claim.data?.is_approximate ? Math.max(claim.data.tolerance || 0.005, 0.01) : 1e-4;
     if (!promptExprs || promptExprs.length === 0) {
-      if (claimEval !== undefined && Math.abs(claimEval - claimVal) < 1e-4) {
+      if (claimEval !== undefined && Math.abs(claimEval - claimVal) <= claimTol) {
         return { ok: true };
       }
     }
@@ -3545,13 +3591,29 @@ function checkPromptClaimFidelity(claim, userPrompt) {
     }
 
     for (const target of candidateTargets) {
-      const valMatches = (Math.abs(target.val - claimVal) < 1e-4) ||
+      const valMatches = (Math.abs(target.val - claimVal) <= claimTol) ||
                          (claimEval !== undefined && Math.abs(target.val - claimEval) < 1e-4) ||
-                         (target.val !== 0 && Math.abs((target.val - claimVal) / target.val) < 1e-4);
+                         (target.val !== 0 && Math.abs((target.val - claimVal) / target.val) <= claimTol);
 
       if (valMatches) {
         // Check Problem Identity & Structural Equivalence:
         if (claimExpr) {
+          // C. Equivalent atomic number / fraction representation (e.g. prompt '7/6 - 3/7' or '3x+6=22', claim '16/3' or '((16)/(3))')
+          try {
+            const normExpr = claimExpr.replace(/[()\s]/g, '');
+            if (/^[-+]?\d+(?:\.\d+)?(?:\/\d+(?:\.\d+)?)?$/.test(normExpr)) {
+              const evalClaim = Number(math.evaluate(claimExpr));
+              if (Math.abs(evalClaim - target.val) < 1e-4) {
+                return { ok: true };
+              }
+              const fTarget = math.fraction(target.val);
+              const fClaim = math.fraction(claimVal);
+              if (math.equal(fTarget, fClaim)) {
+                return { ok: true };
+              }
+            }
+          } catch (_) {}
+
           try {
             // A. Exact or whitespace-normalized equivalence between claim expression and target expression
             const normClaim = claimExpr.replace(/\s+/g, '');

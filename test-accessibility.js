@@ -222,7 +222,7 @@ assert(changelogHtml.includes('id="pythos-1-6-0"'), 'Changelog retains previous 
 assert(changelogHtml.includes('id="pythos-1-5-0"'), 'Changelog retains previous release anchor id="pythos-1-5-0"');
 assert(changelogHtml.includes('class="back-btn"') && changelogHtml.includes('href="index.html"'), 'Changelog has back-link to workspace');
 assert(changelogHtml.includes('id="pythos-1-9-0"'), 'Changelog retains previous release anchor id="pythos-1-9-0"');
-assert(indexHtml.includes('aria-label="Version 1.9.11 Release Notes"'), 'Version links have accessible screen reader names');
+assert(indexHtml.includes('aria-label="Version 1.9.12 Release Notes"'), 'Version links have accessible screen reader names');
 
 // 5. CONVERSATION HISTORY AUDIT
 console.log('\n--- Auditing Conversation History Filtering ---');

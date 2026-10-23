@@ -492,14 +492,22 @@ function classifyProblem(userText) {
   const conceptualKeywords = /\b(explain|why|how come|student|machine|fence|river|sphere|projectile|string|angle|circle|proof|prove|derive|derivation|paradox|meaning|concept)\b/i;
   const hasConceptual = conceptualKeywords.test(text);
 
-  const nonMathKeywords = lower
+  const normalizedArithText = text
+    .replace(/\\(?:d|t)?frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/gi, '($1)/($2)')
+    .replace(/\bmultiplied\s+by\b/gi, '*')
+    .replace(/\bdivided\s+by\b/gi, '/')
+    .replace(/\badded\s+to\b/gi, '+')
+    .replace(/\bsubtracted\s+from\b/gi, '-')
+    .replace(/(?<=[\d)])\s+\b(?:times|plus|minus)\b\s+(?=[-+(\d\\])/gi, ' * ');
+
+  const nonMathKeywords = normalizedArithText.toLowerCase()
     .replace(/[-+*/^0-9.(),\s\n\r?!]/g, ' ')
     .replace(/\b(calculate|compute|evaluate|what's|whats|whts|what|is|find|these|the|following|four|three|two|one|rates|rate|percentages|percentage|values|value|return|only|per|line|just|answer|percentages|fractions|decimals)\b/g, ' ')
     .trim();
 
-  const isPureArithmetic = !hasConceptual && /\d/.test(text) && (
+  const isPureArithmetic = !hasConceptual && /\d/.test(normalizedArithText) && (
     nonMathKeywords.length === 0 ||
-    /^(?:calculate|compute|evaluate|what(?:'s|s|\s+is)|whts|find)?\s*[-+*/^0-9.(),\s\n\r?!]+$/i.test(text)
+    /^(?:calculate|compute|evaluate|what(?:'s|s|\s+is)|whts|find)?\s*[-+*/^0-9.(),\s\n\r?!]+$/i.test(normalizedArithText)
   );
 
   if (isPureArithmetic) {
@@ -631,7 +639,11 @@ function classifyProblem(userText) {
   // -------------------------------------------------------------
   // 7. General Algebra & Equalities: Linear Equations, Equalities & Solving
   // -------------------------------------------------------------
-  const cleanAlg = text.replace(/^(?:solve(?:\s+for\s+[a-zA-Z])?[:\s]+)/i, '').replace(/\s+for\s+[a-zA-Z]\s*$/i, '').trim();
+  const cleanAlg = text
+    .replace(/^(?:(?:please|can\s+you|could\s+you)\s+)?(?:solve(?:\s+for\s+[a-zA-Z])?|what(?:'s|s|\s+is)|whts|find|calculate|evaluate)[:\s]+/i, '')
+    .replace(/\s+for\s+[a-zA-Z]\s*[?.!]*$/i, '')
+    .replace(/[?.!]+$/, '')
+    .trim();
   const isSimpleLinearEq = /^([-+]?\d*(?:\.\d+)?\s*\*?\s*[a-zA-Z]\s*[-+]\s*\d+(?:\.\d+)?\s*=\s*[-+]?\d+(?:\.\d+)?)$/i.test(cleanAlg) ||
                            /^([-+]?\d*(?:\.\d+)?\s*\*?\s*[a-zA-Z]\s*=\s*[-+]?\d+(?:\.\d+)?)$/i.test(cleanAlg);
   const embeddedLinearMatch = text.match(/[-+]?\d*(?:\.\d+)?\s*\*?\s*[a-zA-Z]\s*[-+]\s*\d+(?:\.\d+)?\s*=\s*[-+]?\d+(?:\.\d+)?/);

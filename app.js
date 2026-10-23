@@ -2097,9 +2097,11 @@ function appendMessage(role, text, images = null, metadata = {}) {
   }
 
   // Verified Derivation Step Audit Button – subtle action button matching Report and Copy (bottom-left)
-  if (role === "assistant" && Array.isArray(metadata.verificationAudit) && metadata.verificationAudit.length > 0) {
-    const auditSteps = metadata.verificationAudit;
-    const verifiedCount = auditSteps.filter(s => s.verdict === "VERIFIED").length;
+  const verifiedAuditSteps = Array.isArray(metadata.verificationAudit) ? metadata.verificationAudit : [];
+  const verifiedStepCount = verifiedAuditSteps.filter(s => s.verdict === "VERIFIED").length;
+  if (role === "assistant" && !isWithheld && verifiedAuditSteps.length > 0 && verifiedStepCount > 0) {
+    const auditSteps = verifiedAuditSteps;
+    const verifiedCount = verifiedStepCount;
     const totalCount = auditSteps.length;
     const stepLabel = totalCount === 1 ? "1 step" : `${totalCount} steps`;
 

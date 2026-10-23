@@ -287,6 +287,15 @@ function extractArithmeticExpressions(text) {
     // Check if line contains a problem label like "a. Add: 3/4 + 2/5", "b. Subtract: 7/8 - 1/3", "1. Multiply: 5/6 * 2/9", "Problem 1: 5 + 3"
     const strippedLabelLine = cleanExprLine
       .replace(/^(?:[a-zA-Z0-9]+(?:\.(?!\d)|\))|(?:problem|exercise|q|question)\s*\d+[:.]?)\s*(?:add|subtract|multiply|divide|compute|evaluate|simplify|find)?[:\s]*/i, '')
+      .replace(/\bmultiplied\s+by\b/gi, '*')
+      .replace(/\bdivided\s+by\b/gi, '/')
+      .replace(/\badded\s+to\b/gi, '+')
+      .replace(/\bsubtracted\s+from\b/gi, '-')
+      .replace(/(?<=[\d)])\s+\b(?:times|plus|minus)\b\s+(?=[-+(\d\\])/gi, (m) => {
+        if (/times/i.test(m)) return ' * ';
+        if (/plus/i.test(m)) return ' + ';
+        return ' - ';
+      })
       .replace(/[×✕✖]/g, '*')
       .replace(/[÷]/g, '/')
       .replace(/[−–—]/g, '-')
@@ -302,13 +311,13 @@ function extractArithmeticExpressions(text) {
     const cleanForSyntax = strippedLabelLine
       .replace(/\bpi\b/gi, '1')
       .replace(/\bsqrt\b/gi, '')
-      .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1)/($2)');
+      .replace(/\\(?:d|t)?frac\s*\{([^}]+)\}\s*\{([^}]+)\}/gi, '($1)/($2)');
 
     if (/^[-+*/^0-9.()\s]+$/i.test(cleanForSyntax) &&
         /(?:\d|\bpi\b)/i.test(strippedLabelLine) &&
-        (/[-+*/^]/.test(strippedLabelLine) || /\bsqrt\b/.test(strippedLabelLine) || /\(.*\)/.test(strippedLabelLine) || /\\frac/.test(strippedLabelLine))) {
+        (/[-+*/^]/.test(strippedLabelLine) || /\bsqrt\b/.test(strippedLabelLine) || /\(.*\)/.test(strippedLabelLine) || /\\(?:d|t)?frac/i.test(strippedLabelLine))) {
       
-      let normalized = strippedLabelLine.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1)/($2)');
+      let normalized = strippedLabelLine.replace(/\\(?:d|t)?frac\s*\{([^}]+)\}\s*\{([^}]+)\}/gi, '($1)/($2)');
       expressions.push(normalized);
       continue;
     }
@@ -2182,20 +2191,29 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   }
 
   // 3. Linear & Quadratic Equation Solving (e.g. "solve 3x + 5 = 20", "solve for x: x^2 - 5x + 6 = 0", "Pythos, solve this equation: 2x + 7 = 15", "Okay, now solve x^2 - 5x + 6 = 0", "Find root for x: 7x + 44 = 9")
-  const eqMatch = clean.match(/^(?:(?:(?:okay|ok|now|pythos|please|kindly|actually|wait|sorry|no)[,\s]+)*(?:solve|find|determine|calculate|(?:the\s+)?equation\s+(?:was|is)|i\s+meant)(?:\s+[a-zA-Z]\s+in\b)?(?:\s+(?:all\s+)?(?:the\s+)?(?:real\s+)?(?:root|roots|solution|solutions|value(?:\s+of)?))?(?:\s+(?:this|the)?\s*equation)?(?:\s+(?:for|in|of|to)(?:\s+[a-zA-Z])?)?[:\s]+)?([a-zA-Z0-9.\s*+^/()\-]+=[a-zA-Z0-9.\s*+^/()\-]+)$/i) ||
-                  clean.match(/^(?:(?:(?:okay|ok|now|pythos|please|kindly|actually|wait|sorry|no)[,\s]+)*(?:solve|find|determine|calculate|(?:the\s+)?equation\s+(?:was|is)|i\s+meant)(?:\s+[a-zA-Z]\s+in\b)?(?:\s+(?:all\s+)?(?:the\s+)?(?:real\s+)?(?:root|roots|solution|solutions|value(?:\s+of)?))?(?:\s+(?:this|the)?\s*equation)?(?:\s+(?:for|in|of|to)(?:\s+[a-zA-Z])?)?[:\s]+)?(sqrt\([a-zA-Z0-9.\s*+^/()\-]+\)\s*=\s*[a-zA-Z0-9.\s*+^/()\-]+)$/i);
+  const eqMatch = clean.match(/^(?:(?:(?:okay|ok|now|pythos|please|kindly|actually|wait|sorry|no)[,\s]+)*(?:solve|find|determine|calculate|what(?:'s|s|\s+is)|whts|(?:the\s+)?equation\s+(?:was|is)|i\s+meant)(?:\s+[a-zA-Z]\s+in\b)?(?:\s+(?:all\s+)?(?:the\s+)?(?:real\s+)?(?:root|roots|solution|solutions|value(?:\s+of)?))?(?:\s+(?:this|the)?\s*equation)?(?:\s+(?:for|in|of|to)(?:\s+[a-zA-Z])?)?[:\s]+)?([a-zA-Z0-9.\s*+^/()\-]+=[a-zA-Z0-9.\s*+^/()\-]+)\s*\??$/i) ||
+                  clean.match(/^(?:(?:(?:okay|ok|now|pythos|please|kindly|actually|wait|sorry|no)[,\s]+)*(?:solve|find|determine|calculate|what(?:'s|s|\s+is)|whts|(?:the\s+)?equation\s+(?:was|is)|i\s+meant)(?:\s+[a-zA-Z]\s+in\b)?(?:\s+(?:all\s+)?(?:the\s+)?(?:real\s+)?(?:root|roots|solution|solutions|value(?:\s+of)?))?(?:\s+(?:this|the)?\s*equation)?(?:\s+(?:for|in|of|to)(?:\s+[a-zA-Z])?)?[:\s]+)?(sqrt\([a-zA-Z0-9.\s*+^/()\-]+\)\s*=\s*[a-zA-Z0-9.\s*+^/()\-]+)\s*\??$/i);
   if (eqMatch) {
     const rawEq = eqMatch[1].trim().replace(/\+\s*-/g, '- ');
 
-    // If an active problem exists and student did not explicitly command "solve...", defer to contextual student work evaluation
-    const hasPriorAssistant = Array.isArray(conversationHistory) && conversationHistory.some(m => m && m.role === 'assistant');
-    const hasExplicitSolveDirective = /^(?:(?:okay|ok|now|pythos|please|kindly|hey|hi|hello|can\s+you|could\s+you|actually|wait|sorry|no)[,\s]+)*(?:solve|find|calculate|determine|(?:the\s+)?equation\s+(?:was|is)|i\s+meant)\b/i.test(clean);
+    // If an active problem exists in prior turns and student did not explicitly command "solve...", defer to contextual student work evaluation when rawEq is a step/candidate of that active problem
+    const priorHistory = Array.isArray(conversationHistory) ? conversationHistory.slice(0, -1) : [];
+    const hasPriorAssistant = priorHistory.some(m => m && m.role === 'assistant');
+    const hasExplicitSolveDirective = /^(?:(?:okay|ok|now|pythos|please|kindly|hey|hi|hello|can\s+you|could\s+you|actually|wait|sorry|no)[,\s]+)*(?:solve|find|calculate|determine|what(?:'s|s|\s+is)|whts|(?:the\s+)?equation\s+(?:was|is)|i\s+meant)\b/i.test(clean);
     if (!hasExplicitSolveDirective && hasPriorAssistant) {
       try {
         const { extractActiveProblemState } = require('./contextManager');
-        const state = extractActiveProblemState(conversationHistory);
-        if (state && state.active && state.active.activeExpression) {
-          return null;
+        const { evaluateLinearEquationStep, evaluateEquationCandidate } = require('./studentWorkEvaluator');
+        const state = extractActiveProblemState(priorHistory);
+        if (state && state.active && state.active.activeExpression && !state.active.isCompleted && state.active.domain !== 'ARITHMETIC') {
+          const activeEq = state.active.activeExpression;
+          const isStepOrCandidate = Boolean(
+            evaluateLinearEquationStep(rawEq, activeEq) ||
+            evaluateEquationCandidate(rawEq, activeEq)
+          );
+          if (isStepOrCandidate || state.active.isPracticeProblem) {
+            return null;
+          }
         }
       } catch (_) {}
     }
@@ -2856,12 +2874,13 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   }
 
   // 4a. Active Problem Context Check:
-  // If an active mathematical problem exists, do NOT silently hijack short student work
+  // If an active mathematical problem exists in prior turns, do NOT silently hijack short student work
   // (e.g. 7/3, (7/3)pi, 10, 15) as standalone arithmetic unless explicitly directed.
-  if (conversationHistory && conversationHistory.length > 0) {
+  const priorHistory = Array.isArray(conversationHistory) ? conversationHistory.slice(0, -1) : [];
+  if (priorHistory.length > 0 && priorHistory.some(m => m && m.role === 'assistant')) {
     try {
       const { extractActiveProblemState } = require('./contextManager');
-      const state = extractActiveProblemState(conversationHistory);
+      const state = extractActiveProblemState(priorHistory);
       if (state && state.active) {
         // Contextual Dimensional Check:
         // If the active problem has mismatched units (e.g. 6 m and 700 cm), raw division is invalid
@@ -2876,11 +2895,12 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
         }
 
         // Active Problem Context Check:
-        // If an active problem exists in the conversation (equation like 42pi/18 = 2pi, or expression like 23pi/7),
+        // If an uncompleted non-arithmetic active problem exists in the conversation (equation like 42pi/18 = 2pi, or expression like 23pi/7),
         // terse arithmetic like 7/3 or (7/3)pi or candidate values are student work/inquiry, not standalone calculation
-        if (state.active.activeExpression) {
+        if (state.active.activeExpression && !state.active.isCompleted && state.active.domain !== 'ARITHMETIC') {
           const isExplicitStandalone = /^(?:(?:just\s+(?:give\s+me|tell\s+me)\s+(?:the\s+answer)?|(?:don't|do not|without)\s+(?:check(?:ing)?|verify(?:ing)?)(?:\s+(?:it|this|anything))?)[,\s:]*)*(?:pythos[,\s]+)?(?:(?:please|kindly)\s+)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?)?(?:help\s+(?:me\s+)?(?:to\s+)?)?(?:calculate|compute|what(?:'s|s|\s+is|\s+would\s+be)|whts|evaluate|how\s+much\s+is|find(?:\s+the\s+value\s+of)?|new\s+problem)[:\s]/i.test(clean);
-          if (!isExplicitStandalone) {
+          const hasLatexFrac = /\\(?:d|t)?frac/i.test(userText);
+          if (!isExplicitStandalone && !hasLatexFrac) {
             return null;
           }
         }

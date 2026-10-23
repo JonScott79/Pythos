@@ -334,6 +334,83 @@ async function verifyAndEvaluate(messagesOrPrompt, responseText) {
     assert.strictEqual(delivery.withheld, true);
   });
 
+  // ---------------------------------------------------------------------------
+  // 8. FULL 7-TURN LIVE SESSION REGRESSION:
+  //    16+5 -> 3x+6=22? -> 17*5+2 -> \frac{7}{8} -> \frac{7}{8} -> 79 multiplied by 2 -> 3x+6=22
+  // ---------------------------------------------------------------------------
+  console.log('\n▶ 8. Full 7-Turn Multi-Problem Live Session Regression');
+
+  await runTest('8.1: All 7 turns route and verify cleanly without prior-turn contamination or self-blocking', async () => {
+    const history = [
+      { role: 'user', content: 'whats 16+5' },
+      { role: 'assistant', content: '✅ Here is the exact calculation:\n\n$$\n16+5=21\n$$\n\nIs there another step or concept you\'d like to explore with this problem?' },
+      { role: 'user', content: 'whats 3x+6=22?' },
+      { role: 'assistant', content: 'The equation\n\n$$3x + 6 = 22$$\n\nis a simple linear equation. Solving for $x$:\n\n$$\\begin{aligned}\n3x + 6 &= 22 \\\\\n3x &= 22 - 6 \\\\\n3x &= 16 \\\\\nx &= \\frac{16}{3} \\approx 5.33\n\\end{aligned}$$\n\nSo the solution is\n\n$$x = \\frac{16}{3} \\; (\\text{about } 5.33)$$' },
+      { role: 'user', content: 'whats 17*5+2' },
+      { role: 'assistant', content: '✅ Here is the exact calculation:\n\n$$\n17*5+2=87\n$$\n\nIs there another step or concept you\'d like to explore with this problem?' }
+    ];
+
+    // Turn 4: "\frac{7}{8}"
+    const turn4History = [...history, { role: 'user', content: '\\frac{7}{8}' }];
+    assert.strictEqual(buildEffectivePrompt(turn4History), '\\frac{7}{8}');
+    const intent4 = analyzeDeterministicIntent('\\frac{7}{8}', turn4History);
+    assert(intent4, 'Expected deterministic intent for "\\frac{7}{8}" in Turn 4');
+    assert.strictEqual(intent4.type, 'ARITHMETIC');
+    assert.strictEqual(intent4.result, 0.875);
+
+    // Turn 5: "7/8" (after prior withheld or delivered turn)
+    const turn5History = [
+      ...turn4History,
+      { role: 'assistant', content: 'I need a little more information to solve this problem.' },
+      { role: 'user', content: '\\frac{7}{8}' }
+    ];
+    assert.strictEqual(buildEffectivePrompt(turn5History), '\\frac{7}{8}');
+    const intent5 = analyzeDeterministicIntent('\\frac{7}{8}', turn5History);
+    assert(intent5, 'Expected deterministic intent for "\\frac{7}{8}" in Turn 5');
+    assert.strictEqual(intent5.result, 0.875);
+
+    // Turn 6: "What is 79 multiplied by 2?"
+    const turn6History = [
+      ...turn5History,
+      { role: 'assistant', content: 'I need a little more information to solve this problem.' },
+      { role: 'user', content: 'What is 79 multiplied by 2?' }
+    ];
+    assert.strictEqual(buildEffectivePrompt(turn6History), 'What is 79 multiplied by 2?');
+    const intent6 = analyzeDeterministicIntent('What is 79 multiplied by 2?', turn6History);
+    assert(intent6, 'Expected deterministic intent for "What is 79 multiplied by 2?" in Turn 6');
+    assert.strictEqual(intent6.type, 'ARITHMETIC');
+    assert.strictEqual(intent6.result, 158);
+    const eval6 = await verifyAndEvaluate(turn6History, '79 multiplied by 2 is \\(79 \\times 2 = 158\\).');
+    assert.strictEqual(eval6.delivery.delivered, true, `Expected Turn 6 delivered=true, got ${eval6.delivery.status}`);
+    assert.strictEqual(eval6.candidateAnswer, '158');
+
+    // Turn 7: "3x+6=22"
+    const turn7History = [
+      ...turn6History,
+      { role: 'assistant', content: 'I need a little more information to solve this problem.' },
+      { role: 'user', content: '3x+6=22' }
+    ];
+    assert.strictEqual(buildEffectivePrompt(turn7History), '3x+6=22');
+    const intent7 = analyzeDeterministicIntent('3x+6=22', turn7History);
+    assert(intent7, 'Expected deterministic intent for bare "3x+6=22" in Turn 7');
+    assert.strictEqual(intent7.type, 'ALGEBRA_LINEAR_SOLVE');
+    assert(Math.abs(intent7.solution - 16 / 3) < 1e-4, `Expected ~5.333333, got ${intent7.solution}`);
+
+    // Also verify that if the LLM generates the multi-block response with "$$3x+6=22$$" first and "$$x = \frac{16}{3} \; (\text{about } 5.33)$$" last,
+    // extractCandidateAnswer extracts "\frac{16}{3}" (NOT "22" from the problem statement) and delivers!
+    const llmDerivation = 'The equation\n\n$$3x + 6 = 22$$\n\nis a simple linear equation. Solving for $x$:\n\n$$\\begin{aligned}\n3x + 6 &= 22 \\\\\n3x &= 22 - 6 \\\\\n3x &= 16 \\\\\nx &= \\frac{16}{3} \\approx 5.33\n\\end{aligned}$$\n\nSo the solution is\n\n$$x = \\frac{16}{3} \\; (\\text{about } 5.33)$$';
+    const eval7 = await verifyAndEvaluate(turn7History, llmDerivation);
+    assert.strictEqual(eval7.candidateAnswer, '\\frac{16}{3}', `Expected candidateAnswer "\\frac{16}{3}", got "${eval7.candidateAnswer}"`);
+    assert.strictEqual(eval7.delivery.delivered, true, `Expected Turn 7 LLM derivation delivered=true, got ${eval7.delivery.status} (${eval7.delivery.reason})`);
+  });
+
+  await runTest('8.2: Negative control: "3x+6=22" with wrong unboxed fraction "$$x = \\frac{17}{3} \\; (\\text{about } 5.67)$$" MUST be withheld', async () => {
+    const wrongDerivation = 'The equation\n\n$$3x + 6 = 22$$\n\nSolving for $x$:\n\n$$x = \\frac{17}{3} \\; (\\text{about } 5.67)$$';
+    const { delivery } = await verifyAndEvaluate('3x+6=22', wrongDerivation);
+    assert.strictEqual(delivery.delivered, false, 'Wrong unboxed fraction root must be withheld');
+    assert.strictEqual(delivery.withheld, true);
+  });
+
   closeVerifierDaemon();
   console.log(`\n========================================================================`);
   console.log(`🎉 ALL ${passed}/${total} AUDIT REGRESSION TESTS PASSED!`);
