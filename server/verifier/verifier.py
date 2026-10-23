@@ -9,8 +9,8 @@ import traceback
 from arithmetic_verifier import verify_arithmetic
 from algebra_verifier import verify_algebra, verify_symbolic_equivalence
 from probability_verifier import verify_birthday_problem
-from physics_verifier import verify_conical_pendulum, verify_free_fall_kinematics, verify_projectile_motion
-from calculus_verifier import verify_derivative, verify_antiderivative, verify_change_of_variables, verify_definite_integral, verify_limit
+from physics_verifier import verify_conical_pendulum, verify_free_fall_kinematics
+from calculus_verifier import verify_derivative, verify_antiderivative, verify_change_of_variables
 from calculus_improper_verifier import verify_improper_integral
 from calculus_singularity_verifier import verify_singularity_classification
 from physics_universal_verifier import verify_dimensions, verify_conservation_law
@@ -44,10 +44,6 @@ def dispatch_verification(payload: dict) -> dict:
                 return verify_derivative(data)
             elif claim_type == "antiderivative" or claim_type == "integral":
                 return verify_antiderivative(data)
-            elif claim_type == "definite_integral":
-                return verify_definite_integral(data)
-            elif claim_type == "limit":
-                return verify_limit(data)
             elif claim_type == "change_of_variables" or claim_type == "u_substitution":
                 return verify_change_of_variables(data)
             elif claim_type == "improper_integral" or claim_type == "parameterized_integral":
@@ -78,8 +74,6 @@ def dispatch_verification(payload: dict) -> dict:
                 return verify_conical_pendulum(data)
             elif claim_type == "free_fall":
                 return verify_free_fall_kinematics(data)
-            elif claim_type in ["projectile_motion", "projectile"]:
-                return verify_projectile_motion(data)
             elif claim_type == "dimensions" or claim_type == "dimensional_analysis":
                 return verify_dimensions(data)
             elif claim_type == "conservation_law" or claim_type == "conservation_of_energy":
@@ -131,26 +125,6 @@ def dispatch_verification(payload: dict) -> dict:
         }
 
 def main():
-    if len(sys.argv) > 1 and sys.argv[1] == "--daemon":
-        for line in sys.stdin:
-            line = line.strip()
-            if not line:
-                continue
-            req_id = None
-            try:
-                payload = json.loads(line)
-                req_id = payload.get("_id")
-                res = dispatch_verification(payload)
-                if req_id is not None:
-                    res["_id"] = req_id
-                print(json.dumps(res), flush=True)
-            except Exception as e:
-                err_res = {"verified": False, "status": "ERROR", "error": str(e)}
-                if req_id is not None:
-                    err_res["_id"] = req_id
-                print(json.dumps(err_res), flush=True)
-        return
-
     if len(sys.argv) > 1:
         # Read JSON string argument
         try:

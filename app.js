@@ -1517,7 +1517,7 @@ function appendMessage(role, text, images = null, metadata = {}) {
     // Only applied outside code blocks and outside already-delimited math
     const unwrappedMathPatterns = [
       // Standalone or chained equations with \frac (including nested radicals/text inside braces): e.g. \theta = \frac{15}{12} = \frac{5}{4} or \frac{x}{\sqrt{x^2+36}}
-      /(?:^|[ \t])((?:(?:[-+]|\\[a-zA-Z]+(?:\([^()]+\))?|[a-zA-Z\u0370-\u03ff])\s*=\s*)?[-+]?\\frac\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}(?:\s*[-+*\/=]\s*(?:[-+]?\\frac\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}|(?:\\[a-zA-Z]+|[a-zA-Z0-9.\u0370-\u03ff()])+))*)/g,
+      /(?:^|[ \t])((?:(?:[-+]|\\[a-zA-Z]+|[a-zA-Z\u0370-\u03ff])\s*=\s*)?[-+]?\\frac\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}(?:\s*[-+*\/=]\s*(?:[-+]?\\frac\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}|(?:\\[a-zA-Z]+|[a-zA-Z0-9.\u0370-\u03ff()])+))*)/g,
       // Standalone linear division steps: e.g. 2x/2 = 8/2 or 3x/3 = 15/3
       /(?:^|[ \t])([a-zA-Z0-9.\u0370-\u03ff]+\s*\/\s*\d+\s*=\s*[-+]?[a-zA-Z0-9.\u0370-\u03ff]+(?:\s*\/\s*\d+)?)/g,
       // Standalone quadratic equations: y^2 - 10y + 41 = 0 or x^2 + 5x + 6 = 0
@@ -1526,10 +1526,8 @@ function appendMessage(role, text, images = null, metadata = {}) {
       /(?:^|[ \t])(\\boxed\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\})/g,
       // Standalone or composite trig / inverse-trig expressions: e.g. \sec\left(\sin^{-1}\left(\frac{x}{\sqrt{x^2+36}}\right)\right)
       /(?:^|[ \t])(\\(?:sec|csc|sin|cos|tan|cot)(?:_\{[^{}]+\})?(?:\^\{[-0-9]+\}|\^[-?]1)?(?:\\left)?\((?:[^()]+|\([^()]*\))*\\right\))/g,
-      // Standalone vector assignments: \mathbf{a} + \mathbf{b} = \langle 2, 6 \rangle or a + b = <2, 6>
-      /(?:^|[ \t])((?:\\[a-zA-Z]+(?:\{[^{}]*\})?|[a-zA-Z])(?:\s*[-+]\s*(?:\\[a-zA-Z]+(?:\{[^{}]*\})?|[a-zA-Z]))*\s*=\s*(?:\\langle|<)[^<>\n]+(?:\\rangle|>))/g,
-      // Standalone radical expressions & equalities with coefficients and \cdot / \times: e.g. \sqrt{40} = \sqrt{4 \cdot 10} = 2\sqrt{10} or ||a+b|| = \sqrt{40} = 2\sqrt{10}
-      /(?:^|[ \t])((?:(?:\|\||\\lVert)?[a-zA-Z0-9_+^\\{}. -]+(?:\|\||\\rVert)?\s*=\s*)?(?:[-+]|\\pm|\\mp)?\s*(?:\d*\.?\d+\s*)?\\sqrt\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}(?:\s*(?:[-+*\/=]|\\cdot|\\times)\s*(?:(?:[-+]|\\pm|\\mp)?\s*(?:\d*\.?\d+\s*)?\\sqrt\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}|\\[a-zA-Z]+|[a-zA-Z0-9.\u0370-\u03ff()]+))*)/g
+      // Standalone radical expressions: e.g. \sqrt{x^2 + 36} or c = \sqrt{a^2 + b^2}
+      /(?:^|[ \t])((?:(?:[a-zA-Z\u0370-\u03ff]|\\[a-zA-Z]+)\s*=\s*)?\\sqrt\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}(?:\s*[-+*\/=]\s*(?:\\sqrt\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}|[a-zA-Z0-9.\u0370-\u03ff()]+))*)/g
     ];
 
     unwrappedMathPatterns.forEach((pattern) => {
@@ -1675,8 +1673,7 @@ function appendMessage(role, text, images = null, metadata = {}) {
             displayMode: isDisplay,
             throwOnError: false,
             errorColor: "#ef4444",
-            output: "htmlAndMathml",
-            strict: false
+            output: "htmlAndMathml"
           });
         } catch (err) {
           console.warn("[KATEX] renderToString error:", err);
@@ -1913,7 +1910,7 @@ function appendMessage(role, text, images = null, metadata = {}) {
           : "The interactive visualization isn't available right now, but I can still walk you through the problem step by step. The verified mathematical solution below remains valid and accurate.";
 
         vizContainer.innerHTML = `
-          <div class="viz-render-fail" role="alert" title="${escapeHtml(String(reason))}">
+          <div class="viz-render-fail" role="alert">
             <div style="font-weight: 600; margin-bottom: 4px;">${titleMsg}</div>
             <div style="font-size: 0.85em; opacity: 0.95;">${bodyMsg}</div>
           </div>
@@ -2097,11 +2094,9 @@ function appendMessage(role, text, images = null, metadata = {}) {
   }
 
   // Verified Derivation Step Audit Button – subtle action button matching Report and Copy (bottom-left)
-  const verifiedAuditSteps = Array.isArray(metadata.verificationAudit) ? metadata.verificationAudit : [];
-  const verifiedStepCount = verifiedAuditSteps.filter(s => s.verdict === "VERIFIED").length;
-  if (role === "assistant" && !isWithheld && verifiedAuditSteps.length > 0 && verifiedStepCount > 0) {
-    const auditSteps = verifiedAuditSteps;
-    const verifiedCount = verifiedStepCount;
+  if (role === "assistant" && Array.isArray(metadata.verificationAudit) && metadata.verificationAudit.length > 0) {
+    const auditSteps = metadata.verificationAudit;
+    const verifiedCount = auditSteps.filter(s => s.verdict === "VERIFIED").length;
     const totalCount = auditSteps.length;
     const stepLabel = totalCount === 1 ? "1 step" : `${totalCount} steps`;
 
@@ -3868,7 +3863,6 @@ async function askPythos(userText) {
       let metaWithholdingReason = null;
       let metaWithholdingExplanation = null;
       let metaWithholdingDetails = null;
-      let metaWithholdingContent = null;
 
       let isStreamDone = false;
       let isStreamError = false;
@@ -3941,19 +3935,6 @@ async function askPythos(userText) {
             contentDiv.textContent = streamedText;
             statusBadge.style.color = "#059669";
             statusBadge.innerHTML = `<span style="color:#059669; font-weight:600;">✓ Calculation verified & corrected</span>`;
-          } else if (ev.type === "withheld") {
-            metaWithheld = true;
-            if (ev.withholdingReason) metaWithholdingReason = ev.withholdingReason;
-            if (ev.withholdingExplanation) metaWithholdingExplanation = ev.withholdingExplanation;
-            if (ev.withholdingDetails) metaWithholdingDetails = ev.withholdingDetails;
-            const replacementText = ev.formattedContent || (ev.withholdingExplanation
-              ? ("I need a little more information to solve this problem.\n\n" + ev.withholdingExplanation)
-              : "I need a little more information to solve this problem.\n\nI worked through a possible answer, but I couldn't verify it well enough to give it to you. I'd rather not guess.");
-            metaWithholdingContent = replacementText;
-            streamedText = replacementText;
-            contentDiv.textContent = streamedText;
-            statusBadge.style.color = "#d97706";
-            statusBadge.innerHTML = `<span style="color:#d97706; font-weight:500;">Clarification Needed</span>`;
           } else if (ev.type === "verified") {
             if (verificationTimer) { clearTimeout(verificationTimer); verificationTimer = null; }
             if (ev.claims) metaClaims = ev.claims;
@@ -3962,28 +3943,13 @@ async function askPythos(userText) {
             if (ev.model) metaModel = ev.model;
             if (ev.truncated) isTruncated = true;
             if (ev.finishReason) metaFinishReason = ev.finishReason;
+            if (ev.withheld) metaWithheld = true;
+            if (ev.withholdingReason) metaWithholdingReason = ev.withholdingReason;
+            if (ev.withholdingExplanation) metaWithholdingExplanation = ev.withholdingExplanation;
+            if (ev.withholdingDetails) metaWithholdingDetails = ev.withholdingDetails;
             if (ev.withheld) {
-              metaWithheld = true;
-              if (ev.withholdingReason) metaWithholdingReason = ev.withholdingReason;
-              if (ev.withholdingExplanation) metaWithholdingExplanation = ev.withholdingExplanation;
-              if (ev.withholdingDetails) metaWithholdingDetails = ev.withholdingDetails;
-              const replacementText = ev.formattedContent || (ev.withholdingExplanation
-                ? ("I need a little more information to solve this problem.\n\n" + ev.withholdingExplanation)
-                : "I need a little more information to solve this problem.\n\nI worked through a possible answer, but I couldn't verify it well enough to give it to you. I'd rather not guess.");
-              metaWithholdingContent = replacementText;
-              streamedText = replacementText;
-              contentDiv.textContent = streamedText;
               statusBadge.style.color = "#d97706";
               statusBadge.innerHTML = `<span style="color:#d97706; font-weight:500;">Clarification Needed</span>`;
-            } else if (ev.verificationLevel === "partial") {
-              statusBadge.style.color = "#3b82f6";
-              statusBadge.innerHTML = `<span style="color:#3b82f6; font-weight:500;">Partially Verified</span>`;
-            } else if (ev.verificationLevel === "unverified") {
-              statusBadge.style.color = "#6b7280";
-              statusBadge.innerHTML = `<span style="color:#6b7280; font-weight:500;">Unverified</span>`;
-            } else if (ev.verificationLevel === "not_applicable" || ev.deliveryStatus === "NOT_APPLICABLE") {
-              statusBadge.style.display = "none";
-              statusBadge.innerHTML = "";
             } else {
               statusBadge.style.color = "#16a34a";
               statusBadge.innerHTML = `<span style="color:#16a34a; font-weight:500;">✓ Verified</span>`;
@@ -4052,10 +4018,6 @@ async function askPythos(userText) {
         }
       } else {
         let sanitizedReply = streamedText.trim();
-        if (metaWithheld) {
-          const defaultWithholding = "I need a little more information to solve this problem.\n\n" + (metaWithholdingExplanation || "I worked through a possible answer, but I couldn't verify it well enough to give it to you. I'd rather not guess.");
-          sanitizedReply = metaWithholdingContent || defaultWithholding;
-        }
         // Sanitize any runaway ASCII loops or broken unclosed code blocks before markdown rendering
         sanitizedReply = sanitizedReply.replace(/```(?:[a-zA-Z0-9_-]*\n)?[\s\S]*?(?:\|[ \t]*\\|\\[ \t]*\|)[\s\S]*?(?:```|$)/gi, '');
         sanitizedReply = sanitizedReply.replace(/(?:\|\s*\\){2,}[^\n]*/gi, '');

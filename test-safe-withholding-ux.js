@@ -20,7 +20,6 @@
 
 const assert = require('assert');
 const { getSafeWithholding, WITHHOLDING_REASONS, SAFE_WITHHOLDING_CONFIG } = require('./server/withholdingTaxonomy');
-const { verifyResponseClaims, closeVerifierDaemon } = require('./server/verificationBridge');
 
 const FORBIDDEN_JARGON = [
   'UNKNOWN',
@@ -129,43 +128,6 @@ async function runTests() {
       assert(typeof item.nextStep === 'string' && item.nextStep.length > 10, `${key} must have next step`);
     });
   });
-
-  // 6. Complex rational equation hallucinated solution withholding regression
-  await (async () => {
-    try {
-      const prompt = "x^2-5x+6 / x^2-4 ÷ x^2-9 / x^2-5x+6 + 2/x-2 = x+1/x-3";
-      const hallucinatedCandidate = `
-Let us solve the equation
-1. Factor every quadratic: x^2-5x+6 = (x-2)(x-3), x^2-4 = (x-2)(x+2), x^2-9 = (x-3)(x+3)
-2. Rewrite division: (x-3)/(x+2) * (x-2)/(x+3) = (x-3)(x-2)/((x+2)(x+3))
-3. Add 2/(x-2): LHS = (x^3 - 5x^2 + 26x) / ((x+2)(x+3)(x-2))
-4. Equate to (x+1)/(x-3): 6x^3 - 21x^2 + 31x - 6 = 0
-5. Factor cubic: 6x^3 - 21x^2 + 31x - 6 = (3x-2)(2x^2 - 7x + 3)
-6. Roots: x = 2/3, x = 3, x = 1/2
-7. Exclude x = 3 due to domain.
-Final answer: x = 2/3 or x = 1/2
-      `;
-
-      const audit = await verifyResponseClaims(hallucinatedCandidate, prompt);
-      assert(audit.invalidClaims.length > 0, "Verifier MUST detect invalid claims in hallucinated rational equation solution");
-
-      // Verify delivery gate safe withholding
-      const sw = getSafeWithholding(WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED);
-      assert.strictEqual(sw.headline, "I need a little more information to solve this problem.");
-      assert(sw.formattedContent.includes("I worked through a possible answer, but I couldn't verify it"));
-      assert(!sw.formattedContent.includes("x = 2/3"), "Withheld response must NOT leak rejected solutions");
-      assert(!sw.formattedContent.includes("x = 1/2"), "Withheld response must NOT leak rejected solutions");
-
-      console.log('  ✓ Complex rational equation hallucinated solution detected and safely withheld without leaking math');
-      passed++;
-    } catch (err) {
-      console.error('  ✗ Complex rational equation hallucinated solution regression failed:');
-      console.error(`    ${err.message}`);
-      failed++;
-    }
-  })();
-
-  closeVerifierDaemon();
 
   console.log(`\nResults: ${passed} passed, ${failed} failed`);
   if (failed > 0) {

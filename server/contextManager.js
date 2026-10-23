@@ -20,8 +20,6 @@ const math = require('mathjs');
 const { classifyProblem, DOMAINS, extractAnswerFormattingRequirements, extractRightTriangleTarget } = require('./problemClassifier');
 const { resolveReferentialContext } = require('./deterministicRouter');
 const { evaluateLinearEquationStep, evaluateEquationCandidate } = require('./studentWorkEvaluator');
-const { isPracticeRequest } = require('./practiceProblemGenerator');
-const { cleanEquation } = require('./verificationBridge');
 
 // ── Bounded Context Budget Constants (8,192 Total Context Window) ────────────
 const TOTAL_CONTEXT_LIMIT = 8192;
@@ -68,20 +66,7 @@ function detectTopicTransitionIntent(userText) {
     };
   }
 
-  // 3. Conversational corrections regarding identity, platform, or creator
-  const hasExplicitMathDirective = /\b(?:solve|calculate|compute|evaluate|simplify|differentiate|integrate)\b/i.test(lower);
-  const isConversationalCorrection =
-    (/\b(?:jon\s+is\s+lanzar|jon\s+scott\s+is\s+lanzar|lanzar\s+is\s+jon)\b/i.test(lower) ||
-    /\b(?:i\s+need\s+to\s+correct\s+you|let\s+me\s+correct\s+you|to\s+correct\s+you|correction[:\s]+(?:jon|pythos|lanzar))\b/i.test(lower)) &&
-    !hasExplicitMathDirective;
-  if (isConversationalCorrection) {
-    return {
-      type: 'CONVERSATIONAL_CORRECTION',
-      text
-    };
-  }
-
-  // 4. Explicit correction / modification of previous problem
+  // 3. Explicit correction / modification of previous problem
   const isCorrection = /\b(?:wait|sorry|actually|correction|oops|no\s*wait|typo)\b.*?\b(?:is\s+actually|i\s+meant|i\s+mean|i\s+said|instead\s+of|actually\s+shows|actually\s+find|(?:the\s+)?equation\s+(?:was|is))\b/i.test(lower) ||
                        /\b(?:i\s+meant|meant\s+to\s+say|my\s+bad,?\s+i\s+meant|typo,?\s+meant|actually\s+the\s+third\s+side\s+is|actually\s+i\s+need|actually,?\s+solve\s+for|(?:the\s+)?equation\s+(?:was|is)\s+actually|actually[,\s]+(?:the\s+)?equation\s+(?:was|is))\b/i.test(lower);
   if (isCorrection) {
@@ -127,7 +112,7 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
                                        (typeof prevMsg.content === 'string' && prevMsg.content.includes('[IMAGE_ATTACHED]')) ||
                                        prevMsg.hasHistoricalImage === true);
       const prevIsTerseOrGeneric = prevMsg && !prevHadImage &&
-        /^(?:(?:can\s+you\s+)?(?:please\s+)?(?:help(?:\s+me)?(?:\s+with)?|solve|check|work\s+out|look\s+at)\s+(?:this|my\s+work|my\s+homework|this\s+problem)|here\s+(?:is|'s)\s+(?:my\s+)?(?:problem|work|homework)|solve\s+this|what\s+is\s+this|check\s+this)[.?!]?$/i.test(prevMsg.content.trim());
+        /^(?:(?:can\s+you\s+)?(?:please\s+)?(?:help(?:\s+me)?|solve|check|work\s+out|look\s+at)\s+(?:this|my\s+work)|here\s+(?:is|'s)\s+(?:my\s+)?(?:problem|work|homework)|solve\s+this|what\s+is\s+this|check\s+this)[.?!]?$/i.test(prevMsg.content.trim());
 
       // Extract explicit geometric diagram or function graph if rendered by assistant
       const geomMatch = msg.content.match(/\[GEOMETRY:\s*([a-zA-Z]+),?\s*([^\]]+)\]/i);
@@ -190,9 +175,7 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
         }
       }
 
-      const prevIsPractice = prevMsg && typeof prevMsg.content === 'string' && isPracticeRequest(prevMsg.content);
-      const asstIsPracticeProblem = msg && typeof msg.content === 'string' && /practice problem|here'?s another (?:practice )?problem/i.test(msg.content);
-      if (prevHadImage || prevIsTerseOrGeneric || prevIsPractice || asstIsPracticeProblem) {
+      if (!currentActive || prevHadImage || prevIsTerseOrGeneric) {
         const assistantCls = classifyProblem(msg.content);
         if (assistantCls && assistantCls.problemDomain !== 'UNKNOWN' && assistantCls.problemDomain !== 'OFF_TOPIC') {
           let extractedMath = null;
@@ -379,26 +362,33 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
       (classification.confidence === 'high' || classification.confidence === 'medium' || (typeof classification.confidence === 'number' && classification.confidence >= 0.70));
 
     // Extract algebraic equation or mathematical equality proposition (LHS = RHS)
-    let extractedEq = cleanEquation(msg.content);
+    let extractedEq = null;
     const cleanPrompt = msg.content
-      .replace(/(?:^|\s)=(?:\^[-._]?\^|[-~]?[PpdD()\/\\oO3|cCsS])=?(?:\s|$|[.?!,])/g, ' ')
-      .replace(/^(?:please\s+)?(?:solve(?:\s+for\s+[a-zA-Z])?|calculate|compute|evaluate|find(?:\s+the\s+value\s+of)?|what(?:'s|s|\s+is|\s+would\s+be)|whts|how\s+much\s+is|(?:check|verify|test|see)(?:\s+(?:if|whether|that))?|\bdoes\b|\bis\b|now\s+solve)[:\s]*/i, '')
-      .replace(/\\(?:d|t)?frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/gi, '($1)/($2)')
-      .replace(/\bmultiplied\s+by\b/gi, '*')
-      .replace(/\bdivided\s+by\b/gi, '/')
-      .replace(/\badded\s+to\b/gi, '+')
-      .replace(/\bsubtracted\s+from\b/gi, '-')
-      .replace(/(?<=[\d)])\s+\b(?:times|plus|minus)\b\s+(?=[-+(\d\\])/gi, (m) => {
-        if (/times/i.test(m)) return ' * ';
-        if (/plus/i.test(m)) return ' + ';
-        return ' - ';
-      })
+      .replace(/^(?:please\s+)?(?:solve(?:\s+for\s+[a-zA-Z])?|(?:check|verify|test|see)(?:\s+(?:if|whether|that))?|\bdoes\b|\bis\b|now\s+solve)[:\s]*/i, '')
       .replace(/[?!.]+$/, '')
       .trim();
 
-    const isProse = (str) =>
-      /\b(?:the|this|that|and|what|with|from|have|got|think|know|like|please|maybe|because|about|step|definitely|actually|right|correct|wrong|why|how|where|when|can|could|would|should|if|whether|is|are|was|were|need|there|jon|scott|lanzar|me|you|say|saying|meant|tell|who|made|creator)\b/i.test(str) ||
-      /\b[a-zA-Z]{3,}\s+[a-zA-Z]{3,}\b/.test(str);
+    const isProse = (str) => /\b(?:the|this|that|and|what|with|from|have|got|think|know|like|please|maybe|because|about|step|definitely|actually|right|correct|wrong|why|how|where|when|can|could|would|should|if|whether)\b/i.test(str);
+
+    if (cleanPrompt.includes('=')) {
+      let targetForEq = cleanPrompt;
+      // If the prompt contains prose words around an equation, try to isolate the embedded equation
+      if (isProse(cleanPrompt)) {
+        const embeddedMatch = cleanPrompt.match(/(?:^|\s)([a-zA-Z0-9+\-*/^().\sπ]+=[a-zA-Z0-9+\-*/^().\sπ]+)(?:$|\s)/);
+        if (embeddedMatch) targetForEq = embeddedMatch[1].trim();
+      }
+
+      const eqParts = targetForEq.split('=');
+      if (eqParts.length === 2 && eqParts[0].trim() && eqParts[1].trim()) {
+        const lhs = eqParts[0].trim();
+        const rhs = eqParts[1].trim();
+        const validMath = /^[-+*/^0-9.()\s\\a-zA-Zπ_]+$/;
+        if (validMath.test(lhs) && validMath.test(rhs) && !isProse(lhs) && !isProse(rhs) &&
+            (/\d/.test(lhs) || /[a-zA-Zπ]/.test(lhs)) && (/\d/.test(rhs) || /[a-zA-Zπ]/.test(rhs))) {
+          extractedEq = `${lhs} = ${rhs}`;
+        }
+      }
+    }
     let extractedExpr = null;
     if (!cleanPrompt.includes('=') && !isProse(cleanPrompt) && /^[-+*/^0-9.()\s\\a-zA-Zπ_]+$/.test(cleanPrompt) &&
         (/\d/.test(cleanPrompt) || /[a-zA-Zπ]/.test(cleanPrompt)) && cleanPrompt.length <= 60 &&
@@ -425,9 +415,8 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
 
     // Distinguish genuine new problems from terse student work/follow-ups
     const isExplicitNewProblem = trans.type === 'NEW_TOPIC_EXPLICIT' ||
-      /^(?:(?:now|can\s+you|please|let's)\s+)?(?:solve|do|try|calculate|compute|evaluate|what(?:'s|s|\s+is)|whts|how\s+much\s+is|work\s+out)\s+([a-zA-Z0-9+\-*/^()=.\s?!]+)$/i.test(msg.content) ||
-      /^(?:new|next|different)\s+problem/i.test(msg.content) ||
-      Boolean(currentActive && currentActive.initialUserPrompt && isIndependentProblem(msg.content, currentActive.initialUserPrompt));
+      /^(?:(?:now|can\s+you|please|let's)\s+)?(?:solve|do|try|calculate|work\s+out)\s+([a-zA-Z0-9+\-*/^()=.\s]+)$/i.test(msg.content) ||
+      /^(?:new|next|different)\s+problem/i.test(msg.content);
 
     const isQuestionOrValidation = /^(?:is\s+|why\s+|how\s+|what\s+|can\s+you|did\s+i|check\b)/i.test(msg.content.trim()) ||
       /\b(?:right|correct|wrong)\??$/i.test(msg.content.trim());
@@ -495,28 +484,21 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
         nextOperation: null
       };
     } else if (currentActive) {
-      // Archive active problem on conversational correction or subject shift
-      if (trans.type === 'CONVERSATIONAL_CORRECTION' || (trans.type === 'CORRECTION' && /\b(?:identities|formulas|definitions)\b/i.test(msg.content))) {
-        currentActive.status = 'ARCHIVED_IN_SESSION';
-        currentActive.isCompleted = true;
-        sessionProblems.push(currentActive);
-        currentActive = null;
-      } else {
-        if (trans.type === 'CORRECTION' && activeMath) {
-          currentActive.activeExpression = activeMath;
-        } else if (!currentActive.activeExpression && activeMath && currentActive.domain !== 'PHYSICS' && !/^[a-zA-Z]\s*=\s*[-\d.]+$/.test(activeMath)) {
-          currentActive.activeExpression = activeMath;
-        }
-        if (classification && Object.keys(classification.knownQuantities).length > 0) {
-          currentActive.knownVariables = { ...currentActive.knownVariables, ...classification.knownQuantities };
-        }
-        if (!currentActive.formattingRequirements && fmtReqs) {
-          currentActive.formattingRequirements = fmtReqs;
-        }
-        if (!currentActive.targetValue && triTarget) {
-          currentActive.targetValue = triTarget.targetValue;
-          currentActive.formula = triTarget.formula;
-        }
+      // Update active problem expression only on explicit correction or if previously unset
+      if (trans.type === 'CORRECTION' && activeMath) {
+        currentActive.activeExpression = activeMath;
+      } else if (!currentActive.activeExpression && activeMath && currentActive.domain !== 'PHYSICS' && !/^[a-zA-Z]\s*=\s*[-\d.]+$/.test(activeMath)) {
+        currentActive.activeExpression = activeMath;
+      }
+      if (classification && Object.keys(classification.knownQuantities).length > 0) {
+        currentActive.knownVariables = { ...currentActive.knownVariables, ...classification.knownQuantities };
+      }
+      if (!currentActive.formattingRequirements && fmtReqs) {
+        currentActive.formattingRequirements = fmtReqs;
+      }
+      if (!currentActive.targetValue && triTarget) {
+        currentActive.targetValue = triTarget.targetValue;
+        currentActive.formula = triTarget.formula;
       }
     }
   }
@@ -563,16 +545,10 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
         }
       }
 
-      if (m.role === 'assistant' && currentActive.domain === 'ARITHMETIC' && !currentActive.isPracticeProblem && (text.includes('=') || /exact\s+calculation/i.test(text))) {
-        currentActive.isCompleted = true;
-      }
-
-      const rootMatch = text.match(/\b([a-zA-Z])\s*=\s*(?:\\(?:d|t)?frac\s*\{([-\d.]+)\}\s*\{([-\d.]+)\}|([-\d.]+)\s*\/\s*([-\d.]+)|([-\d.]+)\b)/);
+      const rootMatch = text.match(/\b([a-zA-Z])\s*=\s*([-\d.]+)\b/);
       if (rootMatch) {
         const vName = rootMatch[1];
-        const vVal = rootMatch[2] !== undefined
-          ? parseFloat(rootMatch[2]) / parseFloat(rootMatch[3])
-          : (rootMatch[4] !== undefined ? parseFloat(rootMatch[4]) / parseFloat(rootMatch[5]) : parseFloat(rootMatch[6]));
+        const vVal = parseFloat(rootMatch[2]);
         if (currentActive.activeExpression && currentActive.activeExpression.includes('=')) {
           try {
             const eqParts = currentActive.activeExpression.split('=');
@@ -676,8 +652,6 @@ function formatActiveProblemContext(state) {
     out += `- **CRITICAL DIMENSIONAL UNIT NOTICE**: The problem contains mixed units of the same dimension (${norms}). Before computing ratios, products, or formulas (e.g., arc length $\\theta = s/r$), you MUST convert all quantities to consistent units. If the student divides incompatible raw numbers (e.g. 700 / 6), gently point out the unit discrepancy and show the converted calculation.\n`;
   }
 
-  out += `- **Conversational Guidance**: If the student's latest turn is a casual remark, joke, expression of relief, or topic shift rather than proposing mathematical work, respond to their conversational intent naturally. Do NOT force them back to this problem.\n`;
-
   // If there are archived problems in this session, provide a brief 1-line note
   if (state.archived && state.archived.length > 0) {
     out += `- **Archived Prior Topics in this Session**: ${state.archived.map(a => `${a.domain} (\`${a.activeExpression || a.subtype}\`)`).join(', ')}\n`;
@@ -770,52 +744,6 @@ function buildBoundedConversationContext(rawMessages = [], options = {}) {
 }
 
 
-function isIndependentProblem(text, priorPrompt) {
-  if (!text || typeof text !== 'string') return false;
-  const rawTrimmed = text.trim();
-  // Conversational corrections, amendments, or continuations
-  if (/^(?:i\s+meant|actually|wait|sorry|no|typo|instead|what\s+about|how\s+about|and|then|now|what\s+if|also|isn't|isnt|that's|thats|i\s+got|it's|its|the\s+diagram|i\s+only\s+want)\b/i.test(rawTrimmed)) {
-    return false;
-  }
-  // Normalize LaTeX fractions (\frac{a}{b}) and spoken arithmetic operators ("multiplied by", "divided by", etc.)
-  const t = rawTrimmed
-    .replace(/\\(?:d|t)?frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/gi, '($1)/($2)')
-    .replace(/\bmultiplied\s+by\b/gi, '*')
-    .replace(/\bdivided\s+by\b/gi, '/')
-    .replace(/\badded\s+to\b/gi, '+')
-    .replace(/(?<=[\d)])\s+\b(?:times|plus|minus)\b\s+(?=[-+(\d\\])/gi, (m) => {
-      if (/times/i.test(m)) return ' * ';
-      if (/plus/i.test(m)) return ' + ';
-      return ' - ';
-    });
-  // Bare variable assignments or bare numbers (e.g. "x = 3", "3", "y = 4") represent student work
-  if (/^[a-zA-Z]\s*=\s*[-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?$/i.test(t) || /^[-+]?\d+(?:\.\d+)?$/i.test(t)) {
-    return false;
-  }
-  // 1. Standalone equation with operations on LHS or RHS (e.g. "3x-9=0", "5x-6=0", "2x^2+14x+12=0", "3x-9=")
-  if (priorPrompt && /^(?:hi|hello|hey|yo|sup|good\s+(?:morning|afternoon|evening)|thanks|thank\s+you|who\s+are\s+you|who\s+made\s+you|what\s+is\s+pythos|who\s+is\s+jon(?:\s+scott)?)[.?!\s]*$/i.test(priorPrompt.trim()) && (/[0-9+\-*/^=()]/.test(t) || /\b(?:solve|simplify|factor|expand|evaluate|calculate|compute|derivative|differentiate|integrate|limit|area|perimeter|triangle|circle|velocity|speed|acceleration)\b/i.test(t))) return true;
-  if ((/^[a-zA-Z0-9^+\-*/()÷\\.\s]+=[a-zA-Z0-9^+\-*/()÷\\.\s]*$/.test(t) && /[+*^/\-]/.test(t.split('=')[0])) || (cleanEquation(t) && !/^[a-zA-Z]\s*=\s*[-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?$/i.test(cleanEquation(t)) && /[+*^/\-]/.test(cleanEquation(t)) && !/\b(?:it|its|that|this|again)\b/i.test(t))) {
-    return true;
-  }
-  // 2. Standalone algebraic expression without = (e.g. "2x^2+14x+12", "(2x+4)(3+5x)")
-  const cleanAlg = t.replace(/\b(?:sin|cos|tan|sec|csc|cot|log|ln|exp|sqrt)\b/gi, '');
-  if ((/^[-+*/^%0-9.()\s÷×]+[\d)]\s*[?]?$/.test(t) && /[+*/^%\-÷×]/.test(t) && !/^[-+]?\d+(?:\.\d+)?\s*[?]?$/.test(t)) || /^(?:(?:hey|hi|hello|okay|ok|please|can\s+you|could\s+you)[,\s]+)*(?:what\s+is|what's|whats|calculate|compute|evaluate)\s+(?:\d+(?:\.\d+)?%\s+of\s+\d+(?:\.\d+)?|[-+*/^%0-9.()\s÷×]+\d[-+*/^%0-9.()\s÷×]*)[?.!]*$/i.test(t)) return true;
-  if ((/^[a-zA-Z0-9^+\-*/().\s]+$/.test(t) && !/\b[a-zA-Z]{3,}\b/.test(cleanAlg) && /[a-zA-Z]/.test(t) && /[+*^/\-]/.test(t) && !/[?!]/.test(t)) || (/^(?:(?:hey|hi|hello|okay|ok|please|can\s+you|could\s+you)[,\s]+)*(?:simplify|factor|expand|rationalize|differentiate|integrate|(?:find\s+)?(?:the\s+)?(?:derivative|integral|limit)\s+of)\s+/i.test(t) && (/[0-9+\-*/^=()\\]/.test(t) || /\b(?:sin|cos|tan|sec|csc|cot|log|ln|sqrt)\b/i.test(t)) && !/\b(?:it|its|that|this|previous|above)\b/i.test(t))) {
-    return true;
-  }
-  // 3. Standalone calculus Leibniz derivative or integral (e.g. "d/dx ln(x)", "d/dx [sin(x)]", "\int x^2 dx")
-  if (/^(?:d\/d[a-zA-Z]|\\frac\{d\}\{d[a-zA-Z]\}|\\int\b|integrate\b|differentiate\b)/i.test(t)) {
-    return true;
-  }
-  // 4. Domain divergence check: if prior prompt was calculus (e.g. "d/dx ln(x)") and current is algebra without calculus keywords
-  if (priorPrompt && /\b(?:d\/dx|derivative|integral|integrate|differentiate|limit)\b/i.test(priorPrompt)) {
-    if (!/\b(?:derivative|integral|differentiate|limit|dx|dy|dt)\b/i.test(t) && /[a-zA-Z0-9]/.test(t)) {
-      return true;
-    }
-  }
-  return false;
-}
-
 /**
  * Synthesizes the Authoritative Effective Problem Context from a multi-turn conversation.
  * Replaces superseded values/equations while preserving unchanging problem context.
@@ -843,31 +771,15 @@ function buildEffectivePrompt(messages = []) {
     return 'Generate practice problem: ' + latestUser;
   }
 
-  // 1d. Independent mathematical problem or domain transition
-  if (isIndependentProblem(latestUser, firstUser) || (userMsgs.length > 2 && isIndependentProblem(latestUser, userMsgs[userMsgs.length - 2].content.trim()))) {
-    return latestUser;
-  }
-
-  // 1e. Conversational correction, greeting, or non-mathematical turn: prompt is the conversational turn itself
-  const latestTransition = detectTopicTransitionIntent(latestUser);
-  if (latestTransition.type === 'CONVERSATIONAL_CORRECTION' ||
-      /\b(?:jon\s+is\s+lanzar|jon\s+scott\s+is\s+lanzar|lanzar\s+is\s+jon|i\s+need\s+to\s+correct\s+you)\b/i.test(latestUser) ||
-      /^(?:hi|hello|hey|good\s+(?:morning|afternoon|evening)|thanks|thank\s+you|who\s+are\s+you|who\s+made\s+you|what\s+is\s+pythos)[.?!]?$/i.test(latestUser)) {
-    return latestUser;
-  }
-
   // 2. Identify base problem
   let basePrompt = firstUser;
-  let baseIdx = 0;
   for (let i = 0; i < userMsgs.length - 1; i++) {
     const um = userMsgs[i].content.trim();
     const npm = um.match(/^(?:never\s+mind[.,]?\s*|new\s+problem[:\s]+)(.*)/i);
     if (npm && npm[1].trim()) {
       let np = npm[1].trim();
       if (!/^(?:solve|calculate|what|find)\b/i.test(np)) np = 'Solve ' + np;
-      basePrompt = np; baseIdx = i;
-    } else if (isIndependentProblem(um, basePrompt)) {
-      basePrompt = um; baseIdx = i;
+      basePrompt = np;
     }
   }
 
@@ -887,20 +799,8 @@ function buildEffectivePrompt(messages = []) {
     }
   }
 
-  for (let i = baseIdx + 1; i < userMsgs.length; i++) {
+  for (let i = 1; i < userMsgs.length; i++) {
     const turnText = userMsgs[i].content.trim();
-
-    // Subject/reference correction: "I meant to say identities", "i meant identities", "actually formulas"
-    const subjectCorrectionMatch = turnText.match(/(?:i\s+meant\s+to\s+say|i\s+meant|actually)\s+(?:the\s+)?(identities|trigonometric\s+identities|formulas|definitions)\b/i);
-    if (subjectCorrectionMatch) {
-      const remainder = turnText.slice(subjectCorrectionMatch.index + subjectCorrectionMatch[0].length).replace(/^[.,;:!\s]+/, '').trim();
-      if (remainder && (/\b(?:solve|calculate|compute|evaluate|integrate|differentiate|simplify|find)\b/i.test(remainder) || /[\d+\-*/^=]/.test(remainder))) {
-        effective = remainder;
-      } else {
-        effective = subjectCorrectionMatch[1].trim();
-      }
-      continue;
-    }
 
     // Equation correction
     const eqMatch = turnText.match(/(?:i\s+meant|solve|typo,?\s+meant|(?:actually|wait|sorry|no)[,\s]*(?:the\s+)?equation\s+(?:is|was)|actually)\s+([a-zA-Z0-9+\-*/^().\s=]+=[a-zA-Z0-9+\-*/^().\s=]+)/i);
@@ -1016,10 +916,8 @@ function buildEffectivePrompt(messages = []) {
       effective += ' (User claims: ' + userClaimMatch[1] + ')';
       continue;
     }
-    const studentAnsMatch = turnText.match(/(?:^(?:is\s+it|it\x27?s|its|it\s+is)|(?<!\b(?:what|how|where|when|which|who|there)\s)\b(?:it\x27?s|its|it\s+is|is\s+it|the\s+answer\s+is|my\s+answer\s+is|answer\s+is|i\s+got|got))\s+(?:flipping\s+|literally\s+|obviously\s+|clearly\s+|just\s+|definitely\s+|freaking\s+|totally\s+)?([-+]?\d+(?:\.\d+)?)(?!\s*%)\b/i) ||
-                            turnText.match(/\b(?:flipping|literally|obviously|clearly)\s+([-+]?\d+(?:\.\d+)?)\b/i);
-    if (studentAnsMatch) {
-      const pAns = studentAnsMatch[1];
+    if (/\bi\s+got\s+(\d+(?:\.\d+)?)\b/i.test(turnText)) {
+      const pAns = turnText.match(/\bi\s+got\s+(\d+(?:\.\d+)?)\b/i)[1];
       effective += ' (Student proposes answer: ' + pAns + ')';
       continue;
     }
@@ -1055,7 +953,6 @@ function buildEffectivePrompt(messages = []) {
 
 module.exports = {
   buildEffectivePrompt,
-  isIndependentProblem,
   TOTAL_CONTEXT_LIMIT,
   MAX_INPUT_TOKEN_TARGET,
   RECENT_VERBATIM_TURNS,

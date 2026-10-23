@@ -27,10 +27,9 @@ def verify_derivative(claim: dict) -> dict:
         proposed_str = re.sub(r'(\d+)\s*([a-zA-Z])', r'\1*\2', proposed_str)
 
     try:
-        x = sp.Symbol(var_str, real=True)
-        sym_locals = {var_str: x, 'e': sp.E, 'E': sp.E}
-        expr = sp.sympify(expr_str, locals=sym_locals)
-        proposed = sp.sympify(proposed_str, locals=sym_locals)
+        x = sp.Symbol(var_str)
+        expr = sp.sympify(expr_str, locals={var_str: x})
+        proposed = sp.sympify(proposed_str, locals={var_str: x})
 
         actual_deriv = sp.diff(expr, x)
         diff = sp.simplify(actual_deriv - proposed)
@@ -65,34 +64,13 @@ def verify_antiderivative(claim: dict) -> dict:
     if not integrand_str or not proposed_anti_str:
         return {"verified": False, "status": "UNKNOWN", "reason": "Missing integrand or proposed antiderivative"}
 
-    if isinstance(integrand_str, str):
-        import re
-        integrand_str = integrand_str.replace('^', '**')
-        integrand_str = re.sub(r'(\d+)\s*([a-zA-Z])', r'\1*\2', integrand_str)
-
-    if isinstance(proposed_anti_str, str):
-        import re
-        proposed_anti_str = proposed_anti_str.replace('^', '**')
-        proposed_anti_str = re.sub(r'(\d+)\s*([a-zA-Z])', r'\1*\2', proposed_anti_str)
-
     try:
-        x = sp.Symbol(var_str, real=True)
-        c_sym = sp.Symbol('C')
-        sym_locals = {var_str: x, 'C': c_sym, 'e': sp.E, 'E': sp.E}
-        integrand = sp.sympify(integrand_str, locals=sym_locals)
-        proposed_anti = sp.sympify(proposed_anti_str, locals=sym_locals)
+        x = sp.Symbol(var_str)
+        integrand = sp.sympify(integrand_str, locals={var_str: x})
+        proposed_anti = sp.sympify(proposed_anti_str, locals={var_str: x})
 
         deriv_of_anti = sp.diff(proposed_anti, x)
         diff = sp.simplify(deriv_of_anti - integrand)
-
-        if diff != 0:
-            x_nz = sp.Symbol(var_str, real=True, nonzero=True)
-            try:
-                diff_nz = sp.simplify(deriv_of_anti.subs(x, x_nz) - integrand.subs(x, x_nz))
-                if diff_nz == 0:
-                    diff = 0
-            except Exception:
-                pass
 
         if diff == 0:
             return {
@@ -166,125 +144,3 @@ def verify_change_of_variables(claim: dict) -> dict:
             }
     except Exception as e:
         return {"verified": False, "status": "UNKNOWN", "reason": str(e)}
-
-def verify_definite_integral(claim: dict) -> dict:
-    """
-    Verifies claimed definite integral: \\int_{a}^{b} f(x) dx = proposed_value
-    """
-    integrand_str = claim.get("integrand")
-    var_str = claim.get("variable", "x")
-    lower_str = claim.get("lower_limit")
-    upper_str = claim.get("upper_limit")
-    proposed_str = claim.get("proposed_value")
-
-    if not integrand_str or lower_str is None or upper_str is None or proposed_str is None:
-        return {"verified": False, "status": "UNKNOWN", "reason": "Missing definite integral parameters"}
-
-    import re
-    def clean(s):
-        s = re.sub(r'\\?boxed\{([^}]+)\}', r'\1', str(s))
-        s = s.replace('^', '**').replace('\\', '').strip()
-        s = re.sub(r'(\d+)\s*([a-zA-Z])', r'\1*\2', s)
-        return s
-
-    integrand_str = clean(integrand_str)
-    proposed_str = clean(proposed_str)
-    lower_str = clean(lower_str)
-    upper_str = clean(upper_str)
-
-    try:
-        x = sp.Symbol(var_str)
-        sym_dict = {var_str: x, 'pi': sp.pi, 'e': sp.E}
-        integrand = sp.sympify(integrand_str, locals=sym_dict)
-        a = sp.sympify(lower_str, locals=sym_dict)
-        b = sp.sympify(upper_str, locals=sym_dict)
-        proposed = sp.sympify(proposed_str, locals=sym_dict)
-
-        actual = sp.integrate(integrand, (x, a, b))
-        diff = sp.simplify(actual - proposed)
-
-        if diff == 0:
-            return {
-                "verified": True,
-                "status": "VERIFIED",
-                "actual_value": str(actual),
-                "details": f"Definite integral of {integrand_str} from {lower_str} to {upper_str} correctly equals {actual}."
-            }
-        try:
-            num_actual = float(actual.evalf())
-            num_prop = float(proposed.evalf())
-            if abs(num_actual - num_prop) < 1e-4:
-                return {
-                    "verified": True,
-                    "status": "VERIFIED",
-                    "actual_value": str(actual),
-                    "details": f"Definite integral numerical match ({num_actual} ~= {num_prop})."
-                }
-        except Exception:
-            pass
-
-        return {
-            "verified": False,
-            "status": "INCORRECT_INTEGRAL",
-            "error_type": "INCORRECT_INTEGRAL",
-            "actual_value": str(actual),
-            "proposed_value": proposed_str,
-            "details": f"Actual integral is {actual}, but proposed was {proposed_str}"
-        }
-    except Exception as e:
-        return {"verified": False, "status": "UNKNOWN", "reason": str(e)}
-
-def verify_limit(claim: dict) -> dict:
-    """
-    Verifies claimed limit: \\lim_{x \\to target} expr = proposed_value
-    """
-    expr_str = claim.get("expression")
-    var_str = claim.get("variable", "x")
-    target_str = claim.get("target", "0")
-    proposed_str = claim.get("proposed_value")
-    direction = claim.get("direction", "+-")
-
-    if not expr_str or proposed_str is None:
-        return {"verified": False, "status": "UNKNOWN", "reason": "Missing limit expression or proposed value"}
-
-    import re
-    def clean(s):
-        s = re.sub(r'\\?boxed\{([^}]+)\}', r'\1', str(s))
-        s = s.replace('^', '**').replace('\\', '').strip()
-        s = re.sub(r'\\frac\{([^}]+)\}\{([^}]+)\}', r'(\1)/(\2)', s)
-        s = re.sub(r'(\d+)\s*([a-zA-Z])', r'\1*\2', s)
-        return s
-
-    expr_str = clean(expr_str)
-    proposed_str = clean(proposed_str)
-    target_str = clean(target_str)
-
-    try:
-        x = sp.Symbol(var_str)
-        sym_dict = {var_str: x, 'pi': sp.pi, 'e': sp.E}
-        expr = sp.sympify(expr_str, locals=sym_dict)
-        target = sp.sympify(target_str, locals=sym_dict)
-        proposed = sp.sympify(proposed_str, locals=sym_dict)
-
-        dir_sym = "+-" if direction in ["+-", "both"] else direction
-        actual = sp.limit(expr, x, target, dir=dir_sym)
-        diff = sp.simplify(actual - proposed)
-
-        if diff == 0:
-            return {
-                "verified": True,
-                "status": "VERIFIED",
-                "actual_value": str(actual),
-                "details": f"Limit of {expr_str} as {var_str} -> {target_str} correctly equals {actual}."
-            }
-        return {
-            "verified": False,
-            "status": "INCORRECT_LIMIT",
-            "error_type": "INCORRECT_LIMIT",
-            "actual_value": str(actual),
-            "proposed_value": proposed_str,
-            "details": f"Actual limit is {actual}, but proposed was {proposed_str}"
-        }
-    except Exception as e:
-        return {"verified": False, "status": "UNKNOWN", "reason": str(e)}
-

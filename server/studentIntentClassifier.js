@@ -311,14 +311,10 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
   // -------------------------------------------------------------
   // 9. PROPOSED_ANSWER Intent
   // -------------------------------------------------------------
-  const ansPrefixMatch = clean.match(/^(?:i\s+think\s+(?:the\s+answer\s+is|it\'s|its|it\s+is)?|the\s+answer\s+is|is\s+the\s+answer|is\s+it|it\'s|its|it\s+is|answer\s*[:=]|final\s+answer\s*[:=]|got|i\s+got|my\s+answer\s+is)\s*(.+)$/i) ||
-                         clean.match(/^(?:(?:it\x27?s|its|it\s+is|is|answer\s+is|got)\s+)?(?:flipping|literally|obviously|clearly|definitely|freaking|totally|just)\s+(.+)$/i);
+  const ansPrefixMatch = clean.match(/^(?:i\s+think\s+(?:the\s+answer\s+is|it\'s|it\s+is)?|the\s+answer\s+is|is\s+the\s+answer|is\s+it|it\'s|it\s+is|answer\s*[:=]|final\s+answer\s*[:=]|got|i\s+got|my\s+answer\s+is)\s*(.+)$/i);
   if (ansPrefixMatch) {
     signals.push('answer_prefix_marker');
-    let expr = (ansPrefixMatch[1] || '').replace(/[?.,!]$/, '').trim();
-    expr = expr.replace(/^(?:flipping|literally|obviously|clearly|definitely|freaking|totally|just)\s+/i, '');
-    const slangNumMatch = expr.match(/^([-+]?\d+(?:\.\d+)?)\s+(?:man|bro|dude|ez|easy|math|duh|obviously|clearly)\b/i);
-    if (slangNumMatch) expr = slangNumMatch[1];
+    const expr = ansPrefixMatch[1].replace(/[?.,!]$/, '').trim();
     return {
       intent: INTENTS.PROPOSED_ANSWER,
       confidence: 'high',
@@ -392,7 +388,6 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
   // -------------------------------------------------------------
   const isExplanation = /^(?:why(?:\s+is\s+that)?\??|why\s+did\s+you\s+do\s+that\??|how\s+did\s+you\s+get\s+that\??|can\s+you\s+explain(?:\s+that|\s+why|\s+how)?(?:\s+again)?\??|explain\s+how|what\s+does\s+that\s+mean\??|where\s+did\s+(?:that|\d+|the)\s+come\s+from\??)$/i.test(lower) ||
                         /^(?:why|how)\s+(?:is|did|does|can|would|are|was|were|come|so|to)\b/i.test(lower) ||
-                        /\b(?:whts|whats|what(?:'s|\s+is))\s+(?:the|a|an)?\s*(?:difference|definition|formula|rule|meaning|concept|intuition)\b/i.test(lower) ||
                         /^(?:what(?:'s|\s+is)\s+(?:the\s+)?(?:answer|solution|result)|can\s+you\s+(?:give|tell)\s+me\s+the\s+answer|show\s+me\s+the\s+(?:answer|solution))\b/i.test(lower);
   if (isExplanation) {
     signals.push('explanation_query');

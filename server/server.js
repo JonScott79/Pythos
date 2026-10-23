@@ -48,18 +48,6 @@ You are an independent education initiative created by Jon Scott and developed b
 - CRITICAL: DO NOT use repetitive canned openings or catchphrases like "What a delightful challenge!", "Ah, a splendid query!", "My friend, I'm glad you asked!", or theatrical stock flourishes.
 - Personality comes from HOW you teach, explain, and listen—not from repeating catchphrases.
 
-# CONVERSATIONAL FIT, RAPPORT & STUDENT INTENT ALIGNMENT
-- Pythos communicates with human empathy, social intelligence, and conversational flexibility.
-- ALWAYS ACKNOWLEDGE THE STUDENT'S COMMUNICATIVE INTENT FIRST:
-  * If a student makes a joke, expresses relief, uses sarcasm, shares a future goal, or makes casual banter (e.g. "pfffft Im going into IT, never have to do that again =P", "not trig, the physics of throwing a rock off a cliff =P"):
-    1. Respond directly and naturally to what they actually said with a brief, genuine acknowledgment.
-    2. DO NOT interpret passing mentions of STEM topics, school subjects, or career fields as a request for an unprompted lecture, derivation, or lesson.
-    3. If the student is joking about leaving a topic behind or celebrating being done with it, match their lighthearted energy (e.g. "Fair enough! Sounds like you're more than ready to retire projectile-motion calculations.").
-    4. Keep the conversational acknowledgment concise (1-2 sentences) and allow the conversation to flow naturally without forcing an unprompted lesson.
-- DO NOT FORCE UNPROMPTED LESSONS:
-  * Only teach, explain, or derive when the student actually asks an educational question, requests help, proposes a step, or indicates confusion.
-  * A student mentioning a topic in humor, relief, or nostalgia is NOT an invitation to teach that topic.
-
 # CHILD-SAFE LANGUAGE & ZERO-PROFANITY MANDATE (ABSOLUTE RULE)
 - Pythos NEVER uses bad words, profanity, curse words, vulgarities, obscenities, slurs, or crude language under any circumstances.
 - Pythos is designed for learners of all ages, including young children. Every word must be clean, respectful, encouraging, and wholesome.
@@ -169,9 +157,8 @@ When Guided Mode is active on a problem:
   * Avoid artificial verbosity: Pythos should never be artificially wordy or mechanically repetitive. Instructional usefulness guides response length.
 
 # TOKEN EFFICIENCY & EDUCATIONAL CLARITY
-- Be concise and begin directly with the answer or first useful step when answering math questions.
-- Remove unnecessary canned filler, repetitive meta-commentary, and unsolicited stock flourishes.
-- NOTE: Removing mechanical filler does NOT mean suppressing human rapport. A brief, natural acknowledgment of a student's joke, emotion, or conversational remark before moving forward is essential tutor behavior and is always welcomed.
+- Be concise and begin directly with the answer or first useful step.
+- Remove unnecessary greetings, pleasantries, filler, repetition, and unsolicited conclusions.
 - For simple questions, provide a direct answer with a brief explanation or verification.
 - For multi-step problems, show the essential mathematical steps in a clear, readable sequence. Explain why a step is necessary when that explanation helps the student understand the concept.
 - Prefer short paragraphs, equations, and simple numbered steps. Do not introduce tables, elaborate formatting, or extra headings unless they materially improve understanding.
@@ -190,16 +177,14 @@ When Guided Mode is active on a problem:
 # SUBJECT DRIFT & GENTLE REDIRECTION (PRIORITY 5)
 - Pythos is a dedicated mathematics and physics tutor. It knows what its purpose is.
 - Routing guidelines:
-  1. PURELY OFF-TOPIC & CASUAL RAPPORT (e.g., student jokes, future plans, video games, casual banter):
-     * Acknowledge warmly and naturally in a brief sentence. If the student is making lighthearted conversation or expressing emotion, engage naturally and comfortably without immediately forcing a pivot. If the student has completely drifted from studying over multiple turns, gently invite them back to active study without being stiff or robotic.
+  1. PURELY OFF-TOPIC (e.g., video games, pop music, recipes, casual chit-chat):
+     * Respond warmly and naturally in ONE brief sentence, then gently steer the dialogue back to mathematics, physics, or active study.
      * BAD: "I cannot assist you with that as I am a mathematics assistant." (Do NOT be cold, bureaucratic, or hostile).
-     * BAD: Treating a joke about physics as an order to dump an unsolicited physics lecture.
-     * GOOD: "Fair enough! Sounds like you're more than ready to leave projectile motion calculations behind."
+     * GOOD: "I do love a good pizza, but my true passion is the geometry of the circle! Shall we dive back into your algebra problem?"
   2. MATH-RELATED & PROBLEM SOLVING:
-     * Answer directly, rigorously, and pedagogically when the student is solving or asking about a problem.
-  3. INTERDISCIPLINARY & APPLIED INQUIRIES (e.g., trajectory of a basketball, orbital physics of rockets, financial compound interest, cryptography):
-     * When the student actually asks to solve, model, or understand an applied scenario, answer enthusiastically, highlighting the mathematical models, equations, and physical principles in action.
-     * Do NOT turn a passing conversational reference to a career or hobby into an unsolicited lecture.
+     * Answer directly, rigorously, and pedagogically.
+  3. INTERDISCIPLINARY & APPLIED QUESTIONS (e.g., trajectory of a basketball, orbital physics of rockets, financial compound interest, cryptography):
+     * Answer enthusiastically, highlighting the mathematical models, equations, and physical principles in action.
 
 # MEMORY & PAST CONVERSATION CONTINUITY
 - Pythos has durable memory of the student across conversations.
@@ -263,17 +248,6 @@ For non-trivial mathematical and physical problems (word problems, optimization,
     2. Square root $\sqrt{g(x)}$ in numerator: $g(x) \ge 0$.
     3. Logarithms $\ln(g(x))$: $g(x) > 0$.
     4. Rational denominator $\frac{1}{h(x)}$: $h(x) \neq 0$.
-    5. Trigonometric Identities & Domain Singularities:
-       * Half-angle formulas and radical grouping:
-         - Group entire fractions strictly inside radicals: $\sin\left(\frac{\theta}{2}\right) = \pm\sqrt{\frac{1-\cos\theta}{2}}$ and $\cos\left(\frac{\theta}{2}\right) = \pm\sqrt{\frac{1+\cos\theta}{2}}$. The sign ($\pm$) is determined solely by the quadrant of the half-angle $\frac{\theta}{2}$, NOT the quadrant of $\theta$.
-         - For $\tan\left(\frac{\theta}{2}\right) = \pm\sqrt{\frac{1-\cos\theta}{1+\cos\theta}} = \frac{1-\cos\theta}{\sin\theta} = \frac{\sin\theta}{1+\cos\theta}$, domain restrictions: $\theta \neq (2k+1)\pi$ for the first two forms (where $\cos\theta = -1$) and $\theta \neq 2k\pi$ for the third form (where $\sin\theta = 0$).
-       * Tangent sum, difference, and double-angle denominators:
-         - $\tan(\alpha \pm \beta) = \frac{\tan\alpha \pm \tan\beta}{1 \mp \tan\alpha\tan\beta}$ requires $\alpha, \beta, \alpha \pm \beta \neq \frac{\pi}{2} + k\pi$ AND $1 \mp \tan\alpha\tan\beta \neq 0$ ($\tan\alpha\tan\beta \neq \pm 1$).
-         - $\tan(2\theta) = \frac{2\tan\theta}{1-\tan^2\theta}$ requires $\theta \neq \frac{\pi}{2} + k\pi$ and $\theta \neq \frac{\pi}{4} + \frac{k\pi}{2}$ (where $\tan^2\theta = 1$, making denominator 0).
-       * Reciprocal and quotient identities (denominators can never be zero):
-         - $\tan\theta = \frac{\sin\theta}{\cos\theta}$ and $\sec\theta = \frac{1}{\cos\theta}$ require $\cos\theta \neq 0 \implies \theta \neq \frac{\pi}{2} + k\pi, \, k \in \mathbb{Z}$.
-         - $\cot\theta = \frac{\cos\theta}{\sin\theta}$ and $\csc\theta = \frac{1}{\sin\theta}$ require $\sin\theta \neq 0 \implies \theta \neq k\pi, \, k \in \mathbb{Z}$.
-         - Always state these domain restrictions explicitly when presenting identity reference sheets so identities are not stated as unconditional equivalences across all real numbers.
 - SQUARING BINOMIALS: When squaring an expression $(x - c)^2$, remember $(x - c)^2 = x^2 - 2cx + c^2$. NEVER confuse squaring $(x - c)^2$ with the difference of squares $(x - c)(x + c)$.
 - RADICAL EQUATIONS & EXTRANEOUS ROOTS: Always test candidate solutions in the ORIGINAL radical equation. For $\\sqrt{x + 3} = x - 3$, squaring gives $x + 3 = (x - 3)^2 = x^2 - 6x + 9 \\Rightarrow x^2 - 7x + 6 = 0 \\Rightarrow (x-6)(x-1)=0$. $x=6$ yields $\\sqrt{9}=3$ (Valid), but $x=1$ yields $\\sqrt{4} = -2$ which is FALSE ($x=1$ is extraneous).
 - FALLACY & PROOF TRAPS: Watch for division by zero. In the classic "2 = 1" fallacy where $a = b$, dividing both sides of $(a - b)(a + b) = b(a - b)$ by $(a - b)$ is illegal because $a - b = 0$, and division by zero is undefined. Always pinpoint division by zero as the exact flaw.
@@ -455,8 +429,8 @@ When a student asks to solve a problem "using sketches", "using a sketch", "draw
    - For right triangles and trigonometric reference triangles:
      * Provide the interactive geometric token: [GEOMETRY: triangle, a=<opposite>, b=<adjacent>, c=<hypotenuse>, right_angle=C, opp=<opposite>, adj=<adjacent>, hyp=<hypotenuse>, theta=true]
      * ABSOLUTELY NEVER generate ASCII art, ASCII sketches, or ASCII diagrams of geometric figures (e.g. triangles, plots, graphs, shapes). LLMs cannot draw ASCII reliably and degenerate into repetitive loops. Always rely EXCLUSIVELY on interactive visualization tokens (e.g. [GEOMETRY: triangle ...], [GRAPH: ...]) or standard LaTeX math.
-   - For reference triangles with negative trigonometric ratios (e.g. cot(\theta) = -36.23):
-     * Explain that reference triangle side lengths are strictly positive magnitudes (adjacent = 36.23, opposite = 1, hypotenuse = \sqrt{36.23^2 + 1^2}).
+   - For reference triangles with negative trigonometric ratios (e.g. cot(?) = -36.23):
+     * Explain that reference triangle side lengths are strictly positive magnitudes (adjacent = 36.23, opposite = 1, hypotenuse = ?(36.23? + 1?)).
      * Explain the sign and quadrant orientation separately rather than implying a physical triangle side has negative length.
 2. NEVER CLAIM A VISUAL WAS PROVIDED WHEN IT WAS NOT:
    - NEVER output text like "(See the sketch below...)" or "As shown in the diagram below..." unless the actual [GEOMETRY:] / [VIZ:] token is directly included in the response.
@@ -646,7 +620,6 @@ const {
   classifyProblem,
   parseAngleFromText
 } = require('./deterministicRouter');
-const domainSpecialistRouter = require('./engines/domainSpecialistRouter');
 // Concurrency limiter
 const concurrencyLimiter = require('./concurrencyLimiter');
 const adminRoutes = require('./adminRoutes');
@@ -670,24 +643,6 @@ const { enforceVisualFidelity, isVisualRequested } = require('./vizEngine/visual
 const toolController = require('./toolController');
 const { getSafeWithholding, WITHHOLDING_REASONS } = require('./withholdingTaxonomy');
 const { constructSafeVerifiedResponse } = require('./safeResponseConstructor');
-
-/**
- * Detects whether an LLM candidate response is a generic refusal to answer
- * (e.g., "I'm sorry, but I can't help with that", "I cannot fulfill this request").
- */
-function isModelRefusal(content) {
-  if (!content || typeof content !== 'string') return false;
-  const trimmed = content.trim();
-  if (trimmed.length > 350) return false;
-  const refusalPatterns = [
-    /^(?:I(?:'m| am)?\s+sorry[,.]?\s+)?(?:but\s+)?I\s+(?:can(?:'t|not)|am unable to)\s+(?:help|assist|do that|comply|fulfill|solve)/i,
-    /^I apologize[,.]?\s+(?:but\s+)?I\s+(?:can(?:'t|not)|am unable to)/i,
-    /^(?:As an AI(?: language model)?|As a language model)[,.]?\s+I\s+(?:can(?:'t|not)|am unable to)/i,
-    /^I cannot fulfill this request/i,
-    /^I'm unable to assist with/i
-  ];
-  return refusalPatterns.some(p => p.test(trimmed));
-}
 
 // Mount Admin Routes
 app.use('/admin', adminRoutes);
@@ -764,7 +719,7 @@ async function executeGroqVisionCall(provider, { messages, visionSystemPrompt, o
     model: targetModel,
     messages: formattedMessages,
     temperature: options?.temperature || 0.2,
-    max_tokens: Math.min(options?.num_predict || options?.max_tokens || 4096, 4096),
+    max_tokens: Math.min(options?.num_predict || options?.max_tokens || 2048, 2048),
     stream: false
   });
 
@@ -942,7 +897,7 @@ async function executeGeminiVisionCall(provider, { messages, visionSystemPrompt,
     },
     generationConfig: {
       temperature: options?.temperature || 0.2,
-      maxOutputTokens: Math.min(options?.num_predict || options?.max_tokens || 4096, 4096)
+      maxOutputTokens: Math.min(options?.num_predict || options?.max_tokens || 2048, 2048)
     }
   });
 
@@ -1139,18 +1094,13 @@ ${m.content.slice(PYTHOS_SYSTEM_PROMPT.length).trim()}`;
     return { role: m.role, content: m.content || '' };
   });
 
-  const isReasoningModel = targetModel.includes('gpt-oss') || targetModel.includes('o1') || targetModel.includes('o3');
-  const payloadObj = {
+  const groqPayload = JSON.stringify({
     model: targetModel,
     messages: textMessages,
     temperature: options?.temperature || 0.2,
-    max_tokens: Math.min(options?.num_predict || options?.max_tokens || 4096, 4096),
+    max_tokens: Math.min(options?.num_predict || 2048, 2048),
     stream: false
-  };
-  if (isReasoningModel) {
-    payloadObj.reasoning_effort = 'low';
-  }
-  const groqPayload = JSON.stringify(payloadObj);
+  });
 
   const groqHttps = require('https');
   const executeCall = () => new Promise((resolveGroq, rejectGroq) => {
@@ -1189,17 +1139,11 @@ ${m.content.slice(PYTHOS_SYSTEM_PROMPT.length).trim()}`;
         }
         try {
           const parsed = JSON.parse(gBody);
-          const choice = parsed.choices?.[0];
-          let text = choice?.message?.content || '';
-          if (!text.trim() && choice?.message?.reasoning) {
-            text = choice.message.reasoning;
-          }
-          const isTruncated = choice?.finish_reason === 'length';
+          const text = parsed.choices?.[0]?.message?.content || '';
           resolveGroq({
             model: targetModel,
             content: text,
-            provider: provider.name,
-            truncated: isTruncated
+            provider: provider.name
           });
         } catch (err) {
           rejectGroq(err);
@@ -1745,46 +1689,10 @@ app.post('/api/chat', async (req, res) => {
     : false;
 
   if (lastUserMsg && !turnRequiresVisionEarly) {
-    let directResponse = null;
-    let selectedModel = 'pythos-deterministic-router';
-    let isVisualOrClarification = false;
-
-    // Fast-Path Step 1: Specialized Domain Engines (Geometry & Calculus)
-    try {
-      const specialistIntent = domainSpecialistRouter.analyzeSpecialistIntent(lastUserMsg.content, messages);
-      if (specialistIntent && specialistIntent.isSpecialistRoute) {
-        const specialistResult = await domainSpecialistRouter.executeSpecialistRoute(specialistIntent);
-        if (specialistResult && specialistResult.status === 'VERIFIED') {
-          directResponse = specialistResult.formattedResponse;
-          selectedModel = specialistResult.model || 'pythos-specialist-engine';
-          if (specialistResult.isVisualOrClarification) {
-            isVisualOrClarification = true;
-          }
-        }
-      }
-    } catch (specialistErr) {
-      console.warn('[SPECIALIST ROUTER] Error evaluating specialist route:', specialistErr.message);
-    }
-
-    // Fast-Path Step 2: Baseline Deterministic Router
-    let deterministicIntent = null;
-    if (!directResponse) {
-      deterministicIntent = analyzeDeterministicIntent(lastUserMsg.content, messages);
-      if (deterministicIntent) {
-        directResponse = buildDeterministicResponse(deterministicIntent);
-        selectedModel = 'pythos-deterministic-router';
-        isVisualOrClarification = deterministicIntent.type === 'CLASSICAL_MODEL_VIZ' ||
-                                  deterministicIntent.type === 'PROJECTILE_VIZ' ||
-                                  deterministicIntent.type === 'GEOMETRY_VIZ' ||
-                                  deterministicIntent.type === 'GRAPH_PLOT' ||
-                                  deterministicIntent.type === 'NUMBER_LINE_VIZ' ||
-                                  deterministicIntent.type === 'VIZ_SUBJECT_CLARIFICATION' ||
-                                  deterministicIntent.type === 'INPUT_AMBIGUITY_CLARIFICATION' ||
-                                  deterministicIntent.type === 'PLATFORM_KNOWLEDGE';
-      }
-    }
-
-    if (directResponse) {
+    const deterministicIntent = analyzeDeterministicIntent(lastUserMsg.content, messages);
+    if (deterministicIntent) {
+      const directResponse = buildDeterministicResponse(deterministicIntent);
+      if (directResponse) {
         // Deterministic solution is a CANDIDATE, never an unverified delivery!
         const candidateAnswer = extractCandidateAnswer(directResponse);
         let effectiveVerificationPrompt = (lastUserMsg ? lastUserMsg.content : '');
@@ -1801,6 +1709,15 @@ app.post('/api/chat', async (req, res) => {
         let claims = [];
         let verificationResults = [];
         let verificationAudit = [];
+
+        const isVisualOrClarification = deterministicIntent.type === 'CLASSICAL_MODEL_VIZ' ||
+                                        deterministicIntent.type === 'PROJECTILE_VIZ' ||
+                                        deterministicIntent.type === 'GEOMETRY_VIZ' ||
+                                        deterministicIntent.type === 'GRAPH_PLOT' ||
+                                        deterministicIntent.type === 'NUMBER_LINE_VIZ' ||
+                                        deterministicIntent.type === 'VIZ_SUBJECT_CLARIFICATION' ||
+                                        deterministicIntent.type === 'INPUT_AMBIGUITY_CLARIFICATION' ||
+                                        deterministicIntent.type === 'PLATFORM_KNOWLEDGE';
 
         if (isVisualOrClarification) {
           gatePassed = true;
@@ -1850,9 +1767,8 @@ app.post('/api/chat', async (req, res) => {
               claims,
               verification: verificationResults,
               verificationAudit,
-              model: selectedModel,
+              model: 'pythos-deterministic-router',
               deterministic: true,
-              verificationLevel: delivery.verificationLevel || (delivery.status === 'NOT_APPLICABLE' ? 'not_applicable' : (delivery.status === 'VERIFIED' ? 'verified' : (delivery.delivered ? 'partial' : 'withheld'))),
               deliveryStatus: delivery.status,
               deliveredAnswer: delivery.answer
             }) + '\n');
@@ -1863,7 +1779,7 @@ app.post('/api/chat', async (req, res) => {
           return res.status(200).json({
             requestId,
             latencyMs: Date.now() - startTime,
-            model: selectedModel,
+            model: 'pythos-deterministic-router',
             message: {
               role: 'assistant',
               content: directResponse
@@ -1872,8 +1788,6 @@ app.post('/api/chat', async (req, res) => {
             verification: verificationResults,
             verificationAudit,
             deterministic: true,
-            withheld: false,
-            verificationLevel: delivery.verificationLevel || (delivery.status === 'VERIFIED' ? 'verified' : (delivery.delivered ? 'partial' : 'withheld')),
             deliveryStatus: delivery.status,
             deliveredAnswer: delivery.answer,
             done: true
@@ -1882,7 +1796,8 @@ app.post('/api/chat', async (req, res) => {
           console.warn(`[DETERMINISTIC GATE] Candidate withheld by delivery gate (${delivery ? delivery.status : 'FAILED'}): ${delivery ? delivery.reason : 'Unverified'}. Routing to LLM/CAS pipeline.`);
           // Candidate failed gate -> Fail-closed! Fall through to standard reasoning & verification pipeline
         }
-        }
+      }
+    }
   }
 
   const clientCloseHandler = () => {
@@ -2133,7 +2048,7 @@ app.post('/api/chat', async (req, res) => {
     {
       temperature: 0.3,
       num_ctx: contextManager.TOTAL_CONTEXT_LIMIT,
-      num_predict: Math.min(options?.num_predict || options?.max_tokens || 4096, 4096)
+      num_predict: Math.min(options?.num_predict || options?.max_tokens || 2048, 2048)
     },
     options || {}
   );
@@ -2141,7 +2056,7 @@ app.post('/api/chat', async (req, res) => {
     effectiveOptions.num_ctx = contextManager.TOTAL_CONTEXT_LIMIT;
   }
   if (!effectiveOptions.num_predict) {
-    effectiveOptions.num_predict = 4096;
+    effectiveOptions.num_predict = 2048;
   }
 
   // Multimodal Hosted Vision Gateway Bridge
@@ -2297,7 +2212,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
     if (!textSelection.provider) {
       const isCostBlocked = textSelection.reason === 'COST_GUARDRAIL_BLOCKED';
       const isRateLimited = textSelection.reason === 'ALL_RATE_LIMITED';
-      const errStatus = isCostBlocked ? 403 : (isRateLimited ? 429 : 503);
+      const errStatus = isCostBlocked ? 403 : 503;
       const errCode = isRateLimited ? 'UPSTREAM_RATE_LIMITED' : 'UPSTREAM_UNAVAILABLE';
       const errMsg = isCostBlocked
         ? 'Text reasoning requires a paid provider, but Pythos is currently locked to $0 cost guardrail (free_only mode).'
@@ -2393,7 +2308,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
 
         const isCostBlocked = textSelection.reason === 'COST_GUARDRAIL_BLOCKED';
         const isRateLimited = textSelection.reason === 'ALL_RATE_LIMITED';
-        const errStatus = isCostBlocked ? 403 : (isRateLimited ? 429 : 503);
+        const errStatus = isCostBlocked ? 403 : 503;
         const errCode = isRateLimited ? 'UPSTREAM_RATE_LIMITED' : 'UPSTREAM_UNAVAILABLE';
         const errMsg = isCostBlocked
           ? 'Text reasoning requires a paid provider, but Pythos is currently locked to $0 cost guardrail (free_only mode).'
@@ -2427,11 +2342,6 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
             emptyErr.code = 'PRIMARY_EMPTY_RESPONSE';
             throw emptyErr;
           }
-          if (isModelRefusal(resOllama.content)) {
-            const refErr = new Error(`PRIMARY_REFUSAL: Primary LLM returned unhelpful refusal to STEM query: "${resOllama.content.trim()}"`);
-            refErr.code = 'PRIMARY_REFUSAL';
-            throw refErr;
-          }
 
           candidateResult = {
             model: targetModel,
@@ -2454,11 +2364,6 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
             emptyErr.code = 'BACKUP_EMPTY_RESPONSE';
             throw emptyErr;
           }
-          if (isModelRefusal(resGroq.content)) {
-            const refErr = new Error(`BACKUP_REFUSAL: Backup LLM returned unhelpful refusal to STEM query: "${resGroq.content.trim()}"`);
-            refErr.code = 'BACKUP_REFUSAL';
-            throw refErr;
-          }
 
           console.log(`[BACKUP BRAIN] Backup candidate generated by 'groq-text' (${resGroq.content.length} chars). Forwarding to Verification Bridge.`);
           if (isStreaming && !res.headersSent && !res.writableEnded) {
@@ -2473,7 +2378,6 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
             content: resGroq.content,
             provider: selectedProvider.name,
             reasoningPath: 'BACKUP',
-            truncated: resGroq.truncated === true,
             backupTriggerReason: primaryFailureError ? (primaryFailureError.code || primaryFailureError.message) : 'PRIMARY_UNAVAILABLE'
           };
           break;
@@ -2490,11 +2394,6 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
             const emptyErr = new Error('BACKUP_EMPTY_RESPONSE: Backup LLM returned empty candidate response');
             emptyErr.code = 'BACKUP_EMPTY_RESPONSE';
             throw emptyErr;
-          }
-          if (isModelRefusal(resGemini.content)) {
-            const refErr = new Error(`BACKUP_REFUSAL: Backup LLM returned unhelpful refusal to STEM query: "${resGemini.content.trim()}"`);
-            refErr.code = 'BACKUP_REFUSAL';
-            throw refErr;
           }
 
           console.log(`[BACKUP BRAIN] Backup candidate generated by 'gemini-text' (${resGemini.content.length} chars). Forwarding to Verification Bridge.`);
@@ -2527,11 +2426,8 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           }
         } else {
           console.error(`[BACKUP BRAIN] Backup provider '${selectedProvider.name}' also failed:`, callErr.message);
-          const isRateLimit = callErr.statusCode === 429 || callErr.status === 429 || (callErr.message && callErr.message.toLowerCase().includes('rate_limit'));
-          if (isRateLimit) {
-            const retrySec = callErr.retryAfter || 60;
-            providerPolicy.recordRateLimit(selectedProvider.name, retrySec);
-          }
+          const retrySec = callErr.retryAfter || 60;
+          providerPolicy.recordRateLimit(selectedProvider.name, retrySec);
         }
       }
     }
@@ -2582,33 +2478,6 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
     }
 
     let finalContent = candidateResult ? candidateResult.content : '';
-    let isRefusalWithheld = false;
-    let refusalWithholdingDetails = null;
-    let refusalWithholdingExplanation = null;
-    if (isModelRefusal(finalContent)) {
-      console.warn('[DELIVERY GATE] Candidate response was a generic refusal; intercepting with canonical safe withholding.');
-      const safeWithholding = getSafeWithholding(WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED);
-      finalContent = safeWithholding.formattedContent;
-      isRefusalWithheld = true;
-      refusalWithholdingExplanation = safeWithholding.explanation;
-      refusalWithholdingDetails = {
-        headline: safeWithholding.headline,
-        explanation: safeWithholding.explanation,
-        cause: safeWithholding.cause,
-        help: safeWithholding.help,
-        nextStep: safeWithholding.nextStep
-      };
-      if (isStreaming && !res.writableEnded && res.headersSent) {
-        res.write(JSON.stringify({
-          type: 'withheld',
-          withheld: true,
-          withholdingReason: WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED,
-          withholdingExplanation: safeWithholding.explanation,
-          withholdingDetails: refusalWithholdingDetails,
-          formattedContent: safeWithholding.formattedContent
-        }) + '\n');
-      }
-    }
     let ollamaResponse = {
       model: candidateResult?.model || targetModel,
       provider: candidateResult?.provider || 'ollama-text',
@@ -2616,10 +2485,6 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
       backupTriggerReason: candidateResult?.backupTriggerReason || null,
       truncated: candidateResult?.truncated === true,
       finishReason: candidateResult?.finishReason || null,
-      withheld: isRefusalWithheld,
-      withholdingReason: isRefusalWithheld ? WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED : null,
-      withholdingExplanation: isRefusalWithheld ? refusalWithholdingExplanation : null,
-      withholdingDetails: isRefusalWithheld ? refusalWithholdingDetails : null,
       message: { role: 'assistant', content: finalContent },
       done: true
     };
@@ -2631,24 +2496,11 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
     } catch (ctxErr) {
       console.warn('[CONTEXT] buildEffectivePrompt failed in post-verification:', ctxErr.message);
     }
-    let claims = [];
-    let internalContradictions = [];
-    let verificationResults = [];
-    let invalidClaims = [];
-    let verificationAudit = [];
-
-    if (!isRefusalWithheld) {
-      const audit = await verifyResponseClaims(
-        finalContent,
-        effectiveVerificationPrompt,
-        abortController.signal
-      );
-      claims = audit.claims;
-      internalContradictions = audit.internalContradictions;
-      verificationResults = audit.verificationResults;
-      invalidClaims = audit.invalidClaims;
-      verificationAudit = audit.verificationAudit;
-    }
+    let { claims, internalContradictions, verificationResults, invalidClaims, verificationAudit } = await verifyResponseClaims(
+      finalContent,
+      effectiveVerificationPrompt,
+      abortController.signal
+    );
 
     if (invalidClaims.length > 0 || internalContradictions.length > 0) {
       console.warn(`[VERIFIER] Detected ${invalidClaims.length} invalid claims and ${internalContradictions.length} internal contradictions. Requesting revision...`);
@@ -2714,7 +2566,6 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
       } catch (revErr) {
         console.error('[VERIFIER] Revision call failed:', revErr.message);
       }
-    }
 
       // Deterministic Supremacy: Enforce mathematical truth across any remaining invalid calculations
       for (const { claim, verification, claimIndex } of invalidClaims) {
@@ -2792,26 +2643,10 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
         return true; // Still uncorrected
       });
 
-      const candidateAnswer = extractCandidateAnswer(finalContent);
-      let candidateDelivery = null;
-      try {
-        candidateDelivery = evaluateCandidateDelivery({
-          candidateAnswer,
-          verifications: verificationResults,
-          contradictions: internalContradictions,
-          claims,
-          prompt: effectiveVerificationPrompt
-        });
-      } catch (cdErr) {
-        console.warn('[DELIVERY GATE] Candidate delivery evaluation error:', cdErr.message);
-      }
-
-      const hasUnresolvableFailure = uncorrectedInvalidClaims.length > 0 ||
-                                     internalContradictions.length > 0 ||
-                                     (candidateDelivery && candidateDelivery.delivered === false);
+      const hasUnresolvableFailure = uncorrectedInvalidClaims.length > 0 || internalContradictions.length > 0;
 
       if (hasUnresolvableFailure) {
-        console.warn(`[DELIVERY GATE] Candidate contains ${uncorrectedInvalidClaims.length} uncorrected errors, ${internalContradictions.length} contradictions, candidateDelivery: ${candidateDelivery?.status || 'OK'}. Enforcing safe withholding gate...`);
+        console.warn(`[DELIVERY GATE] Candidate contains ${uncorrectedInvalidClaims.length} uncorrected errors and ${internalContradictions.length} contradictions. Enforcing safe withholding gate...`);
 
         // ARCHITECTURAL MANDATE:
         // Never withhold verified mathematical truth merely because the conversational explanation failed verification.
@@ -2843,16 +2678,12 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           // No trusted verified solution exists (e.g. genuinely ambiguous, missing problem information, uncomputable)
           // -> Enforce fail-closed safe withholding to protect the student from unverified guesses.
           const failureAudit = [];
-          if (candidateDelivery && candidateDelivery.delivered === false) {
-            failureAudit.push(candidateDelivery.reason || candidateDelivery.status);
-          }
-          uncorrectedInvalidClaims.forEach(({ claim, verification }) => {
-            failureAudit.push(`[${claim?.claim_type}: "${claim?.raw_match}"] ${verification.details || verification.error_type || verification.status}`);
+          uncorrectedInvalidClaims.forEach(({ verification }) => {
+            failureAudit.push(verification.details || verification.error_type || verification.status);
           });
           internalContradictions.forEach(ic => {
             failureAudit.push(ic.details);
           });
-          failureAudit.push(`[RAW_PREVIEW] ${finalContent.replace(/\s+/g, ' ').slice(0, 400)}`);
 
           // Determine structured reason code from context & failures
           let resolvedReason = WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED;
@@ -2886,17 +2717,6 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           };
           ollamaResponse.message.content = finalContent;
           ollamaResponse.withholdingReasons = failureAudit; // Preserved internally for auditing
-
-          if (isStreaming && !res.writableEnded && res.headersSent) {
-            res.write(JSON.stringify({
-              type: 'withheld',
-              withheld: true,
-              withholdingReason: resolvedReason,
-              withholdingExplanation: safeWithholding.explanation,
-              withholdingDetails: ollamaResponse.withholdingDetails,
-              formattedContent: safeWithholding.formattedContent
-            }) + '\n');
-          }
         }
       }
 
@@ -2921,6 +2741,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           console.error('[REPORT SERVICE] Failed to auto-flag report:', flagErr.message);
         }
       }
+    }
 
     // Enforce pedagogical consistency for contextual validation and continuation
     if (studentEvaluation && studentEvaluation.preferredResponse) {
@@ -2980,15 +2801,9 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
         : 'guest';
 
       // Attach non-intrusive verification & diagnostic metadata
-      const vLevel = ollamaResponse.withheld
-        ? 'withheld'
-        : (candidateDelivery?.verificationLevel || (candidateDelivery?.status === 'NOT_APPLICABLE' ? 'not_applicable' : (candidateDelivery?.status === 'VERIFIED' ? 'verified' : (candidateDelivery?.delivered ? 'partial' : 'withheld'))));
       ollamaResponse.requestId = requestId;
       ollamaResponse.latencyMs = latencyMs;
       ollamaResponse.privacySafeUid = privacySafeUid;
-      ollamaResponse.verificationLevel = vLevel;
-      ollamaResponse.deliveryStatus = candidateDelivery?.status || null;
-      ollamaResponse.deliveredAnswer = candidateDelivery?.answer || null;
       ollamaResponse.claims = claims || [];
       ollamaResponse.verification = verificationResults;
       ollamaResponse.verificationAudit = verificationAudit || [];
@@ -3022,9 +2837,6 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           requestId,
           latencyMs,
           privacySafeUid,
-          verificationLevel: vLevel,
-          deliveryStatus: candidateDelivery?.status || null,
-          deliveredAnswer: candidateDelivery?.answer || null,
           domain: classification?.problemDomain || null,
           subtype: classification?.problemSubtype || null,
           intent: studentIntent?.intent || studentIntent?.type || null,
@@ -3042,7 +2854,6 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           withholdingReason: ollamaResponse.withholdingReason || null,
           withholdingExplanation: ollamaResponse.withholdingExplanation || null,
           withholdingDetails: ollamaResponse.withholdingDetails || null,
-          formattedContent: ollamaResponse.withheld ? finalContent : null,
           safeResponseRecovered: ollamaResponse.safeResponseRecovered || false,
           recoverySource: ollamaResponse.recoverySource || null,
           recoveryTitle: ollamaResponse.recoveryTitle || null,

@@ -267,37 +267,6 @@ function validateProblemStructure(problem) {
     return { valid: false, reason: 'Problem contains square root of negative number in real domain.' };
   }
 
-  // Trigonometric equation real range feasibility (sin/cos in [-1, 1], sec/csc in (-inf, -1] U [1, inf))
-  const trigEqCheck = (expression + ' ' + problemText).match(/(?:\\?sin|\\?cos)\s*(?:\(?\s*([a-zA-Z])\s*\)?|\s+([a-zA-Z]))\s*=\s*([-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?)/i);
-  if (trigEqCheck) {
-    const rawValStr = trigEqCheck[3];
-    let valNum = NaN;
-    if (rawValStr.includes('/')) {
-      const parts = rawValStr.split('/');
-      valNum = parseFloat(parts[0]) / parseFloat(parts[1]);
-    } else {
-      valNum = parseFloat(rawValStr);
-    }
-    if (!isNaN(valNum) && Math.abs(valNum) > 1.0 + 1e-4) {
-      return { valid: false, reason: `Problem presents an impossible trigonometric equation with no real solutions (|${rawValStr}| > 1 for sine/cosine).` };
-    }
-  }
-
-  const secCscCheck = (expression + ' ' + problemText).match(/(?:\\?sec|\\?csc)\s*(?:\(?\s*([a-zA-Z])\s*\)?|\s+([a-zA-Z]))\s*=\s*([-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?)/i);
-  if (secCscCheck) {
-    const rawValStr = secCscCheck[3];
-    let valNum = NaN;
-    if (rawValStr.includes('/')) {
-      const parts = rawValStr.split('/');
-      valNum = parseFloat(parts[0]) / parseFloat(parts[1]);
-    } else {
-      valNum = parseFloat(rawValStr);
-    }
-    if (!isNaN(valNum) && Math.abs(valNum) > 0 && Math.abs(valNum) < 1.0 - 1e-4) {
-      return { valid: false, reason: `Problem presents an impossible trigonometric equation with no real solutions (|${rawValStr}| < 1 for secant/cosecant).` };
-    }
-  }
-
   // 4. Contradictory premises check
   // Triangle inequality
   const triMatch = problemText.match(/(?:sides|lengths)\s+(?:of\s+)?\$?(\d+(?:\.\d+)?)\$?[,\s]+\$?(\d+(?:\.\d+)?)\$?[,\s]+and\s+\$?(\d+(?:\.\d+)?)\$?/i);

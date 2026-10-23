@@ -17,7 +17,7 @@ const mathjsVerifier = require('./mathjsVerifier');
  */
 function hasConceptualIntent(text) {
   if (!text || typeof text !== 'string') return false;
-  const conceptualPattern = /\b(explain|why|how come|concept|intuition|derive|derivation|interpret|interpretation|meaning|proof|prove|guide|teach|what does it mean|understand|reasoning|significance|discuss|difference\s+(?:between|in|of)|formula\s+for|definition\s+of|rule\s+for|(?:what\s+is|what's|whats|whts)\s+(?:the\s+)?(?:difference|meaning|concept|formula|definition|rule|intuition|point|purpose|significance|theorem|property|law|paradox|fallacy|reason)|demonstrate|exhibit|illustrate|is this|does this|is that|is it|are they|same thing|same as|the same|equivalent|equal to each other|mean the same|does that mean|what about|would that be|paradox|fallacy|reversal)\b/i;
+  const conceptualPattern = /\b(explain|why|how come|concept|intuition|derive|derivation|interpret|interpretation|meaning|proof|prove|guide|teach|what does it mean|understand|reasoning|significance|discuss|difference between|demonstrate|exhibit|illustrate|is this|does this|is that|is it|are they|same thing|same as|the same|equivalent|equal to each other|mean the same|does that mean|what about|would that be|paradox|fallacy|reversal)\b/i;
   return conceptualPattern.test(text);
 }
 
@@ -245,7 +245,7 @@ function extractArithmeticExpressions(text) {
   const isQuestionOrProse = /[?]$/.test(text.trim()) ||
     /\b(?:is\s+(?:that|this|it)|same\s+thing|same\s+as|the\s+same|equivalent|what\s+about|why|how|explain|does\s+(?:this|that))\b/i.test(text) ||
     /\b(?:accuracy|accurate|validation|validated|benchmark|withheld|incorrect\s+answers?|correct\s+answers?|answers?\s+returned|error\s+rate|pythos|tutor|model)\b/i.test(text);
-  const isExplicitStandaloneCalc = /^(?:(?:just\s+(?:give\s+me|tell\s+me)\s+(?:the\s+answer)?|(?:don't|do not|without)\s+(?:check(?:ing)?|verify(?:ing)?)(?:\s+(?:it|this|anything))?)[,\s:]*)*(?:pythos[,\s]+)?(?:(?:please|kindly)\s+)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?)?(?:help\s+(?:me\s+)?(?:to\s+)?)?(?:calculate|compute|evaluate|determine|solve(?:\s+for)?|find|simplify|work\s+out|give\s+me|what(?:'s|s|\s+is|\s+would\s+be)|whts|how\s+much\s+is|is)(?:\s+(?:the\s+)?(?:result|value|answer|evaluation|solution|sum|difference|product|quotient)(?:\s+(?:of|to|for))?)?[:\s]/i.test(text.trim());
+  const isExplicitStandaloneCalc = /^(?:(?:just\s+(?:give\s+me|tell\s+me)\s+(?:the\s+answer)?|(?:don't|do not|without)\s+(?:check(?:ing)?|verify(?:ing)?)(?:\s+(?:it|this|anything))?)[,\s:]*)*(?:pythos[,\s]+)?(?:(?:please|kindly)\s+)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?)?(?:help\s+(?:me\s+)?(?:to\s+)?)?(?:calculate|compute|evaluate|determine|solve(?:\s+for)?|find|simplify|work\s+out|give\s+me|what\s+is|what\s+would\s+be|how\s+much\s+is|is)(?:\s+(?:the\s+)?(?:result|value|answer|evaluation|solution|sum|difference|product|quotient)(?:\s+(?:of|to|for))?)?[:\s]/i.test(text.trim());
   if (isQuestionOrProse && !isExplicitStandaloneCalc) {
     return expressions;
   }
@@ -271,7 +271,7 @@ function extractArithmeticExpressions(text) {
     // General conversational prefix and correction normalization
     const cleanExprLine = cleanLine
       .replace(/^(?:wait,?\s+)?(?:i\s+meant|actually|correction|typo,?\s+meant)[:\s]*/i, '')
-      .replace(/^(?:(?:just\s+(?:give\s+me|tell\s+me)\s+(?:the\s+answer)?|(?:don't|do not|without)\s+(?:check(?:ing)?|verify(?:ing)?)(?:\s+(?:it|this|anything))?)[,\s:]*)*(?:pythos[,\s]+)?(?:(?:please|kindly)\s+)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?)?(?:help\s+(?:me\s+)?(?:to\s+)?)?(?:what(?:'s|s|\s+is|\s+would\s+be)|whts|calculate|compute|evaluate|determine|solve(?:\s+for)?|find|simplify|work\s+out|give\s+me|how\s+much\s+is|is)(?:\s+(?:the\s+)?(?:result|value|answer|evaluation|solution|sum|difference|product|quotient)(?:\s+(?:of|to|for))?)?[:\s]+/i, '')
+      .replace(/^(?:(?:just\s+(?:give\s+me|tell\s+me)\s+(?:the\s+answer)?|(?:don't|do not|without)\s+(?:check(?:ing)?|verify(?:ing)?)(?:\s+(?:it|this|anything))?)[,\s:]*)*(?:pythos[,\s]+)?(?:(?:please|kindly)\s+)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?)?(?:help\s+(?:me\s+)?(?:to\s+)?)?(?:what\s+(?:is|would\s+be)|calculate|compute|evaluate|determine|solve(?:\s+for)?|find|simplify|work\s+out|give\s+me|how\s+much\s+is|is)(?:\s+(?:the\s+)?(?:result|value|answer|evaluation|solution|sum|difference|product|quotient)(?:\s+(?:of|to|for))?)?[:\s]+/i, '')
       .replace(/[?!.]+$/, '')
       .trim();
 
@@ -287,15 +287,6 @@ function extractArithmeticExpressions(text) {
     // Check if line contains a problem label like "a. Add: 3/4 + 2/5", "b. Subtract: 7/8 - 1/3", "1. Multiply: 5/6 * 2/9", "Problem 1: 5 + 3"
     const strippedLabelLine = cleanExprLine
       .replace(/^(?:[a-zA-Z0-9]+(?:\.(?!\d)|\))|(?:problem|exercise|q|question)\s*\d+[:.]?)\s*(?:add|subtract|multiply|divide|compute|evaluate|simplify|find)?[:\s]*/i, '')
-      .replace(/\bmultiplied\s+by\b/gi, '*')
-      .replace(/\bdivided\s+by\b/gi, '/')
-      .replace(/\badded\s+to\b/gi, '+')
-      .replace(/\bsubtracted\s+from\b/gi, '-')
-      .replace(/(?<=[\d)])\s+\b(?:times|plus|minus)\b\s+(?=[-+(\d\\])/gi, (m) => {
-        if (/times/i.test(m)) return ' * ';
-        if (/plus/i.test(m)) return ' + ';
-        return ' - ';
-      })
       .replace(/[×✕✖]/g, '*')
       .replace(/[÷]/g, '/')
       .replace(/[−–—]/g, '-')
@@ -311,13 +302,13 @@ function extractArithmeticExpressions(text) {
     const cleanForSyntax = strippedLabelLine
       .replace(/\bpi\b/gi, '1')
       .replace(/\bsqrt\b/gi, '')
-      .replace(/\\(?:d|t)?frac\s*\{([^}]+)\}\s*\{([^}]+)\}/gi, '($1)/($2)');
+      .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1)/($2)');
 
     if (/^[-+*/^0-9.()\s]+$/i.test(cleanForSyntax) &&
         /(?:\d|\bpi\b)/i.test(strippedLabelLine) &&
-        (/[-+*/^]/.test(strippedLabelLine) || /\bsqrt\b/.test(strippedLabelLine) || /\(.*\)/.test(strippedLabelLine) || /\\(?:d|t)?frac/i.test(strippedLabelLine))) {
+        (/[-+*/^]/.test(strippedLabelLine) || /\bsqrt\b/.test(strippedLabelLine) || /\(.*\)/.test(strippedLabelLine) || /\\frac/.test(strippedLabelLine))) {
       
-      let normalized = strippedLabelLine.replace(/\\(?:d|t)?frac\s*\{([^}]+)\}\s*\{([^}]+)\}/gi, '($1)/($2)');
+      let normalized = strippedLabelLine.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1)/($2)');
       expressions.push(normalized);
       continue;
     }
@@ -524,68 +515,33 @@ function extractPreflightDeterministicFacts(userText, conversationHistory = []) 
     }
   }
 
-  // 6. Physics Kinematics: Projectile Motion (ground or cliff launch)
-  const hasProjectile = /\b(?:projectile|launched|thrown|fired|shot|trajectory|flight\s+time|horizontal\s+range|cliff|initial\s+speed|launch\s+angle)\b/i.test(text);
-  if (hasProjectile) {
-    const v0Match = text.match(/(?:initial\s+speed|initial\s+velocity|v_?0|speed)\s*[:=]?\s*(\d+(?:\.\d+)?)/i) ||
-                    text.match(/(\d+(?:\.\d+)?)\s*(?:m\/s|meters\/second)/i);
-    const angleMatch = text.match(/(?:launch\s+angle|angle|\btheta\b)\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(?:degrees|deg|°)?/i) ||
-                       text.match(/(\d+(?:\.\d+)?)\s*(?:degrees|deg|°)/i);
-    const hMatch = text.match(/(?:cliff\s+height|initial\s+height|\bh\b|height)\s*[:=]?\s*(?:h\s*=\s*)?(\d+(?:\.\d+)?)\s*(?:m|meters)?\b/i) ||
-                   text.match(/(\d+(?:\.\d+)?)\s*(?:m|meters)?\s*(?:high\s+)?cliff/i);
-    const gMatch = text.match(/(?:gravitational\s+acceleration|gravity|\bg\b)\s*[:=]?\s*(\d+(?:\.\d+)?)/i);
+  // 6. Physics Kinematics: Projectile Motion from ground (e.g. "20 m/s at 30 degrees", "g = 9.8")
+  const projectileMatch = text.match(/(?:launched|thrown|fired|shot|projectile).*?(\d+(?:\.\d+)?)\s*(?:m\/s|meters\/second).*?(\d+(?:\.\d+)?)\s*(?:degrees|deg|°)/i);
+  if (projectileMatch) {
+    const v0 = parseFloat(projectileMatch[1]);
+    const deg = parseFloat(projectileMatch[2]);
+    const gMatch = text.match(/g\s*=\s*(\d+(?:\.\d+)?)/i);
+    const g = gMatch ? parseFloat(gMatch[1]) : 9.8;
 
-    if (v0Match && angleMatch) {
-      const v0 = parseFloat(v0Match[1]);
-      const deg = parseFloat(angleMatch[1]);
-      const h0 = hMatch ? parseFloat(hMatch[1]) : 0;
-      const g = gMatch ? parseFloat(gMatch[1]) : 9.81;
+    if (v0 > 0 && deg > 0 && g > 0) {
+      const rad = (deg * Math.PI) / 180.0;
+      const v0y = v0 * Math.sin(rad);
+      const v0x = v0 * Math.cos(rad);
+      const tFlight = (2 * v0y) / g;
+      const hMax = (v0y * v0y) / (2 * g);
+      const range = v0x * tFlight;
 
-      if (v0 > 0 && deg > 0 && g > 0) {
-        const rad = (deg * Math.PI) / 180.0;
-        const v0x = v0 * Math.cos(rad);
-        const v0y = v0 * Math.sin(rad);
-        const disc = v0y * v0y + 2.0 * g * h0;
-        const tFlight = (v0y + Math.sqrt(disc)) / g;
-        const hMax = h0 + (v0y * v0y) / (2.0 * g);
-        const range = v0x * tFlight;
-
-        facts.push({
-          type: 'PROJECTILE_MOTION',
-          v0,
-          deg,
-          h0,
-          g,
-          v0x: parseFloat(v0x.toFixed(4)),
-          v0y: parseFloat(v0y.toFixed(4)),
-          tFlight: parseFloat(tFlight.toFixed(4)),
-          hMax: parseFloat(hMax.toFixed(4)),
-          range: parseFloat(range.toFixed(4)),
-          summary: `Projectile Motion (h0 = ${h0} m, v0 = ${v0} m/s, theta = ${deg}°, g = ${g} m/s²): v0x = v0*cos(theta) = ${v0x.toFixed(2)} m/s, v0y = v0*sin(theta) = ${v0y.toFixed(2)} m/s. Max Height h_max = h0 + (v0y)^2 / (2g) = ${h0} + (${v0y.toFixed(2)})^2 / (2*${g}) = ${hMax.toFixed(2)} m. Flight Time t_flight = (v0y + sqrt((v0y)^2 + 2*g*h0)) / g = ${tFlight.toFixed(2)} s. Horizontal Range R = v0x * t_flight = ${v0x.toFixed(2)} * ${tFlight.toFixed(2)} = ${range.toFixed(2)} m.`
-        });
-      }
-    }
-  }
-
-  // 6c. Trigonometric Equation Real Range & Feasibility (e.g. sin(x) = 3/2 or cos(x) = 2)
-  const trigEqRangeMatch = text.match(/(?:\\?sin|\\?cos)\s*(?:\(?\s*([a-zA-Z])\s*\)?|\s+([a-zA-Z]))\s*=\s*([-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?)/i);
-  if (trigEqRangeMatch) {
-    const rawValStr = trigEqRangeMatch[3];
-    let valNum = NaN;
-    if (rawValStr.includes('/')) {
-      const parts = rawValStr.split('/');
-      valNum = parseFloat(parts[0]) / parseFloat(parts[1]);
-    } else {
-      valNum = parseFloat(rawValStr);
-    }
-
-    if (!isNaN(valNum) && Math.abs(valNum) > 1.0 + 1e-4) {
       facts.push({
-        type: 'IMPOSSIBLE_TRIG_EQUATION',
-        valStr: rawValStr,
-        valNum,
-        hasRealSolutions: false,
-        summary: `Trigonometric Feasibility: For all real x, -1 <= sin(x) <= 1 and -1 <= cos(x) <= 1. Since |${rawValStr}| = ${valNum} > 1, the equation has NO real solutions on [0, 2pi) or on the real line R. There are no real unit circle angles intersecting this value.`
+        type: 'PROJECTILE_MOTION',
+        v0,
+        deg,
+        g,
+        v0x: parseFloat(v0x.toFixed(4)),
+        v0y: parseFloat(v0y.toFixed(4)),
+        tFlight: parseFloat(tFlight.toFixed(4)),
+        hMax: parseFloat(hMax.toFixed(4)),
+        range: parseFloat(range.toFixed(4)),
+        summary: `Initial velocity components: v0x = ${v0}*cos(${deg}°) = ${v0x.toFixed(2)} m/s, v0y = ${v0}*sin(${deg}°) = ${v0y.toFixed(2)} m/s. Max Height H = (v0y)^2 / (2g) = (${v0y.toFixed(2)})^2 / (2*${g}) = ${hMax.toFixed(2)} m. Flight Time T = 2*v0y / g = 2*(${v0y.toFixed(2)}) / ${g} = ${tFlight.toFixed(2)} s.`
       });
     }
   }
@@ -1229,25 +1185,7 @@ function extractContextualTrigTriangle(conversationHistory) {
 
 function analyzeDeterministicIntent(userText, conversationHistory = []) {
   if (!userText || typeof userText !== 'string') return null;
-  let clean = userText.trim().replace(/^\$+|\$+$/g, '').replace(/[?!.]+$/, '').replace(/(\d),(\d{3})\b/g, '$1$2').trim();
-  let inferredRhsZero = false;
-  // Incomplete equations with trailing '=' or unadorned linear expression (e.g. "3x-9=", "5x-6=", "3x-6?", "3x-6")
-  if (/=$/.test(clean)) {
-    const withoutEq = clean.replace(/=+$/, '').trim();
-    if (/[a-zA-Z]/.test(withoutEq)) {
-      // Incomplete equation with algebraic variable: interpret as equating expression to zero
-      clean = withoutEq + ' = 0';
-      inferredRhsZero = true;
-    } else {
-      // Pure arithmetic expression: strip trailing '=' to evaluate arithmetic
-      clean = withoutEq;
-    }
-  } else if (/^(?:solve\s+)?[-+]?\d*(?:\.\d+)?\s*\*?\s*[a-zA-Z]\s*[-+]\s*\d+(?:\.\d+)?$/i.test(clean)) {
-    // Standalone linear expression (e.g. "3x-6?", "3x-6", "solve 3x-6")
-    const stripped = clean.replace(/^solve\s+/i, '').trim();
-    clean = stripped + ' = 0';
-    inferredRhsZero = true;
-  }
+  const clean = userText.trim().replace(/^\$+|\$+$/g, '').replace(/[?!.]+$/, '').replace(/(\d),(\d{3})\b/g, '$1$2').trim();
   const lower = clean.toLowerCase();
 
   // Deterministic Answer Formatting & Precision Validation
@@ -1692,64 +1630,6 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
     };
   }
 
-  // 0b-1. Strict Coordinate Geometry Triangle Area (Shoelace Formula)
-  const isAreaQuery = /(?:find|calculate|compute|what\s+is|determine|get)\s+(?:the\s+)?(?:right\s+)?area\b/i.test(clean) ||
-                      /\barea\b/i.test(clean);
-  const mentionsTriangle = /\btriangle\b/i.test(clean);
-  const isNonAreaTriangleQuery = mentionsTriangle && (
-    /\b(?:perimeter|centroid|slope|circumcenter|incenter|orthocenter|equilateral|isosceles|side\s+lengths?|angles?|bisector|median|altitude)\b/i.test(clean)
-  );
-  const hasMixedObjects = /\b(?:circle|cylinder|sphere|quadrilateral|rectangle|trapezoid|scatter|plot\s+the\s+points|vector)\b/i.test(clean);
-  const has3DCoords = /\(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\)/.test(clean);
-  const hasPolarCoords = /\b(?:r\s*=|theta\s*=|rad\b|\bpolar\b)/i.test(clean);
-  const hasBracketedCoords = /\[\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\]/.test(clean);
-
-  if (mentionsTriangle && isAreaQuery && !isNonAreaTriangleQuery && !hasMixedObjects && !has3DCoords && !hasPolarCoords && !hasBracketedCoords) {
-    const coordRegex = /(?:([A-Za-z])\s*)?\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)/g;
-    const matches = [];
-    let m;
-    while ((m = coordRegex.exec(clean)) !== null) {
-      matches.push({ label: m[1] ? m[1].toUpperCase() : null, x: parseFloat(m[2]), y: parseFloat(m[3]) });
-    }
-    if (matches.length === 3 && matches.every(p => Number.isFinite(p.x) && Number.isFinite(p.y))) {
-      const explicitLabels = matches.map(pt => pt.label).filter(Boolean);
-      const uniqueLabels = new Set(explicitLabels);
-      if (explicitLabels.length === 0 || uniqueLabels.size === explicitLabels.length) {
-        const defaultLabels = ['A', 'B', 'C'];
-        matches.forEach((pt, i) => { if (!pt.label) pt.label = defaultLabels[i]; });
-        const [p1, p2, p3] = matches;
-        const rawArea = 0.5 * Math.abs(p1.x * (p2.y - p3.y) + p2.x * (p3.y - p1.y) + p3.x * (p1.y - p2.y));
-        const formatted = (rawArea === 0 || Object.is(rawArea, -0)) ? '0' : (Number.isInteger(rawArea) ? rawArea.toString() : (Math.abs(rawArea) < 1e-4 ? rawArea.toFixed(10).replace(/\.?0+$/, '') : parseFloat(rawArea.toPrecision(12)).toString()));
-        return {
-          type: 'GEOMETRY_VIZ',
-          figType: 'triangle',
-          isCoordinateArea: true,
-          vertices: {
-            [p1.label]: [p1.x, p1.y],
-            [p2.label]: [p2.x, p2.y],
-            [p3.label]: [p3.x, p3.y]
-          },
-          points: [p1, p2, p3],
-          isArea: true,
-          numericResult: rawArea,
-          result: formatted,
-          solution: rawArea,
-          formatted: formatted,
-          isDegenerate: rawArea === 0
-        };
-      }
-    }
-  }
-
-  // 0b. Strict Negative Precedence Guard: Coordinate geometry requests with points/vertices
-  const hasCoordinatePoints = /\([-\d\s.]+\s*,\s*[-\d\s.]+(?:\s*,\s*[-\d\s.]+)?\)/.test(clean) ||
-                              /\[[-\d\s.]+\s*,\s*[-\d\s.]+(?:\s*,\s*[-\d\s.]+)?\]/.test(clean) ||
-                              /(?:vertices|vertex|points?|vectors?)/i.test(clean);
-  const isGeometryContext = mentionsTriangle || /(?:geometry|polygon|quadrilateral|shape|vertices|vertex|coordinate)/i.test(clean);
-  if (isGeometryContext && (hasCoordinatePoints || hasMixedObjects || has3DCoords || hasPolarCoords || hasBracketedCoords)) {
-    return null;
-  }
-
   // 0c. Geometric Figure Visualization Requests
   // Numerical: e.g. "show a right triangle with legs 3 and 4", "triangle with sides 3, 4, 5"
   // Qualitative: e.g. "can you show me on a triangle?", "show me on a right triangle", "draw a triangle"
@@ -1759,7 +1639,7 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
     /(?:tangent|cosine|sine|secant|cosecant|cotangent)\s+(?:left\s+parenthesis|superscript)/i.test(clean) ||
     /\b(?:StartFraction|EndFraction)\b/i.test(clean);
 
-  const triangleMatch = !isAlgebraicOrInverseTrig && clean.match(/(?:right\s+triangle|triangle).*?(?:legs|sides)?\s*(\d+(?:\.\d+)?)\s*(?:and|,)\s*(\d+(?:\.\d+)?)(?:\s*(?:,|and|\s+)+\s*(?:(?:and\s+)?hypotenuse\s+)?(\d+(?:\.\d+)?))?/i);
+  const triangleMatch = !isAlgebraicOrInverseTrig && clean.match(/(?:right\s+triangle|triangle).*?(?:legs|sides)?\s*(\d+(?:\.\d+)?)\s*(?:and|,)\s*(\d+(?:\.\d+)?)(?:\s*(?:,|and|\s+)+\s*(\d+(?:\.\d+)?))?/i);
   const isQualitativeTriangle = !isAlgebraicOrInverseTrig && !triangleMatch && (
     /(?:show|draw|illustrate|see|view|display|plot|sketch)\s+(?:me\s+)?(?:on\s+a\s+|a\s+|the\s+)?(?:right\s+)?triangle/i.test(clean) ||
     /(?:can\s+you\s+)?(?:show|draw|display|illustrate)\s+(?:me\s+)?(?:how\s+a\s+right\s+triangle\s+works|the\s+trig\s+ratios)/i.test(clean) ||
@@ -1838,8 +1718,8 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
     // Strip web platform boilerplate like "Question content area bottom", "content area" before checking for geometric area
     const cleanWithoutAreaBoilerplate = clean.replace(/\b(?:question\s+)?content\s+area(?:\s+bottom)?\b/gi, '');
     const isPerimeter = /\bperimeter\b/i.test(cleanWithoutAreaBoilerplate);
-    const isArea = !!triangleMatch && (/\b(?:find|calculate|compute|what\s+is|determine|get)\s+(?:the\s+|its\s+)?area\b/i.test(cleanWithoutAreaBoilerplate) || /\barea\s*(?:=|is|\?)\b/i.test(cleanWithoutAreaBoilerplate));
-    const isHypotenuse = (/\b(?:find|calculate|compute|what\s+is|determine|get|length\s+of)\s+(?:the\s+|its\s+)?hypotenuse\b/i.test(cleanWithoutAreaBoilerplate) || /\bhypotenuse\s*(?:=|is|\?)\b/i.test(cleanWithoutAreaBoilerplate));
+    const isArea = !!triangleMatch && (/\b(?:find|calculate|compute|what\s+is|determine|get)\s+(?:the\s+)?area\b/i.test(cleanWithoutAreaBoilerplate) || /\barea\s*(?:=|is|\?)\b/i.test(cleanWithoutAreaBoilerplate));
+    const isHypotenuse = (/\b(?:find|calculate|compute|what\s+is|determine|get|length\s+of)\s+(?:the\s+)?hypotenuse\b/i.test(cleanWithoutAreaBoilerplate) || /\bhypotenuse\s*(?:=|is|\?)\b/i.test(cleanWithoutAreaBoilerplate));
     const expectedVal = isPerimeter ? (a + b + c) : (isArea ? (0.5 * a * b) : c);
     const formattedVal = isPerimeter ? `perimeter = ${expectedVal}` : (isArea ? `area = ${expectedVal}` : `c = ${c}`);
 
@@ -2071,149 +1951,20 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
     }
   }
 
-  // 2b. Binomial Product Expansion (e.g. "(2x+4)(3+5x)", "expand (x+3)(x-5)", "(2x-1)(4x+3)")
-  const binomMatch = clean.match(/^(?:(?:expand|multiply|simplify|calculate|evaluate|what\s+is|compute)\s+)?\(\s*([-+]?\d*(?:\.\d+)?)\s*([a-zA-Z])\s*([-+])\s*(\d+(?:\.\d+)?)\s*\)\s*\*?\s*\(\s*(?:([-+]?\d*(?:\.\d+)?)\s*([a-zA-Z])\s*([-+])\s*(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s*([-+])\s*(\d*(?:\.\d+)?)\s*([a-zA-Z]))\s*\)$/i);
-  if (binomMatch) {
-    const aRaw = binomMatch[1];
-    const a = aRaw === '' || aRaw === '+' ? 1 : (aRaw === '-' ? -1 : parseFloat(aRaw));
-    const v1 = binomMatch[2];
-    const bSign = binomMatch[3] === '-' ? -1 : 1;
-    const b = bSign * parseFloat(binomMatch[4]);
-
-    let c = 0, d = 0, v2 = v1;
-    if (binomMatch[5] !== undefined) {
-      const cRaw = binomMatch[5];
-      c = cRaw === '' || cRaw === '+' ? 1 : (cRaw === '-' ? -1 : parseFloat(cRaw));
-      v2 = binomMatch[6];
-      const dSign = binomMatch[7] === '-' ? -1 : 1;
-      d = dSign * parseFloat(binomMatch[8]);
-    } else {
-      d = parseFloat(binomMatch[9]);
-      const cSign = binomMatch[10] === '-' ? -1 : 1;
-      const cRaw = binomMatch[11];
-      c = (cRaw === '' || cRaw === undefined) ? cSign * 1 : cSign * parseFloat(cRaw);
-      v2 = binomMatch[12];
-    }
-
-    if (v1.toLowerCase() === v2.toLowerCase()) {
-      const v = v1;
-      const quadCoeff = a * c;
-      const linCoeff = a * d + b * c;
-      const constCoeff = b * d;
-
-      let polyStr = '';
-      if (quadCoeff === 1) polyStr += `${v}^2`;
-      else if (quadCoeff === -1) polyStr += `-${v}^2`;
-      else if (quadCoeff !== 0) polyStr += `${quadCoeff}${v}^2`;
-
-      if (linCoeff > 0) polyStr += (polyStr ? ' + ' : '') + (linCoeff === 1 ? v : `${linCoeff}${v}`);
-      else if (linCoeff < 0) polyStr += (polyStr ? ' - ' : '-') + (Math.abs(linCoeff) === 1 ? v : `${Math.abs(linCoeff)}${v}`);
-
-      if (constCoeff > 0) polyStr += (polyStr ? ' + ' : '') + constCoeff;
-      else if (constCoeff < 0) polyStr += (polyStr ? ' - ' : '-') + Math.abs(constCoeff);
-      if (!polyStr) polyStr = '0';
-
-      return {
-        type: 'ALGEBRA_SIMPLIFICATION',
-        expression: clean,
-        result: polyStr,
-        solution: polyStr,
-        formatted: polyStr,
-        steps: [
-          `Use the FOIL method (First, Outside, Inside, Last): $(${a !== 1 ? a : ''}${v})(${c !== 1 ? c : ''}${v}) + (${a !== 1 ? a : ''}${v})(${d}) + (${b})(${c !== 1 ? c : ''}${v}) + (${b})(${d})$`,
-          `Multiply each term: $${quadCoeff}${v}^2 + ${a * d}${v} + ${b * c}${v} + ${constCoeff}$`,
-          `Combine like terms: $${polyStr}$`
-        ]
-      };
-    }
-  }
-
-  // 2c. Quadratic Factoring (e.g. "2x^2+14x+12", "x^2-5x+6", "factor 2x^2+14x+12")
-  const quadFactorMatch = clean.match(/^(?:(?:factor|simplify)\s+)?([-+]?\d*(?:\.\d+)?)\s*([a-zA-Z])\^2\s*([-+])\s*(\d*(?:\.\d+)?)\s*\2\s*([-+])\s*(\d+(?:\.\d+)?)$/i);
-  if (quadFactorMatch) {
-    const aRaw = quadFactorMatch[1];
-    const a = aRaw === '' || aRaw === '+' ? 1 : (aRaw === '-' ? -1 : parseFloat(aRaw));
-    const v = quadFactorMatch[2];
-    const bSign = quadFactorMatch[3] === '-' ? -1 : 1;
-    const bRaw = quadFactorMatch[4];
-    const b = (bRaw === '' || bRaw === undefined) ? bSign * 1 : bSign * parseFloat(bRaw);
-    const cSign = quadFactorMatch[5] === '-' ? -1 : 1;
-    const c = cSign * parseFloat(quadFactorMatch[6]);
-
-    if (a !== 0) {
-      const disc = b * b - 4 * a * c;
-      if (disc >= 0) {
-        const sqrtD = Math.sqrt(disc);
-        if (Math.round(sqrtD) === sqrtD) {
-          const r1 = (-b - sqrtD) / (2 * a);
-          const r2 = (-b + sqrtD) / (2 * a);
-
-          function gcdInt(x, y) {
-            x = Math.abs(x); y = Math.abs(y);
-            while (y) { const t = y; y = x % y; x = t; }
-            return x;
-          }
-
-          const g = gcdInt(gcdInt(Math.round(a), Math.round(b)), Math.round(c));
-          const lead = a < 0 ? -g : g;
-          const aRed = a / lead;
-          const bRed = b / lead;
-          const cRed = c / lead;
-
-          const minR = Math.min(r1, r2);
-          const maxR = Math.max(r1, r2);
-
-          function factorTerm(root) {
-            const sign = root <= 0 ? '+' : '-';
-            const val = Math.abs(root);
-            return `${v} ${sign} ${val}`;
-          }
-
-          let factStr = '';
-          if (lead !== 1) factStr += `${lead}`;
-          factStr += `(${factorTerm(maxR)})(${factorTerm(minR)})`;
-
-          return {
-            type: 'ALGEBRA_SIMPLIFICATION',
-            expression: clean,
-            result: factStr,
-            solution: factStr,
-            formatted: factStr,
-            steps: [
-              lead !== 1 ? `Factor out common coefficient ${lead}: $${lead}(${aRed !== 1 ? aRed : ''}${v}^2 ${bRed >= 0 ? '+' : '-'} ${Math.abs(bRed)}${v} ${cRed >= 0 ? '+' : '-'} ${Math.abs(cRed)})$` : null,
-              `Find two numbers that multiply to $${aRed * cRed}$ and add to $${bRed}$: $${-minR}$ and $${-maxR}$`,
-              `Factor into binomials: $${factStr}$`
-            ].filter(Boolean)
-          };
-        }
-      }
-    }
-  }
-
   // 3. Linear & Quadratic Equation Solving (e.g. "solve 3x + 5 = 20", "solve for x: x^2 - 5x + 6 = 0", "Pythos, solve this equation: 2x + 7 = 15", "Okay, now solve x^2 - 5x + 6 = 0", "Find root for x: 7x + 44 = 9")
-  const eqMatch = clean.match(/^(?:(?:(?:okay|ok|now|pythos|please|kindly|actually|wait|sorry|no)[,\s]+)*(?:solve|find|determine|calculate|what(?:'s|s|\s+is)|whts|(?:the\s+)?equation\s+(?:was|is)|i\s+meant)(?:\s+[a-zA-Z]\s+in\b)?(?:\s+(?:all\s+)?(?:the\s+)?(?:real\s+)?(?:root|roots|solution|solutions|value(?:\s+of)?))?(?:\s+(?:this|the)?\s*equation)?(?:\s+(?:for|in|of|to)(?:\s+[a-zA-Z])?)?[:\s]+)?([a-zA-Z0-9.\s*+^/()\-]+=[a-zA-Z0-9.\s*+^/()\-]+)\s*\??$/i) ||
-                  clean.match(/^(?:(?:(?:okay|ok|now|pythos|please|kindly|actually|wait|sorry|no)[,\s]+)*(?:solve|find|determine|calculate|what(?:'s|s|\s+is)|whts|(?:the\s+)?equation\s+(?:was|is)|i\s+meant)(?:\s+[a-zA-Z]\s+in\b)?(?:\s+(?:all\s+)?(?:the\s+)?(?:real\s+)?(?:root|roots|solution|solutions|value(?:\s+of)?))?(?:\s+(?:this|the)?\s*equation)?(?:\s+(?:for|in|of|to)(?:\s+[a-zA-Z])?)?[:\s]+)?(sqrt\([a-zA-Z0-9.\s*+^/()\-]+\)\s*=\s*[a-zA-Z0-9.\s*+^/()\-]+)\s*\??$/i);
+  const eqMatch = clean.match(/^(?:(?:(?:okay|ok|now|pythos|please|kindly|actually|wait|sorry|no)[,\s]+)*(?:solve|find|determine|calculate|(?:the\s+)?equation\s+(?:was|is)|i\s+meant)(?:\s+[a-zA-Z]\s+in\b)?(?:\s+(?:all\s+)?(?:the\s+)?(?:real\s+)?(?:root|roots|solution|solutions|value(?:\s+of)?))?(?:\s+(?:this|the)?\s*equation)?(?:\s+(?:for|in|of|to)(?:\s+[a-zA-Z])?)?[:\s]+)?([a-zA-Z0-9.\s*+^/()\-]+=[a-zA-Z0-9.\s*+^/()\-]+)$/i) ||
+                  clean.match(/^(?:(?:(?:okay|ok|now|pythos|please|kindly|actually|wait|sorry|no)[,\s]+)*(?:solve|find|determine|calculate|(?:the\s+)?equation\s+(?:was|is)|i\s+meant)(?:\s+[a-zA-Z]\s+in\b)?(?:\s+(?:all\s+)?(?:the\s+)?(?:real\s+)?(?:root|roots|solution|solutions|value(?:\s+of)?))?(?:\s+(?:this|the)?\s*equation)?(?:\s+(?:for|in|of|to)(?:\s+[a-zA-Z])?)?[:\s]+)?(sqrt\([a-zA-Z0-9.\s*+^/()\-]+\)\s*=\s*[a-zA-Z0-9.\s*+^/()\-]+)$/i);
   if (eqMatch) {
     const rawEq = eqMatch[1].trim().replace(/\+\s*-/g, '- ');
 
-    // If an active problem exists in prior turns and student did not explicitly command "solve...", defer to contextual student work evaluation when rawEq is a step/candidate of that active problem
-    const priorHistory = Array.isArray(conversationHistory) ? conversationHistory.slice(0, -1) : [];
-    const hasPriorAssistant = priorHistory.some(m => m && m.role === 'assistant');
-    const hasExplicitSolveDirective = /^(?:(?:okay|ok|now|pythos|please|kindly|hey|hi|hello|can\s+you|could\s+you|actually|wait|sorry|no)[,\s]+)*(?:solve|find|calculate|determine|what(?:'s|s|\s+is)|whts|(?:the\s+)?equation\s+(?:was|is)|i\s+meant)\b/i.test(clean);
-    if (!hasExplicitSolveDirective && hasPriorAssistant) {
+    // If an active problem exists and student did not explicitly command "solve...", defer to contextual student work evaluation
+    const hasExplicitSolveDirective = /^(?:solve|find\s+(?:the\s+)?(?:root|roots|solution)|calculate|determine|(?:actually|wait|sorry)[,\s]+(?:the\s+)?equation\s+(?:was|is))\b/i.test(clean);
+    if (!hasExplicitSolveDirective && conversationHistory && conversationHistory.length > 0) {
       try {
         const { extractActiveProblemState } = require('./contextManager');
-        const { evaluateLinearEquationStep, evaluateEquationCandidate } = require('./studentWorkEvaluator');
-        const state = extractActiveProblemState(priorHistory);
-        if (state && state.active && state.active.activeExpression && !state.active.isCompleted && state.active.domain !== 'ARITHMETIC') {
-          const activeEq = state.active.activeExpression;
-          const isStepOrCandidate = Boolean(
-            evaluateLinearEquationStep(rawEq, activeEq) ||
-            evaluateEquationCandidate(rawEq, activeEq)
-          );
-          if (isStepOrCandidate || state.active.isPracticeProblem) {
-            return null;
-          }
+        const state = extractActiveProblemState(conversationHistory);
+        if (state && state.active && state.active.activeExpression) {
+          return null;
         }
       } catch (_) {}
     }
@@ -2311,20 +2062,6 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
             result: solStr,
             formatted: `${v} = ${solStr}`
           };
-        } else {
-          const realPart = Math.round((-b / (2 * a)) * 1e6) / 1e6;
-          const imagPart = Math.round((Math.sqrt(-disc) / (2 * Math.abs(a))) * 1e6) / 1e6;
-          const imagStr = imagPart === 1 ? 'i' : `${imagPart}i`;
-          const solStr = realPart === 0 ? `-${imagStr}, ${imagStr}` : `${realPart} - ${imagStr}, ${realPart} + ${imagStr}`;
-          const formatted = realPart === 0 ? `${v} = \\pm ${imagStr}` : `${v} = ${realPart} \\pm ${imagStr}`;
-          return {
-            type: 'ALGEBRA_QUADRATIC_SOLVE',
-            equation: rawEq,
-            variable: v,
-            solution: solStr,
-            result: solStr,
-            formatted
-          };
         }
       }
     }
@@ -2344,11 +2081,6 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
       if (coeff !== 0 && !isNaN(rhsVal)) {
         const root = (rhsVal - constVal) / coeff;
         const cleanRoot = root % 1 === 0 ? root : parseFloat(root.toFixed(6));
-        const linearSteps = [
-          inferredRhsZero ? `Interpreted expression as equating to zero: $${rawEq}$` : null,
-          constVal !== 0 ? `Subtract ${constVal > 0 ? constVal : `(${constVal})`} from both sides: $${coeff === 1 ? varName : (coeff === -1 ? `-${varName}` : `${coeff}${varName}`)} = ${rhsVal - constVal}$` : null,
-          coeff !== 1 ? `Divide both sides by ${coeff}: $${varName} = ${cleanRoot}$` : null
-        ].filter(Boolean);
         return {
           type: 'ALGEBRA_LINEAR_SOLVE',
           equation: rawEq,
@@ -2356,8 +2088,10 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
           solution: cleanRoot,
           result: cleanRoot,
           formatted: `${varName} = ${cleanRoot}`,
-          inferredRhsZero: Boolean(inferredRhsZero),
-          steps: linearSteps
+          steps: [
+            constVal !== 0 ? `Subtract ${constVal > 0 ? constVal : `(${constVal})`} from both sides: $${coeff === 1 ? varName : (coeff === -1 ? `-${varName}` : `${coeff}${varName}`)} = ${rhsVal - constVal}$` : null,
+            coeff !== 1 ? `Divide both sides by ${coeff}: $${varName} = ${cleanRoot}$` : null
+          ].filter(Boolean)
         };
       }
     }
@@ -2412,16 +2146,11 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
                 };
               } else {
                 return {
-                  type: 'ALGEBRA_LINEAR_SOLVE',
-                  equation: rawEq,
-                  variable: v,
-                  solution: 'No solution',
-                  result: 'No solution',
-                  formatted: `\\text{No solution (Inconsistent equation: } 0 = ${B.toFixed(4)}\\text{)}`,
-                  steps: [
-                    `Simplifying both sides yields: $0 = ${B.toFixed(4)}$`,
-                    `Since this statement is false for all values of $${v}$, there is no solution.`
-                  ]
+                  type: 'ALGEBRA_CONTRADICTION',
+                  result: 'IMPOSSIBLE',
+                  solution: 'IMPOSSIBLE',
+                  formatted: `Contradiction: Equation simplifies to 0 = ${B.toFixed(4)}, which has no solution.`,
+                  reason: 'Contradiction: Inconsistent linear equation (no solution).'
                 };
               }
             }
@@ -2572,35 +2301,6 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
       solution: simpStr,
       formatted: simpStr
     };
-  }
-
-  // 3f. Polynomial Like-Term Simplification (e.g. "4x^2+12+2", "simplify 4x^2+12+2", "3x + 5 - 2", "2x^2 + 4 + 6")
-  const polySimpMatch = clean.match(/^(?:simplify\s+)?([a-zA-Z0-9^+\-*/().\s]+)$/i);
-  if (polySimpMatch && !clean.includes('=') && !clean.includes('?') && /[a-zA-Z]/.test(clean) && /[+\-*]/.test(clean)) {
-    const rawExpr = polySimpMatch[1].trim();
-    if (!/[a-zA-Z]{2,}/.test(rawExpr) && /^[a-zA-Z0-9^+\-*/().\s]+$/.test(rawExpr)) {
-      try {
-        const simp = math.rationalize(rawExpr);
-        const simpStr = simp.toString();
-        const normRaw = rawExpr.replace(/\s+/g, '');
-        const normSimp = simpStr.replace(/\s+/g, '').replace(/\*/g, '');
-        if (simpStr && normRaw !== normSimp) {
-          const prettySimp = simpStr.replace(/\s*\*\s*/g, '').replace(/\s*\^\s*/g, '^').replace(/\s+/g, ' ').trim();
-          return {
-            type: 'ALGEBRA_SIMPLIFICATION',
-            original: rawExpr,
-            expression: rawExpr,
-            result: prettySimp,
-            solution: prettySimp,
-            formatted: prettySimp,
-            steps: [
-              `Identify combinable terms in $${rawExpr}$:`,
-              `Combine terms to simplify: $${prettySimp}$`
-            ]
-          };
-        }
-      } catch (_) {}
-    }
   }
 
   const evalAtMatch = clean.match(/^evaluate\s+(.+?)\s+at\s+([a-zA-Z])\s*=\s*([-+]?\d+(?:\.\d+)?)$/i);
@@ -2874,13 +2574,12 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   }
 
   // 4a. Active Problem Context Check:
-  // If an active mathematical problem exists in prior turns, do NOT silently hijack short student work
+  // If an active mathematical problem exists, do NOT silently hijack short student work
   // (e.g. 7/3, (7/3)pi, 10, 15) as standalone arithmetic unless explicitly directed.
-  const priorHistory = Array.isArray(conversationHistory) ? conversationHistory.slice(0, -1) : [];
-  if (priorHistory.length > 0 && priorHistory.some(m => m && m.role === 'assistant')) {
+  if (conversationHistory && conversationHistory.length > 0) {
     try {
       const { extractActiveProblemState } = require('./contextManager');
-      const state = extractActiveProblemState(priorHistory);
+      const state = extractActiveProblemState(conversationHistory);
       if (state && state.active) {
         // Contextual Dimensional Check:
         // If the active problem has mismatched units (e.g. 6 m and 700 cm), raw division is invalid
@@ -2895,12 +2594,11 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
         }
 
         // Active Problem Context Check:
-        // If an uncompleted non-arithmetic active problem exists in the conversation (equation like 42pi/18 = 2pi, or expression like 23pi/7),
+        // If an active problem exists in the conversation (equation like 42pi/18 = 2pi, or expression like 23pi/7),
         // terse arithmetic like 7/3 or (7/3)pi or candidate values are student work/inquiry, not standalone calculation
-        if (state.active.activeExpression && !state.active.isCompleted && state.active.domain !== 'ARITHMETIC') {
-          const isExplicitStandalone = /^(?:(?:just\s+(?:give\s+me|tell\s+me)\s+(?:the\s+answer)?|(?:don't|do not|without)\s+(?:check(?:ing)?|verify(?:ing)?)(?:\s+(?:it|this|anything))?)[,\s:]*)*(?:pythos[,\s]+)?(?:(?:please|kindly)\s+)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?)?(?:help\s+(?:me\s+)?(?:to\s+)?)?(?:calculate|compute|what(?:'s|s|\s+is|\s+would\s+be)|whts|evaluate|how\s+much\s+is|find(?:\s+the\s+value\s+of)?|new\s+problem)[:\s]/i.test(clean);
-          const hasLatexFrac = /\\(?:d|t)?frac/i.test(userText);
-          if (!isExplicitStandalone && !hasLatexFrac) {
+        if (state.active.activeExpression) {
+          const isExplicitStandalone = isExplicitStandaloneCalc || /^(?:calculate|compute|what\s+is|evaluate|how\s+much\s+is|find\s+the\s+value\s+of|new\s+problem)[:\s]/i.test(clean);
+          if (!isExplicitStandalone) {
             return null;
           }
         }
@@ -2990,38 +2688,6 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
  */
 function buildDeterministicResponse(intent) {
   if (!intent) return null;
-  if (intent.isCoordinateArea) {
-    const pts = intent.points || (intent.vertices ? Object.entries(intent.vertices).map(([label, [x, y]]) => ({ label, x, y })) : null);
-    const [A, B, C] = pts;
-
-    if (intent.isDegenerate) {
-      return [
-        '📐 **Coordinate Geometry: Collinear Vertices**',
-        '',
-        `The triangle with vertices $${A.label}(${A.x}, ${A.y})$, $${B.label}(${B.x}, ${B.y})$, and $${C.label}(${C.x}, ${C.y})$ has collinear points.`,
-        '',
-        '### Area Calculation via Shoelace Formula:',
-        `$$\\text{Area} = \\frac{1}{2} |x_${A.label}(y_${B.label} - y_${C.label}) + x_${B.label}(y_${C.label} - y_${A.label}) + x_${C.label}(y_${A.label} - y_${B.label})| = 0$$`,
-        '',
-        '$$\\boxed{0}$$'
-      ].join('\n');
-    }
-
-    const dispVal = intent.formatted || intent.result;
-    return [
-      '📐 **Coordinate Geometry: Triangle Area via Shoelace Formula**',
-      '',
-      `Given vertices $${A.label}(${A.x}, ${A.y})$, $${B.label}(${B.x}, ${B.y})$, and $${C.label}(${C.x}, ${C.y})$:`,
-      '',
-      '### Formula:',
-      `$$\\text{Area} = \\frac{1}{2} |x_${A.label}(y_${B.label} - y_${C.label}) + x_${B.label}(y_${C.label} - y_${A.label}) + x_${C.label}(y_${A.label} - y_${B.label})|$$`,
-      '',
-      '### Calculation:',
-      `$$\\text{Area} = \\frac{1}{2} |(${A.x})(${B.y} - (${C.y})) + (${B.x})(${C.y} - (${A.y})) + (${C.x})(${A.y} - (${B.y}))| = ${dispVal}$$`,
-      '',
-      `$$\\boxed{${dispVal}}$$`
-    ].join('\n');
-  }
 
   if (intent.type === 'ANSWER_FORMAT_MISMATCH') {
     return intent.message;
@@ -3373,9 +3039,7 @@ If you ever want a tool that isn't here yet, just hit the **🚩 Report** button
   }
 
   if (intent.type === 'ALGEBRA_LINEAR_SOLVE') {
-    let out = intent.inferredRhsZero
-      ? `✅ Interpreted expression as equating to zero to solve for $${intent.variable}$ ($${intent.equation}$):\n\n`
-      : `✅ Here is the step-by-step solution for $${intent.equation}$:\n\n`;
+    let out = `✅ Here is the step-by-step solution for $${intent.equation}$:\n\n`;
     intent.steps.forEach((s, idx) => {
       out += `${idx + 1}. ${s}\n`;
     });
@@ -3409,14 +3073,7 @@ If you ever want a tool that isn't here yet, just hit the **🚩 Report** button
   }
 
   if (intent.type === 'ALGEBRA_SIMPLIFICATION') {
-    let stepsText = '';
-    if (intent.steps && intent.steps.length > 0) {
-      stepsText = intent.steps.map((s, idx) => `${idx + 1}. ${s}`).join('\n') + '\n\n';
-    }
-    const eqDisplay = intent.expression && intent.formatted && intent.expression !== intent.formatted
-      ? `${intent.expression} = ${intent.formatted}`
-      : (intent.formatted || intent.expression);
-    return `✅ Here is the algebraic simplification for $${intent.expression || intent.formatted}$:\n\n${stepsText}$$\n${eqDisplay}\n$$\n\n\\boxed{${intent.solution || intent.formatted}}`;
+    return `✅ Here is the algebraic simplification:\n\n$$\n${intent.formatted}\n$$\n\n\\boxed{${intent.formatted}}`;
   }
 
   if (intent.type === 'CALCULUS_DERIVATIVE') {

@@ -22,14 +22,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="assets/favicon.png">
-  <title>Pythos Release History &amp; Changelog | v1.9.12</title>
+  <title>Pythos Release History &amp; Changelog | v1.8.38</title>
   <meta name="description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://pythos.lanzar.me/changelog.html">
 
   <!-- OPEN GRAPH -->
-  <meta property="og:title" content="Pythos Release History &amp; Changelog | v1.9.12">
+  <meta property="og:title" content="Pythos Release History &amp; Changelog | v1.8.38">
   <meta property="og:description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta property="og:url" content="https://pythos.lanzar.me/changelog.html">
   <meta property="og:type" content="article">
@@ -41,7 +41,7 @@
 
   <!-- TWITTER CARD -->
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Pythos Release History &amp; Changelog | v1.9.12">
+  <meta name="twitter:title" content="Pythos Release History &amp; Changelog | v1.8.38">
   <meta name="twitter:description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="twitter:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
 
@@ -532,7 +532,7 @@
         <a href="nonprofit.html" class="nav-link">Mission &amp; Roadmap</a>
         <a href="license.html" class="nav-link">License</a>
         <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" class="nav-link">Facebook</a>
-        <a href="changelog.html#pythos-1-9-12" class="nav-link active" aria-current="page">v1.9.12</a>
+        <a href="changelog.html#pythos-1-8-38" class="nav-link active" aria-current="page">v1.8.38</a>
       </div>
     </div>
 
@@ -557,536 +557,17 @@
       <p>Authoritative release notes, verification engine milestones, and mathematical system updates.</p>
     </header>
 
-                                                                                                                                                                                    <!-- ==================== RELEASE 1.9.12 ==================== -->
-      <article class="release-card" id="pythos-1-9-12">
-        <div class="release-header">
-          <div class="release-title-wrap">
-            <h2 class="release-version">Pythos 1.9.12</h2>
-            <span class="release-badge">Latest Release</span>
-          </div>
-          <time class="release-date" datetime="2026-10-22">October 22, 2026</time>
-        </div>
-
-        <div class="section-group">
-          <div class="section-header">
-            <span class="badge-added">Enhancement</span>
-            <span class="section-title">Multi-Turn Self-Blocking Elimination, Display-Math Candidate Isolation, Word &amp; LaTeX Fraction Normalization &amp; Audit Badge Guard</span>
-          </div>
-          <ul class="change-list">
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Prior-History Active State Isolation in Deterministic Router:</strong> Fixed <code>analyzeDeterministicIntent</code> in <code>deterministicRouter.js</code> to pass <code>priorHistory = conversationHistory.slice(0, -1)</code> to <code>extractActiveProblemState</code>, preventing bare fractions (<code>\frac{7}{8}</code>) and bare equations (<code>3x+6=22</code>) from self-blocking against their own current turn.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Bottom-Up Display Math Candidate Extraction:</strong> Updated <code>extractCandidateAnswer</code> in <code>verificationBridge.js</code> to scan display blocks from bottom to top, skip unisolated multi-term problem statements (such as <code>$$3x + 6 = 22$$</code>), strip trailing parenthetical approximations, and extract LaTeX fraction roots (<code>\frac{16}{3}</code>).</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Spoken Operator &amp; LaTeX Fraction Normalization:</strong> Normalized LaTeX fractions (<code>\frac{a}{b}</code>) and spoken arithmetic operators (<code>multiplied by</code>, <code>divided by</code>, <code>added to</code>, <code>subtracted from</code>, <code>times</code>, <code>plus</code>, <code>minus</code>) across <code>contextManager.js</code>, <code>problemClassifier.js</code>, <code>deterministicRouter.js</code>, and <code>verificationBridge.js</code>.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Withheld Response Audit Badge Guard:</strong> Guarded the <code>🛡️ Verified (...)</code> derivation audit button in <code>app.js</code> with <code>!isWithheld &amp;&amp; verifiedStepCount &gt; 0</code> so withheld fallback messages never display a verified badge.</div>
-            </li>
-          </ul>
-        </div>
-      </article>
-
-                                                                                                                                                                                    <!-- ==================== RELEASE 1.9.11 ==================== -->
-      <article class="release-card" id="pythos-1-9-11">
-        <div class="release-header">
-          <div class="release-title-wrap">
-            <h2 class="release-version">Pythos 1.9.11</h2>
-          </div>
-          <time class="release-date" datetime="2026-10-21">October 21, 2026</time>
-        </div>
-
-        <div class="section-group">
-          <div class="section-header">
-            <span class="badge-added">Enhancement</span>
-            <span class="section-title">Multi-Turn Colloquial Arithmetic Routing, Active Problem State Archiving &amp; Inline LaTeX Verification</span>
-          </div>
-          <ul class="change-list">
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Colloquial Arithmetic Classification:</strong> Updated <code>classifyProblem</code> in <code>problemClassifier.js</code> to normalize colloquial question prefixes (<code>whats</code>, <code>what's</code>, <code>whts</code>) and trailing punctuation (<code>?</code>, <code>!</code>) when evaluating <code>isPureArithmetic</code>, preventing calculation questions like <code>"whats 79 * 2?"</code> from misclassifying as <code>CONCEPTUAL</code>.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Multi-Turn Active State Archiving:</strong> Updated <code>extractActiveProblemState</code> in <code>contextManager.js</code> to strip calculation/question prefixes and consult <code>isIndependentProblem</code>, ensuring independent multi-turn math questions archive prior active problems instead of retaining Turn 1's <code>activeExpression</code>.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Deterministic Router Standalone Directives:</strong> Expanded <code>extractArithmeticExpressions</code> and <code>analyzeDeterministicIntent</code> in <code>deterministicRouter.js</code> to recognize <code>whats</code>, <code>what's</code>, and <code>whts</code> as explicit standalone calculation directives even when a prior active problem exists in conversation history.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Inline LaTeX Claim &amp; Candidate Extraction:</strong> Updated <code>extractClaims</code>, <code>extractCandidateAnswer</code>, and <code>evaluateCandidateDelivery</code> in <code>verificationBridge.js</code> to strip inline LaTeX delimiters (<code>\(</code>, <code>\)</code>, <code>\[</code>, <code>\]</code>), extract unboxed inline calculation results (e.g. <code>\(79 \times 2 = 158\)</code>), and normalize colloquial prefixes in the independent Math.js fallback.</div>
-            </li>
-          </ul>
-        </div>
-      </article>
-
-                                                                                                                                                                                    <!-- ==================== RELEASE 1.9.10 ==================== -->
-      <article class="release-card" id="pythos-1-9-10">
-        <div class="release-header">
-          <div class="release-title-wrap">
-            <h2 class="release-version">Pythos 1.9.10</h2>
-          </div>
-          <time class="release-date" datetime="2026-10-21">October 21, 2026</time>
-        </div>
-
-        <div class="section-group">
-          <div class="section-header">
-            <span class="badge-added">Enhancement</span>
-            <span class="section-title">Multi-Turn Context Isolation, LaTeX Fraction &amp; Radical Verification &amp; Conditional Equation Guardrails</span>
-          </div>
-          <ul class="change-list">
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Multi-Turn Context Isolation:</strong> Expanded <code>isIndependentProblem</code> and <code>buildEffectivePrompt</code> in <code>contextManager.js</code> to detect standalone arithmetic, percentage/calculation queries, prose-prefixed equations, and self-contained algebra/calculus directives across multi-turn conversations, preventing earlier turns from poisoning active prompt verification.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Boxed LaTeX Fraction &amp; Radical Root Verification:</strong> Updated <code>parseFracOrFloat</code>, <code>parseNumOrFrac</code>, and Pattern 5c in <code>verificationBridge.js</code> to normalize <code>\frac{a}{b}</code> prior to brace stripping and evaluate radical expressions (<code>\sqrt{...}</code>, <code>\pm\sqrt{n}</code>), eliminating false withholdings on fractional and irrational roots.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Conditional Equation &amp; Parameter Guardrails:</strong> Prevented unverified <code>conditional_equation</code> steps from self-certifying candidate answers on equation-solving queries, added scalar parameter substitution in Pattern 5c, and isolated same-line summary <code>\boxed{...}</code> blocks from inline equation RHS parsing.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Deterministic Router &amp; CAS Timeout Resilience:</strong> Enabled conversational prefixes in <code>hasExplicitSolveDirective</code> (<code>deterministicRouter.js</code>) after prior active expressions and updated SymPy daemon timeouts (<code>CAS_TIMEOUT</code>) to return <code>TIMEOUT</code> status instead of triggering false contradiction withholding.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Audit Regression Suite:</strong> Added <code>test-withholding-audit-regressions.js</code> with 15 end-to-end tests covering multi-turn context transitions, LaTeX fractions, radical roots, and false-acceptance prevention.</div>
-            </li>
-          </ul>
-        </div>
-      </article>
-
-                                                                                                                                                                                    <!-- ==================== RELEASE 1.9.9 ==================== -->
-      <article class="release-card" id="pythos-1-9-9">
-        <div class="release-header">
-          <div class="release-title-wrap">
-            <h2 class="release-version">Pythos 1.9.9</h2>
-          </div>
-          <time class="release-date" datetime="2026-10-21">October 21, 2026</time>
-        </div>
-
-        <div class="section-group">
-          <div class="section-header">
-            <span class="badge-added">Enhancement</span>
-            <span class="section-title">Conversational Correction Routing, Mixed-Intent Equation Validation &amp; Verification Status Semantics</span>
-          </div>
-          <ul class="change-list">
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>ASCII Emoticon Sanitization:</strong> Sanitized ASCII emoticons containing equality symbols (such as <code>=P</code>, <code>=^.^=</code>, and <code>=D</code>) in <code>problemClassifier.js</code> and <code>verificationBridge.js</code> prior to equation parsing, eliminating spurious algebraic classification on creator attribution and conversational responses.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Mixed-Intent Directive Prioritization:</strong> Re-architected <code>requiresCandidateAnswer</code> to enforce strict evaluation order: calculation directives (e.g., <em>solve</em>, <em>calculate</em>, <em>simplify</em>) are evaluated at Step 1, structural equation matching at Step 2, and conversational exemptions apply only when no mathematical problem exists. Mixed-intent queries (e.g., <em>"Haha, can you solve 2x + 3 = 11 for me?"</em> or <em>"Jon is LANZAR, and solve 2x = 8."</em>) strictly mandate fail-closed verification.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Verification Status Semantics &amp; Badge Suppression:</strong> Introduced transparent <code>NOT_APPLICABLE</code> status (<code>verificationLevel: "not_applicable"</code>) for non-calculational conversational and conceptual turns in <code>verificationBridge.js</code>, updating <code>app.js</code> to suppress misleading "✓ Verified" badges on conversational exchanges.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Context Manager Subject &amp; Reference Corrections:</strong> Enhanced <code>contextManager.js</code> to recognize conversational subject corrections (e.g., <em>"I meant to say identities"</em>), archiving previous active problems and updating prompts cleanly without phantom equation extraction.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>KaTeX Formatting Preservation:</strong> Hardened frontend regex patterns in <code>app.js</code> to wrap unwrapped half-angle radicals ($\pm\sqrt{\dots}$) and tangent identities into native KaTeX math blocks without splitting expressions across spans.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Automated Regression Suite:</strong> Added <code>test-conversational-correction.js</code> with 25 comprehensive tests validating mixed-intent combinations, adversarial equality prose, status semantics, and full end-to-end multi-turn reproduction.</div>
-            </li>
-          </ul>
-        </div>
-      </article>
-
-                                                                                                                                                                                    <!-- ==================== RELEASE 1.9.8 ==================== -->
-      <article class="release-card" id="pythos-1-9-8">
-        <div class="release-header">
-          <div class="release-title-wrap">
-            <h2 class="release-version">Pythos 1.9.8</h2>
-          </div>
-          <time class="release-date" datetime="2026-10-21">October 21, 2026</time>
-        </div>
-
-        <div class="section-group">
-          <div class="section-header">
-            <span class="badge-added">Enhancement</span>
-            <span class="section-title">Trigonometry &amp; Kinematics Verification Hardening, Elevation-Aware Trajectories &amp; Domain Guardrails</span>
-          </div>
-          <ul class="change-list">
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Elevation-Aware Projectile Kinematics:</strong> Implemented deterministic 2D projectile motion verification in <code>physics_verifier.py</code> supporting launch from elevation ($h_0 \ge 0$), degree and radian conventions, exact quadratic root-finding for flight time ($y(t) = h_0 + v_{0y}t - \frac{1}{2}gt^2 = 0$), horizontal range ($R = v_{0x} t_{\text{flight}}$), and peak altitude above ground ($h_{\max} = h_0 + \frac{v_{0y}^2}{2g}$).</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Preflight Physical Fact Extraction:</strong> Upgraded <code>deterministicRouter.js</code> (Section 6) to extract elevation and cliff parameters from problem prompts, grounding LLM reasoning with exact kinematic preflight facts.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Fail-Closed Physical Delivery Safeguards:</strong> Added Gate 10b to <code>verificationBridge.js</code> to cross-check claimed projectile flight times, ranges, and maximum heights against independent deterministic kinematics, rejecting and withholding inaccurate prose even when valid kinematic formulas are quoted.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Trigonometric Equation Real-Domain Feasibility:</strong> Hardened <code>algebra_verifier.py</code> with real domain constraints for trigonometric equations ($\sin, \cos \in [-1, 1]$ and $|\sec|, |\csc| \ge 1$). Equations without real solutions (such as $\sin x = 3/2$ on $[0, 2\pi)$) are certified as having no real solutions, and candidate answers asserting real roots are strictly withheld with explicit citations of the real range of sine/cosine.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Practice Problem Generation Bounds:</strong> Injected range-feasibility validation into <code>practiceProblemGenerator.js</code> to ensure impossible trigonometric equations are never generated for student practice.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Vector Notation &amp; KaTeX Formatting Integrity:</strong> Eliminated formula character encoding corruptions in system prompts and hardened frontend regular expressions in <code>app.js</code> to prevent radical expressions, vector norms, and vector assignments from splitting across spans.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Three-State Verification Transparency:</strong> Updated UI status badges in <code>app.js</code> to transparently display <code>Partially Verified</code> and <code>Unverified</code> states, ensuring unverified numerical calculations never falsely display full verification badges.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Automated Regression Suite:</strong> Added permanent regression suite <code>test-trig-physics-verification.js</code> with 22 targeted tests covering exact projectile motion, rejection of invalid values, degree/radian consistency, real trigonometric feasibility, KaTeX formatting, and verification level fidelity.</div>
-            </li>
-          </ul>
-        </div>
-      </article>
-
-                                                                                                                                                                                    <!-- ==================== RELEASE 1.9.7 ==================== -->
-      <article class="release-card" id="pythos-1-9-7">
-        <div class="release-header">
-          <div class="release-title-wrap">
-            <h2 class="release-version">Pythos 1.9.7</h2>
-          </div>
-          <time class="release-date" datetime="2026-10-21">October 21, 2026</time>
-        </div>
-
-        <div class="section-group">
-          <div class="section-header">
-            <span class="badge-added">Enhancement</span>
-            <span class="section-title">Conversation Reform, Phantom Problem Prevention &amp; Student Intent Alignment</span>
-          </div>
-          <ul class="change-list">
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Conversational Alignment &amp; Intent Recognition:</strong> Remediated excessive instructional momentum where casual student remarks, jokes, relief, or career banter (e.g. <em>"pfffft Im going into IT, never have to do that again"</em>) triggered extended unprompted STEM lectures. Pythos now recognizes communicative intent first, responds with concise, genuine human rapport (1–2 sentences), and allows dialogue to flow naturally without forcing unsolicited lessons.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Phantom Active Problem Prevention:</strong> Resolved state-leakage in <code>contextManager.js</code> where assistant messages mentioning STEM fields inadvertently created active, in-progress problem states. Problem extraction is now strictly gated to authentic learning prompts: image upload transcriptions, terse help requests, or practice problem generation.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Conversational Context Guidance:</strong> Injected explicit conversational guidance into <code>formatActiveProblemContext</code>, directing the reasoning model to acknowledge student banter or relief naturally rather than dragging the student back to prior problem state.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>System Prompt Architecture &amp; Rapport Directives:</strong> Added <code># CONVERSATIONAL FIT, RAPPORT &amp; STUDENT INTENT ALIGNMENT</code> to <code>PYTHOS_SYSTEM_PROMPT</code>. Harmonized token efficiency and subject drift instructions to ensure eliminating mechanical filler never suppresses empathetic rapport or lighthearted conversation.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Learner State Directive Flexibility:</strong> Updated the default <code>NEUTRAL_QUESTION</code> pedagogical directive in <code>learnerState.js</code> to handle non-instructional banter gracefully without forcing unprompted derivations, while preserving all deterministic mathematical verification safeguards.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Automated Regression Suite:</strong> Added <code>test-conversation-reform.js</code> covering phantom problem prevention, terse prompt preservation, prompt instructions, and learner-state directives.</div>
-            </li>
-          </ul>
-        </div>
-      </article>
-
-                                                                                                                                                                                    <!-- ==================== RELEASE 1.9.6 ==================== -->
-      <article class="release-card" id="pythos-1-9-6">
-        <div class="release-header">
-          <div class="release-title-wrap">
-            <h2 class="release-version">Pythos 1.9.6</h2>
-          </div>
-          <time class="release-date" datetime="2026-10-19">October 19, 2026</time>
-        </div>
-
-        <div class="section-group">
-          <div class="section-header">
-            <span class="badge-added">Enhancement</span>
-            <span class="section-title">P0 False Withholding Remediation, SymPy Real-Domain Grounding &amp; Delivery Transparency</span>
-          </div>
-          <ul class="change-list">
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>P0 False Withholding Remediation:</strong> Remediated all 9 live false-withholding regressions from the audit baseline, restoring 100% (33/33) delivery on the original audit prompts and achieving 0.0% false withholding (100/100 delivered) across a multi-domain test suite spanning algebra, calculus, trigonometry, linear algebra, discrete math, statistics, and number theory.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Trigonometric Evaluation &amp; Radian Normalization:</strong> Resolved false withholding on unparenthesized trigonometric products and radian evaluations (<code>cos(pi) = -1</code>, <code>\cos(\pi) = -1</code>, <code>\cos\pi = -1</code>) by normalizing LaTeX backslashes in SymPy's <code>_safe_parse</code>.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Token Hygiene &amp; Subscript Guard:</strong> Implemented power and subscript guards in <code>getVars</code> (<code>(?:\^[0-9]+|\^\{[0-9]+\})?(?:_[0-9]+|_\{[0-9]+\})?</code>), preventing multi-character tokens like <code>t_{2}</code> from splitting into spurious single-letter variable claims.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Relational Step Binding in Delivery Gate:</strong> Added formula relation / conditional step classification and RHS claim matching in <code>evaluateCandidateDelivery</code>, enabling step-by-step equality lines and relational derivations to bind cleanly to candidate claims.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>SymPy Real-Domain Grounding &amp; Calculus Singularity Handling:</strong> Enforced <code>real=True</code> across calculus variable symbols and explicit symbol scopes (<code>{var: x, 'e': sp.E, 'E': sp.E}</code>) in <code>calculus_verifier.py</code>. Handled isolated singularities at <em>x = 0</em> for <code>&int; 1/x dx = ln|x| + C</code> by evaluating test points outside branch singularities.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Three-State Delivery Transparency:</strong> Exposed <code>verificationLevel</code> (<code>verified</code>, <code>partial</code>, <code>withheld</code>), <code>deliveryStatus</code>, and <code>deliveredAnswer</code> across both HTTP JSON responses and SSE streaming chunks. Enforced fail-closed withholding when candidate answers are extracted without verified supporting claims.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Permanent Validation Benchmark:</strong> Added <code>test-live-withholding-audit.js</code> tracking live baseline delivery metrics and validating 100% (15/15) catch rate on adversarial and mathematically incorrect candidate answers.</div>
-            </li>
-          </ul>
-        </div>
-      </article>
-
-                                                                                                                                                                                    <!-- ==================== RELEASE 1.9.5 ==================== -->
-      <article class="release-card" id="pythos-1-9-5">
-        <div class="release-header">
-          <div class="release-title-wrap">
-            <h2 class="release-version">Pythos 1.9.5</h2>
-          </div>
-          <time class="release-date" datetime="2026-10-19">October 19, 2026</time>
-        </div>
-
-        <div class="section-group">
-          <div class="section-header">
-            <span class="badge-added">Enhancement</span>
-            <span class="section-title">Intent-Aware Delivery Gate, Implication Connective Splitting &amp; Modular Congruence Delegation</span>
-          </div>
-          <ul class="change-list">
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Intent-Aware Delivery Gate:</strong> Added <code>requiresCandidateAnswer(prompt, claims)</code> to separate quantitative calculation/solving tasks from conceptual, definitional, and algebraic formula queries (e.g. <em>"whts the difference in cubes."</em>, <em>"what is the quadratic formula?"</em>). Conceptual explanations with zero invalid claims are delivered cleanly without requiring a single scalar boxed root.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Formula Candidate Binding &amp; Normalization:</strong> Upgraded candidate-to-claim binding in <code>evaluateCandidateDelivery</code> to support equation-form candidates (e.g. <code>\boxed{a^3 - b^3 = (a-b)\bigl(a^2+ab+b^2\bigr)}</code>) against symbolic equivalence claims, stripping LaTeX sizing markers (<code>\bigl</code>, <code>\bigr</code>) and preventing false <code>UNSUPPORTED_CANDIDATE_ANSWER</code> withholding on boxed identities.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>LaTeX Implication Connective Splitting:</strong> Enhanced <code>cleanAndNormalizeEquation</code> to isolate pure mathematical equations across implication and logical connectives (<code>\implies</code>, <code>\iff</code>, <code>=&gt;</code>, <code>\Rightarrow</code>), eliminating LaTeX syntax errors and false CAS withholding in multi-step factoring derivations.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Modular Congruence Routing &amp; CAS Delegation:</strong> <code>mathjsVerifier.js</code> now defers modular congruence equations (<code>(mod N)</code>) directly to SymPy CAS, while <code>algebra_verifier.py</code> bypasses real-domain lost-root checks and verifies modular inverses directly modulo <em>N</em>.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Polynomial Like-Term Simplification:</strong> Added deterministic router fast-path for standalone polynomial expressions with combinable terms (e.g. <em>4x^2+12+2</em> &rarr; <em>4x^2 + 14</em>) and unblocked Pattern 10d symbolic equivalence extraction from being suppressed by intermediate arithmetic claims.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Arithmetic Protection in Deterministic Router:</strong> Refined <code>hasConceptualIntent</code> in <code>deterministicRouter.js</code> to require conceptual target nouns after conversational openers, ensuring direct arithmetic queries (e.g. <em>"What is 95 - 96?"</em>) execute deterministically under 1ms.</div>
-            </li>
-          </ul>
-        </div>
-      </article>
-
-                                                                                                                                                                                    <!-- ==================== RELEASE 1.9.4 ==================== -->
-      <article class="release-card" id="pythos-1-9-4">
-        <div class="release-header">
-          <div class="release-title-wrap">
-            <h2 class="release-version">Pythos 1.9.4</h2>
-          </div>
-          <time class="release-date" datetime="2026-10-19">October 19, 2026</time>
-        </div>
-
-        <div class="section-group">
-          <div class="section-header">
-            <span class="badge-added">Enhancement</span>
-            <span class="section-title">Implicit Linear Equation Solving &amp; Conversational Student Answer Recognition</span>
-          </div>
-          <ul class="change-list">
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Implicit Linear Solving Fast-Path:</strong> Standalone and question-marked linear expressions (e.g. (3x-6?), (3x-6 = ?), (3x-6)) now resolve deterministically via <code>ALGEBRA_LINEAR_SOLVE</code>, inferring equating to zero and disclosing the zero-RHS assumption in user-visible steps.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Algebraic Identity vs. Equation Root Disambiguation:</strong> Upgraded Pattern 10d in <code>verificationBridge.js</code> to extract <code>equation_solution</code> for scalar candidates against unadorned expressions rather than universal identities ((3x-6 equiv 2)), eliminating false <code>INVALID_CLAIMS_DETECTED</code> withholding.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Multi-Turn Context Base-Prompt Resolution:</strong> Stripped contextual metadata tags from base prompts during claim extraction, allowing model validations in subsequent turns to bind and verify against the root problem.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Conversational Student Answer Intent Recognition:</strong> Enhanced <code>studentIntentClassifier.js</code> and <code>contextManager.js</code> to recognize informal student responses containing conversational adverbs and slang (e.g. <em>"its flipping 2 man ez math"</em>, <em>"obviously 2"</em>), classifying them as <code>PROPOSED_ANSWER</code>.</div>
-            </li>
-          </ul>
-        </div>
-      </article>
-
-<!-- ==================== RELEASE 1.9.3 ==================== -->
-      <article class="release-card" id="pythos-1-9-3">
-        <div class="release-header">
-          <div class="release-title-wrap">
-            <h2 class="release-version">Pythos 1.9.3</h2>
-          </div>
-          <time class="release-date" datetime="2026-10-19">October 19, 2026</time>
-        </div>
-
-        <div class="section-group">
-          <div class="section-header">
-            <span class="badge-added">Enhancement</span>
-            <span class="section-title">Deterministic Gate Expansion, Trailing Equals &amp; Concurrency Isolation</span>
-          </div>
-          <ul class="change-list">
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Trailing Equals &amp; Incomplete Equation Solving:</strong> Incomplete equations ending in <code>=</code> (e.g. (3x-9=), (5x-6=)) now automatically infer equating to zero, solving the linear equation and disclosing the zero-RHS assumption in user-visible steps.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Quadratic Factoring &amp; Binomial Expansion:</strong> Added deterministic closed-form factoring for quadratics with common lead factor extraction (e.g. (2x^2+14x+12 = 2(x+1)(x+6))) and FOIL expansion for binomial products (((2x+4)(3+5x))), delivered with complete step derivations.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Verification Daemon Concurrency Isolation:</strong> Completely removed unsafe FIFO fallback in CAS response resolution; daemon responses strictly correlate by unique request ID, eliminating cross-request contamination.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Calculus Leibniz Whitespace &amp; Real-Domain Conditions:</strong> Expanded derivative regex to support spaced Leibniz notation (<code>d/dx ln(x)</code>) and surfaced required real-domain condition ((x &gt; 0)) in delivered responses.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Exact Candidate Verification &amp; ReDoS Removal:</strong> Replaced substring containment checks with exact symbolic equivalence in candidate delivery; hardened multi-turn problem extraction against catastrophic ReDoS backtracking.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Complex Root CAS Deferral:</strong> Defer complex equation roots from Math.js substitution to SymPy CAS with robust string serialization and magnitude residual checking.</div>
-            </li>
-          </ul>
-        </div>
-      </article>
-
-<!-- ==================== RELEASE 1.9.2 ==================== -->
-      <article class="release-card" id="pythos-1-9-2">
-        <div class="release-header">
-          <div class="release-title-wrap">
-            <h2 class="release-version">Pythos 1.9.2</h2>
-          </div>
-          <time class="release-date" datetime="2026-10-19">October 19, 2026</time>
-        </div>
-
-        <div class="section-group">
-          <div class="section-header">
-            <span class="badge-added">Enhancement</span>
-            <span class="section-title">Modular Congruences, Multiplicand Preservation &amp; Curve Root Isolation</span>
-          </div>
-          <ul class="change-list">
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Modular Arithmetic Congruences:</strong> Implemented modular congruence verification across Math.js and SymPy pipelines. Congruences of the form (Ax \equiv B \pmod M) and modular inverses now evaluate under modulus (M), verifying exact integer modular solutions without false (mathbb{R}) extraneous root withholding.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Multiplicand-Preserving Arithmetic Extraction:</strong> Hardened intermediate fraction extraction with preceding-factor and continuing-operator boundary guards. Prevents truncating fractions from Euler totient ((phi(n))) and multi-factor arithmetic steps, allowing chained steps like (85 \times \frac{4}{5} = 68) to evaluate cleanly.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Multivariable Equation Root Isolation:</strong> Added variable identity guards preventing scalar quantities (such as radius (oxed{r = 12}) or line distance (oxed{d = 10.2})) from binding as roots for variable (x) in multivariable curves.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Quadratic Connective Root Extraction:</strong> Expanded quadratic root extraction to capture second roots across LaTeX text connectives (<code>\text{ or }</code>, <code>\lor</code>) and comma separation without repeating variable names.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Symbolic Equivalence Filtering:</strong> Sanitized inline math delimiters, added absolute value parsing, and filtered non-fractional polynomial curve equations from false symbolic equivalence claims.</div>
-            </li>
-          </ul>
-        </div>
-      </article>
-
-<!-- ==================== RELEASE 1.9.1 ==================== -->
-      <article class="release-card" id="pythos-1-9-1">
-        <div class="release-header">
-          <div class="release-title-wrap">
-            <h2 class="release-version">Pythos 1.9.1</h2>
-          </div>
-          <time class="release-date" datetime="2026-10-19">October 19, 2026</time>
-        </div>
-
-        <div class="section-group">
-          <div class="section-header">
-            <span class="badge-added">Enhancement</span>
-            <span class="section-title">Scoped Contradiction Isolation &amp; Fail-Closed Verification Gating</span>
-          </div>
-          <ul class="change-list">
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Scoped Contradiction Detection:</strong> Completely refactored <code>auditInternalConsistency</code> in <code>server/verificationBridge.js</code> to isolate variables, equations, and Markdown sections. Independent equations (such as \(x^2 + 1 = 0\) having no real roots alongside \(y - 4 = 0\) having root \(y = 4\)) no longer trigger false-positive contradiction flags, while true intra-equation contradictions remain strictly rejected.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Domain-Restriction Singularity Isolation:</strong> Upgraded <code>_find_denominators</code> in <code>algebra_verifier.py</code> to differentiate real and complex denominator singularities in closed form. Prevents cancelled denominators in auxiliary equations from invalidating solutions for independent target variables, and fails closed (<code>VERIFIED_ON_UNKNOWN_DOMAIN</code>) when singularities cannot be analytically certified.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Fail-Closed Candidate Delivery Gating:</strong> Hardened <code>evaluateCandidateDelivery</code> to require candidate answers to bind strictly to verified target claims. Any response containing unverified answers or invalid intermediate claims (<code>audit.invalidClaims &gt; 0</code>) triggers canonical safe pedagogical withholding (<code>SAFE_WITHHOLDING</code>), eliminating unverified token leakage.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Upstream Refusal Routing &amp; 4096 Token Ceiling:</strong> Intercepts upstream model refusals directly to safe pedagogical guidance and expands the generation token ceiling to 4096 to prevent truncation on extensive multi-step mathematical derivations.</div>
-            </li>
-          </ul>
-        </div>
-      </article>
-
-                                                                                    <!-- ==================== RELEASE 1.9.0 ==================== -->
-      <article class="release-card" id="pythos-1-9-0">
-        <div class="release-header">
-          <div class="release-title-wrap">
-            <h2 class="release-version">Pythos 1.9.0</h2>
-          </div>
-          <time class="release-date" datetime="2026-10-18">October 18, 2026</time>
-        </div>
-
-        <div class="section-group">
-          <div class="section-header">
-            <span class="badge-added">Feature</span>
-            <span class="section-title">Specialized STEM Engines &amp; Persistent CAS Daemons</span>
-          </div>
-          <ul class="change-list">
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>High-Throughput Calculus Engine:</strong> Integrated a native Calculus Engine (<code>server/engines/calculusEngine.js</code>) backed by a persistent SymPy worker daemon. Performs symbolic differentiation, Leibniz notation parsing (<code>d/dx</code>, <code>d/dt</code>), definite/indefinite integration, sinc limits, and extrema optimization in under 10ms with zero process-spawn overhead.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Specialized Right-Triangle Geometry Engine:</strong> Added a dedicated Geometry Engine (<code>server/engines/geometryEngine.js</code>) with exact radical arithmetic, automated Pythagorean validation, and dynamic visualization spec generation directly routed via <code>domainSpecialistRouter.js</code>.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Multi-Worker Request Correlation:</strong> Implemented bidirectional request-response ID tagging (<code>_id</code>) across stdio pipes, guaranteeing complete request isolation and preventing pipe desynchronization under high-concurrency workloads.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Multi-Tier Verification &amp; Rate-Limit Hardening:</strong> Upgraded derivative claim extraction with mathematical operator exclusion to prevent variable collision, qualified circle area extraction to prevent false rejections on circumference/diameter queries, and standardized HTTP 429 <code>UPSTREAM_RATE_LIMITED</code> status responses across all providers.</div>
-            </li>
-          </ul>
-        </div>
-      </article>
-
-<!-- ==================== RELEASE 1.8.38 ==================== -->
+                                                                                    <!-- RELEASE v1.8.16 -->
+    <!-- RELEASE v1.8.29 -->
+        <!-- ==================== RELEASE 1.8.28 ==================== -->
+        <!-- ==================== RELEASE 1.8.29 ==================== -->
+    <!-- ==================== RELEASE 1.8.31 ==================== -->
+                                          <!-- ==================== RELEASE 1.8.38 ==================== -->
       <article class="release-card" id="pythos-1-8-38">
         <div class="release-header">
           <div class="release-title-wrap">
             <h2 class="release-version">Pythos 1.8.38</h2>
-            
+            <span class="release-badge">Latest Release</span>
           </div>
           <time class="release-date" datetime="2026-10-17">October 17, 2026</time>
         </div>
@@ -1190,23 +671,6 @@
             <li class="change-item">
               <span class="change-bullet"></span>
               <div><strong>Message-Level Thumbs Feedback:</strong> Added accessible 👍 / 👎 buttons on all assistant bubbles with integrated clarification reporting.</div>
-            </li>
-          </ul>
-        </div>
-
-        <div class="section-group">
-          <div class="section-header">
-            <span class="badge-added">Enhancement</span>
-            <span class="section-title">SEO Discoverability &amp; Interactive Study Guides Drawer</span>
-          </div>
-          <ul class="change-list">
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Floating Study Hub &amp; FAQ:</strong> Added discreet bottom-right collapsible drawer with crawlable curriculum links (Algebra, Calculus, Physics, Simulation Lab) and structured Socratic STEM FAQs, resolving crawler thin-content warnings while keeping the workspace clean.</div>
-            </li>
-            <li class="change-item">
-              <span class="change-bullet"></span>
-              <div><strong>Metadata &amp; Schema Optimization:</strong> Expanded Title tag to 56 characters, added high-intent keywords across meta tags, embedded JSON-LD <code>FAQPage</code> schema, and added descriptive alt text across language selectors.</div>
             </li>
           </ul>
         </div>
@@ -2572,7 +2036,7 @@
 
   <footer>
     <div>🏛️ Pythos — Free AI Mathematics &amp; Physics Education Initiative. Developed by LANZAR.</div>
-    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-9-12" style="color:var(--primary-color); text-decoration:none;">v1.9.12</a></div>
+    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-8-38" style="color:var(--primary-color); text-decoration:none;">v1.8.38</a></div>
   </footer>
 
   <script>
