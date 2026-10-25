@@ -1108,7 +1108,7 @@ ${m.content.slice(PYTHOS_SYSTEM_PROMPT.length).trim()}`;
     model: targetModel,
     messages: textMessages,
     temperature: options?.temperature || 0.2,
-    max_tokens: Math.min(options?.num_predict || 2048, 2048),
+    max_tokens: Math.min(options?.num_predict || 1024, 1024),
     stream: false
   });
 
@@ -2059,6 +2059,7 @@ app.post('/api/chat', async (req, res) => {
 
   let candidateResult = null;
   let primaryFailureError = null;
+  let backupFailureError = null;
 
   const effectiveOptions = Object.assign(
     {
@@ -2226,6 +2227,24 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
   if (!candidateResult) {
     const textSelection = providerPolicy.selectProvider({ capability: 'text' });
     if (!textSelection.provider) {
+      const safeRecovery = constructSafeVerifiedResponse({
+        userPrompt: lastUserMsg?.content || '',
+        preflightToolResult,
+        activeProblemState,
+        messages: req.body?.messages || []
+      });
+      if (safeRecovery && safeRecovery.content) {
+        console.log(`[DELIVERY GATE] Upstream LLMs in cooldown, but Pythos possesses trusted verified solution from ${safeRecovery.source} (${safeRecovery.title}). Delivering verified truth directly!`);
+        candidateResult = {
+          model: 'pythos-verified-engine',
+          content: safeRecovery.content,
+          provider: 'deterministic-cas',
+          reasoningPath: safeRecovery.source,
+          safeResponseRecovered: true,
+          recoverySource: safeRecovery.source,
+          recoveryTitle: safeRecovery.title
+        };
+      } else {
       const isCostBlocked = textSelection.reason === 'COST_GUARDRAIL_BLOCKED';
       const isRateLimited = textSelection.reason === 'ALL_RATE_LIMITED';
       const errStatus = isCostBlocked ? 403 : 503;
@@ -2251,6 +2270,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
         message: errMsg,
         retryAfter: textSelection.retryAfter || 0
       });
+      }
     }
   }
 
@@ -2319,6 +2339,9 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
         }
 
         if (primaryFailureError) {
+          if (backupFailureError && (backupFailureError.statusCode === 429 || backupFailureError.code === 'RATE_LIMIT' || backupFailureError.code === 'UPSTREAM_RATE_LIMITED')) {
+            throw backupFailureError;
+          }
           throw primaryFailureError;
         }
 
@@ -2435,12 +2458,15 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
         if (isPrimary) {
           primaryFailureError = callErr;
           console.warn(`[BACKUP BRAIN] Primary text reasoning failed (${selectedProvider.name}): ${callErr.message}. Checking backup recovery...`);
-          providerPolicy.recordRateLimit(selectedProvider.name, 30);
+          if (callErr.statusCode === 429 || (callErr.message && /rate_limit|rate limit|quota/i.test(callErr.message))) {
+            providerPolicy.recordRateLimit(selectedProvider.name, callErr.retryAfter || 30);
+          }
           if (res.headersSent) {
             console.error('[BACKUP BRAIN] Primary failed after HTTP stream headers already sent; cannot recover across stream boundary.');
             throw callErr;
           }
         } else {
+          backupFailureError = callErr;
           console.error(`[BACKUP BRAIN] Backup provider '${selectedProvider.name}' also failed:`, callErr.message);
           const retrySec = callErr.retryAfter || 60;
           providerPolicy.recordRateLimit(selectedProvider.name, retrySec);
