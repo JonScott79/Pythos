@@ -215,6 +215,24 @@ function constructSafeVerifiedResponse({
       };
     }
 
+    // 2f. Preflight Specialist Calculus / Geometry
+    if (preflightToolResult.tool === 'solve_calculus' || preflightToolResult.tool === 'solve_geometry') {
+      const { operation, result, formattedResult, derivationSteps = [] } = preflightToolResult;
+      const lines = [
+        'Here is the verified derivation:',
+        '',
+        ...(Array.isArray(derivationSteps) && derivationSteps.length > 0 ? derivationSteps.map(s => `- ${s}`) : []),
+        '',
+        `$\\boxed{${result || formattedResult}}$`
+      ];
+
+      return {
+        content: lines.join('\n'),
+        source: `TOOL_${preflightToolResult.tool.toUpperCase()}`,
+        title: `Verified ${preflightToolResult.tool === 'solve_calculus' ? 'Calculus' : 'Geometry'} Solution (${operation})`
+      };
+    }
+
     // 2e. Preflight Student Work Evaluation
     if (preflightToolResult.tool === 'evaluate_student_work') {
       const { status, isEqual, feedback } = preflightToolResult;

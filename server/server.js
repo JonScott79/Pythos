@@ -557,6 +557,7 @@ app.get('/health', (req, res) => {
     budgetPolicy: providerPolicy.getPolicyTelemetry(),
     firebaseAdmin: firebaseAdmin.getAdminSdkStatus ? firebaseAdmin.getAdminSdkStatus() : null,
     casVerification: getCasTelemetry ? getCasTelemetry() : null,
+    specialistAssist: specialistAssist.getSpecialistTelemetry(),
     projectKnowledge: projectKnowledgeService.getServiceTelemetry(),
     uptime: process.uptime(),
     timestamp: new Date().toISOString()
@@ -641,6 +642,7 @@ const { classifyLearnerState, formatLearnerStateContext, LEARNER_STATES } = requ
 
 const { enforceVisualFidelity, isVisualRequested } = require('./vizEngine/visualFidelity');
 const toolController = require('./toolController');
+const specialistAssist = require('./specialistAssist');
 const { getSafeWithholding, WITHHOLDING_REASONS } = require('./withholdingTaxonomy');
 const { constructSafeVerifiedResponse } = require('./safeResponseConstructor');
 
@@ -2015,11 +2017,17 @@ app.post('/api/chat', async (req, res) => {
     }
   }
 
+  // Specialist Assist Ground Truth Evaluation (Calculus & Geometry)
+  const specialistEval = lastUserMsg
+    ? await specialistAssist.evaluateSpecialistAssist(lastUserMsg.content, messages)
+    : { contextString: '' };
+  const specialistContext = specialistEval?.contextString || '';
+
   // Ensure system instructions are always present, up-to-date, and enriched with deterministic ground truth
   let preparedMessages = [...boundedContext.messagesForModel];
   preparedMessages.unshift({
     role: 'system',
-    content: PYTHOS_SYSTEM_PROMPT + identityContext + preflightContext + studentWorkContext + learnerStateContext + activeProblemContext + learningContext + memoryContext + projectKnowledgeContext + toolResultContext
+    content: PYTHOS_SYSTEM_PROMPT + identityContext + preflightContext + studentWorkContext + learnerStateContext + activeProblemContext + learningContext + memoryContext + projectKnowledgeContext + toolResultContext + specialistContext
   });
 
   // Clean vision messages in conversation history

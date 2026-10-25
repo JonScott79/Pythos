@@ -39,7 +39,9 @@ const TOOL_ALLOWLIST = Object.freeze({
   RENDER_FUNCTION_GRAPH: 'render_function_graph',
   GENERATE_PRACTICE_PROBLEM: 'generate_practice_problem',
   EVALUATE_STUDENT_WORK: 'evaluate_student_work',
-  SEARCH_CONVERSATION_HISTORY: 'search_conversation_history'
+  SEARCH_CONVERSATION_HISTORY: 'search_conversation_history',
+  SOLVE_CALCULUS: 'solve_calculus',
+  SOLVE_GEOMETRY: 'solve_geometry'
 });
 
 /**
@@ -298,7 +300,54 @@ function validateToolRequest(rawRequest) {
       break;
     }
 
-        case TOOL_ALLOWLIST.SEARCH_CONVERSATION_HISTORY: {
+        case TOOL_ALLOWLIST.SOLVE_CALCULUS: {
+      if (!args.expression || typeof args.expression !== 'string' || args.expression.trim().length === 0) {
+        return { valid: false, error: 'solve_calculus requires a non-empty "expression" string.' };
+      }
+      sanitizedArgs.expression = args.expression.trim();
+      sanitizedArgs.operation = typeof args.operation === 'string' ? args.operation.trim().toUpperCase() : 'DIFFERENTIATION';
+      sanitizedArgs.variable = typeof args.variable === 'string' ? args.variable.trim().slice(0, 10) : 'x';
+      if (args.order !== undefined) sanitizedArgs.order = Number(args.order) || 1;
+      if (args.point !== undefined) sanitizedArgs.point = Number(args.point);
+      if (args.isDefinite !== undefined) sanitizedArgs.isDefinite = Boolean(args.isDefinite);
+      if (args.lowerLimit !== undefined) sanitizedArgs.lowerLimit = String(args.lowerLimit);
+      if (args.upperLimit !== undefined) sanitizedArgs.upperLimit = String(args.upperLimit);
+      break;
+    }
+
+    case TOOL_ALLOWLIST.SOLVE_GEOMETRY: {
+      const op = typeof args.operation === 'string' ? args.operation.trim().toUpperCase() : '';
+      if (!op) return { valid: false, error: 'solve_geometry requires a valid "operation" string.' };
+      sanitizedArgs.operation = op;
+      if (args.p1) sanitizedArgs.p1 = args.p1;
+      if (args.p2) sanitizedArgs.p2 = args.p2;
+      if (args.l1) sanitizedArgs.l1 = args.l1;
+      if (args.l2) sanitizedArgs.l2 = args.l2;
+      if (args.vertices) sanitizedArgs.vertices = args.vertices;
+      if (args.a !== undefined) sanitizedArgs.a = Number(args.a);
+      if (args.b !== undefined) sanitizedArgs.b = Number(args.b);
+      if (args.c !== undefined) sanitizedArgs.c = Number(args.c);
+      if (args.radius !== undefined) sanitizedArgs.radius = Number(args.radius);
+      if (args.diameter !== undefined) sanitizedArgs.diameter = Number(args.diameter);
+      if (args.angle !== undefined) sanitizedArgs.angle = Number(args.angle);
+      if (args.unit !== undefined) sanitizedArgs.unit = String(args.unit);
+      break;
+    }
+
+    case TOOL_ALLOWLIST.SOLVE_CALCULUS:
+    case TOOL_ALLOWLIST.SOLVE_GEOMETRY: {
+      const steps = Array.isArray(toolResult.derivationSteps) && toolResult.derivationSteps.length > 0
+        ? '\nDerivation Steps:\n' + toolResult.derivationSteps.map(s => '  * ' + s).join('\n')
+        : '';
+      body = `Status: SUCCESS
+Operation: ${toolResult.operation}
+Authoritative Verified Value: ${toolResult.formattedResult || toolResult.result}
+Exact Value: ${toolResult.result}${steps}
+Pedagogical Directive: Use these exact verified values and derivation steps in your explanation. Do not contradict or alter them.`;
+      break;
+    }
+
+    case TOOL_ALLOWLIST.SEARCH_CONVERSATION_HISTORY: {
       if (!args.query || typeof args.query !== 'string' || args.query.trim().length === 0) {
         return { valid: false, error: 'search_conversation_history requires a non-empty "query" string.' };
       }
@@ -591,6 +640,41 @@ async function executeTool(toolName, args, sessionContext = {}) {
           details: `Student step evaluated: status=${evalResult.status}, isEqual=${evalResult.isEqual}`
         });
         return res;
+      }
+
+      case TOOL_ALLOWLIST.SOLVE_CALCULUS: {
+        const specialistAssist = require('./specialistAssist');
+        const calcRes = await specialistAssist.runTask({ domain: 'calculus', ...args });
+        if (!calcRes || calcRes.status === 'FAILED') {
+          return { success: false, tool: toolName, error: calcRes?.error || 'Calculus evaluation failed' };
+        }
+        return {
+          success: true,
+          tool: toolName,
+          operation: args.operation,
+          expression: args.expression,
+          result: calcRes.exactResult,
+          formattedResult: calcRes.formattedResult,
+          derivationSteps: calcRes.derivationSteps || [],
+          status: calcRes.status
+        };
+      }
+
+      case TOOL_ALLOWLIST.SOLVE_GEOMETRY: {
+        const specialistAssist = require('./specialistAssist');
+        const geomRes = await specialistAssist.runTask({ domain: 'geometry', ...args });
+        if (!geomRes || geomRes.status === 'FAILED') {
+          return { success: false, tool: toolName, error: geomRes?.error || 'Geometry evaluation failed' };
+        }
+        return {
+          success: true,
+          tool: toolName,
+          operation: args.operation,
+          result: geomRes.exactResult,
+          formattedResult: geomRes.formattedResult,
+          derivationSteps: geomRes.derivationSteps || [],
+          status: geomRes.status
+        };
       }
 
       case TOOL_ALLOWLIST.SEARCH_CONVERSATION_HISTORY: {
@@ -938,6 +1022,27 @@ function selectAppropriateTool(studentIntent, userText, conversationHistory = []
       };
     }
   }
+
+  // 8. Specialist Calculus & Geometry Intent (Active Mode Only)
+  try {
+    const specialistAssist = require('./specialistAssist');
+    if (specialistAssist.getSpecialistMode() === 'active') {
+      const specTask = specialistAssist.extractSpecialistTask(clean);
+      if (specTask) {
+        const toolName = specTask.domain === 'calculus' ? TOOL_ALLOWLIST.SOLVE_CALCULUS : TOOL_ALLOWLIST.SOLVE_GEOMETRY;
+        recordTelemetry(TELEMETRY_EVENTS.TOOL_SELECTED, {
+          tool: toolName,
+          reason: 'Student prompt matches verified specialist domain task',
+          details: specTask.operation
+        });
+        return {
+          tool: toolName,
+          reason: `Specialist ${specTask.domain} evaluation for ${specTask.operation}`,
+          arguments: specTask
+        };
+      }
+    }
+  } catch (_) {}
 
   return null;
 }
