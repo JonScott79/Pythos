@@ -103,14 +103,21 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
   }
 
   // -------------------------------------------------------------
-  // 1. CORRECTION Intent
+  // 1. CORRECTION Intent (Includes Disambiguation & Premise Rejections)
   // -------------------------------------------------------------
-  const isCorrection = /\b(?:wait|sorry|actually|correction|oops|no\s*wait)\b.*?\b(?:i\s+meant|i\s+mean|i\s+said|instead\s+of)\b/i.test(lower) ||
+  const isConversationalDisambiguation = /^(?:nope|nah|no|not\s+quite)[,.\s]+(?:future|actually|i\s+mean|it'?s|i\s+meant|not\s+that|another|next)\b/i.test(lower) ||
+                                         /^(?:nope|nah)[,.\s!]*$/i.test(lower) ||
+                                         /^(?:(?:nope|nah|no)[,.\s]+)?(?:that'?s|that\s+is)\s+not\s+what\s+i\s+(?:meant|said|asked|was\s+saying)\b/i.test(lower) ||
+                                         /^(?:(?:nope|nah|no)[,.\s]+)?you\s+misunderstood\b/i.test(lower) ||
+                                         /^(?:i\s+don'?t\s+mean\s+that|not\s+what\s+i\s+mean|not\s+what\s+i\s+asked)\b/i.test(lower);
+
+  const isCorrection = isConversationalDisambiguation ||
+                       /\b(?:wait|sorry|actually|correction|oops|no\s*wait)\b.*?\b(?:i\s+meant|i\s+mean|i\s+said|instead\s+of)\b/i.test(lower) ||
                        /\b(?:i\s+meant|meant\s+to\s+say|my\s+bad,?\s+i\s+meant|typo,?\s+meant)\b/i.test(lower) ||
                        /^(?:no,?\s+)?(?:i\s+meant|actually\s+i\s+meant)\b/i.test(lower) ||
                        /^(?:no,?\s+)?(?:that'?s\s+not\s+what\s+i\s+got|i\s+got\s+something\s+else|that'?s\s+wrong|i\s+didn'?t\s+get\s+that)\b/i.test(lower);
   if (isCorrection) {
-    signals.push('correction_linguistic_marker');
+    signals.push(isConversationalDisambiguation ? 'conversational_disambiguation_marker' : 'correction_linguistic_marker');
     const correctionExprMatch = clean.match(/(?:i\s+meant|meant\s+to\s+say|meant|said|instead\s+of)\s+([a-zA-Z0-9+\-*/^().\s=θ?-]+)$/i);
     let extractedExpr = correctionExprMatch ? correctionExprMatch[1].trim() : null;
     if (extractedExpr && (containsMathSymbols(extractedExpr) || /^[-+]?\d+(?:\.\d+)?$/.test(extractedExpr) || /^[a-zA-Z]\s*=\s*[-+]?\d+/.test(extractedExpr))) {
@@ -119,10 +126,16 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
         intent: INTENTS.CORRECTION,
         confidence: 'high',
         signals,
+        isDisambiguation: Boolean(isConversationalDisambiguation),
         extractedExpression: extractedExpr
       };
     }
-    return { intent: INTENTS.CORRECTION, confidence: 'high', signals };
+    return {
+      intent: INTENTS.CORRECTION,
+      confidence: 'high',
+      signals,
+      isDisambiguation: Boolean(isConversationalDisambiguation)
+    };
   }
 
   // -------------------------------------------------------------

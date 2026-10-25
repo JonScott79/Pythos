@@ -1015,6 +1015,9 @@ function formatStudentWorkContext(classification, evaluation, activeProblemState
 
   let out = '\n# STUDENT CONVERSATIONAL INTENT & PROPOSED WORK (DETERMINISTIC ANALYSIS):\n';
   out += `- Student Intent: ${classification.intent}\n`;
+  if (classification.intent === INTENTS.CORRECTION && classification.isDisambiguation) {
+    out += `- Pedagogical Directive: The student is clarifying an interpretive premise, convention, or reference (e.g. date format, 2-digit year, or problem framing). Re-examine their intended convention before concluding the problem is impossible.\n`;
+  }
 
   if (classification.signals && classification.signals.length > 0) {
     out += `- Intent Signals: ${classification.signals.join(', ')}\n`;

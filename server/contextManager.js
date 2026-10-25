@@ -66,9 +66,14 @@ function detectTopicTransitionIntent(userText) {
     };
   }
 
-  // 3. Explicit correction / modification of previous problem
+  // 3. Explicit correction / modification of previous problem or premise disambiguation
   const isCorrection = /\b(?:wait|sorry|actually|correction|oops|no\s*wait|typo)\b.*?\b(?:is\s+actually|i\s+meant|i\s+mean|i\s+said|instead\s+of|actually\s+shows|actually\s+find|(?:the\s+)?equation\s+(?:was|is))\b/i.test(lower) ||
-                       /\b(?:i\s+meant|meant\s+to\s+say|my\s+bad,?\s+i\s+meant|typo,?\s+meant|actually\s+the\s+third\s+side\s+is|actually\s+i\s+need|actually,?\s+solve\s+for|(?:the\s+)?equation\s+(?:was|is)\s+actually|actually[,\s]+(?:the\s+)?equation\s+(?:was|is))\b/i.test(lower);
+                       /\b(?:i\s+meant|meant\s+to\s+say|my\s+bad,?\s+i\s+meant|typo,?\s+meant|actually\s+the\s+third\s+side\s+is|actually\s+i\s+need|actually,?\s+solve\s+for|(?:the\s+)?equation\s+(?:was|is)\s+actually|actually[,\s]+(?:the\s+)?equation\s+(?:was|is))\b/i.test(lower) ||
+                       /^(?:nope|nah|no|not\s+quite)[,.\s]+(?:future|actually|i\s+mean|it'?s|i\s+meant|not\s+that|another|next)\b/i.test(lower) ||
+                       /^(?:nope|nah)[,.\s!]*$/i.test(lower) ||
+                       /^(?:(?:nope|nah|no)[,.\s]+)?(?:that'?s|that\s+is)\s+not\s+what\s+i\s+(?:meant|said|asked|was\s+saying)\b/i.test(lower) ||
+                       /^(?:(?:nope|nah|no)[,.\s]+)?you\s+misunderstood\b/i.test(lower) ||
+                       /^(?:i\s+don'?t\s+mean\s+that|not\s+what\s+i\s+mean|not\s+what\s+i\s+asked)\b/i.test(lower);
   if (isCorrection) {
     return {
       type: 'CORRECTION',
@@ -451,7 +456,10 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
       currentActive && (currentActive.domain === 'TRIGONOMETRY' || currentActive.domain === 'GEOMETRY' || currentActive.domain === 'ALGEBRA') &&
       !isTerseFollowUp && !activeMath);
 
-    if (trans.type === 'NEW_TOPIC_EXPLICIT' || isExplicitNewProblem || isDistinctNewEquation || isTopicSwitch ||
+    const isGeneralKnowledgeQuery = !activeMath &&
+      /^(?:tell\s+me\s+about|who\s+(?:was|is)|what\s+is\s+(?:the\s+capital|photosynthesis|gravity|history|the\s+speed\s+of)|explain\s+(?:the\s+concept\s+of\s+)?(?:quantum|general\s+relativity))\b/i.test(cleanPrompt);
+
+    if (trans.type === 'NEW_TOPIC_EXPLICIT' || isExplicitNewProblem || isDistinctNewEquation || isTopicSwitch || isGeneralKnowledgeQuery ||
         (isRecognizedProblem && currentActive && currentActive.domain !== detectedDomain && !isTerseFollowUp && !activeMath && !isQuestionOrValidation)) {
       if (currentActive) {
         currentActive.status = 'ARCHIVED_IN_SESSION';
@@ -464,6 +472,9 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
     const triTarget = extractRightTriangleTarget(msg.content);
 
     if (!currentActive && (isRecognizedProblem || activeMath || isTopicSwitch || fmtReqs || triTarget)) {
+      const hasUnknownVariable = activeMath && /[a-zA-Z]/.test(activeMath.replace(/\b(?:pi|π|sqrt|sin|cos|tan)\b/gi, ''));
+      const isPureNumericProposition = Boolean(activeMath && activeMath.includes('=') && !hasUnknownVariable);
+
       currentActive = {
         domain: detectedDomain,
         subtype: detectedSubtype,
@@ -477,10 +488,10 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
         requiredMethod: classification ? classification.requiredMethod : null,
         initialUserPrompt: msg.content,
         transcription: msg.content,
-        status: 'ACTIVE',
+        status: isPureNumericProposition ? 'COMPLETED' : 'ACTIVE',
         currentStepEquation: null,
-        verifiedSolution: null,
-        isCompleted: false,
+        verifiedSolution: isPureNumericProposition ? activeMath : null,
+        isCompleted: isPureNumericProposition,
         nextOperation: null
       };
     } else if (currentActive) {
@@ -756,6 +767,17 @@ function buildEffectivePrompt(messages = []) {
 
   const latestUser = userMsgs[userMsgs.length - 1].content.trim();
   const firstUser = userMsgs[0].content.trim();
+
+  // Guard: If latest turn is an independent general inquiry or pure standalone arithmetic,
+  // do not contaminate it with prior problem parameters
+  const isStandaloneQuery = /^(?:tell\s+me\s+about|who\s+(?:was|is)|what\s+is\s+(?:the\s+capital|photosynthesis|gravity|history)|explain\s+the\s+concept\s+of)\b/i.test(latestUser) ||
+                            /^(?:what\s+is\s+)?\d+[\s+\-*/^]+\d+(?:\s*[\s+\-*/^]\s*\d+)*\??$/i.test(latestUser) ||
+                            /^(?:nope|nah|no|not\s+quite)[,.\s]+(?:future|actually|i\s+mean|it'?s|i\s+meant|not\s+that)\b/i.test(latestUser) ||
+                            /^(?:(?:nope|nah|no)[,.\s]+)?(?:that'?s|that\s+is)\s+not\s+what\s+i\s+(?:meant|said|asked|was\s+saying)\b/i.test(latestUser) ||
+                            /^(?:nope|nah)[,.\s!]*$/i.test(latestUser);
+  if (isStandaloneQuery && !/(?:from\s+that|to\s+that|previous\s+answer|earlier|that\s+result)/i.test(latestUser)) {
+    return latestUser;
+  }
 
   // 1. Explicit new problem reset
   const newProblemMatch = latestUser.match(/^(?:never\s+mind[.,]?\s*|(?:let'?s\s+do\s+a\s+)?new\s+problem[:\s]+|different\s+question[:\s]+)(.*)/i);
