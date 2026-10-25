@@ -320,6 +320,98 @@ runTest('Test H8: Exact rational fractions and non-binary decimal representation
   assert.strictEqual(r3.activeProblemState.active.verifiedSolution, null);
 });
 
+
+runTest('Test H9: Transcendental & irrational approximations (sqrt(2)=1.414..., pi=3.141..., e=2.718...) MUST NOT be marked verified', () => {
+  const cases = [
+    { expr: 'sqrt(2) = 1.4142135623730951', approx: true },
+    { expr: 'pi = 3.141592653589793', approx: true },
+    { expr: 'e = 2.718281828459045', approx: true }
+  ];
+  for (const c of cases) {
+    const res = contextManager.verifyDeterministicProposition(c.expr);
+    assert.strictEqual(res.isProposition, true, `${c.expr} must be recognized as a proposition`);
+    assert.strictEqual(res.isVerified, false, `${c.expr} must NOT be verified as exact equality`);
+    assert.strictEqual(res.isApproximate, true, `${c.expr} must be flagged as approximation`);
+
+    const bounded = contextManager.buildBoundedConversationContext([{ role: 'user', content: c.expr }]);
+    assert.strictEqual(bounded.activeProblemState.active.status, 'COMPLETED');
+    assert.strictEqual(bounded.activeProblemState.active.isCompleted, true);
+    assert.strictEqual(bounded.activeProblemState.active.isVerified, false);
+    assert.strictEqual(bounded.activeProblemState.active.verifiedSolution, null);
+    assert.strictEqual(bounded.activeProblemState.active.propositionVerification.isApproximate, true);
+    assert(bounded.activeProblemContext.includes('APPROXIMATION ONLY (STRICT EQUALITY DOES NOT HOLD)'), 'Context must instruct LLM on approximation');
+  }
+});
+
+runTest('Test H10: Truncated approximations (sqrt(2)=1.414, pi=3.141) MUST NOT be marked verified', () => {
+  const cases = ['sqrt(2) = 1.414', 'pi = 3.141'];
+  for (const expr of cases) {
+    const res = contextManager.verifyDeterministicProposition(expr);
+    assert.strictEqual(res.isProposition, true);
+    assert.strictEqual(res.isVerified, false);
+
+    const bounded = contextManager.buildBoundedConversationContext([{ role: 'user', content: expr }]);
+    assert.strictEqual(bounded.activeProblemState.active.status, 'COMPLETED');
+    assert.strictEqual(bounded.activeProblemState.active.isVerified, false);
+    assert.strictEqual(bounded.activeProblemState.active.verifiedSolution, null);
+  }
+});
+
+runTest('Test H11: Exact roots (sqrt(4) = 2, sqrt(9) = 3) evaluate to exact mathematical truth', () => {
+  const cases = [
+    { expr: 'sqrt(4) = 2', sol: 'sqrt(4) = 2' },
+    { expr: 'sqrt(9) = 3', sol: 'sqrt(9) = 3' }
+  ];
+  for (const c of cases) {
+    const res = contextManager.verifyDeterministicProposition(c.expr);
+    assert.strictEqual(res.isProposition, true);
+    assert.strictEqual(res.isVerified, true, `${c.expr} must be verified true`);
+    assert.strictEqual(res.isApproximate, false);
+
+    const bounded = contextManager.buildBoundedConversationContext([{ role: 'user', content: c.expr }]);
+    assert.strictEqual(bounded.activeProblemState.active.status, 'COMPLETED');
+    assert.strictEqual(bounded.activeProblemState.active.isVerified, true);
+    assert.strictEqual(bounded.activeProblemState.active.verifiedSolution, c.sol);
+    assert(bounded.activeProblemContext.includes('EQUALITY HOLDS (TRUE)'));
+  }
+});
+
+runTest('Test H12: Domain violations (sqrt(-1) = 0) and indeterminate forms fail closed', () => {
+  const cases = ['sqrt(-1) = 0', '1/0 = 5'];
+  for (const expr of cases) {
+    const res = contextManager.verifyDeterministicProposition(expr);
+    assert.strictEqual(res.isProposition, false, `${expr} must not be accepted as valid proposition`);
+    assert.strictEqual(res.isVerified, false);
+
+    const bounded = contextManager.buildBoundedConversationContext([{ role: 'user', content: expr }]);
+    // Must not be marked as verified solution
+    if (bounded.activeProblemState.active) {
+      assert.notStrictEqual(bounded.activeProblemState.active.isVerified, true);
+      assert.strictEqual(bounded.activeProblemState.active.verifiedSolution, null);
+    }
+  }
+});
+
+runTest('Test H13: Mixed transcendental expressions (sqrt(2)+sqrt(2)=2.828..., pi+1=4.141...) MUST NOT be marked verified', () => {
+  const cases = [
+    'sqrt(2) + sqrt(2) = 2.8284271247461903',
+    'pi + 1 = 4.141592653589793'
+  ];
+  for (const expr of cases) {
+    const res = contextManager.verifyDeterministicProposition(expr);
+    assert.strictEqual(res.isProposition, true);
+    assert.strictEqual(res.isVerified, false, `${expr} must NOT be verified as exact equality`);
+    assert.strictEqual(res.isApproximate, true, `${expr} must be flagged as approximation`);
+
+    const bounded = contextManager.buildBoundedConversationContext([{ role: 'user', content: expr }]);
+    assert.strictEqual(bounded.activeProblemState.active.status, 'COMPLETED');
+    assert.strictEqual(bounded.activeProblemState.active.isVerified, false);
+    assert.strictEqual(bounded.activeProblemState.active.verifiedSolution, null);
+    assert.strictEqual(bounded.activeProblemState.active.propositionVerification.isApproximate, true);
+    assert(bounded.activeProblemContext.includes('APPROXIMATION ONLY (STRICT EQUALITY DOES NOT HOLD)'));
+  }
+});
+
 console.log(`\n=== SUITE COMPLETE: ${passedTests} / ${totalTests} PASSED ===`);
 if (passedTests !== totalTests) {
   process.exit(1);

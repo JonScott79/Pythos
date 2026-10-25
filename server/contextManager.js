@@ -40,88 +40,117 @@ const RECENT_VERBATIM_TURNS = 5;    // 5 turns = up to 10 user/assistant message
  */
 function verifyDeterministicProposition(expr) {
   if (!expr || typeof expr !== 'string' || !expr.includes('=')) {
-    return { isProposition: false, isVerified: false, details: null, exactLhs: null, exactRhs: null };
+    return { isProposition: false, isVerified: false, isApproximate: false, details: null, exactLhs: null, exactRhs: null };
   }
   const parts = expr.split('=');
   if (parts.length !== 2) {
-    return { isProposition: false, isVerified: false, details: null, exactLhs: null, exactRhs: null };
+    return { isProposition: false, isVerified: false, isApproximate: false, details: null, exactLhs: null, exactRhs: null };
   }
   const lhs = parts[0].trim();
   const rhs = parts[1].trim();
   if (!lhs || !rhs) {
-    return { isProposition: false, isVerified: false, details: null, exactLhs: null, exactRhs: null };
-  }
-
-  // Reject expressions with unknown variables (exclude constants pi/e and standard math functions)
-  const cleanLhs = lhs.replace(/\b(?:pi|π|e|sqrt|sin|cos|tan|log|ln|abs)\b/gi, '');
-  const cleanRhs = rhs.replace(/\b(?:pi|π|e|sqrt|sin|cos|tan|log|ln|abs)\b/gi, '');
-  if (/[a-zA-Z]/.test(cleanLhs) || /[a-zA-Z]/.test(cleanRhs)) {
-    return { isProposition: false, isVerified: false, details: null, exactLhs: null, exactRhs: null };
+    return { isProposition: false, isVerified: false, isApproximate: false, details: null, exactLhs: null, exactRhs: null };
   }
 
   // Pre-check for division by zero or indeterminate forms
   if (/\/\s*0+(?:\.0*)?(?!\d)/.test(lhs) || /\/\s*0+(?:\.0*)?(?!\d)/.test(rhs) ||
       /\b0\^0\b/.test(lhs) || /\b0\^0\b/.test(rhs)) {
-    return { isProposition: false, isVerified: false, details: 'Division by zero or indeterminate form' };
+    return { isProposition: false, isVerified: false, isApproximate: false, details: 'Division by zero or indeterminate form' };
   }
 
-  try {
-    // 1. Evaluate both sides with exactMath (Fraction / exact rational BigNumber representation)
-    let exactLhs, exactRhs;
-    let isExactSuccess = false;
+  // Reject expressions with unknown variables (exclude constants pi/e and standard math functions)
+  const cleanLhs = lhs.replace(/\b(?:pi|e|sqrt|sin|cos|tan|log|ln|abs)\b/gi, '').replace(/[π]/g, '');
+  const cleanRhs = rhs.replace(/\b(?:pi|e|sqrt|sin|cos|tan|log|ln|abs)\b/gi, '').replace(/[π]/g, '');
+  if (/[a-zA-Z]/.test(cleanLhs) || /[a-zA-Z]/.test(cleanRhs)) {
+    return { isProposition: false, isVerified: false, isApproximate: false, details: 'Variables not allowed in numeric proposition' };
+  }
+
+  // Identical symbolic match (reflexive property A = A)
+  if (lhs === rhs) {
+    return {
+      isProposition: true,
+      isVerified: true,
+      isApproximate: false,
+      details: `${lhs} = ${rhs} (identical expression match)`,
+      exactLhs: lhs,
+      exactRhs: rhs
+    };
+  }
+
+  const hasTranscendental = /\b(?:pi|e)\b/i.test(lhs) || /\b(?:pi|e)\b/i.test(rhs) || /[π]/.test(lhs) || /[π]/.test(rhs) ||
+                            /\b(?:sin|cos|tan|log|ln)\b/i.test(lhs) || /\b(?:sin|cos|tan|log|ln)\b/i.test(rhs);
+  const hasRoot = /\bsqrt\b/i.test(lhs) || /\bsqrt\b/i.test(rhs);
+
+  // 1. Exact rational fraction evaluation with exactMath
+  if (!hasTranscendental && !hasRoot) {
     try {
-      exactLhs = exactMath.evaluate(lhs);
-      exactRhs = exactMath.evaluate(rhs);
-      if (exactLhs !== undefined && exactRhs !== undefined &&
-          exactLhs !== null && exactRhs !== null) {
-        isExactSuccess = true;
+      const exactLhs = exactMath.evaluate(lhs);
+      const exactRhs = exactMath.evaluate(rhs);
+      if (exactLhs && exactRhs && exactLhs.isFraction && exactRhs.isFraction) {
+        const isExactlyEqual = Boolean(exactMath.equal(exactLhs, exactRhs));
+        const lhsDisplay = exactMath.format(exactLhs);
+        const rhsDisplay = exactMath.format(exactRhs);
+        return {
+          isProposition: true,
+          isVerified: isExactlyEqual,
+          isApproximate: false,
+          details: isExactlyEqual
+            ? `${lhs} = ${rhs} (exact match: ${lhsDisplay})`
+            : `${lhs} evaluates to ${lhsDisplay}, which does not equal ${rhsDisplay}`,
+          exactLhs: lhsDisplay,
+          exactRhs: rhsDisplay
+        };
       }
-    } catch (_) {
-      isExactSuccess = false;
+    } catch (_) {}
+  }
+
+  // 2. Roots and transcendental evaluation
+  try {
+    const numLhs = math.evaluate(lhs);
+    const numRhs = math.evaluate(rhs);
+
+    // Reject complex results over real domain (e.g. sqrt(-1))
+    if ((numLhs && typeof numLhs === 'object' && numLhs.isComplex) ||
+        (numRhs && typeof numRhs === 'object' && numRhs.isComplex)) {
+      return { isProposition: false, isVerified: false, isApproximate: false, details: 'Complex number over real domain' };
     }
 
-    if (isExactSuccess) {
-      if (typeof exactLhs === 'number' && (!Number.isFinite(exactLhs) || isNaN(exactLhs))) return { isProposition: false, isVerified: false, details: 'Non-finite LHS' };
-      if (typeof exactRhs === 'number' && (!Number.isFinite(exactRhs) || isNaN(exactRhs))) return { isProposition: false, isVerified: false, details: 'Non-finite RHS' };
-      if ((exactLhs && exactLhs.isComplex) || (exactRhs && exactRhs.isComplex)) return { isProposition: false, isVerified: false, details: 'Complex number' };
+    if (typeof numLhs !== 'number' || !Number.isFinite(numLhs) || isNaN(numLhs)) {
+      return { isProposition: false, isVerified: false, isApproximate: false, details: 'Non-finite LHS' };
+    }
+    if (typeof numRhs !== 'number' || !Number.isFinite(numRhs) || isNaN(numRhs)) {
+      return { isProposition: false, isVerified: false, isApproximate: false, details: 'Non-finite RHS' };
+    }
 
-      const isExactlyEqual = Boolean(exactMath.equal(exactLhs, exactRhs));
-      const lhsDisplay = exactMath.format ? exactMath.format(exactLhs) : String(exactLhs);
-      const rhsDisplay = exactMath.format ? exactMath.format(exactRhs) : String(exactRhs);
-
+    // Check for exact integer root e.g. sqrt(4) = 2, sqrt(9) = 3
+    if (hasRoot && !hasTranscendental && Number.isInteger(numLhs) && Number.isInteger(numRhs) && numLhs === numRhs) {
       return {
         isProposition: true,
-        isVerified: isExactlyEqual,
-        details: isExactlyEqual
-          ? `${lhs} = ${rhs} (exact match: ${lhsDisplay})`
-          : `${lhs} evaluates to ${lhsDisplay}, which does not equal ${rhsDisplay}`,
-        exactLhs: lhsDisplay,
-        exactRhs: rhsDisplay
+        isVerified: true,
+        isApproximate: false,
+        details: `${lhs} = ${rhs} (exact integer match: ${numLhs})`,
+        exactLhs: numLhs,
+        exactRhs: numRhs
       };
     }
 
-    // 2. Fallback to standard mathjsVerifier for transcendental expressions (e.g. pi, sqrt)
-    const rhsEval = mathjsVerifier.verifyArithmetic({ expression: rhs });
-    if (!rhsEval || rhsEval.status === 'UNKNOWN' || rhsEval.status === 'DIVISION_BY_ZERO' || rhsEval.status === 'DOMAIN_ERROR') {
-      return { isProposition: false, isVerified: false, details: rhsEval ? rhsEval.details : 'Malformed RHS' };
-    }
-    const rhsVal = Number(rhsEval.exact_value !== undefined ? rhsEval.exact_value : rhsEval.numeric_value);
-    if (!Number.isFinite(rhsVal)) return { isProposition: false, isVerified: false, details: 'Non-finite RHS' };
-
-    const lhsEval = mathjsVerifier.verifyArithmetic({ expression: lhs, proposed_value: rhsVal });
-    if (!lhsEval || lhsEval.status === 'UNKNOWN' || lhsEval.status === 'DIVISION_BY_ZERO' || lhsEval.status === 'DOMAIN_ERROR') {
-      return { isProposition: false, isVerified: false, details: lhsEval ? lhsEval.details : 'Malformed LHS' };
-    }
+    // Transcendental or irrational expressions paired with decimal numbers:
+    // In exact mathematics, an irrational/transcendental value NEVER equals a finite decimal.
+    const diff = Math.abs(numLhs - numRhs);
+    const isClose = diff < 1e-4;
 
     return {
       isProposition: true,
-      isVerified: Boolean(lhsEval.verified === true),
-      details: lhsEval.details,
-      exactLhs: lhsEval.exact_value,
-      exactRhs: rhsVal
+      isVerified: false, // Strict exact equality does NOT hold
+      isApproximate: isClose,
+      details: isClose
+        ? `${lhs} is approximately ${numRhs} (diff ≈ ${diff.toExponential(2)}), but strict equality does not hold because the exact value is irrational/transcendental.`
+        : `${lhs} evaluates to ${numLhs}, which does not equal ${numRhs}`,
+      exactLhs: numLhs,
+      exactRhs: numRhs
     };
   } catch (err) {
-    return { isProposition: false, isVerified: false, details: err.message };
+    return { isProposition: false, isVerified: false, isApproximate: false, details: err.message };
   }
 }
 
@@ -602,6 +631,7 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
         propositionVerification: propCheck ? {
           isProposition: propCheck.isProposition,
           isVerified: propCheck.isVerified,
+          isApproximate: Boolean(propCheck.isApproximate),
           details: propCheck.details
         } : null,
         nextOperation: null
@@ -747,6 +777,8 @@ function formatActiveProblemContext(state) {
     out += `- **Proposition Verification**: User submitted mathematical proposition \`${act.activeExpression}\`.\n`;
     if (act.propositionVerification.isVerified) {
       out += `- **Deterministic Evaluation**: EQUALITY HOLDS (TRUE). Ground truth: ${act.propositionVerification.details || 'verified'}. Confirm that the equality is true.\n`;
+    } else if (act.propositionVerification.isApproximate) {
+      out += `- **Deterministic Evaluation**: APPROXIMATION ONLY (STRICT EQUALITY DOES NOT HOLD). Ground truth: ${act.propositionVerification.details || 'approximate'}. Explain that while this is a close decimal approximation, the strict equality does not hold because the exact value is irrational/transcendental.\n`;
     } else {
       out += `- **Deterministic Evaluation**: EQUALITY DOES NOT HOLD (FALSE). Ground truth: ${act.propositionVerification.details || 'not equal'}. Explain clearly that the two sides are not equal.\n`;
     }
