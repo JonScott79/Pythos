@@ -1,3 +1,19 @@
+## Pythos 1.8.40
+**Release Date:** October 25, 2026
+
+### Added & Enhanced
+
+- **Conversation Recovery & Intent Disambiguation**:
+  - Re-architected multi-turn conversational context assembly with bounded token budgets and explicit topic switching detection.
+  - Automatically archives completed problems when the user switches to unrelated queries, preventing cross-topic context contamination (e.g., prior geometry constraints leaking into standalone arithmetic).
+  - Recognizes colloquial student corrections ("nope", "that's not what I meant") and conversational date conventions (e.g., two-digit year representations in recurring Pythagorean dates like 10/24/26 and 3/4/05).
+  - Eliminates defensive conversational loops by injecting structured recovery guidance into prompt snapshots.
+- **Exact Proposition Verification & Life-Cycle Separation**:
+  - Separates proposition completion from mathematical verification.
+  - Evaluates pure numeric propositions using exact rational arithmetic (`exactMath` with `Fraction` and 64-digit `BigNumber`), eliminating floating-point tolerance false-positives.
+  - Strictly distinguishes exact mathematical proofs from numerical decimal approximations of irrational and transcendental expressions ($\sqrt{2}, \pi, e$). Approximations are flagged with `isApproximate: true` and cannot populate `verifiedSolution`.
+  - Injects explicit ground-truth evaluation directives into model context.
+
 ## Pythos 1.8.39
 **Release Date:** October 24, 2026
 
