@@ -170,6 +170,7 @@ assert(changelogHtml.includes('id="pythos-1-8-38"'), 'Changelog has target ancho
 assert(changelogHtml.includes('id="pythos-1-8-37"'), 'Changelog retains previous release anchor id="pythos-1-8-37"');
 assert(changelogHtml.includes('id="pythos-1-8-37"'), 'Changelog has target anchor id="pythos-1-8-37"');
 assert(changelogHtml.includes('id="pythos-1-8-36"'), 'Changelog retains previous release anchor id="pythos-1-8-36"');
+assert(changelogHtml.includes('id="pythos-1-8-35"'), 'Changelog retains previous release anchor id="pythos-1-8-35"');
 assert(changelogHtml.includes('id="pythos-1-8-34"'), 'Changelog retains previous release anchor id="pythos-1-8-34"');
 assert(changelogHtml.includes('id="pythos-1-8-33"'), 'Changelog retains previous release anchor id="pythos-1-8-33"');
 assert(changelogHtml.includes('id="pythos-1-8-32"'), 'Changelog retains previous release anchor id="pythos-1-8-32"');
