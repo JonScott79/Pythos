@@ -29,9 +29,9 @@ const telemetryStats = {
 };
 
 function getSpecialistMode() {
-  const envMode = (process.env.SPECIALIST_ENGINE_MODE || 'shadow').trim().toLowerCase();
+  const envMode = (process.env.SPECIALIST_ENGINE_MODE || 'active').trim().toLowerCase();
   if (['shadow', 'active', 'off'].includes(envMode)) return envMode;
-  return 'shadow';
+  return 'active';
 }
 
 function recordTelemetry(item) {
