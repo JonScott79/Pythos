@@ -22,18 +22,21 @@ const { resolveReferentialContext } = require('./deterministicRouter');
 const { evaluateLinearEquationStep, evaluateEquationCandidate } = require('./studentWorkEvaluator');
 const mathjsVerifier = require('./mathjsVerifier');
 
+// Exact math instance with rational Fraction and BigNumber support
+const exactMath = math.create(math.all, {
+  number: 'Fraction',
+  precision: 64
+});
+
 // ── Bounded Context Budget Constants (8,192 Total Context Window) ────────────
 const TOTAL_CONTEXT_LIMIT = 8192;
 const MAX_INPUT_TOKEN_TARGET = 5800; // Leaves ~2,392 tokens for generation headroom
 const RECENT_VERBATIM_TURNS = 5;    // 5 turns = up to 10 user/assistant messages
 
 /**
- * Estimates token count for text using a conservative character-to-token ratio (~3.6 chars/token).
- * Accounts for LaTeX, mathematical operators, and whitespace.
- */
-/**
  * Deterministically verifies a pure numeric equality proposition (e.g. 10^2 + 24^2 = 26^2, 2 + 2 = 5).
  * Strictly separates proposition recognition (evaluable numeric equality) from mathematical truth (verification).
+ * Enforces exact mathematical fraction and BigNumber equivalence, eliminating floating-point tolerance false-positives.
  */
 function verifyDeterministicProposition(expr) {
   if (!expr || typeof expr !== 'string' || !expr.includes('=')) {
@@ -56,33 +59,65 @@ function verifyDeterministicProposition(expr) {
     return { isProposition: false, isVerified: false, details: null, exactLhs: null, exactRhs: null };
   }
 
+  // Pre-check for division by zero or indeterminate forms
+  if (/\/\s*0+(?:\.0*)?(?!\d)/.test(lhs) || /\/\s*0+(?:\.0*)?(?!\d)/.test(rhs) ||
+      /\b0\^0\b/.test(lhs) || /\b0\^0\b/.test(rhs)) {
+    return { isProposition: false, isVerified: false, details: 'Division by zero or indeterminate form' };
+  }
+
   try {
-    // 1. Evaluate RHS
+    // 1. Evaluate both sides with exactMath (Fraction / exact rational BigNumber representation)
+    let exactLhs, exactRhs;
+    let isExactSuccess = false;
+    try {
+      exactLhs = exactMath.evaluate(lhs);
+      exactRhs = exactMath.evaluate(rhs);
+      if (exactLhs !== undefined && exactRhs !== undefined &&
+          exactLhs !== null && exactRhs !== null) {
+        isExactSuccess = true;
+      }
+    } catch (_) {
+      isExactSuccess = false;
+    }
+
+    if (isExactSuccess) {
+      if (typeof exactLhs === 'number' && (!Number.isFinite(exactLhs) || isNaN(exactLhs))) return { isProposition: false, isVerified: false, details: 'Non-finite LHS' };
+      if (typeof exactRhs === 'number' && (!Number.isFinite(exactRhs) || isNaN(exactRhs))) return { isProposition: false, isVerified: false, details: 'Non-finite RHS' };
+      if ((exactLhs && exactLhs.isComplex) || (exactRhs && exactRhs.isComplex)) return { isProposition: false, isVerified: false, details: 'Complex number' };
+
+      const isExactlyEqual = Boolean(exactMath.equal(exactLhs, exactRhs));
+      const lhsDisplay = exactMath.format ? exactMath.format(exactLhs) : String(exactLhs);
+      const rhsDisplay = exactMath.format ? exactMath.format(exactRhs) : String(exactRhs);
+
+      return {
+        isProposition: true,
+        isVerified: isExactlyEqual,
+        details: isExactlyEqual
+          ? `${lhs} = ${rhs} (exact match: ${lhsDisplay})`
+          : `${lhs} evaluates to ${lhsDisplay}, which does not equal ${rhsDisplay}`,
+        exactLhs: lhsDisplay,
+        exactRhs: rhsDisplay
+      };
+    }
+
+    // 2. Fallback to standard mathjsVerifier for transcendental expressions (e.g. pi, sqrt)
     const rhsEval = mathjsVerifier.verifyArithmetic({ expression: rhs });
     if (!rhsEval || rhsEval.status === 'UNKNOWN' || rhsEval.status === 'DIVISION_BY_ZERO' || rhsEval.status === 'DOMAIN_ERROR') {
       return { isProposition: false, isVerified: false, details: rhsEval ? rhsEval.details : 'Malformed RHS' };
     }
-    const rhsVal = rhsEval.exact_value !== undefined && rhsEval.exact_value !== null
-      ? (typeof rhsEval.exact_value === 'object' && rhsEval.exact_value.valueOf ? rhsEval.exact_value.valueOf() : Number(rhsEval.exact_value))
-      : (rhsEval.numeric_value !== undefined ? rhsEval.numeric_value : null);
+    const rhsVal = Number(rhsEval.exact_value !== undefined ? rhsEval.exact_value : rhsEval.numeric_value);
+    if (!Number.isFinite(rhsVal)) return { isProposition: false, isVerified: false, details: 'Non-finite RHS' };
 
-    if (rhsVal === null || typeof rhsVal !== 'number' || !Number.isFinite(rhsVal)) {
-      return { isProposition: false, isVerified: false, details: 'Non-finite RHS' };
-    }
-
-    // 2. Evaluate LHS against RHS value
     const lhsEval = mathjsVerifier.verifyArithmetic({ expression: lhs, proposed_value: rhsVal });
     if (!lhsEval || lhsEval.status === 'UNKNOWN' || lhsEval.status === 'DIVISION_BY_ZERO' || lhsEval.status === 'DOMAIN_ERROR') {
       return { isProposition: false, isVerified: false, details: lhsEval ? lhsEval.details : 'Malformed LHS' };
     }
 
-    const isProposition = true;
-    const isVerified = Boolean(lhsEval.verified === true);
     return {
-      isProposition,
-      isVerified,
+      isProposition: true,
+      isVerified: Boolean(lhsEval.verified === true),
       details: lhsEval.details,
-      exactLhs: lhsEval.exact_value !== undefined ? (typeof lhsEval.exact_value === 'object' && lhsEval.exact_value.valueOf ? lhsEval.exact_value.valueOf() : Number(lhsEval.exact_value)) : null,
+      exactLhs: lhsEval.exact_value,
       exactRhs: rhsVal
     };
   } catch (err) {

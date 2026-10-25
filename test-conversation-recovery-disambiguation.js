@@ -285,6 +285,41 @@ runTest('Test H5: Completed true equality followed by unrelated question does no
   assert.strictEqual(effPrompt2, 'Can a triangle have side lengths 2, 3, and 8?', 'Effective prompt must be clean without contamination');
 });
 
+runTest('Test H6: Numerical difference < 1e-11 (1 + 1/1e12 = 1) MUST NOT be marked verified', () => {
+  const bounded = contextManager.buildBoundedConversationContext([{ role: 'user', content: '1 + 1/1000000000000 = 1' }]);
+  assert(bounded.activeProblemState.active, 'Must establish active state');
+  assert.strictEqual(bounded.activeProblemState.active.status, 'COMPLETED', 'Evaluation completed');
+  assert.strictEqual(bounded.activeProblemState.active.isCompleted, true);
+  assert.strictEqual(bounded.activeProblemState.active.isVerified, false, 'Must NOT be verified true for tiny differences');
+  assert.strictEqual(bounded.activeProblemState.active.verifiedSolution, null, 'verifiedSolution must be null');
+});
+
+runTest('Test H7: Integers beyond JavaScript safe-integer range (9007199254740993 = 9007199254740992) MUST NOT be marked verified', () => {
+  const bounded = contextManager.buildBoundedConversationContext([{ role: 'user', content: '9007199254740993 = 9007199254740992' }]);
+  assert(bounded.activeProblemState.active, 'Must establish active state');
+  assert.strictEqual(bounded.activeProblemState.active.status, 'COMPLETED', 'Evaluation completed');
+  assert.strictEqual(bounded.activeProblemState.active.isCompleted, true);
+  assert.strictEqual(bounded.activeProblemState.active.isVerified, false, 'Must NOT be verified true despite float truncation');
+  assert.strictEqual(bounded.activeProblemState.active.verifiedSolution, null, 'verifiedSolution must be null');
+});
+
+runTest('Test H8: Exact rational fractions and non-binary decimal representations evaluate exactly', () => {
+  // 1/3 + 1/6 = 1/2 is exact
+  const r1 = contextManager.buildBoundedConversationContext([{ role: 'user', content: '1/3 + 1/6 = 1/2' }]);
+  assert.strictEqual(r1.activeProblemState.active.isVerified, true, '1/3 + 1/6 = 1/2 must be verified');
+  assert.strictEqual(r1.activeProblemState.active.verifiedSolution, '1/3 + 1/6 = 1/2');
+
+  // 0.1 + 0.2 = 0.3 exact rational fraction 3/10
+  const r2 = contextManager.buildBoundedConversationContext([{ role: 'user', content: '0.1 + 0.2 = 0.3' }]);
+  assert.strictEqual(r2.activeProblemState.active.isVerified, true, '0.1 + 0.2 = 0.3 must be verified via rational fraction');
+  assert.strictEqual(r2.activeProblemState.active.verifiedSolution, '0.1 + 0.2 = 0.3');
+
+  // 1/7 = 0.142857 (truncated approximation) must NOT be verified as exact equality
+  const r3 = contextManager.buildBoundedConversationContext([{ role: 'user', content: '1/7 = 0.142857' }]);
+  assert.strictEqual(r3.activeProblemState.active.isVerified, false, 'Truncated decimal must not be verified as exact equality');
+  assert.strictEqual(r3.activeProblemState.active.verifiedSolution, null);
+});
+
 console.log(`\n=== SUITE COMPLETE: ${passedTests} / ${totalTests} PASSED ===`);
 if (passedTests !== totalTests) {
   process.exit(1);
