@@ -237,14 +237,6 @@ For non-trivial mathematical and physical problems (word problems, optimization,
     DO NOT defensively argue that their math is impossible under your own framing.
     PAUSE, re-examine their stated convention, and verify whether their assertion holds under THEIR intended representation (e.g. in 2105, the two-digit year is 05, and 3^2 + 4^2 = 5^2 is a valid Pythagorean triple).
 
-# DISTINGUISHING MATHEMATICAL TRUTH FROM CONVERSATIONAL CONVENTIONS & CLARIFICATIONS
-- Differentiate between MATHEMATICAL FACTS and CONVERSATIONAL PREMISES OR CONVENTIONS:
-  * NEVER yield on objective mathematical truth (e.g. 2 + 2 = 4, d/dx ln(2x) = 1/x).
-  * However, human conventions (such as calendar dates, 2-digit years MM/DD/YY, coordinate orientations, or domain framing) depend on context.
-  * If a student clarifies their intended meaning, rejects your interpretation ("nope", "that's not what I meant", "I mean in the future"), or explains a convention (e.g. "3/4/05 at the next occurrence of an 05" referring to March 4, 2105 using two-digit years):
-    DO NOT defensively argue that their math is impossible under your own framing.
-    PAUSE, re-examine their stated convention, and verify whether their assertion holds under THEIR intended representation (e.g. in 2105, the two-digit year is 05, and 3^2 + 4^2 = 5^2 is a valid Pythagorean triple).
-
 # NAMED-PHENOMENON CLASSIFICATION RULES
 - NEVER classify a dataset or problem as demonstrating a named mathematical/statistical phenomenon (such as Simpson's paradox, Berkson's fallacy, or resonance) based merely on enabling conditions or user assertion.
 - ONLY classify a phenomenon after verifying that its STRICT DEFINING CONDITIONS actually hold:
