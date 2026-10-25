@@ -1,3 +1,15 @@
+## Pythos 1.8.41
+**Release Date:** October 25, 2026
+
+### Added & Enhanced
+
+- **Withholding UX & Verification Limitation Guidance**:
+  - Replaced misleading secondary heading `"What information would help"` with context-appropriate `"Why couldn't this be verified?"` when the verification engine cannot certify a result with mathematical certainty (`CLAIM_NOT_VERIFIED`).
+  - Revised student-facing explanation to clarify that Pythos evaluated the derivation but could not establish the intermediate reasoning steps or final result with sufficient mathematical certainty, avoiding incorrectly shifting responsibility to the student when full information was provided.
+  - Tailored suggested next steps to focus on reviewing specific unverified steps, explaining mathematical principles, or working through the derivation collaboratively.
+  - Dynamically customizes disclosure summary titles and secondary section headings across failure categories (`MISSING_INFORMATION`, `AMBIGUOUS_PROBLEM`, `IMAGE_UNVERIFIABLE`, `UNDEFINED_EXPRESSION`, `PROMPT_CLAIM_MISMATCH`, `INFRASTRUCTURE_FAILURE`).
+  - Added dedicated classification and pedagogical messaging for `UNDEFINED_EXPRESSION` covering division by zero and domain violations.
+
 ## Pythos 1.8.40
 **Release Date:** October 25, 2026
 
