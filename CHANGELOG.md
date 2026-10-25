@@ -1,3 +1,16 @@
+## Pythos 1.8.39
+**Release Date:** October 24, 2026
+
+### Added & Enhanced
+
+- **Specialist Assist Architecture (Calculus & Analytic Geometry)**:
+  - Integrated non-blocking preflight ground-truth engine (`server/specialistAssist.js`) injecting exact symbolic results into LLM prompts without blocking execution or reintroducing withholding regressions.
+  - Deployed SymPy 1.14.0 daemon worker (`server/engines/calculus_worker.py` and `server/engines/calculusEngine.js`) providing symbolic differentiation (first & higher order), tangent line at $x_0$, indefinite integrals ($+ C$), and definite integrals.
+  - Implemented exact rational geometry engine (`server/engines/geometryEngine.js`) supporting coordinate distance, midpoint, slope, line equations, line intersections, Shoelace polygon area, triangle sides & Heron's formula, right triangles, and circle / sector geometry.
+  - Added allowlisted tools `solve_calculus` and `solve_geometry` in `server/toolController.js` and preflight rescue in `server/safeResponseConstructor.js`.
+  - Added live telemetry tracking and mode controls (`shadow` / `active`) exposed via `https://pythos-api.lanzar.me/health`.
+  - Full preservation of the v1.8.38 golden invariants: zero changes to withholding gates, fast-path arithmetic, or linear equation routing.
+
 ## Pythos 1.8.38
 **Release Date:** October 17, 2026
 
