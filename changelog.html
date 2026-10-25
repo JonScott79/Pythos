@@ -22,14 +22,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="assets/favicon.png">
-  <title>Pythos Release History &amp; Changelog | v1.8.43</title>
+  <title>Pythos Release History &amp; Changelog | v1.8.44</title>
   <meta name="description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://pythos.lanzar.me/changelog.html">
 
   <!-- OPEN GRAPH -->
-  <meta property="og:title" content="Pythos Release History &amp; Changelog | v1.8.43">
+  <meta property="og:title" content="Pythos Release History &amp; Changelog | v1.8.44">
   <meta property="og:description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta property="og:url" content="https://pythos.lanzar.me/changelog.html">
   <meta property="og:type" content="article">
@@ -41,7 +41,7 @@
 
   <!-- TWITTER CARD -->
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Pythos Release History &amp; Changelog | v1.8.43">
+  <meta name="twitter:title" content="Pythos Release History &amp; Changelog | v1.8.44">
   <meta name="twitter:description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="twitter:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
 
@@ -532,7 +532,7 @@
         <a href="nonprofit.html" class="nav-link">Mission &amp; Roadmap</a>
         <a href="license.html" class="nav-link">License</a>
         <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" class="nav-link">Facebook</a>
-        <a href="changelog.html#pythos-1-8-43" class="nav-link active" aria-current="page">v1.8.43</a>
+        <a href="changelog.html#pythos-1-8-44" class="nav-link active" aria-current="page">v1.8.44</a>
       </div>
     </div>
 
@@ -562,14 +562,39 @@
         <!-- ==================== RELEASE 1.8.28 ==================== -->
         <!-- ==================== RELEASE 1.8.29 ==================== -->
     <!-- ==================== RELEASE 1.8.31 ==================== -->
-                                                                                                                                                                                    <!-- ==================== RELEASE 1.8.43 ==================== -->
+                                                                                                                                                                                                                                                                                                                                                                        <!-- ==================== RELEASE 1.8.44 ==================== -->
+        <article class="release-card" id="pythos-1-8-44">
+            <div class="release-header">
+                <div>
+                    <h2 class="release-version">Pythos 1.8.44</h2>
+                    <div class="release-date">Released on October 25, 2026</div>
+                </div>
+                <span class="badge badge-success">Latest</span>
+            </div>
+            <div class="release-content">
+                <div class="badge badge-purple" style="margin-bottom: 1rem;">Radical Depth Tracking, Railway LPU Prioritization &amp; Security Hardening</div>
+                <p>Full-system audit remediation resolving radical equation claim extraction, display math approximation parsing, automatic Railway Groq LPU latency reduction (590ms), 0-vulnerability dependency updates, and UI truncation glyph cleanups.</p>
+                <div class="change-group">
+                    <div class="change-type type-enhancement">Added &amp; Enhanced</div>
+                    <ul class="change-list">
+                        <li><strong>Radical Equation Depth Tracking:</strong> Parenthesis/brace tracking in equation cleaning prevents <code>sqrt(...)</code> and <code>\sqrt{...}</code> functions from being truncated as English prose.</li>
+                        <li><strong>Chained Approximations &amp; Fast-Path Gate:</strong> Enhanced display math parsing in <code>extractCandidateAnswer</code> greedily matches the final equality/approximation (e.g. <code>72/120 = 3/5 \approx 0.6</code>) for immediate deterministic delivery.</li>
+                        <li><strong>Railway Cloud LPU Prioritization:</strong> Automatically selects Groq LPUs in Railway production for sub-second inference while preserving local Ollama defaults for local development.</li>
+                        <li><strong>Zero-Vulnerability Hardening:</strong> Resolved 12 security vulnerabilities in <code>server/</code> dependencies including critical IP spoofing in <code>proxy-addr</code> and DoS in <code>body-parser</code>.</li>
+                        <li><strong>Truncation Glyph &amp; Accessibility Synchronization:</strong> Cleaned warning emojis in <code>app.js</code> and synchronized all release anchors to <code>v1.8.44</code>.</li>
+                    </ul>
+                </div>
+            </div>
+        </article>
+
+        <!-- ==================== RELEASE 1.8.43 ==================== -->
         <article class="release-card" id="pythos-1-8-43">
             <div class="release-header">
                 <div>
                     <h2 class="release-version">Pythos 1.8.43</h2>
                     <div class="release-date">Released on October 25, 2026</div>
                 </div>
-                <span class="badge badge-success">Latest</span>
+                <span class="badge badge-secondary">Release</span>
             </div>
             <div class="release-content">
                 <div class="badge badge-purple" style="margin-bottom: 1rem;">Reasoning Token Budgeting &amp; Truncation Guard</div>
@@ -2212,7 +2237,7 @@
 
   <footer>
     <div>🏛️ Pythos — Free AI Mathematics &amp; Physics Education Initiative. Developed by LANZAR.</div>
-    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-8-43" style="color:var(--primary-color); text-decoration:none;">v1.8.43</a></div>
+    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-8-44" style="color:var(--primary-color); text-decoration:none;">v1.8.44</a></div>
   </footer>
 
   <script>

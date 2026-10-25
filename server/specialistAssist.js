@@ -16,7 +16,7 @@
 const calculusEngine = require('./engines/calculusEngine');
 const geometryEngine = require('./engines/geometryEngine');
 
-const SPECIALIST_TIMEOUT_MS = 1500;
+const SPECIALIST_TIMEOUT_MS = parseInt(process.env.SPECIALIST_TIMEOUT_MS, 10) || 3500;
 const MAX_TELEMETRY_LOG = 200;
 
 const shadowTelemetryLog = [];

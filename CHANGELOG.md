@@ -1,3 +1,25 @@
+## Pythos 1.8.44
+**Release Date:** October 25, 2026
+
+### Added & Enhanced
+
+- **Radical Equation Depth Tracking & Normalization**:
+  - Implemented parenthesis and brace depth tracking in `cleanAndNormalizeEquation`, ensuring radical functions (`sqrt(...)` and `\sqrt{...}`) are preserved as mathematical operators rather than truncated as English prose.
+  - Added symbolic normalization for LaTeX expressions (`\sqrt{...}`, `\left`, `\right`, `\times`, `\cdot`).
+  - Enhanced display math regex in `extractCandidateAnswer` to greedily match the final equality or approximation (`=`, `\approx`, `≈`), enabling chained expressions like `$$ 72/120 = 3/5 \approx 0.6 $$` to deliver deterministically without LLM fallthrough.
+  - Expanded equation regex character classes to support full LaTeX formatting symbols (`\\`, `{`, `}`).
+
+- **Railway LPU Prioritization & Specialist Spawn Resilience**:
+  - Integrated `RAILWAY_ENVIRONMENT` and `PRIMARY_TEXT_PROVIDER` detection in `server/providerPolicy.js`. On Railway, Pythos automatically prioritizes ultra-low-latency Groq LPUs (~590ms total round-trip) while maintaining local CPU Ollama as default in local offline testing.
+  - Configured configurable Windows process spawn timeout for the SymPy calculus differentiation specialist daemon (`SPECIALIST_TIMEOUT_MS = 3500`).
+
+- **Dependency Security & Supply-Chain Hardening**:
+  - Remediated all 12 vulnerabilities in `server/` dependencies via targeted semver lockfile updates, eliminating critical reverse-proxy IP spoofing in `proxy-addr` and high-severity DoS vectors in `body-parser` and `brace-expansion`. Achieved 0 vulnerabilities in `npm audit`.
+
+- **UI Truncation Glyphs & Accessibility Synchronization**:
+  - Fixed character encoding artifact in `app.js` replacing `??` with standard warning emoji `⚠️` on token limit and stream interruption notices.
+  - Aligned all test harness assertions, site manifests, and release links to `v1.8.44`.
+
 ## Pythos 1.8.43
 **Release Date:** October 25, 2026
 

@@ -89,7 +89,7 @@ function extractCandidateAnswer(text) {
     if (sanitized) return sanitized;
   }
   
-  const dispEqMatch = text.match(/\$\$\s*[\s\S]*?=\s*([-\d./]+(?:\s*[a-zA-Z/^2]+)?)\s*\$\$/);
+  const dispEqMatch = text.match(/(?:\$\$|\\\[)[\s\S]*(?:=|\\approx|≈)\s*([-\d./]+(?:\s*[a-zA-Z/^2]+)?)\s*(?:\$\$|\\\])/);
   if (dispEqMatch) {
     const sanitized = sanitizeExtracted(dispEqMatch[1]);
     if (sanitized) return sanitized;
@@ -730,37 +730,83 @@ function extractClaims(text, userPrompt = '') {
     const rawLhs = parts[0].trim();
     const rawRhs = parts[1].trim();
 
-    // Strip English prose before math begins in LHS
-    const tokens = rawLhs.split(/\s+/);
+    // Strip common leading instructional prefixes before parsing LHS
+    let cleanLhsStr = rawLhs
+      .replace(/^(?:please\s+)?(?:solve|find|evaluate|calculate|determine|simplify|compute)(?:\s+(?:the\s+equation|the\s+roots?|the\s+solutions?|(?:for\s+)?[a-zA-Z]))?[:\s]*/i, '')
+      .replace(/^(?:given|if|where)(?:\s+that)?[:\s]*/i, '')
+      .trim();
+
+    // Strip English prose before math begins in LHS, respecting parentheses depth and function names
+    const tokens = cleanLhsStr.split(/\s+/);
     let lastProse = -1;
+    let lhsParenDepth = 0;
     for (let i = tokens.length - 1; i >= 0; i--) {
-      const cleanWord = tokens[i].replace(/[^a-zA-Z]/g, '');
-      if (cleanWord.length >= 2 && !/^(?:sin|cos|tan|sec|csc|cot|log|ln|sqrt|pi)$/i.test(cleanWord)) {
-        lastProse = i;
-        break;
-      }
+      const t = tokens[i];
+      const opens = (t.match(/[({]/g) || []).length;
+      const closes = (t.match(/[)}]/g) || []).length;
+      lhsParenDepth += (closes - opens);
+      if (lhsParenDepth > 0) continue; // inside parens or braces, belongs to math
+
+      if (/[+\-*/^=<>~_]/.test(t) || /\\(?:sqrt|frac|times|div)/.test(t)) continue;
+
+      const cleanWord = t.replace(/[^a-zA-Z]/g, '');
+      if (/^(?:sin|cos|tan|sec|csc|cot|log|ln|sqrt|cbrt|exp|abs|pi|theta)$/i.test(cleanWord)) continue;
+      if (/^(?:sin|cos|tan|sec|csc|cot|log|ln|sqrt|cbrt|exp|abs)[a-zA-Z0-9]*$/i.test(cleanWord)) continue;
+      if (cleanWord.length <= 1) continue;
+
+      lastProse = i;
+      break;
     }
-    const lhs = lastProse !== -1 ? tokens.slice(lastProse + 1).join(' ') : rawLhs;
+    const lhs = lastProse !== -1 ? tokens.slice(lastProse + 1).join(' ') : cleanLhsStr;
     // Guard against function notation e.g. f(x) = expr or g(t) = expr
     if (/(?:^|\s|\bwhere\s+|\bfor\s+)[a-zA-Z]\s*\([a-zA-Z0-9,\s]+\)\s*$/i.test(lhs.trim()) || /\b[a-zA-Z]\s*\([a-zA-Z]\)\s*$/i.test(lhs.trim())) return null;
 
-    // Strip English prose after math ends in RHS
-    const rhsTokens = rawRhs.split(/\s+/);
+    // Strip common trailing conditions from RHS
+    let cleanRhsStr = rawRhs
+      .replace(/\s+(?:where|with|for|when|if|given|assuming|provided)\b.*$/i, '')
+      .trim();
+
+    // Strip English prose after math ends in RHS, respecting parentheses depth
+    const rhsTokens = cleanRhsStr.split(/\s+/);
     let firstProse = -1;
+    let rhsParenDepth = 0;
     for (let i = 0; i < rhsTokens.length; i++) {
-      const cleanWord = rhsTokens[i].replace(/[^a-zA-Z]/g, '');
-      if (cleanWord.length >= 2 && !/^(?:sin|cos|tan|sec|csc|cot|log|ln|sqrt|pi)$/i.test(cleanWord)) {
-        firstProse = i;
-        break;
-      }
+      const t = rhsTokens[i];
+      const opens = (t.match(/[({]/g) || []).length;
+      const closes = (t.match(/[)}]/g) || []).length;
+      rhsParenDepth += (opens - closes);
+      if (rhsParenDepth > 0) continue;
+
+      if (/[+\-*/^=<>~_]/.test(t) || /\\(?:sqrt|frac|times|div)/.test(t)) continue;
+
+      const cleanWord = t.replace(/[^a-zA-Z]/g, '');
+      if (/^(?:sin|cos|tan|sec|csc|cot|log|ln|sqrt|cbrt|exp|abs|pi|theta)$/i.test(cleanWord)) continue;
+      if (/^(?:sin|cos|tan|sec|csc|cot|log|ln|sqrt|cbrt|exp|abs)[a-zA-Z0-9]*$/i.test(cleanWord)) continue;
+      if (cleanWord.length <= 1) continue;
+
+      firstProse = i;
+      break;
     }
-    let rhs = firstProse !== -1 ? rhsTokens.slice(0, firstProse).join(' ') : rawRhs;
+    let rhs = firstProse !== -1 ? rhsTokens.slice(0, firstProse).join(' ') : cleanRhsStr;
     rhs = rhs.replace(/[,;.\s]+$/, '').trim();
 
     if (!lhs || !rhs) return null;
 
-    const normLhs = lhs.replace(/(\d)\s*([a-zA-Z])(?![a-zA-Z])/g, (m, g1, g2) => g1 + '*' + g2);
-    const normRhs = rhs.replace(/(\d)\s*([a-zA-Z])(?![a-zA-Z])/g, (m, g1, g2) => g1 + '*' + g2);
+    let normLhs = lhs
+      .replace(/\\sqrt\{([^}]+)\}/g, 'sqrt($1)')
+      .replace(/\\left\(/g, '(')
+      .replace(/\\right\)/g, ')')
+      .replace(/\\times/g, '*')
+      .replace(/\\cdot/g, '*')
+      .replace(/(\d)\s*([a-zA-Z])(?![a-zA-Z])/g, (m, g1, g2) => g1 + '*' + g2);
+
+    let normRhs = rhs
+      .replace(/\\sqrt\{([^}]+)\}/g, 'sqrt($1)')
+      .replace(/\\left\(/g, '(')
+      .replace(/\\right\)/g, ')')
+      .replace(/\\times/g, '*')
+      .replace(/\\cdot/g, '*')
+      .replace(/(\d)\s*([a-zA-Z])(?![a-zA-Z])/g, (m, g1, g2) => g1 + '*' + g2);
 
     const variableMatch = normLhs.match(/\b([a-zA-Z])\b/) || normRhs.match(/\b([a-zA-Z])\b/);
     const variable = variableMatch ? variableMatch[1] : 'x';
@@ -773,7 +819,7 @@ function extractClaims(text, userPrompt = '') {
 
   // 5. Algebraic Equations & Stated Solutions (Generalized)
   // Pattern 5a: Equation followed by "solutions:" / "roots:" (e.g. "x^2 - 5x + 6 = 0, solutions: 2, 3")
-  const eqSolutionsRegex = /([a-zA-Z0-9^+\-*/().\s]+=[a-zA-Z0-9^+\-*/().\s]+)[,;:\s]+(?:with\s+)?(?:solutions?|roots?)\s*[:=]?\s*([-\d.,\s*andor]+)/gi;
+  const eqSolutionsRegex = /([a-zA-Z0-9^+\-*/().\\{}\s]+=[a-zA-Z0-9^+\-*/().\\{}\s]+)[,;:\s]+(?:with\s+)?(?:solutions?|roots?)\s*[:=]?\s*([-\d.,\s*andor]+)/gi;
   let eqSolMatch;
   while ((eqSolMatch = eqSolutionsRegex.exec(text)) !== null) {
     const rawEq = eqSolMatch[1].trim();
@@ -795,7 +841,7 @@ function extractClaims(text, userPrompt = '') {
   }
 
   // Pattern 5b: Equation followed by explicit solution assignment (e.g. "2x + 3 = 11, x = 4" or "x^2 - 5x + 6 = 0, x = 2 or x = 3")
-  const eqVarRegex = /([a-zA-Z0-9^+\-*/().\s]+=[a-zA-Z0-9^+\-*/().\s]+)[,;:\s]+(?:=>\s*|\\implies\s+|so\s+|therefore\s+)?([a-zA-Z])\s*=\s*([-\d.]+)(?:\s*(?:,|and|or)\s*\2\s*=\s*([-\d.]+))?/gi;
+  const eqVarRegex = /([a-zA-Z0-9^+\-*/().\\{}\s]+=[a-zA-Z0-9^+\-*/().\\{}\s]+)[,;:\s]+(?:=>\s*|\\implies\s+|so\s+|therefore\s+)?([a-zA-Z])\s*=\s*([-\d.]+)(?:\s*(?:,|and|or)\s*\2\s*=\s*([-\d.]+))?/gi;
   let eqVarMatch;
   while ((eqVarMatch = eqVarRegex.exec(text)) !== null) {
     const rawEq = eqVarMatch[1].trim();
@@ -825,7 +871,7 @@ function extractClaims(text, userPrompt = '') {
   // Pattern 5c: Solved equation from prompt/context where candidate states solution (e.g. "x = -5", "\boxed{x = -5}", "\boxed{3, 9}", or "\boxed{\,x=3,\;9\,}")
   const isSystemPrompt = ((promptStr.match(/=/g) || []).length >= 2) || /\bsystem\b/i.test(promptStr);
   if (promptStr && !isSystemPrompt) {
-    const promptEqMatch = promptStr.match(/([a-zA-Z0-9^+\-*/().\s]+=[a-zA-Z0-9^+\-*/().\s]+)/);
+    const promptEqMatch = promptStr.match(/([a-zA-Z0-9^+\-*/().\\{}\s]+=[a-zA-Z0-9^+\-*/().\\{}\s]+)/);
     if (promptEqMatch) {
       const cleaned = cleanAndNormalizeEquation(promptEqMatch[1]);
       if (cleaned) {

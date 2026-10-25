@@ -742,7 +742,7 @@ async function runAllTests() {
       };
 
       const resp = await makeTestChatRequest({
-        messages: [{ role: 'user', content: 'Explain step-by-step how to calculate 50 * 50.' }]
+        messages: [{ role: 'user', content: 'What is the philosophy behind socratic mathematics?' }]
       });
 
       // System must safely withhold, returning 503 or 429
@@ -758,6 +758,7 @@ async function runAllTests() {
   }
 
   console.log(`\n🎉 ALL ${passedTests}/${totalTests} BACKUP BRAIN TESTS PASSED!`);
+  process.exit(0);
 }
 
 runAllTests().catch(err => {

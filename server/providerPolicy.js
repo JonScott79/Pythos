@@ -81,37 +81,9 @@ function getAiEnabled() {
  * - isConfigured: function returning whether credentials/host are present
  */
 function getProviderRegistry() {
-  return [
-    {
-      name: 'groq-qwen-vision',
-      capability: 'vision',
-      model: process.env.OLLAMA_VISION_MODEL || 'qwen/qwen3.8-27b',
-      freeEligible: true, // Groq free-tier hosted vision
-      enabled: true,
-      isConfigured: () => {
-        const key = getGroqApiKey();
-        return Boolean(key && key.length > 0);
-      }
-    },
-    {
-      name: 'gemini-vision',
-      capability: 'vision',
-      model: process.env.GEMINI_VISION_MODEL || 'gemini-2.5-flash',
-      // Strict $0 guardrail (fail closed):
-      // OPERATOR CERTIFICATION / ASSERTION ONLY:
-      // Google AI Studio / Gemini API provides no programmatic endpoint to inspect whether
-      // an API key is linked to a paid billing account or is strictly on the $0 rate-limited free tier.
-      // Therefore, this is NOT an automatic determination of Google's billing status.
-      // In free_only mode, Gemini is ONLY eligible if an operator explicitly asserts
-      // that the key is a zero-cost free-tier key by setting GEMINI_FREE_TIER=true.
-      // Without this assertion, Pythos fails closed (freeEligible: false) so paid keys never incur charges.
-      freeEligible: process.env.GEMINI_FREE_TIER === 'true',
-      enabled: () => process.env.GEMINI_ENABLED !== 'false',
-      isConfigured: () => {
-        const key = getGeminiApiKey();
-        return Boolean(key && key.length > 0);
-      }
-    },
+  const primaryText = process.env.PRIMARY_TEXT_PROVIDER || (process.env.RAILWAY_ENVIRONMENT ? 'groq-text' : null);
+
+  const textProviders = [
     {
       name: 'ollama-text',
       capability: 'text',
@@ -144,6 +116,40 @@ function getProviderRegistry() {
         return Boolean(key && key.length > 0);
       }
     }
+  ];
+
+  if (primaryText === 'groq-text') {
+    const groqIdx = textProviders.findIndex(p => p.name === 'groq-text');
+    if (groqIdx > 0) {
+      const [groqProv] = textProviders.splice(groqIdx, 1);
+      textProviders.unshift(groqProv);
+    }
+  }
+
+  return [
+    {
+      name: 'groq-qwen-vision',
+      capability: 'vision',
+      model: process.env.OLLAMA_VISION_MODEL || 'qwen/qwen3.8-27b',
+      freeEligible: true, // Groq free-tier hosted vision
+      enabled: true,
+      isConfigured: () => {
+        const key = getGroqApiKey();
+        return Boolean(key && key.length > 0);
+      }
+    },
+    {
+      name: 'gemini-vision',
+      capability: 'vision',
+      model: process.env.GEMINI_VISION_MODEL || 'gemini-2.5-flash',
+      freeEligible: process.env.GEMINI_FREE_TIER === 'true',
+      enabled: () => process.env.GEMINI_ENABLED !== 'false',
+      isConfigured: () => {
+        const key = getGeminiApiKey();
+        return Boolean(key && key.length > 0);
+      }
+    },
+    ...textProviders
   ];
 }
 

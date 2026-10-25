@@ -4054,9 +4054,9 @@ async function askPythos(userText) {
         sanitizedReply = sanitizedReply.replace(/---\s*###\s*\d+\.\s*Visualizing\s+the\s+triangle[\s\S]*$/gi, '');
         let finalReply = sanitizedReply.trim() || "The Oracle is silent. (Empty response)";
         if (isTruncated) {
-          finalReply += "\n\n> ?? *[Response interrupted: reached maximum output token limit. Say \"continue\" to proceed.]*";
+          finalReply += "\n\n> ⚠️ *[Response interrupted: reached maximum output token limit. Say \"continue\" to proceed.]*";
         } else if (!isStreamError && !isStreamDone && !userStoppedGeneration && !isInterrupted && streamedText.length > 0) {
-          finalReply += "\n\n> ?? *[Response interrupted: stream closed unexpectedly.]*";
+          finalReply += "\n\n> ⚠️ *[Response interrupted: stream closed unexpectedly.]*";
         }
         messages.push({ role: "assistant", content: finalReply });
         appendMessage("assistant", finalReply, null, {
