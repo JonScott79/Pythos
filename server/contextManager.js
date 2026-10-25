@@ -20,6 +20,7 @@ const math = require('mathjs');
 const { classifyProblem, DOMAINS, extractAnswerFormattingRequirements, extractRightTriangleTarget } = require('./problemClassifier');
 const { resolveReferentialContext } = require('./deterministicRouter');
 const { evaluateLinearEquationStep, evaluateEquationCandidate } = require('./studentWorkEvaluator');
+const mathjsVerifier = require('./mathjsVerifier');
 
 // ── Bounded Context Budget Constants (8,192 Total Context Window) ────────────
 const TOTAL_CONTEXT_LIMIT = 8192;
@@ -30,6 +31,65 @@ const RECENT_VERBATIM_TURNS = 5;    // 5 turns = up to 10 user/assistant message
  * Estimates token count for text using a conservative character-to-token ratio (~3.6 chars/token).
  * Accounts for LaTeX, mathematical operators, and whitespace.
  */
+/**
+ * Deterministically verifies a pure numeric equality proposition (e.g. 10^2 + 24^2 = 26^2, 2 + 2 = 5).
+ * Strictly separates proposition recognition (evaluable numeric equality) from mathematical truth (verification).
+ */
+function verifyDeterministicProposition(expr) {
+  if (!expr || typeof expr !== 'string' || !expr.includes('=')) {
+    return { isProposition: false, isVerified: false, details: null, exactLhs: null, exactRhs: null };
+  }
+  const parts = expr.split('=');
+  if (parts.length !== 2) {
+    return { isProposition: false, isVerified: false, details: null, exactLhs: null, exactRhs: null };
+  }
+  const lhs = parts[0].trim();
+  const rhs = parts[1].trim();
+  if (!lhs || !rhs) {
+    return { isProposition: false, isVerified: false, details: null, exactLhs: null, exactRhs: null };
+  }
+
+  // Reject expressions with unknown variables (exclude constants pi/e and standard math functions)
+  const cleanLhs = lhs.replace(/\b(?:pi|π|e|sqrt|sin|cos|tan|log|ln|abs)\b/gi, '');
+  const cleanRhs = rhs.replace(/\b(?:pi|π|e|sqrt|sin|cos|tan|log|ln|abs)\b/gi, '');
+  if (/[a-zA-Z]/.test(cleanLhs) || /[a-zA-Z]/.test(cleanRhs)) {
+    return { isProposition: false, isVerified: false, details: null, exactLhs: null, exactRhs: null };
+  }
+
+  try {
+    // 1. Evaluate RHS
+    const rhsEval = mathjsVerifier.verifyArithmetic({ expression: rhs });
+    if (!rhsEval || rhsEval.status === 'UNKNOWN' || rhsEval.status === 'DIVISION_BY_ZERO' || rhsEval.status === 'DOMAIN_ERROR') {
+      return { isProposition: false, isVerified: false, details: rhsEval ? rhsEval.details : 'Malformed RHS' };
+    }
+    const rhsVal = rhsEval.exact_value !== undefined && rhsEval.exact_value !== null
+      ? (typeof rhsEval.exact_value === 'object' && rhsEval.exact_value.valueOf ? rhsEval.exact_value.valueOf() : Number(rhsEval.exact_value))
+      : (rhsEval.numeric_value !== undefined ? rhsEval.numeric_value : null);
+
+    if (rhsVal === null || typeof rhsVal !== 'number' || !Number.isFinite(rhsVal)) {
+      return { isProposition: false, isVerified: false, details: 'Non-finite RHS' };
+    }
+
+    // 2. Evaluate LHS against RHS value
+    const lhsEval = mathjsVerifier.verifyArithmetic({ expression: lhs, proposed_value: rhsVal });
+    if (!lhsEval || lhsEval.status === 'UNKNOWN' || lhsEval.status === 'DIVISION_BY_ZERO' || lhsEval.status === 'DOMAIN_ERROR') {
+      return { isProposition: false, isVerified: false, details: lhsEval ? lhsEval.details : 'Malformed LHS' };
+    }
+
+    const isProposition = true;
+    const isVerified = Boolean(lhsEval.verified === true);
+    return {
+      isProposition,
+      isVerified,
+      details: lhsEval.details,
+      exactLhs: lhsEval.exact_value !== undefined ? (typeof lhsEval.exact_value === 'object' && lhsEval.exact_value.valueOf ? lhsEval.exact_value.valueOf() : Number(lhsEval.exact_value)) : null,
+      exactRhs: rhsVal
+    };
+  } catch (err) {
+    return { isProposition: false, isVerified: false, details: err.message };
+  }
+}
+
 function estimateTokens(text) {
   if (!text || typeof text !== 'string') return 0;
   return Math.ceil(text.length / 3.6);
@@ -459,7 +519,17 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
     const isGeneralKnowledgeQuery = !activeMath &&
       /^(?:tell\s+me\s+about|who\s+(?:was|is)|what\s+is\s+(?:the\s+capital|photosynthesis|gravity|history|the\s+speed\s+of)|explain\s+(?:the\s+concept\s+of\s+)?(?:quantum|general\s+relativity))\b/i.test(cleanPrompt);
 
-    if (trans.type === 'NEW_TOPIC_EXPLICIT' || isExplicitNewProblem || isDistinctNewEquation || isTopicSwitch || isGeneralKnowledgeQuery ||
+    // Check if previous problem is completed and this message is not referring to it
+    const refersToCompleted = currentActive && currentActive.isCompleted && currentActive.activeExpression && (
+      isTerseFollowUp ||
+      /^(?:why|how|what\s+about|explain|tell\s+me\s+more|can\s+you\s+explain|what\s+does\s+that\s+mean)\b/i.test(cleanPrompt) ||
+      /\b(?:that|this|it|the\s+result|the\s+answer|the\s+equation|both\s+sides|triple|pythagorean|date|holds?|true|false)\b/i.test(cleanPrompt) ||
+      (currentActive.activeExpression.match(/\d+/g) || []).some(num => num.length >= 2 && cleanPrompt.includes(num))
+    );
+
+    const isCompletedProblemRetired = currentActive && currentActive.isCompleted && !refersToCompleted;
+
+    if (trans.type === 'NEW_TOPIC_EXPLICIT' || isExplicitNewProblem || isDistinctNewEquation || isTopicSwitch || isGeneralKnowledgeQuery || isCompletedProblemRetired ||
         (isRecognizedProblem && currentActive && currentActive.domain !== detectedDomain && !isTerseFollowUp && !activeMath && !isQuestionOrValidation)) {
       if (currentActive) {
         currentActive.status = 'ARCHIVED_IN_SESSION';
@@ -472,8 +542,9 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
     const triTarget = extractRightTriangleTarget(msg.content);
 
     if (!currentActive && (isRecognizedProblem || activeMath || isTopicSwitch || fmtReqs || triTarget)) {
-      const hasUnknownVariable = activeMath && /[a-zA-Z]/.test(activeMath.replace(/\b(?:pi|π|sqrt|sin|cos|tan)\b/gi, ''));
-      const isPureNumericProposition = Boolean(activeMath && activeMath.includes('=') && !hasUnknownVariable);
+      const propCheck = activeMath ? verifyDeterministicProposition(activeMath) : null;
+      const isPureNumericProposition = Boolean(propCheck && propCheck.isProposition);
+      const isVerifiedPropositionTrue = Boolean(propCheck && propCheck.isVerified);
 
       currentActive = {
         domain: detectedDomain,
@@ -490,8 +561,14 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
         transcription: msg.content,
         status: isPureNumericProposition ? 'COMPLETED' : 'ACTIVE',
         currentStepEquation: null,
-        verifiedSolution: isPureNumericProposition ? activeMath : null,
+        verifiedSolution: isVerifiedPropositionTrue ? activeMath : null,
         isCompleted: isPureNumericProposition,
+        isVerified: isVerifiedPropositionTrue,
+        propositionVerification: propCheck ? {
+          isProposition: propCheck.isProposition,
+          isVerified: propCheck.isVerified,
+          details: propCheck.details
+        } : null,
         nextOperation: null
       };
     } else if (currentActive) {
@@ -630,6 +707,14 @@ function formatActiveProblemContext(state) {
   out += `- **Problem Status**: ${act.isCompleted ? 'COMPLETED' : 'IN_PROGRESS'}\n`;
   if (act.isCompleted && act.verifiedSolution) {
     out += `- **Verified Solution**: \`${act.verifiedSolution}\` (Problem complete)\n`;
+  }
+  if (act.propositionVerification && act.propositionVerification.isProposition) {
+    out += `- **Proposition Verification**: User submitted mathematical proposition \`${act.activeExpression}\`.\n`;
+    if (act.propositionVerification.isVerified) {
+      out += `- **Deterministic Evaluation**: EQUALITY HOLDS (TRUE). Ground truth: ${act.propositionVerification.details || 'verified'}. Confirm that the equality is true.\n`;
+    } else {
+      out += `- **Deterministic Evaluation**: EQUALITY DOES NOT HOLD (FALSE). Ground truth: ${act.propositionVerification.details || 'not equal'}. Explain clearly that the two sides are not equal.\n`;
+    }
   } else if (act.currentStepEquation) {
     out += `- **Active Intermediate Step**: \`${act.currentStepEquation}\`\n`;
     if (act.nextOperation) {
@@ -807,6 +892,18 @@ function buildEffectivePrompt(messages = []) {
 
   let effective = basePrompt;
 
+  // If base prompt was a completed pure numeric proposition, check if latest turn refers to it:
+  const basePropCheck = verifyDeterministicProposition(basePrompt);
+  if (basePropCheck.isProposition) {
+    const refersToBaseProp = (
+      /\b(?:that|this|it|the\s+result|the\s+answer|the\s+equation|both\s+sides|triple|pythagorean|date|holds?|true|false)\b/i.test(latestUser) ||
+      (basePrompt.match(/\d+/g) || []).some(n => n.length >= 2 && latestUser.includes(n))
+    );
+    if (!refersToBaseProp) {
+      return latestUser;
+    }
+  }
+
   // 1c. If previous assistant response was a practice problem, base prompt is the practice problem
   for (let pi = messages.length - 2; pi >= 0; pi--) {
     const prevMsg = messages[pi];
@@ -974,6 +1071,7 @@ function buildEffectivePrompt(messages = []) {
 }
 
 module.exports = {
+  verifyDeterministicProposition,
   buildEffectivePrompt,
   TOTAL_CONTEXT_LIMIT,
   MAX_INPUT_TOKEN_TARGET,

@@ -217,6 +217,74 @@ runTest('Test G: In-progress multi-step solution is preserved during intermediat
   assert.strictEqual(bounded.activeProblemState.active.currentStepEquation, '3x = 16', 'Intermediate step 3x = 16 must be tracked');
 });
 
+// =========================================================================
+// TEST H: VERIFICATION INTEGRITY (Strict Separation of Completion vs Truth)
+// =========================================================================
+runTest('Test H1: 10^2 + 24^2 = 26^2 is verified TRUE and completed', () => {
+  const bounded = contextManager.buildBoundedConversationContext([{ role: 'user', content: '10^2 + 24^2 = 26^2' }]);
+  assert(bounded.activeProblemState.active, 'Must establish active state');
+  assert.strictEqual(bounded.activeProblemState.active.status, 'COMPLETED', 'Status must be COMPLETED');
+  assert.strictEqual(bounded.activeProblemState.active.isCompleted, true, 'isCompleted must be true');
+  assert.strictEqual(bounded.activeProblemState.active.isVerified, true, 'isVerified must be true');
+  assert.strictEqual(bounded.activeProblemState.active.verifiedSolution, '10^2 + 24^2 = 26^2', 'verifiedSolution must contain verified equality');
+});
+
+runTest('Test H2: 2 + 2 = 5 is completed evaluation but MUST NOT be marked verified', () => {
+  const bounded = contextManager.buildBoundedConversationContext([{ role: 'user', content: '2 + 2 = 5' }]);
+  assert(bounded.activeProblemState.active, 'Must establish active state');
+  assert.strictEqual(bounded.activeProblemState.active.status, 'COMPLETED', 'Proposition evaluation is complete');
+  assert.strictEqual(bounded.activeProblemState.active.isCompleted, true, 'isCompleted is true');
+  assert.strictEqual(bounded.activeProblemState.active.isVerified, false, 'isVerified MUST be false');
+  assert.strictEqual(bounded.activeProblemState.active.verifiedSolution, null, 'verifiedSolution MUST be null (never marked verified)');
+});
+
+runTest('Test H3: 3^2 + 4^2 = 5^2 is verified TRUE and completed', () => {
+  const bounded = contextManager.buildBoundedConversationContext([{ role: 'user', content: '3^2 + 4^2 = 5^2' }]);
+  assert(bounded.activeProblemState.active, 'Must establish active state');
+  assert.strictEqual(bounded.activeProblemState.active.status, 'COMPLETED', 'Status must be COMPLETED');
+  assert.strictEqual(bounded.activeProblemState.active.isCompleted, true, 'isCompleted must be true');
+  assert.strictEqual(bounded.activeProblemState.active.isVerified, true, 'isVerified must be true');
+  assert.strictEqual(bounded.activeProblemState.active.verifiedSolution, '3^2 + 4^2 = 5^2', 'verifiedSolution must contain verified equality');
+});
+
+runTest('Test H4: Malformed or unevaluable equality (10^ + = 26, 1/0 = 5) MUST NOT be marked verified', () => {
+  const malformed = contextManager.buildBoundedConversationContext([{ role: 'user', content: '10^ + = 26' }]);
+  assert(malformed.activeProblemState.active, 'Must establish state');
+  assert.strictEqual(malformed.activeProblemState.active.isCompleted, false, 'Malformed expression must not be marked completed');
+  assert.strictEqual(malformed.activeProblemState.active.isVerified, false, 'Malformed expression must not be marked verified');
+  assert.strictEqual(malformed.activeProblemState.active.verifiedSolution, null, 'verifiedSolution must be null');
+
+  const divZero = contextManager.buildBoundedConversationContext([{ role: 'user', content: '1/0 = 5' }]);
+  assert(divZero.activeProblemState.active, 'Must establish state');
+  assert.strictEqual(divZero.activeProblemState.active.isCompleted, false, 'Division by zero must not be marked completed');
+  assert.strictEqual(divZero.activeProblemState.active.isVerified, false, 'Division by zero must not be marked verified');
+  assert.strictEqual(divZero.activeProblemState.active.verifiedSolution, null, 'verifiedSolution must be null');
+});
+
+runTest('Test H5: Completed true equality followed by unrelated question does not contaminate new query', () => {
+  const transcriptArithmetic = [
+    { role: 'user', content: '10^2 + 24^2 = 26^2' },
+    { role: 'assistant', content: '100 + 576 = 676 = 26^2. Verified.' },
+    { role: 'user', content: 'What is 2 + 2?' }
+  ];
+  const bounded1 = contextManager.buildBoundedConversationContext(transcriptArithmetic);
+  assert.strictEqual(bounded1.activeProblemState.archived.length, 1, 'Previous completed proposition must be archived');
+  assert.strictEqual(bounded1.activeProblemState.archived[0].activeExpression, '10^2 + 24^2 = 26^2');
+  const effPrompt1 = contextManager.buildEffectivePrompt(transcriptArithmetic);
+  assert.strictEqual(effPrompt1, 'What is 2 + 2?', 'Effective prompt must be clean without contamination');
+
+  const transcriptTriangle = [
+    { role: 'user', content: '10^2 + 24^2 = 26^2' },
+    { role: 'assistant', content: '100 + 576 = 676 = 26^2. Verified.' },
+    { role: 'user', content: 'Can a triangle have side lengths 2, 3, and 8?' }
+  ];
+  const bounded2 = contextManager.buildBoundedConversationContext(transcriptTriangle);
+  assert.strictEqual(bounded2.activeProblemState.archived.length, 1, 'Previous completed proposition must be archived');
+  assert.strictEqual(bounded2.activeProblemState.archived[0].activeExpression, '10^2 + 24^2 = 26^2');
+  const effPrompt2 = contextManager.buildEffectivePrompt(transcriptTriangle);
+  assert.strictEqual(effPrompt2, 'Can a triangle have side lengths 2, 3, and 8?', 'Effective prompt must be clean without contamination');
+});
+
 console.log(`\n=== SUITE COMPLETE: ${passedTests} / ${totalTests} PASSED ===`);
 if (passedTests !== totalTests) {
   process.exit(1);
