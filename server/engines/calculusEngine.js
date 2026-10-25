@@ -34,6 +34,11 @@ function resolvePython() {
       cachedPythonBin = directWin;
       return cachedPythonBin;
     }
+    const directWin2 = 'C:\\Users\\jonny\\AppData\\Local\\Python\\bin\\python.exe';
+    if (fs.existsSync(directWin2)) {
+      cachedPythonBin = directWin2;
+      return cachedPythonBin;
+    }
     cachedPythonBin = 'py';
   } else {
     const dockerVenv = '/opt/venv/bin/python3';

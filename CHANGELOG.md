@@ -1,3 +1,15 @@
+## Pythos 1.8.42
+**Release Date:** October 25, 2026
+
+### Added & Enhanced
+
+- **Provider Resilience & Rate-Limit Recovery**:
+  - Resolved upstream error masking where backup rate-limit failures (HTTP 429) were suppressed by primary failures (`primaryFailureError`), unmasking provider rate-limit status to students.
+  - Corrected unhandled error fallthrough in `classifyUpstreamError` so empty candidate responses (`PRIMARY_EMPTY_RESPONSE`, `BACKUP_EMPTY_RESPONSE`) and upstream rate limits are classified with high fidelity (`UPSTREAM_SERVER_ERROR`, `UPSTREAM_RATE_LIMITED`) rather than generic 500 internal errors.
+  - Eliminated coarse 30-second rate-limit cooldowns on primary Ollama for non-rate-limit application errors, ensuring subsequent requests can proceed without artificial throttling.
+  - Disciplined Groq backup reasoning token allocation to 1024 tokens to safely operate within Groq's 8,000 Tokens Per Minute (TPM) limit.
+  - Integrated `constructSafeVerifiedResponse` into early provider availability gating, ensuring authoritative precomputed calculations (such as SymPy calculus differentiation or geometry) are delivered directly to the student even when upstream LLMs are in cooldown.
+
 ## Pythos 1.8.41
 **Release Date:** October 25, 2026
 

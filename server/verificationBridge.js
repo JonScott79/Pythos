@@ -1569,7 +1569,7 @@ function getPythonExecutable() {
 
   const { spawnSync } = require('child_process');
   const candidates = process.platform === 'win32'
-    ? ['python', 'python3']
+    ? ['C:\\Users\\jonny\\AppData\\Local\\Python\\bin\\python.exe', 'python', 'python3']
     : ['python3', 'python'];
 
   for (const bin of candidates) {

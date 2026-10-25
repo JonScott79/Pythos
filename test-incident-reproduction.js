@@ -256,9 +256,15 @@ async function main() {
   console.log(`📊 REPRODUCTION SUITE SUMMARY: ${passedTests}/${totalTests} Passed (${Math.round((passedTests/totalTests)*100)}%)`);
   console.log(`====================================================\n`);
 
+  try {
+    const calculusEngine = require('./server/engines/calculusEngine');
+    calculusEngine.closeCalculusDaemon();
+  } catch (_) {}
+
   if (passedTests !== totalTests) {
     process.exit(1);
   }
+  process.exit(0);
 }
 
 main().catch(err => {

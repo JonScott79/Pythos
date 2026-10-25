@@ -13,6 +13,11 @@
  * 8. Deterministic Fast-Path Hardening & Web-Platform Trig Protection
  */
 
+if (process.platform === 'win32') {
+  const pyDir = 'C:\\Users\\jonny\\AppData\\Local\\Python\\bin';
+  process.env.PATH = pyDir + ';' + process.env.PATH;
+}
+
 const { execSync } = require('child_process');
 const path = require('path');
 const reportService = require('./server/reportService');
@@ -406,6 +411,16 @@ runSuite("Deterministic Fast-Path Hardening & Inverse-Trig Web Boilerplate Prote
   });
   console.log(out1.trim());
   console.log(out2.trim());
+});
+
+// 26. Provider Resilience & Rate-Limit Diagnostics Suite
+runSuite("Provider Resilience & Rate-Limit Diagnostics Suite", () => {
+  const out = execSync('node test-incident-reproduction.js', {
+    cwd: __dirname,
+    encoding: 'utf-8',
+    stdio: 'pipe'
+  });
+  console.log(out.trim());
 });
 
 console.log(`\n${colors.bold}${colors.green}====================================================${colors.reset}`);
