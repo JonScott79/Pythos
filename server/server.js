@@ -2708,6 +2708,8 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
 
           if (hasImages) {
             resolvedReason = WITHHOLDING_REASONS.IMAGE_UNVERIFIABLE;
+          } else if (auditText.includes('division by zero') || auditText.includes('mathematically undefined') || auditText.includes('domain violation')) {
+            resolvedReason = WITHHOLDING_REASONS.UNDEFINED_EXPRESSION;
           } else if (auditText.includes('missing') || auditText.includes('insufficient') || auditText.includes('undefined variable') || auditText.includes('not enough info')) {
             resolvedReason = WITHHOLDING_REASONS.MISSING_INFORMATION;
           } else if (auditText.includes('ambiguous') || auditText.includes('multiple interpretation')) {

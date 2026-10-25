@@ -98,6 +98,71 @@ async function runTests() {
     assert(sw.cause && sw.help && sw.nextStep);
   });
 
+  test('UNDEFINED_EXPRESSION explanation matches pedagogical guidance', () => {
+    const sw = getSafeWithholding(WITHHOLDING_REASONS.UNDEFINED_EXPRESSION);
+    assert(sw.explanation.includes("undefined mathematical operation"));
+    assert(sw.cause.includes("division by zero") || sw.cause.includes("undefined"));
+    assert(sw.help && sw.nextStep);
+  });
+
+  test('CLAIM_NOT_VERIFIED does not blame student for missing info and focuses on verification certainty', () => {
+    const sw = getSafeWithholding(WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED);
+    assert(sw.cause.includes("sufficient certainty"));
+    assert(sw.help.includes("sufficient mathematical certainty"));
+    assert(sw.nextStep.includes("review the specific unverified step"));
+    // Ensure it does not instruct the user to break into smaller steps as an excuse for verifier failure
+    assert(!sw.help.includes("Breaking the problem into smaller steps"));
+  });
+
+  // UI mapping verification logic (mirrors app.js rendering logic)
+  test('UI copy headings and summary titles are context-appropriate across failure categories', () => {
+    function getUIHeadings(reasonKey) {
+      let summaryTitle = "Why couldn't this be verified?";
+      let secondSectionLabel = "Why couldn't this be verified?";
+
+      if (reasonKey === "MISSING_INFORMATION") {
+        summaryTitle = "Why do I need more information?";
+        secondSectionLabel = "What information would help";
+      } else if (reasonKey === "AMBIGUOUS_PROBLEM") {
+        summaryTitle = "Why does this need clarification?";
+        secondSectionLabel = "What clarification would help";
+      } else if (reasonKey === "IMAGE_UNVERIFIABLE") {
+        summaryTitle = "Why couldn't the diagram be verified?";
+        secondSectionLabel = "What would help";
+      } else if (reasonKey === "UNDEFINED_EXPRESSION") {
+        summaryTitle = "Why is this expression undefined?";
+        secondSectionLabel = "Mathematical explanation";
+      } else if (reasonKey === "PROMPT_CLAIM_MISMATCH") {
+        summaryTitle = "Why couldn't this be verified?";
+        secondSectionLabel = "Equation alignment check";
+      } else if (reasonKey === "INFRASTRUCTURE_FAILURE" || reasonKey === "DUAL_PROVIDER_FAILURE") {
+        summaryTitle = "Why was verification interrupted?";
+        secondSectionLabel = "Service status";
+      }
+      return { summaryTitle, secondSectionLabel };
+    }
+
+    // For verification failure, heading MUST NOT be "What information would help"
+    const claimHeadings = getUIHeadings("CLAIM_NOT_VERIFIED");
+    assert.strictEqual(claimHeadings.secondSectionLabel, "Why couldn't this be verified?");
+    assert.strictEqual(claimHeadings.summaryTitle, "Why couldn't this be verified?");
+
+    // For missing information, heading asks for information
+    const missingHeadings = getUIHeadings("MISSING_INFORMATION");
+    assert.strictEqual(missingHeadings.secondSectionLabel, "What information would help");
+    assert.strictEqual(missingHeadings.summaryTitle, "Why do I need more information?");
+
+    // For ambiguous problem, heading asks for clarification
+    const ambigHeadings = getUIHeadings("AMBIGUOUS_PROBLEM");
+    assert.strictEqual(ambigHeadings.secondSectionLabel, "What clarification would help");
+    assert.strictEqual(ambigHeadings.summaryTitle, "Why does this need clarification?");
+
+    // For undefined expression, heading points to mathematical explanation
+    const undefHeadings = getUIHeadings("UNDEFINED_EXPRESSION");
+    assert.strictEqual(undefHeadings.secondSectionLabel, "Mathematical explanation");
+    assert.strictEqual(undefHeadings.summaryTitle, "Why is this expression undefined?");
+  });
+
   // 3. Absolute ban on internal jargon
   test('No student-facing text contains forbidden internal verifier jargon', () => {
     Object.keys(SAFE_WITHHOLDING_CONFIG).forEach(key => {

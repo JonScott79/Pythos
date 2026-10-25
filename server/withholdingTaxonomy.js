@@ -16,6 +16,7 @@ const WITHHOLDING_REASONS = {
   AMBIGUOUS_PROBLEM: 'AMBIGUOUS_PROBLEM',
   IMAGE_UNVERIFIABLE: 'IMAGE_UNVERIFIABLE',
   CLAIM_NOT_VERIFIED: 'CLAIM_NOT_VERIFIED',
+  UNDEFINED_EXPRESSION: 'UNDEFINED_EXPRESSION',
   PROMPT_CLAIM_MISMATCH: 'PROMPT_CLAIM_MISMATCH',
   INFRASTRUCTURE_FAILURE: 'INFRASTRUCTURE_FAILURE',
   DUAL_PROVIDER_FAILURE: 'DUAL_PROVIDER_FAILURE',
@@ -51,9 +52,17 @@ const SAFE_WITHHOLDING_CONFIG = {
     code: 'CLAIM_NOT_VERIFIED',
     headline: "I need a little more information to solve this problem.",
     explanation: "I worked through a possible answer, but I couldn't verify it well enough to give it to you. I'd rather not guess.",
-    cause: "The mathematical derivation could not be certified with complete accuracy by our verification checks.",
-    help: "Breaking the problem into smaller steps or stating any assumptions (such as the domain or formula to apply).",
-    nextStep: "Try asking about the specific step you're stuck on, or share your work so far and we'll check it together."
+    cause: "The mathematical derivation could not be certified with sufficient certainty by our verification checks.",
+    help: "Pythos evaluated the derivation, but could not establish the intermediate reasoning steps or final result with sufficient mathematical certainty.",
+    nextStep: "You can ask Pythos to review the specific unverified step, explain the underlying mathematical principles, or work through the derivation together one step at a time."
+  },
+  UNDEFINED_EXPRESSION: {
+    code: 'UNDEFINED_EXPRESSION',
+    headline: "I need a little more information to solve this problem.",
+    explanation: "This expression contains an undefined mathematical operation, such as division by zero or a domain violation.",
+    cause: "The expression contains an undefined mathematical operation (such as division by zero or an even root of a negative value over the real domain).",
+    help: "Division by zero or taking an even root of a negative value over real numbers produces no defined value in mathematics.",
+    nextStep: "Check for zero denominators or real-domain boundaries in the problem expression before solving."
   },
   PROMPT_CLAIM_MISMATCH: {
     code: 'PROMPT_CLAIM_MISMATCH',

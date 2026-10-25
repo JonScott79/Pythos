@@ -1221,9 +1221,14 @@ const CLIENT_WITHHOLDING_EXPLANATIONS = {
     nextStep: "Double-check the diagram labels or type the numbers into your message, and I'll work through the solution with you."
   },
   CLAIM_NOT_VERIFIED: {
-    cause: "The mathematical derivation could not be certified with complete accuracy by our verification checks.",
-    help: "Breaking the problem into smaller steps or stating any assumptions (such as the domain or formula to apply).",
-    nextStep: "Try asking about the specific step you're stuck on, or share your work so far and we'll check it together."
+    cause: "The mathematical derivation could not be certified with sufficient certainty by our verification checks.",
+    help: "Pythos evaluated the derivation, but could not establish the intermediate reasoning steps or final result with sufficient mathematical certainty.",
+    nextStep: "You can ask Pythos to review the specific unverified step, explain the underlying mathematical principles, or work through the derivation together one step at a time."
+  },
+  UNDEFINED_EXPRESSION: {
+    cause: "The expression contains an undefined mathematical operation (such as division by zero or an even root of a negative value over the real domain).",
+    help: "Division by zero or taking an even root of a negative value over real numbers produces no defined value in mathematics.",
+    nextStep: "Check for zero denominators or real-domain boundaries in the problem expression before solving."
   },
   PROMPT_CLAIM_MISMATCH: {
     cause: "The generated steps addressed a different expression or variable than the one in your question.",
@@ -1979,14 +1984,6 @@ function appendMessage(role, text, images = null, metadata = {}) {
   if (role === "assistant" && isWithheld) {
     const detailsEl = document.createElement("details");
     detailsEl.className = "pythos-withholding-details";
-    detailsEl.setAttribute("aria-label", "Why do I need more information?");
-
-    const summaryEl = document.createElement("summary");
-    summaryEl.className = "pythos-withholding-summary";
-    summaryEl.innerHTML = `<span style="font-size: 0.95em;">🔍</span> <span>Why do I need more information?</span>`;
-
-    const bodyEl = document.createElement("div");
-    bodyEl.className = "pythos-withholding-body";
 
     const reasonKey = metadata.withholdingReason || "CLAIM_NOT_VERIFIED";
     const fallbackConfig = (typeof CLIENT_WITHHOLDING_EXPLANATIONS !== "undefined" && CLIENT_WITHHOLDING_EXPLANATIONS[reasonKey])
@@ -1995,13 +1992,46 @@ function appendMessage(role, text, images = null, metadata = {}) {
 
     const details = metadata.withholdingDetails || fallbackConfig;
 
+    // Context-appropriate summary and section titles
+    let summaryTitle = "Why couldn't this be verified?";
+    let secondSectionLabel = "Why couldn't this be verified?";
+
+    if (reasonKey === "MISSING_INFORMATION") {
+      summaryTitle = "Why do I need more information?";
+      secondSectionLabel = "What information would help";
+    } else if (reasonKey === "AMBIGUOUS_PROBLEM") {
+      summaryTitle = "Why does this need clarification?";
+      secondSectionLabel = "What clarification would help";
+    } else if (reasonKey === "IMAGE_UNVERIFIABLE") {
+      summaryTitle = "Why couldn't the diagram be verified?";
+      secondSectionLabel = "What would help";
+    } else if (reasonKey === "UNDEFINED_EXPRESSION") {
+      summaryTitle = "Why is this expression undefined?";
+      secondSectionLabel = "Mathematical explanation";
+    } else if (reasonKey === "PROMPT_CLAIM_MISMATCH") {
+      summaryTitle = "Why couldn't this be verified?";
+      secondSectionLabel = "Equation alignment check";
+    } else if (reasonKey === "INFRASTRUCTURE_FAILURE" || reasonKey === "DUAL_PROVIDER_FAILURE") {
+      summaryTitle = "Why was verification interrupted?";
+      secondSectionLabel = "Service status";
+    }
+
+    detailsEl.setAttribute("aria-label", summaryTitle);
+
+    const summaryEl = document.createElement("summary");
+    summaryEl.className = "pythos-withholding-summary";
+    summaryEl.innerHTML = `<span style="font-size: 0.95em;">🔍</span> <span>${escapeHtml(summaryTitle)}</span>`;
+
+    const bodyEl = document.createElement("div");
+    bodyEl.className = "pythos-withholding-body";
+
     bodyEl.innerHTML = `
       <div class="pythos-withholding-section">
         <span class="pythos-withholding-label">What prevented a verified answer</span>
         <span class="pythos-withholding-text">${escapeHtml(details.cause || fallbackConfig.cause)}</span>
       </div>
       <div class="pythos-withholding-section">
-        <span class="pythos-withholding-label">What information would help</span>
+        <span class="pythos-withholding-label">${escapeHtml(secondSectionLabel)}</span>
         <span class="pythos-withholding-text">${escapeHtml(details.help || fallbackConfig.help)}</span>
       </div>
       <div class="pythos-withholding-section">
