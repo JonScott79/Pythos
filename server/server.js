@@ -1104,13 +1104,18 @@ ${m.content.slice(PYTHOS_SYSTEM_PROMPT.length).trim()}`;
     return { role: m.role, content: m.content || '' };
   });
 
-  const groqPayload = JSON.stringify({
+  const isReasoningModel = targetModel.includes('gpt-oss') || targetModel.includes('o1') || targetModel.includes('o3');
+  const payloadObj = {
     model: targetModel,
     messages: textMessages,
     temperature: options?.temperature || 0.2,
-    max_tokens: Math.min(options?.num_predict || 1024, 1024),
+    max_tokens: Math.min(options?.num_predict || options?.max_tokens || 2048, 2048),
     stream: false
-  });
+  };
+  if (isReasoningModel) {
+    payloadObj.reasoning_effort = 'low';
+  }
+  const groqPayload = JSON.stringify(payloadObj);
 
   const groqHttps = require('https');
   const executeCall = () => new Promise((resolveGroq, rejectGroq) => {
@@ -1149,11 +1154,19 @@ ${m.content.slice(PYTHOS_SYSTEM_PROMPT.length).trim()}`;
         }
         try {
           const parsed = JSON.parse(gBody);
-          const text = parsed.choices?.[0]?.message?.content || '';
+          const choice = parsed.choices?.[0];
+          let text = choice?.message?.content || '';
+          if (!text.trim() && choice?.message?.reasoning) {
+            text = choice.message.reasoning;
+          }
+          const finishReason = choice?.finish_reason;
+          const isTruncated = finishReason === 'length';
           resolveGroq({
             model: targetModel,
             content: text,
-            provider: provider.name
+            provider: provider.name,
+            finishReason,
+            truncated: isTruncated
           });
         } catch (err) {
           rejectGroq(err);
@@ -1268,11 +1281,16 @@ async function executeGeminiTextCall(provider, { messages, options, timeoutMs = 
             err.body = gmBody;
             return rejectGemini(err);
           }
-          const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          const candidate = parsed.candidates?.[0];
+          const text = candidate?.content?.parts?.[0]?.text || '';
+          const finishReason = candidate?.finishReason;
+          const isTruncated = finishReason === 'MAX_TOKENS';
           resolveGemini({
             model: targetModel,
             content: text,
-            provider: provider.name
+            provider: provider.name,
+            finishReason,
+            truncated: isTruncated
           });
         } catch (err) {
           rejectGemini(err);
@@ -2685,7 +2703,19 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
         return true; // Still uncorrected
       });
 
-      const hasUnresolvableFailure = uncorrectedInvalidClaims.length > 0 || internalContradictions.length > 0;
+      // Guard against truncated or incomplete responses ending mid-derivation
+      const isCandidateTruncated = candidateResult?.truncated === true;
+      const endsWithIncompleteHeader = /(?:##\s*Final\s*answer|\*\*Final\s*Answer\*\*|###\s*Answer|###\s*Final\s*Result)[:\s]*$/i.test(finalContent.trim());
+      const displayMathOpen = (finalContent.match(/\\\[/g) || []).length;
+      const displayMathClose = (finalContent.match(/\\\]/g) || []).length;
+      const hasUnclosedDisplayMath = displayMathOpen > displayMathClose;
+      const isCandidateIncomplete = isCandidateTruncated || endsWithIncompleteHeader || hasUnclosedDisplayMath;
+
+      if (isCandidateIncomplete) {
+        console.warn(`[DELIVERY GATE] Candidate is truncated or incomplete (truncated=${isCandidateTruncated}, endsWithIncompleteHeader=${endsWithIncompleteHeader}, unclosedMath=${hasUnclosedDisplayMath}). Enforcing safe withholding...`);
+      }
+
+      const hasUnresolvableFailure = uncorrectedInvalidClaims.length > 0 || internalContradictions.length > 0 || isCandidateIncomplete;
 
       if (hasUnresolvableFailure) {
         console.warn(`[DELIVERY GATE] Candidate contains ${uncorrectedInvalidClaims.length} uncorrected errors and ${internalContradictions.length} contradictions. Enforcing safe withholding gate...`);

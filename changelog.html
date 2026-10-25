@@ -22,14 +22,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="assets/favicon.png">
-  <title>Pythos Release History &amp; Changelog | v1.8.42</title>
+  <title>Pythos Release History &amp; Changelog | v1.8.43</title>
   <meta name="description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://pythos.lanzar.me/changelog.html">
 
   <!-- OPEN GRAPH -->
-  <meta property="og:title" content="Pythos Release History &amp; Changelog | v1.8.42">
+  <meta property="og:title" content="Pythos Release History &amp; Changelog | v1.8.43">
   <meta property="og:description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta property="og:url" content="https://pythos.lanzar.me/changelog.html">
   <meta property="og:type" content="article">
@@ -41,7 +41,7 @@
 
   <!-- TWITTER CARD -->
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Pythos Release History &amp; Changelog | v1.8.42">
+  <meta name="twitter:title" content="Pythos Release History &amp; Changelog | v1.8.43">
   <meta name="twitter:description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="twitter:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
 
@@ -532,7 +532,7 @@
         <a href="nonprofit.html" class="nav-link">Mission &amp; Roadmap</a>
         <a href="license.html" class="nav-link">License</a>
         <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" class="nav-link">Facebook</a>
-        <a href="changelog.html#pythos-1-8-42" class="nav-link active" aria-current="page">v1.8.42</a>
+        <a href="changelog.html#pythos-1-8-43" class="nav-link active" aria-current="page">v1.8.43</a>
       </div>
     </div>
 
@@ -562,7 +562,32 @@
         <!-- ==================== RELEASE 1.8.28 ==================== -->
         <!-- ==================== RELEASE 1.8.29 ==================== -->
     <!-- ==================== RELEASE 1.8.31 ==================== -->
-                                                                                                <!-- ==================== RELEASE 1.8.42 ==================== -->
+                                                                                                                                                                                    <!-- ==================== RELEASE 1.8.43 ==================== -->
+        <article class="release-card" id="pythos-1-8-43">
+            <div class="release-header">
+                <div>
+                    <h2 class="release-version">Pythos 1.8.43</h2>
+                    <div class="release-date">Released on October 25, 2026</div>
+                </div>
+                <span class="badge badge-success">Latest</span>
+            </div>
+            <div class="release-content">
+                <div class="badge badge-purple" style="margin-bottom: 1rem;">Reasoning Token Budgeting &amp; Truncation Guard</div>
+                <p>Resolution for mid-derivation response cutoffs, restoring low reasoning effort, 2048 token budgeting, provider truncation telemetry, and delivery gate incomplete candidate interception.</p>
+                <div class="change-group">
+                    <div class="change-type type-enhancement">Added &amp; Enhanced</div>
+                    <ul class="change-list">
+                        <li><strong>Low Reasoning Effort Optimization:</strong> Restored <code>reasoning_effort: 'low'</code> for reasoning models on Groq text endpoints to eliminate excessive reasoning token burn.</li>
+                        <li><strong>Expanded Token Limits:</strong> Increased response token ceiling to 2048 tokens for text models, ensuring full multi-step derivations with cases and equations complete safely.</li>
+                        <li><strong>Provider Truncation Telemetry:</strong> Captured <code>finish_reason</code> across Groq and Gemini text endpoints to detect <code>truncated: true</code>.</li>
+                        <li><strong>Incomplete Candidate Guard:</strong> Enforced safe withholding when candidate output terminates on unfulfilled headers (e.g., <code>## Final answer</code>) or unclosed display math blocks.</li>
+                        <li><strong>Harness Suite 27:</strong> Added comprehensive unit tests and automated regression assertions.</li>
+                    </ul>
+                </div>
+            </div>
+        </article>
+
+                                                                                    <!-- ==================== RELEASE 1.8.42 ==================== -->
       <article class="release-card" id="pythos-1-8-42">
         <div class="release-header">
           <div class="release-title-wrap">
@@ -2187,7 +2212,7 @@
 
   <footer>
     <div>🏛️ Pythos — Free AI Mathematics &amp; Physics Education Initiative. Developed by LANZAR.</div>
-    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-8-41" style="color:var(--primary-color); text-decoration:none;">v1.8.42</a></div>
+    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-8-43" style="color:var(--primary-color); text-decoration:none;">v1.8.43</a></div>
   </footer>
 
   <script>

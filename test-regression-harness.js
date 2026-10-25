@@ -423,6 +423,16 @@ runSuite("Provider Resilience & Rate-Limit Diagnostics Suite", () => {
   console.log(out.trim());
 });
 
+// 27. Response Truncation & Token Budget Guard Suite
+runSuite("Response Truncation & Token Budget Guard Suite", () => {
+  const out = execSync('node test-truncation-guard.js', {
+    cwd: __dirname,
+    encoding: 'utf-8',
+    stdio: 'pipe'
+  });
+  console.log(out.trim());
+});
+
 console.log(`\n${colors.bold}${colors.green}====================================================${colors.reset}`);
 console.log(`${colors.bold}${colors.green}ALL ${passedSuites}/${totalSuites} REGRESSION SUITES PASSED (100%)${colors.reset}`);
 console.log(`${colors.bold}${colors.green}====================================================${colors.reset}\n`);

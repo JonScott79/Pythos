@@ -1,3 +1,15 @@
+## Pythos 1.8.43
+**Release Date:** October 25, 2026
+
+### Added & Enhanced
+
+- **Response Truncation & Token Budget Guard**:
+  - Restored `reasoning_effort: 'low'` for reasoning models (`gpt-oss`, `o1`, `o3`) on Groq text endpoints, preventing internal reasoning token churn from depleting output token budgets.
+  - Expanded `max_tokens` limit up to 2048 tokens (`Math.min(options?.num_predict || options?.max_tokens || 2048, 2048)`), allowing complex multi-step algebra derivations, case analyses, and LaTeX environments to complete without truncation.
+  - Implemented provider truncation telemetry in `executeGroqTextCall` and `executeGeminiTextCall`, capturing `finish_reason` and propagating `truncated: true` when token limits are reached.
+  - Added incomplete candidate guard in the delivery gate to detect responses ending prematurely on section headers (e.g. `## Final answer`) or unclosed display math blocks (`\[`), enforcing fail-closed safe withholding rather than delivering cut-off derivations to students.
+  - Codified Suite 27 (`test-truncation-guard.js`) into the master regression test harness, maintaining 100% verification across all 27 suites.
+
 ## Pythos 1.8.42
 **Release Date:** October 25, 2026
 
