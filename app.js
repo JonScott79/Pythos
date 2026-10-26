@@ -823,6 +823,57 @@ function renderInlineGraph(canvas, exprString) {
       }
     }
     ctx.stroke();
+
+    // Render 5 Reference Key Points for Trigonometric Waves
+    if (trigPeriodMatch && bFactor > 0) {
+      const pLen = (2 * Math.PI) / bFactor;
+      const hLen = pLen / 4;
+      const fmtPiLabel = (fac) => {
+        if (Math.abs(fac) < 1e-6) return "0";
+        if (Math.abs(fac - 1) < 1e-6) return "π";
+        if (Math.abs(fac + 1) < 1e-6) return "-π";
+        if (Number.isInteger(fac)) return `${fac}π`;
+        const n = Math.round(fac * 4);
+        if (n % 4 === 0) return `${n / 4}π`;
+        if (n % 2 === 0) return `${n / 2}π/2`;
+        return `${n}π/4`;
+      };
+
+      ctx.font = "bold 9px Inter, sans-serif";
+      ctx.textAlign = "center";
+
+      for (let k = 0; k <= 4; k++) {
+        const px = k * hLen;
+        try {
+          const py = compiled.evaluate({ x: px });
+          if (typeof py === "number" && isFinite(py)) {
+            const canX = toCanvasX(px);
+            const canY = toCanvasY(py);
+
+            if (canX >= 0 && canX <= width && canY >= 0 && canY <= height) {
+              // Draw point dot
+              ctx.beginPath();
+              ctx.arc(canX, canY, 4, 0, 2 * Math.PI);
+              ctx.fillStyle = isDark ? "#f59e0b" : "#d97706";
+              ctx.fill();
+              ctx.lineWidth = 1.5;
+              ctx.strokeStyle = isDark ? "#ffffff" : "#0f172a";
+              ctx.stroke();
+
+              // Draw point coordinate label
+              const xLabel = fmtPiLabel(k * (hLen / Math.PI));
+              const yLabel = Number.isInteger(py) ? py : py.toFixed(1);
+              const labelText = `(${xLabel}, ${yLabel})`;
+
+              ctx.fillStyle = isDark ? "#fbbf24" : "#b45309";
+              const labelOffset = py >= 0 ? -9 : 14;
+              ctx.fillText(labelText, canX, Math.max(10, Math.min(height - 4, canY + labelOffset)));
+            }
+          }
+        } catch (_) {}
+      }
+    }
+
     return true;
   } catch (err) {
     console.warn("[GRAPH RENDERING ERROR]:", err.message);
@@ -1759,8 +1810,13 @@ function appendMessage(role, text, images = null, metadata = {}) {
         graphCard.appendChild(canvas);
         graphCard.appendChild(infoRow);
       } else {
-        // If the expression was not a valid 2D scalar function (e.g. vector prose or multi-variable), cleanly remove the placeholder card
-        graphCard.remove();
+        // If the expression was not a valid 2D scalar function, report failure explicitly
+        const errorCard = document.createElement("div");
+        errorCard.className = "msg-graph-error-card";
+        errorCard.innerHTML = `<div style="padding: 10px 14px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; color: #ef4444; font-size: 0.85rem; font-family: Inter, sans-serif;">
+          <strong>⚠️ Unable to Render Graph:</strong> Could not plot mathematical expression <code>${escapeHtml(exprToGraph || "undefined")}</code>. Functions must be scalar single-variable expressions in <code>x</code>.
+        </div>`;
+        graphCard.replaceWith(errorCard);
       }
     }
   }
@@ -4983,8 +5039,23 @@ function drawGraph(exprString) {
     const cleanExpr = sanitizeGraphExpr(exprString);
     const compiled = window.math.compile(cleanExpr);
 
-    const xMin = -10, xMax = 10;
+    let xMin = -10, xMax = 10;
     let yMin = -10, yMax = 10;
+
+    // Adaptive x-axis scaling for trigonometric functions with stretched period:
+    const trigPeriodMatch = cleanExpr.match(/\b(?:sin|cos|tan)\s*\(\s*(?:([0-9.]+)\s*\*?\s*x|x\s*\/\s*([0-9.]+))\s*\)/i);
+    let bFactor = 1;
+    if (trigPeriodMatch) {
+      bFactor = trigPeriodMatch[1] ? parseFloat(trigPeriodMatch[1]) : (1 / parseFloat(trigPeriodMatch[2]));
+      if (bFactor > 0) {
+        const period = (2 * Math.PI) / bFactor;
+        if (period > 16) {
+          const span = Math.ceil((period * 1.25) / 5) * 5;
+          xMin = -span;
+          xMax = span;
+        }
+      }
+    }
 
     // Sample function for adaptive bounds
     const samples = [];

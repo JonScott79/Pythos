@@ -1,3 +1,11 @@
+## Pythos 1.8.47
+### Critical Fix: Graphing Expression Parameter Retention & Concrete Function Routing
+- **Concrete Function Resolution:** Added isConcreteGraphableExpression() in server/deterministicRouter.js to guarantee that pedagogical formula templates (e.g., f(x) = sin(Bx), y = A*sin(Bx), y = mx + b) in assistant responses are never misidentified as concrete user graph requests.
+- **Trigonometric Parameter Preservation:** Fixed root cause where y = 7sin(x/4) dropped its amplitude (7) and period factor (1/4) in follow-up queries (graph it please, show me on a graph). The router now strictly preserves exact coefficients and evaluates the 5 key cycle points: (0, 0), (2π, 7), (4π, 0), (6π, -7), and (8π, 0).
+- **Canvas Reference Points & Adaptive Viewport:** In app.js, rendered prominent reference point markers with exact coordinate annotations for trigonometric waves and dynamically expanded plot bounds for stretched periods (T > 16).
+- **Explicit Client-Side Error Reporting:** Replaced silent fallback / removal with a clear, high-contrast failure warning card if an expression is unparseable or lacks a valid 2D scalar expression in x.
+- **Regression Suite:** Added Test G (formula template protection & coefficient retention) and Test H (client-side failure card contract) in test/test-graphing-intent-routing.js.
+
 ## Pythos 1.8.46
 **Release Date:** October 26, 2026
 

@@ -1039,54 +1039,109 @@ function normalizeGraphExpression(expr) {
   return s.trim();
 }
 
+/**
+ * Validates that an expression is a concrete numerical function of x
+ * (e.g. 7*sin(x/4), 3*cos(2x), x^2 - 4) rather than an abstract formula template
+ * containing unbound parameter variables (e.g. sin(Bx), A*sin(Bx), mx + b, ax^2 + bx + c).
+ */
+function isConcreteGraphableExpression(expr) {
+  if (!expr || typeof expr !== 'string') return false;
+  const s = expr.trim();
+  
+  // Must contain x as an independent variable
+  if (!/\b[xX]\b|[xX]/.test(s)) return false;
+
+  // Strip known standard math functions and constants
+  const stripped = s
+    .replace(/\b(?:sin|cos|tan|cot|sec|csc|sqrt|ln|log|log10|exp|abs)\b/gi, '')
+    .replace(/\b(?:pi|π|e)\b/gi, '')
+    .replace(/[^a-zA-Z]/g, '');
+
+  // After removing standard math functions and constants, the ONLY remaining variable should be 'x' (or 'X')!
+  // Any expression with other letters like 'A', 'B', 'C', 'm', 'k' is a generic formula template.
+  const remainingNonX = stripped.replace(/[xX]/g, '');
+  return remainingNonX.length === 0;
+}
+
 function resolveReferentialContext(userText, conversationHistory = []) {
   if (!conversationHistory || !Array.isArray(conversationHistory) || conversationHistory.length === 0) {
     return null;
   }
 
-  // Bounded window: Inspect the most recent 1-4 turns
-  const recentTurns = conversationHistory.slice(-4);
+  // Bounded window: Inspect the most recent 1-6 turns
+  const recentTurns = conversationHistory.slice(-6);
 
-  // Scan in reverse (most recent first)
+  // 1. First priority: Check for concrete existing [GRAPH: <expr>] tokens
   for (let i = recentTurns.length - 1; i >= 0; i--) {
     const turn = recentTurns[i];
     if (!turn || typeof turn.content !== 'string') continue;
-    const content = turn.content.trim();
-
-    // Priority 1: Existing [GRAPH: <expr>] tokens
-    const graphTokenMatch = content.match(/\[GRAPH:\s*([^\]]+)\]/i);
+    const graphTokenMatch = turn.content.match(/\[GRAPH:\s*([^\]]+)\]/i);
     if (graphTokenMatch) {
       const normalized = normalizeGraphExpression(graphTokenMatch[1]);
-      if (normalized && looksLikeMathExpression(normalized)) {
+      if (normalized && isConcreteGraphableExpression(normalized) && looksLikeMathExpression(normalized)) {
         return normalized;
       }
     }
+  }
 
-    // Priority 2: Explicit function declarations: f(x) = ... or y = ... (including LaTeX & fractions)
-    const funcMatch = content.match(/(?:(?:f\(x\)|g\(x\)|h\(x\)|y)\s*=\s*)([\\a-zA-Z0-9+\-*/^().\sπ_{}]+?)(?:[$,;\n\.]|\s+for\b|\s+where\b|\s+on\b|$)/i);
-    if (funcMatch) {
-      const candidate = funcMatch[1].trim();
-      const normalized = normalizeGraphExpression(candidate);
-      if (normalized && /[xX]/.test(normalized) && looksLikeMathExpression(normalized) && !hasConceptualIntent(normalized)) {
-        return normalized;
-      }
+  function extractCandidateFunctions(content) {
+    const candidates = [];
+    const funcMatches = content.matchAll(/(?:(?:f\(x\)|g\(x\)|h\(x\)|y)\s*=\s*)([\\a-zA-Z0-9+\-*/^().\sπ_{}]+?)(?:[$,;\n\.]|\s+for\b|\s+where\b|\s+on\b|$)/gi);
+    for (const match of funcMatches) {
+      if (match[1]) candidates.push(match[1].trim());
     }
 
-    // Priority 3: Explicit single quadratic, polynomial, or trigonometric expression in math delimiters
-    const mathMatches = content.match(/\$\$([^\$]+)\$\$|\$([^\$]+)\$/g);
+    const mathMatches = content.match(/\\?\$\$([^\\$]+)\\?\$\$|\\?\$([^\\$]+)\\?\$/g);
     if (mathMatches) {
       for (const m of mathMatches) {
-        const inner = m.replace(/^\$+|\$+$/g, '').trim();
-        const normalized = normalizeGraphExpression(inner);
-        if (normalized && /[xX]/.test(normalized) && looksLikeMathExpression(normalized) && !hasConceptualIntent(normalized)) {
-          return normalized;
-        }
+        const inner = m.replace(/^\\?\$+|\\?\$+$/g, '').trim();
+        candidates.push(inner);
+      }
+    }
+
+    const trigLineMatch = content.match(/([+-]?\d*(?:\.\d+)?\s*\*?\s*(?:\\?sin|\\?cos|\\?tan)\s*(?:\([^\n]+\)|[a-zA-Z0-9/.\\]+))/i);
+    if (trigLineMatch) {
+      candidates.push(trigLineMatch[1].trim());
+    }
+
+    return candidates;
+  }
+
+  // 2. Second priority: Scan USER turns from most recent to oldest
+  // The user's input is the primary specification of the problem to solve/graph!
+  for (let i = recentTurns.length - 1; i >= 0; i--) {
+    const turn = recentTurns[i];
+    if (!turn || turn.role !== 'user' || typeof turn.content !== 'string') continue;
+    // Don't extract from the current query itself if it's just a referential request
+    if (/^(?:(?:can\s+you\s+|could\s+you\s+)?(?:please\s+)?(?:plot|graph|draw)|now\s+(?:plot|graph|draw)|show\s+me|how\s+do\s+i\s+graph)\s+(?:it|this|that|the\s+function|the\s+curve)?[?!.\s]*$/i.test(turn.content.trim())) {
+      continue;
+    }
+    const candidates = extractCandidateFunctions(turn.content);
+    for (const cand of candidates) {
+      const normalized = normalizeGraphExpression(cand);
+      if (normalized && isConcreteGraphableExpression(normalized) && looksLikeMathExpression(normalized) && !hasConceptualIntent(normalized)) {
+        return normalized;
+      }
+    }
+  }
+
+  // 3. Third priority: Scan ASSISTANT turns from most recent to oldest
+  // Must strictly be concrete functions (not formula templates like f(x) = sin(Bx) or y = A*sin(Bx))
+  for (let i = recentTurns.length - 1; i >= 0; i--) {
+    const turn = recentTurns[i];
+    if (!turn || turn.role !== 'assistant' || typeof turn.content !== 'string') continue;
+    const candidates = extractCandidateFunctions(turn.content);
+    for (const cand of candidates) {
+      const normalized = normalizeGraphExpression(cand);
+      if (normalized && isConcreteGraphableExpression(normalized) && looksLikeMathExpression(normalized) && !hasConceptualIntent(normalized)) {
+        return normalized;
       }
     }
   }
 
   return null;
 }
+
 function simplifyPythagoreanSide(hypExpr, legExpr) {
   const nHyp = Number(hypExpr);
   const nLeg = Number(legExpr);
@@ -2762,22 +2817,52 @@ function buildDeterministicResponse(intent) {
 
   if (intent.type === 'GRAPH_PLOT') {
     let response = `📈 **Function Visualization**\n\nHere is the plot for $f(x) = ${intent.expression}$:\n\n[GRAPH: ${intent.expression}]`;
-    if (intent.isHowTo) {
-      const flatS = intent.expression.replace(/[()\s]/g, '');
-      const trigMatch = flatS.match(/([+-]?\d*(?:\.\d+)?)\*?(sin|cos|tan)(?:x\/([0-9.]+)|([0-9.]*)\*?x)/i);
-      if (trigMatch) {
-        const rawA = trigMatch[1];
-        const amp = rawA && rawA !== '-' && rawA !== '+' ? Math.abs(parseFloat(rawA)) : 1;
-        const fn = trigMatch[2].toLowerCase();
-        const bDiv = trigMatch[3] ? parseFloat(trigMatch[3]) : null;
-        const bMult = trigMatch[4] && trigMatch[4] !== '' ? parseFloat(trigMatch[4]) : (bDiv ? 1 / bDiv : 1);
-        const periodStr = Math.abs(bMult - 0.25) < 1e-4 ? '8\\pi' : (Math.abs(bMult - 0.5) < 1e-4 ? '4\\pi' : (Math.abs(bMult - 1) < 1e-4 ? (fn === 'tan' ? '\\pi' : '2\\pi') : (Math.abs(bMult - 2) < 1e-4 ? (fn === 'tan' ? '\\pi/2' : '\\pi') : `${(2 / bMult).toFixed(2)}\\pi`)));
-        response += `\n\n### How to Graph This Function:\n1. **Amplitude:** $|A| = ${amp}$ (oscillates vertically between $y = -${amp}$ and $y = ${amp}$).\n2. **Period:** $P = \\frac{2\\pi}{B} = ${periodStr}$.\n3. **Five Key Points (one full cycle):** Divide the period into 4 equal sub-intervals to find the x-intercepts, maximum, and minimum.`;
+    
+    // Check for periodic trigonometric wave
+    const flatS = intent.expression.replace(/[()\s]/g, '');
+    const trigMatch = flatS.match(/([+-]?\d*(?:\.\d+)?)\*?(sin|cos|tan)(?:x\/([0-9.]+)|([0-9.]*)\*?x)/i);
+    if (trigMatch) {
+      const rawA = trigMatch[1];
+      const amp = rawA && rawA !== '-' && rawA !== '+' ? Math.abs(parseFloat(rawA)) : 1;
+      const fn = trigMatch[2].toLowerCase();
+      const bDiv = trigMatch[3] ? parseFloat(trigMatch[3]) : null;
+      const bMult = trigMatch[4] && trigMatch[4] !== '' ? parseFloat(trigMatch[4]) : (bDiv ? 1 / bDiv : 1);
+      const periodStr = Math.abs(bMult - 0.25) < 1e-4 ? '8\\pi' : (Math.abs(bMult - 0.5) < 1e-4 ? '4\\pi' : (Math.abs(bMult - 1) < 1e-4 ? (fn === 'tan' ? '\\pi' : '2\\pi') : (Math.abs(bMult - 2) < 1e-4 ? (fn === 'tan' ? '\\pi/2' : '\\pi') : `${(2 / bMult).toFixed(2)}\\pi`)));
+      
+      // Calculate 5 reference key points for one full cycle
+      let keyPointsStr = '';
+      if (fn === 'sin' || fn === 'cos') {
+        const P_factor = 2 / bMult;
+        const h_factor = P_factor / 4;
+        const fmtPi = (fac) => {
+          if (Math.abs(fac) < 1e-6) return '0';
+          if (Math.abs(fac - 1) < 1e-6) return '\\pi';
+          if (Math.abs(fac + 1) < 1e-6) return '-\\pi';
+          if (Number.isInteger(fac)) return `${fac}\\pi`;
+          const n = Math.round(fac * 4);
+          if (n % 4 === 0) return `${n / 4}\\pi`;
+          if (n % 2 === 0) return `${n / 2 === 1 ? '' : n / 2}\\pi/2`;
+          return `${n === 1 ? '' : n}\\pi/4`;
+        };
+
+        if (fn === 'sin') {
+          keyPointsStr = `$(0, 0)$, $(${fmtPi(h_factor)}, ${amp})$, $(${fmtPi(2 * h_factor)}, 0)$, $(${fmtPi(3 * h_factor)}, -${amp})$, $(${fmtPi(4 * h_factor)}, 0)`;
+        } else {
+          keyPointsStr = `$(0, ${amp})$, $(${fmtPi(h_factor)}, 0)$, $(${fmtPi(2 * h_factor)}, -${amp})$, $(${fmtPi(3 * h_factor)}, 0)$, $(${fmtPi(4 * h_factor)}, ${amp})`;
+        }
+      }
+
+      if (intent.isHowTo) {
+        response += `\n\n### How to Graph This Function:\n1. **Amplitude:** $|A| = ${amp}$ (oscillates vertically between $y = -${amp}$ and $y = ${amp}$).\n2. **Period:** $P = \\frac{2\\pi}{B} = ${periodStr}$.\n3. **Five Key Points (one full cycle):** Divide the period into 4 equal sub-intervals:\n   ${keyPointsStr}`;
       } else {
-        response += `\n\n### How to Graph This Function:\n1. **Find Intercepts:** Solve for $x$ when $f(x) = 0$ (x-intercepts) and evaluate $f(0)$ (y-intercept).\n2. **Plot Key Points:** Calculate values for several test points across the domain.\n3. **Sketch the Curve:** Connect the points following the curvature shown on the graph above.`;
+        response += `\n\n- **Amplitude:** $|A| = ${amp}$\n- **Period:** $P = ${periodStr}` + (keyPointsStr ? `\n- **Five Key Points (one full cycle):** ${keyPointsStr}` : '');
       }
     } else {
-      response += `\n\nThe curve shows the behavior of the function over the real domain. Would you like to explore its roots, extrema, or derivatives?`;
+      if (intent.isHowTo) {
+        response += `\n\n### How to Graph This Function:\n1. **Find Intercepts:** Solve for $x$ when $f(x) = 0$ (x-intercepts) and evaluate $f(0)$ (y-intercept).\n2. **Plot Key Points:** Calculate values for several test points across the domain.\n3. **Sketch the Curve:** Connect the points following the curvature shown on the graph above.`;
+      } else {
+        response += `\n\nThe curve shows the behavior of the function over the real domain. Would you like to explore its roots, extrema, or derivatives?`;
+      }
     }
     return response;
   }

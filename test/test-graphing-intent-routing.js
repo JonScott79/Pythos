@@ -159,6 +159,69 @@ test('TEST F: "graph it" with no active function prompts user for clarification'
   assert(response.includes('Which function would you like me to graph?'));
 });
 
+// -------------------------------------------------------------
+// Test G: Multi-turn Formula Template Protection & Parameter Retention
+// -------------------------------------------------------------
+console.log('\n▶ [TEST G] Formula template protection and parameter retention');
+test('TEST G1: Assistant formula template f(x) = sin(Bx) is rejected, concrete expression 7*sin(x/4) is preserved', () => {
+  const history = [
+    { role: 'user', content: 'Determine the amplitude and period of y = 7\\sin\\left(\\frac{x}{4}\\right)' },
+    { role: 'assistant', content: 'Recall the standard form f(x) = sin(Bx) or y = A*sin(Bx). Here amplitude is |A| = 7 and period is 2pi/B = 8pi.' }
+  ];
+
+  const intent = analyzeDeterministicIntent('graph it please', history);
+  assert(intent, 'Router must handle "graph it please"');
+  assert.strictEqual(intent.type, 'GRAPH_PLOT');
+  // Must NOT be the formula template sin(Bx) or A*sin(Bx)
+  assert(!intent.expression.includes('Bx') && !intent.expression.includes('A*'), 'Must not extract abstract template');
+  assert(intent.expression.includes('7*sin') || intent.expression.includes('7 * sin') || intent.expression.includes('7sin'), 'Must preserve coefficient 7');
+  assert(intent.expression.includes('4') && intent.expression.includes('x'), 'Must preserve frequency factor');
+
+  const response = buildDeterministicResponse(intent);
+  assert(response.includes('[GRAPH: 7*sin(((x)/(4)))]') || response.includes('[GRAPH: 7*sin(x/4)]'), 'Emitted token must retain 7*sin expression');
+  assert(response.includes('(0, 0)') && response.includes('(2\\pi, 7)') && response.includes('(4\\pi, 0)') && response.includes('(6\\pi, -7)') && response.includes('(8\\pi, 0)'), 'Must list the 5 reference points');
+});
+
+test('TEST G2: Direct graphing command "graph y = 3sin(2x)" preserves amplitude 3 and frequency 2', () => {
+  const intent = analyzeDeterministicIntent('graph y = 3sin(2x)', []);
+  assert(intent);
+  assert.strictEqual(intent.type, 'GRAPH_PLOT');
+  assert(intent.expression.includes('3') && intent.expression.includes('sin') && intent.expression.includes('2*x'));
+
+  const response = buildDeterministicResponse(intent);
+  assert(response.includes('Amplitude:** $|A| = 3$'));
+  assert(response.includes('Period:** $P = \\pi'));
+  assert(response.includes('(0, 0)'));
+  assert(response.includes('(\\pi/4, 3)'));
+});
+
+test('TEST G3: Direct graphing command "graph y = sin(x)" plots standard sine function', () => {
+  const intent = analyzeDeterministicIntent('graph y = sin(x)', []);
+  assert(intent);
+  assert.strictEqual(intent.type, 'GRAPH_PLOT');
+  assert.strictEqual(intent.expression, 'sin(x)');
+
+  const response = buildDeterministicResponse(intent);
+  assert(response.includes('Amplitude:** $|A| = 1$'));
+  assert(response.includes('Period:** $P = 2\\pi'));
+});
+
+// -------------------------------------------------------------
+// Test H: Client-Side Fallback Card Assertion (No Silent Default Curve)
+// -------------------------------------------------------------
+console.log('\n▶ [TEST H] Client-side failure reporting contract');
+test('TEST H: Verification that appendMessage handles invalid/missing expression explicitly', () => {
+  // Read app.js to assert contract: appendMessage must detect missing/invalid expression
+  // and render a prominent error warning card, NOT silently substitute a sine curve.
+  const fs = require('fs');
+  const path = require('path');
+  const appJs = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+
+  assert(appJs.includes('Unable to Render Graph'), 'app.js must provide explicit error card');
+  assert(appJs.includes('Could not plot mathematical expression'), 'app.js must display explanatory message');
+  assert(!appJs.match(/fallbackToGenericSine/i), 'app.js must not contain silent generic sine fallbacks');
+});
+
 console.log('\n================================================================');
 console.log(`🎉 ALL ${passed}/${total} GRAPHING INTENT REGRESSION TESTS PASSED`);
 console.log('================================================================\n');
