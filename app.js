@@ -645,8 +645,12 @@ function sanitizeGraphExpr(raw) {
     .replace(/^f\(x\)\s*=\s*/i, "")
     .replace(/^y\s*=\s*/i, "")
     .replace(/=\s*0$/i, "")
-    .replace(/\\left\(/g, "(")
-    .replace(/\\right\)/g, ")")
+    .replace(/\\left\s*\(/g, "(")
+    .replace(/\\right\s*\)/g, ")")
+    .replace(/\\left\b/g, "")
+    .replace(/\\right\b/g, "")
+    .replace(/\\\)/g, ")")
+    .replace(/\\\(/g, "(")
     .replace(/\\cdot/g, "*")
     .replace(/\\times/g, "*");
 
@@ -665,6 +669,9 @@ function sanitizeGraphExpr(raw) {
     .replace(/\\log/g, "log10")
     .replace(/\\exp/g, "exp")
     .replace(/\\pi/g, "pi");
+
+  // Clean any remaining stray LaTeX backslashes before mathjs parse
+  expr = expr.replace(/\\/g, "");
 
   // Implicit multiplication
   expr = expr
@@ -691,10 +698,18 @@ function renderInlineGraph(canvas, exprString) {
     let yMin = -10, yMax = 10;
 
     // Adaptive x-axis scaling for trigonometric functions with stretched or compressed period:
-    // e.g. sin(x/4) has B = 1/4 -> period = 8*pi ≈ 25.13 -> window [-35, 35]
-    const trigPeriodMatch = cleanExpr.match(/\b(?:sin|cos|tan)\s*\(\s*(?:([0-9.]+)\s*\*?\s*x|x\s*\/\s*([0-9.]+))\s*\)/i);
+    // Flattens nested parens so (((x)/(4))), x/4, and 0.25*x all match correctly
+    const flattenedTrig = cleanExpr.replace(/[()\s]/g, '');
+    const trigPeriodMatch = flattenedTrig.match(/\b(?:sin|cos|tan)\*?(?:([0-9.]+)\*?x|x\*?\/([0-9.]+)|x)/i);
+    let bFactor = 1;
     if (trigPeriodMatch) {
-      const bFactor = trigPeriodMatch[1] ? parseFloat(trigPeriodMatch[1]) : (1 / parseFloat(trigPeriodMatch[2]));
+      if (trigPeriodMatch[1]) {
+        bFactor = parseFloat(trigPeriodMatch[1]);
+      } else if (trigPeriodMatch[2]) {
+        bFactor = 1 / parseFloat(trigPeriodMatch[2]);
+      } else {
+        bFactor = 1;
+      }
       if (bFactor > 0) {
         const period = (2 * Math.PI) / bFactor;
         if (period > 16) {
@@ -5051,10 +5066,11 @@ function drawGraph(exprString) {
     let yMin = -10, yMax = 10;
 
     // Adaptive x-axis scaling for trigonometric functions with stretched period:
-    const trigPeriodMatch = cleanExpr.match(/\b(?:sin|cos|tan)\s*\(\s*(?:([0-9.]+)\s*\*?\s*x|x\s*\/\s*([0-9.]+))\s*\)/i);
+    const flattenedTrig = cleanExpr.replace(/[()\s]/g, '');
+    const trigPeriodMatch = flattenedTrig.match(/\b(?:sin|cos|tan)\*?(?:([0-9.]+)\*?x|x\*?\/([0-9.]+)|x)/i);
     let bFactor = 1;
     if (trigPeriodMatch) {
-      bFactor = trigPeriodMatch[1] ? parseFloat(trigPeriodMatch[1]) : (1 / parseFloat(trigPeriodMatch[2]));
+      bFactor = trigPeriodMatch[1] ? parseFloat(trigPeriodMatch[1]) : (trigPeriodMatch[2] ? (1 / parseFloat(trigPeriodMatch[2])) : 1);
       if (bFactor > 0) {
         const period = (2 * Math.PI) / bFactor;
         if (period > 16) {

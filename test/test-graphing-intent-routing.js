@@ -282,6 +282,48 @@ test('TEST I3: "try again" / "retry" after graph request preserves active functi
   assert.strictEqual(intentRetry.expression, '7*sin(x/4)');
 });
 
+// -------------------------------------------------------------
+// Test J: Client-Side LaTeX Delimiter Sanitization & bFactor Scoping
+// -------------------------------------------------------------
+console.log('\n▶ [TEST J] Client-side LaTeX delimiter sanitization & bFactor scoping');
+test('TEST J1: sanitizeGraphExpr cleans escaped backslash delimiters without syntax error', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const appJs = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+  const sanitizeFnMatch = appJs.match(/function sanitizeGraphExpr\([\s\S]*?\n\}/);
+  assert(sanitizeFnMatch, 'sanitizeGraphExpr must exist in app.js');
+
+  const sanitizeFn = new Function('raw', `${sanitizeFnMatch[0]}; return sanitizeGraphExpr(raw);`);
+
+  // Expressions that previously caused syntax errors or bFactor scope crashes
+  const testInputs = [
+    '7*sin(((x)/(4)))',
+    '7*sin(x\\)',
+    'sin(x/4\\)',
+    '7\\sin\\left(\\frac{x}{4}\\right)',
+    '7*\\sin(x/4)',
+    '7\\sin(x/4)',
+    'y = 7*sin(((x)/(4)))'
+  ];
+
+  testInputs.forEach(input => {
+    const cleaned = sanitizeFn(input);
+    assert(!cleaned.includes('\\'), `Cleaned expression must not contain stray backslashes: "${cleaned}"`);
+    assert(cleaned.includes('sin'), 'Trig function must be preserved');
+  });
+});
+
+test('TEST J2: renderInlineGraph bFactor is scoped and defined across entire canvas block', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const appJs = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+
+  // Verify let bFactor = 1 is declared at the top of renderInlineGraph
+  const renderFnMatch = appJs.match(/function renderInlineGraph[\s\S]*?\n\}/);
+  assert(renderFnMatch, 'renderInlineGraph must exist');
+  assert(renderFnMatch[0].includes('let bFactor = 1;'), 'bFactor must be declared in outer function scope');
+});
+
 console.log('\n================================================================');
 console.log(`🎉 ALL ${passed}/${total} GRAPHING INTENT REGRESSION TESTS PASSED`);
 console.log('================================================================\n');
