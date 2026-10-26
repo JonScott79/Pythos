@@ -363,9 +363,9 @@ For non-trivial mathematical and physical problems (word problems, optimization,
     (For type, use "PHYSICS" or "MATH". Variables match the model's parameters. Include default/initial values relevant to the problem).
     (CRITICAL JSON SYNTAX RULE: All string fields inside [VIZ: {...}] must be STRICT JSON. NEVER write unescaped LaTeX backslashes like "\pi" or "\theta" in the title or description strings. Write "pi", "theta", or "\\pi").
 
-- 2. GENERIC FUNCTION PLOTTING [GRAPH: expression]:
-  * Reserved for plotting ordinary 1-variable scalar algebraic functions $y = f(x)$ (e.g. polynomials, rational functions, arbitrary curves like [GRAPH: x^3 - 4*x] or [GRAPH: sin(2*x)]) where NO specialized physics or calculus interactive instrument is applicable.
-  * DO NOT use [GRAPH: ...] when a specialized model like newtons_laws, projectile, waves, or trigonometry exists for the concept.
+- 2. FUNCTION PLOTTING [GRAPH: expression]:
+  * Use [GRAPH: expression] for plotting ANY 1-variable Cartesian function $y = f(x)$, including polynomials, rational functions, exponentials, and trigonometric wave curves (e.g. [GRAPH: 7*sin(x/4)], [GRAPH: cos(2*x)], [GRAPH: x^3 - 4*x]).
+  * Note: The 'trigonometry' interactive model is strictly the Pythagorean Unit Circle angle explorer (θ in [0, 360°]). NEVER substitute the unit circle model for a requested function graph or wave plot.
 
 - 3. NUMBER LINES (Inequalities, intervals, points):
   * [NUMBER_LINE: min=-5, max=5, interval=[-2, 3), points=[-2, 0, 3]]
@@ -2102,11 +2102,19 @@ app.post('/api/chat', async (req, res) => {
       acquiredSemaphore = true;
 
       const wantsViz = lastUserMsg && /\b(?:visualize|draw|plot|show|sketch)\b/i.test(lastUserMsg.content);
-      const vizPromptInstruction = wantsViz ? `\n\n# VISUALIZATION INSTRUCTION:
+      const isFunctionGraphRequest = wantsViz && (
+        /\b(?:graph|plot|curve)\b/i.test(lastUserMsg.content) ||
+        /\b(?:on\s+a\s+graph|in\s+a\s+graph|as\s+a\s+graph)\b/i.test(lastUserMsg.content) ||
+        /\b(?:f\(x\)|y\s*=|[a-zA-Z]\(x\))\b/i.test(lastUserMsg.content)
+      );
+      const vizPromptInstruction = wantsViz ? (isFunctionGraphRequest ? `\n\n# VISUALIZATION INSTRUCTION:
+The student requested to graph a function $y = f(x)$ on a Cartesian coordinate plane.
+Include a function plotting token [GRAPH: <expression>] with the exact mathematical expression (e.g. [GRAPH: 7*sin(x/4)] or [GRAPH: x^2 - 4]).
+DO NOT emit [VIZ: {"model":"trigonometry"}] for function graphs; the trigonometry instrument is strictly for unit circle angle exploration.` : `\n\n# VISUALIZATION INSTRUCTION:
 The student requested to visualize or draw this problem.
-If this is a trigonometry, right triangle, projectile, force/dynamics, energy, wave, circuit, or calculus problem, include the interactive classical instrument token or geometric figure token representing this exact problem:
+If this is a right triangle, projectile, force/dynamics, energy, wave, circuit, or angle exploration problem, include the interactive classical instrument token or geometric figure token representing this exact problem:
 [VIZ: {"type":"MATH","model":"trigonometry","title":"Classical Trigonometry: The Pythagorean Unit Circle","variables":{"angle":{"value":<angleDeg>,"default":<angleDeg>,"min":0,"max":360,"step":1,"unit":"°"}}}]
-or [GEOMETRY: triangle, a=<sideA>, b=<sideB>, c=<hypotenuse>, right_angle=C]` : '';
+or [GEOMETRY: triangle, a=<sideA>, b=<sideB>, c=<hypotenuse>, right_angle=C]`) : '';
 
       // For hosted vision API, provide focused Pythos tutor instructions and vision directive
       // to keep total request tokens safely within provider rate limits (~1500 tokens)
@@ -2163,15 +2171,19 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
         const resolvedModel = successfulResult.model || targetModel;
 
         if (wantsViz && !finalContent.includes('[VIZ:') && !finalContent.includes('[GEOMETRY:') && !finalContent.includes('[GRAPH:')) {
-          const angleData = parseAngleFromText(finalContent);
-          if (angleData) {
-            const vizResp = buildDeterministicResponse({
-              type: 'CLASSICAL_MODEL_VIZ',
-              model: 'trigonometry',
-              customAngle: Math.round(angleData.normalizedDeg)
-            });
-            if (vizResp) {
-              finalContent += '\n\n' + vizResp;
+          const isGraphingQuery = /\b(?:graph|plot|curve)\b/i.test(lastUserMsg?.content || '') ||
+                                  /\b(?:on\s+a\s+graph|in\s+a\s+graph|as\s+a\s+graph)\b/i.test(lastUserMsg?.content || '');
+          if (!isGraphingQuery) {
+            const angleData = parseAngleFromText(finalContent);
+            if (angleData) {
+              const vizResp = buildDeterministicResponse({
+                type: 'CLASSICAL_MODEL_VIZ',
+                model: 'trigonometry',
+                customAngle: Math.round(angleData.normalizedDeg)
+              });
+              if (vizResp) {
+                finalContent += '\n\n' + vizResp;
+              }
             }
           }
         }

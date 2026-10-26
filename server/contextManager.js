@@ -497,21 +497,27 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
       .replace(/[?!.]+$/, '')
       .trim();
 
-    const isProse = (str) => /\b(?:the|this|that|and|what|with|from|have|got|think|know|like|please|maybe|because|about|step|definitely|actually|right|correct|wrong|why|how|where|when|can|could|would|should|if|whether)\b/i.test(str);
+    const isProse = (str) => {
+      if (!str || typeof str !== 'string') return false;
+      // Strip LaTeX control sequences (e.g. \right, \left, \frac, \sqrt) before prose word checks
+      const nonLatex = str.replace(/\\[a-zA-Z]+/g, '');
+      return /\b(?:the|this|that|and|what|with|from|have|got|think|know|like|please|maybe|because|about|step|definitely|actually|right|correct|wrong|why|how|where|when|can|could|would|should|if|whether|determine|find|calculate|amplitude|period|solve)\b/i.test(nonLatex);
+    };
 
     if (cleanPrompt.includes('=')) {
       let targetForEq = cleanPrompt;
-      // If the prompt contains prose words around an equation, try to isolate the embedded equation
+      // If the prompt contains prose words around an equation, try to isolate the embedded equation (including LaTeX and trig)
       if (isProse(cleanPrompt)) {
-        const embeddedMatch = cleanPrompt.match(/(?:^|\s)([a-zA-Z0-9+\-*/^().\sπ]+=[a-zA-Z0-9+\-*/^().\sπ]+)(?:$|\s)/);
-        if (embeddedMatch) targetForEq = embeddedMatch[1].trim();
+        const funcOrEqMatch = cleanPrompt.match(/(?:^|\s)((?:f\(x\)|g\(x\)|h\(x\)|[a-zA-Z])\s*=\s*[^,;\n]+?)(?:[$,;\n\.]|\s+for\b|\s+where\b|\s+on\b|$)/i) ||
+                              cleanPrompt.match(/(?:^|\s)([\\a-zA-Z0-9+\-*/^().π_{}]+\s*=\s*[\\a-zA-Z0-9+\-*/^().π_{}]+)(?:[$,;\n\.]|$)/);
+        if (funcOrEqMatch) targetForEq = funcOrEqMatch[1].trim();
       }
 
       const eqParts = targetForEq.split('=');
       if (eqParts.length === 2 && eqParts[0].trim() && eqParts[1].trim()) {
         const lhs = eqParts[0].trim();
         const rhs = eqParts[1].trim();
-        const validMath = /^[-+*/^0-9.()\s\\a-zA-Zπ_]+$/;
+        const validMath = /^[-+*/^0-9.()\s\\a-zA-Zπ_{}]+$/;
         if (validMath.test(lhs) && validMath.test(rhs) && !isProse(lhs) && !isProse(rhs) &&
             (/\d/.test(lhs) || /[a-zA-Zπ]/.test(lhs)) && (/\d/.test(rhs) || /[a-zA-Zπ]/.test(rhs))) {
           extractedEq = `${lhs} = ${rhs}`;
@@ -519,8 +525,8 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
       }
     }
     let extractedExpr = null;
-    if (!cleanPrompt.includes('=') && !isProse(cleanPrompt) && /^[-+*/^0-9.()\s\\a-zA-Zπ_]+$/.test(cleanPrompt) &&
-        (/\d/.test(cleanPrompt) || /[a-zA-Zπ]/.test(cleanPrompt)) && cleanPrompt.length <= 60 &&
+    if (!cleanPrompt.includes('=') && !isProse(cleanPrompt) && /^[-+*/^0-9.()\s\\a-zA-Zπ_{}]+$/.test(cleanPrompt) &&
+        (/\d/.test(cleanPrompt) || /[a-zA-Zπ]/.test(cleanPrompt)) && cleanPrompt.length <= 80 &&
         (/[-+*/^]/.test(cleanPrompt) || /\b(?:pi|π|sqrt|sin|cos|tan)\b/i.test(cleanPrompt))) {
       extractedExpr = cleanPrompt;
     }

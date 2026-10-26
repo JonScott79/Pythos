@@ -88,6 +88,13 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
     };
   }
 
+  if (!activeProblemState && Array.isArray(conversationHistory) && conversationHistory.length > 0) {
+    try {
+      const { extractActiveProblemState } = require('./contextManager');
+      activeProblemState = extractActiveProblemState(conversationHistory);
+    } catch (_) {}
+  }
+
   const clean = sanitizeInput(text);
   const lower = clean.toLowerCase();
   const signals = [];
@@ -163,7 +170,8 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
   // -------------------------------------------------------------
   // 4. CONTINUATION Intent
   // -------------------------------------------------------------
-  const isContinuation = /^(?:ok(?:ay)?,?\s+)?(?:what\s+(?:comes\s+next|is\s+next|next)|next\s+step|where\s+do\s+we\s+go\s+from\s+here|what\s+now|how\s+do\s+we\s+continue|continue|keep\s+going|go\s+on|next)[.?!]*$/i.test(lower);
+  const isContinuation = /^(?:ok(?:ay)?,?\s+)?(?:what\s+(?:comes\s+next|is\s+next|next)|next\s+step|where\s+do\s+we\s+go\s+from\s+here|what\s+now|how\s+do\s+we\s+continue|continue|keep\s+going|go\s+on|next)[.?!]*$/i.test(lower) ||
+                         (hasActiveProblem && /^(?:yes|yeah|yep|yup|that'?s\s+what\s+i\s+got|so\s+then\.{0,3}|and\s+then\.{0,3})[.?!]*$/i.test(lower));
   if (isContinuation) {
     signals.push('continuation_query');
     return { intent: INTENTS.CONTINUATION, confidence: 'high', signals };

@@ -993,6 +993,52 @@ function looksLikeMathExpression(expr) {
  *
  * Returns null if no unambiguous target is found.
  */
+/**
+ * Normalizes a function/equation string into a clean standard expression
+ * compatible with Math.js and client Cartesian function graphers.
+ * Handles LaTeX (\sin, \cos, \frac, \left, \right, etc.), powers, and implicit multiplication.
+ */
+function normalizeGraphExpression(expr) {
+  if (!expr || typeof expr !== 'string') return null;
+  let s = expr.trim();
+  s = s.replace(/^\$\$|\$\$$/g, '').replace(/^\$|\$$/g, '').trim();
+  s = s.replace(/^\\boxed\{([\s\S]*)\}$/, '$1').trim();
+  s = s.replace(/^(?:f\(x\)|g\(x\)|h\(x\)|y)\s*=\s*/i, '').trim();
+  s = s.replace(/[;,.?!]+$/, '').trim();
+
+  // Strip natural language lead-ins
+  s = s.replace(/^(?:the\s+function\s+|the\s+curve\s+|the\s+graph\s+|equation\s+|plot\s+|graph\s+)+/i, '').trim();
+
+  s = s.replace(/\\left\(/g, '(')
+       .replace(/\\right\)/g, ')')
+       .replace(/\\cdot/g, '*')
+       .replace(/\\times/g, '*');
+
+  while (/\\frac\{([^}]+)\}\{([^}]+)\}/.test(s)) {
+    s = s.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '(($1)/($2))');
+  }
+
+  s = s.replace(/\\sin/g, 'sin')
+       .replace(/\\cos/g, 'cos')
+       .replace(/\\tan/g, 'tan')
+       .replace(/\\cot/g, 'cot')
+       .replace(/\\sec/g, 'sec')
+       .replace(/\\csc/g, 'csc')
+       .replace(/\\sqrt\{([^}]+)\}/g, 'sqrt($1)')
+       .replace(/\\ln/g, 'log')
+       .replace(/\\log/g, 'log10')
+       .replace(/\\exp/g, 'exp')
+       .replace(/\\pi/g, 'pi');
+
+  s = s.replace(/[{}]/g, '');
+
+  // Add implicit multiplication: 7sin -> 7*sin, 2x -> 2*x, 7(x) -> 7*(x)
+  s = s.replace(/(\d+)\s*([a-zA-Z(])/g, '$1*$2')
+       .replace(/(\))\s*([a-zA-Z0-9(])/g, '$1*$2');
+
+  return s.trim();
+}
+
 function resolveReferentialContext(userText, conversationHistory = []) {
   if (!conversationHistory || !Array.isArray(conversationHistory) || conversationHistory.length === 0) {
     return null;
@@ -1009,44 +1055,38 @@ function resolveReferentialContext(userText, conversationHistory = []) {
 
     // Priority 1: Existing [GRAPH: <expr>] tokens
     const graphTokenMatch = content.match(/\[GRAPH:\s*([^\]]+)\]/i);
-    if (graphTokenMatch && looksLikeMathExpression(graphTokenMatch[1])) {
-      return graphTokenMatch[1].trim();
-    }
-
-    // Priority 2: Explicit function declarations: f(x) = ... or y = ...
-    // e.g. "f(x) = x^2 - 4", "$f(x) = x^2 + 2x$", "y = 2x + 3", "$$y = 3x - 5$$"
-    const funcMatch = content.match(/(?:f\(x\)|g\(x\)|h\(x\)|y)\s*=\s*([a-zA-Z0-9.\s*+^/()_-]+?)(?:[$,;\n\.]|$)/i);
-    if (funcMatch) {
-      const candidate = funcMatch[1].trim();
-      // Verify candidate looks like a mathematical expression and doesn't contain confusing prose
-      if (looksLikeMathExpression(candidate) && !hasConceptualIntent(candidate)) {
-        // Strip trailing punctuation or LaTeX markers
-        const cleanCandidate = candidate.replace(/\\boxed\{|[\$}]/g, '').trim();
-        if (looksLikeMathExpression(cleanCandidate)) {
-          return cleanCandidate;
-        }
+    if (graphTokenMatch) {
+      const normalized = normalizeGraphExpression(graphTokenMatch[1]);
+      if (normalized && looksLikeMathExpression(normalized)) {
+        return normalized;
       }
     }
 
-    // Priority 3: Explicit single quadratic or polynomial equation in math delimiters
-    // e.g. "$x^2 - 4$" or "$$x^3 - x$$"
-    const displayMathMatch = content.match(/\$\$\s*([a-zA-Z0-9.\s*+^/()_-]+?)\s*\$\$/);
-    if (displayMathMatch && looksLikeMathExpression(displayMathMatch[1])) {
-      const cand = displayMathMatch[1].trim();
-      if (!cand.includes('=') && !hasConceptualIntent(cand)) {
-        return cand;
+    // Priority 2: Explicit function declarations: f(x) = ... or y = ... (including LaTeX & fractions)
+    const funcMatch = content.match(/(?:(?:f\(x\)|g\(x\)|h\(x\)|y)\s*=\s*)([\\a-zA-Z0-9+\-*/^().\sπ_{}]+?)(?:[$,;\n\.]|\s+for\b|\s+where\b|\s+on\b|$)/i);
+    if (funcMatch) {
+      const candidate = funcMatch[1].trim();
+      const normalized = normalizeGraphExpression(candidate);
+      if (normalized && /[xX]/.test(normalized) && looksLikeMathExpression(normalized) && !hasConceptualIntent(normalized)) {
+        return normalized;
+      }
+    }
+
+    // Priority 3: Explicit single quadratic, polynomial, or trigonometric expression in math delimiters
+    const mathMatches = content.match(/\$\$([^\$]+)\$\$|\$([^\$]+)\$/g);
+    if (mathMatches) {
+      for (const m of mathMatches) {
+        const inner = m.replace(/^\$+|\$+$/g, '').trim();
+        const normalized = normalizeGraphExpression(inner);
+        if (normalized && /[xX]/.test(normalized) && looksLikeMathExpression(normalized) && !hasConceptualIntent(normalized)) {
+          return normalized;
+        }
       }
     }
   }
 
   return null;
 }
-
-/**
- * Detects if a query is a direct deterministic mathematical problem
- * that can be solved and explained with 100% verified certainty.
- * Accepts optional conversationHistory to resolve multi-turn referential requests.
- */
 function simplifyPythagoreanSide(hypExpr, legExpr) {
   const nHyp = Number(hypExpr);
   const nLeg = Number(legExpr);
@@ -1385,57 +1425,84 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
     return null;
   }
 
-  // Referential angle visualization requests:
-  // e.g. "I need to visualize this.", "visualize this", "draw this", "show this", "can you visualize this?",
-  // "draw it out for me please", "draw it again please", "draw it for me", "can you draw it out", etc.
-  // When conversation history contains an active angle in standard position / trigonometry problem.
-  const isReferentialVizQuery = /^(?:(?:i\s+need\s+to|can\s+you\s+please|can\s+you|could\s+you|please|now)\s+)?(?:visualize|draw|plot|show|sketch)\s+(?:this|it|that)(?:\s+(?:out|again|for\s+me|please))*\s*$/i.test(clean) ||
-                                /^(?:draw|visualize|plot|show|sketch)\s+(?:it|this|that)(?:\s+(?:out|again|for\s+me|please))*\s*$/i.test(clean) ||
-                                /^(?:visualize\s+this|show\s+me\s+this|i\s+want\s+to\s+see\s+this)$/i.test(clean);
-  if (isReferentialVizQuery && conversationHistory && Array.isArray(conversationHistory) && conversationHistory.length > 0) {
-    const recentTurns = conversationHistory.slice(-4);
-    for (let i = recentTurns.length - 1; i >= 0; i--) {
-      const turn = recentTurns[i];
-      if (!turn || typeof turn.content !== 'string') continue;
-      const angleData = parseAngleFromText(turn.content);
-      if (angleData) {
-        return {
-          type: 'CLASSICAL_MODEL_VIZ',
-          model: 'trigonometry',
-          customAngle: Math.round(angleData.normalizedDeg)
-        };
-      }
-    }
-  }
+  // 0. Direct or Referential Function Graphing Requests
+  // Matches: "graph y = 7 sin(x/4)", "plot f(x) = x^2 - 4", "graph it please", "show me on a graph", "how do i graph this???"
+  const isGraphQuery =
+    /^(?:(?:can\s+you\s+|could\s+you\s+)?(?:please\s+)?(?:plot|graph|draw)|now\s+(?:plot|graph|draw))\b/i.test(clean) ||
+    /^(?:plot|graph|draw)\b/i.test(clean) ||
+    /\b(?:show|display|see|view)\s+(?:me\s+)?(?:(?:it|this|that|the\s+function|the\s+curve)\s+)?(?:on\s+a\s+graph|in\s+a\s+graph|as\s+a\s+graph|on\s+the\s+graph)\b/i.test(clean) ||
+    /\b(?:show|display)\s+(?:me\s+)?(?:the\s+)?(?:graph|plot)\s*(?:of\s+(?:this|it|that|the\s+function|the\s+curve))?\b/i.test(clean) ||
+    /\b(?:how\s+(?:do|can)\s+(?:i|we|you)\s+|how\s+to\s+)(?:plot|graph|draw)\s+(?:this|it|that|the\s+function|the\s+curve)\b/i.test(clean);
 
-  // 0. Direct Function Plotting / Graphing Requests
-  // (e.g. "plot f(x) = x^2 - 4", "graph y = 2x + 3", "draw it", "graph that", "plot it")
-  const plotMatch = clean.match(/^(?:(?:can\s+you\s+)?(?:please\s+)?(?:plot|graph|draw)|now\s+(?:plot|graph|draw))\s+(.+)$/i) ||
-                    clean.match(/^(?:plot|graph|draw)\s+(.+)$/i);
-  if (plotMatch) {
-    let rawExpr = plotMatch[1].trim();
-    rawExpr = rawExpr
-      .replace(/^(?:(?:a|the)\s+(?:graph|curve|function|plot)\s+of\s+|(?:a|the)\s+(?:graph|curve|function|plot)\s+|(?:f\(x\)|y)\s*=\s*|the\s+function\s+|of\s+)/i, '')
-      .replace(/\s+(?:on\s+a\s+graph|in\s+a\s+graph|on\s+the\s+graph)$/i, '')
-      .trim();
+  if (isGraphQuery) {
+    const isHowTo = /\b(?:how\s+(?:do|can)\s+(?:i|we|you)|how\s+to)\b/i.test(clean);
+    let directExpr = null;
 
-    // Check if rawExpr is a referential demonstrative/pronoun ("it", "that", "this", "the curve", "the function")
-    if (/^(it|this|that|these|those|the\s+function|the\s+curve|the\s+graph)$/i.test(rawExpr)) {
-      const resolved = resolveReferentialContext(clean, conversationHistory);
-      if (resolved && looksLikeMathExpression(resolved)) {
-        rawExpr = resolved;
-      } else {
-        // Ambiguous or unresolved reference -> Fall through to Ollama naturally
-        return null;
+    const directMatch = clean.match(/^(?:(?:can\s+you\s+|could\s+you\s+)?(?:please\s+)?(?:plot|graph|draw)|now\s+(?:plot|graph|draw))\s+(.+)$/i) ||
+                        clean.match(/(?:(?:plot|graph|draw)\s+(?:the\s+function\s+|the\s+curve\s+|the\s+graph\s+|of\s+)?)(f\(x\)\s*=.*|y\s*=.*|[a-zA-Z0-9+\-*/^().\s\\π]+)$/i);
+    if (directMatch) {
+      let candidate = directMatch[1].trim();
+      candidate = candidate
+        .replace(/\s+(?:please|for\s+me|on\s+a\s+graph|in\s+a\s+graph|on\s+the\s+graph)$/i, '')
+        .replace(/[?!.]+$/, '')
+        .trim();
+
+      if (!/^(it|this|that|these|those|the\s+function|the\s+curve|the\s+graph)$/i.test(candidate)) {
+        const normalized = normalizeGraphExpression(candidate);
+        if (normalized && /[xX]/.test(normalized) && looksLikeMathExpression(normalized)) {
+          directExpr = normalized;
+        }
       }
     }
 
-    if (looksLikeMathExpression(rawExpr) && !hasConceptualIntent(rawExpr)) {
+    const targetExpr = directExpr || resolveReferentialContext(clean, conversationHistory);
+    if (targetExpr) {
       return {
         type: 'GRAPH_PLOT',
-        expression: rawExpr,
-        formatted: rawExpr
+        expression: targetExpr,
+        formatted: targetExpr,
+        isHowTo
       };
+    }
+
+    // Explicit graphing intent with no active function in conversation
+    return {
+      type: 'GRAPH_CLARIFICATION',
+      promptMessage: 'Which function would you like me to graph? (e.g., $y = 7\\sin(x/4)$ or $f(x) = x^2 - 4$)'
+    };
+  }
+
+  // Referential angle visualization requests (ONLY for pure angles in standard position, NOT functions):
+  const isReferentialVizQuery = !/\b(?:graph|curve)\b/i.test(clean) && (
+    /^(?:(?:i\s+need\s+to|can\s+you\s+please|can\s+you|could\s+you|please|now)\s+)?(?:visualize|draw|show|sketch)\s+(?:this|it|that)(?:\s+(?:out|again|for\s+me|please))*\s*$/i.test(clean) ||
+    /^(?:draw|visualize|show|sketch)\s+(?:it|this|that)(?:\s+(?:out|again|for\s+me|please))*\s*$/i.test(clean) ||
+    /^(?:visualize\s+this|show\s+me\s+this|i\s+want\s+to\s+see\s+this)$/i.test(clean)
+  );
+  if (isReferentialVizQuery && conversationHistory && Array.isArray(conversationHistory) && conversationHistory.length > 0) {
+    // Ensure active problem is not a Cartesian function
+    let hasActiveFunction = false;
+    try {
+      const { extractActiveProblemState } = require('./contextManager');
+      const activeState = extractActiveProblemState(conversationHistory);
+      if (activeState?.active?.activeExpression && /[xX]/.test(activeState.active.activeExpression)) {
+        hasActiveFunction = true;
+      }
+    } catch (_) {}
+
+    if (!hasActiveFunction) {
+      const recentTurns = conversationHistory.slice(-4);
+      for (let i = recentTurns.length - 1; i >= 0; i--) {
+        const turn = recentTurns[i];
+        if (!turn || typeof turn.content !== 'string') continue;
+        const angleData = parseAngleFromText(turn.content);
+        if (angleData) {
+          return {
+            type: 'CLASSICAL_MODEL_VIZ',
+            model: 'trigonometry',
+            customAngle: Math.round(angleData.normalizedDeg)
+          };
+        }
+      }
     }
   }
 
@@ -2597,7 +2664,7 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
         // If an active problem exists in the conversation (equation like 42pi/18 = 2pi, or expression like 23pi/7),
         // terse arithmetic like 7/3 or (7/3)pi or candidate values are student work/inquiry, not standalone calculation
         if (state.active.activeExpression) {
-          const isExplicitStandalone = isExplicitStandaloneCalc || /^(?:calculate|compute|what\s+is|evaluate|how\s+much\s+is|find\s+the\s+value\s+of|new\s+problem)[:\s]/i.test(clean);
+          const isExplicitStandalone = /^(?:calculate|compute|what\s+is|evaluate|how\s+much\s+is|find\s+the\s+value\s+of|new\s+problem)[:\s]/i.test(clean);
           if (!isExplicitStandalone) {
             return null;
           }
@@ -2694,13 +2761,29 @@ function buildDeterministicResponse(intent) {
   }
 
   if (intent.type === 'GRAPH_PLOT') {
-    return `📈 **Function Visualization**
+    let response = `📈 **Function Visualization**\n\nHere is the plot for $f(x) = ${intent.expression}$:\n\n[GRAPH: ${intent.expression}]`;
+    if (intent.isHowTo) {
+      const flatS = intent.expression.replace(/[()\s]/g, '');
+      const trigMatch = flatS.match(/([+-]?\d*(?:\.\d+)?)\*?(sin|cos|tan)(?:x\/([0-9.]+)|([0-9.]*)\*?x)/i);
+      if (trigMatch) {
+        const rawA = trigMatch[1];
+        const amp = rawA && rawA !== '-' && rawA !== '+' ? Math.abs(parseFloat(rawA)) : 1;
+        const fn = trigMatch[2].toLowerCase();
+        const bDiv = trigMatch[3] ? parseFloat(trigMatch[3]) : null;
+        const bMult = trigMatch[4] && trigMatch[4] !== '' ? parseFloat(trigMatch[4]) : (bDiv ? 1 / bDiv : 1);
+        const periodStr = Math.abs(bMult - 0.25) < 1e-4 ? '8\\pi' : (Math.abs(bMult - 0.5) < 1e-4 ? '4\\pi' : (Math.abs(bMult - 1) < 1e-4 ? (fn === 'tan' ? '\\pi' : '2\\pi') : (Math.abs(bMult - 2) < 1e-4 ? (fn === 'tan' ? '\\pi/2' : '\\pi') : `${(2 / bMult).toFixed(2)}\\pi`)));
+        response += `\n\n### How to Graph This Function:\n1. **Amplitude:** $|A| = ${amp}$ (oscillates vertically between $y = -${amp}$ and $y = ${amp}$).\n2. **Period:** $P = \\frac{2\\pi}{B} = ${periodStr}$.\n3. **Five Key Points (one full cycle):** Divide the period into 4 equal sub-intervals to find the x-intercepts, maximum, and minimum.`;
+      } else {
+        response += `\n\n### How to Graph This Function:\n1. **Find Intercepts:** Solve for $x$ when $f(x) = 0$ (x-intercepts) and evaluate $f(0)$ (y-intercept).\n2. **Plot Key Points:** Calculate values for several test points across the domain.\n3. **Sketch the Curve:** Connect the points following the curvature shown on the graph above.`;
+      }
+    } else {
+      response += `\n\nThe curve shows the behavior of the function over the real domain. Would you like to explore its roots, extrema, or derivatives?`;
+    }
+    return response;
+  }
 
-Here is the plot for $f(x) = ${intent.expression}$:
-
-[GRAPH: ${intent.expression}]
-
-The curve shows the behavior of the function over the real domain. Would you like to explore its roots, extrema, or derivatives?`;
+  if (intent.type === 'GRAPH_CLARIFICATION') {
+    return `📊 **Function Grapher**\n\n${intent.promptMessage}`;
   }
 
   if (intent.type === 'TABLE_VALUES') {

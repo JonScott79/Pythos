@@ -22,14 +22,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="assets/favicon.png">
-  <title>Pythos Release History &amp; Changelog | v1.8.45</title>
+  <title>Pythos Release History &amp; Changelog | v1.8.46</title>
   <meta name="description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://pythos.lanzar.me/changelog.html">
 
   <!-- OPEN GRAPH -->
-  <meta property="og:title" content="Pythos Release History &amp; Changelog | v1.8.45">
+  <meta property="og:title" content="Pythos Release History &amp; Changelog | v1.8.46">
   <meta property="og:description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta property="og:url" content="https://pythos.lanzar.me/changelog.html">
   <meta property="og:type" content="article">
@@ -41,7 +41,7 @@
 
   <!-- TWITTER CARD -->
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Pythos Release History &amp; Changelog | v1.8.45">
+  <meta name="twitter:title" content="Pythos Release History &amp; Changelog | v1.8.46">
   <meta name="twitter:description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="twitter:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
 
@@ -532,7 +532,7 @@
         <a href="nonprofit.html" class="nav-link">Mission &amp; Roadmap</a>
         <a href="license.html" class="nav-link">License</a>
         <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" class="nav-link">Facebook</a>
-        <a href="changelog.html#pythos-1-8-45" class="nav-link active" aria-current="page">v1.8.45</a>
+        <a href="changelog.html#pythos-1-8-46" class="nav-link active" aria-current="page">v1.8.46</a>
       </div>
     </div>
 
@@ -562,14 +562,43 @@
         <!-- ==================== RELEASE 1.8.28 ==================== -->
         <!-- ==================== RELEASE 1.8.29 ==================== -->
     <!-- ==================== RELEASE 1.8.31 ==================== -->
-                                                                                                                                                                                                                                                                                                                                                                        <!-- ==================== RELEASE 1.8.45 ==================== -->
+                                                                                                                                                                                                                                                                                                                                                                                <!-- ==================== RELEASE 1.8.46 ==================== -->
+        <article class="release-card" id="pythos-1-8-46">
+            <header class="release-header">
+                <div>
+                    <h2 class="release-version">Pythos 1.8.46</h2>
+                    <div class="release-meta">
+                        <time datetime="2026-10-26"><i class="far fa-calendar-alt"></i> October 26, 2026</time>
+                        <span><i class="fas fa-tag"></i> Patch Release</span>
+                        <span><i class="fas fa-shield-alt"></i> Graphing Intent Routing & Multi-Turn Context Recovery</span>
+                    </div>
+                </div>
+                <span class="badge badge-success">Latest</span>
+            </header>
+            <div class="release-body">
+                <p><strong>Pythos 1.8.46</strong> resolves graphing intent routing and multi-turn context recovery failures when students request graphs of trigonometric wave equations and other Cartesian functions. It unifies expression normalization, adds adaptive graph plotting bounds for stretched trigonometric cycles, and prevents inappropriate substitution of the unit circle instrument.</p>
+
+                <h3><i class="fas fa-chart-line text-primary"></i> Fixed & Enhanced</h3>
+                <ul>
+                    <li><strong>Graphing Intent Routing & Component Selection:</strong> Fixed intent routing failure where graphing requests for trigonometric equations (e.g. <code>y = 7sin(x/4)</code>) were routed to the generic Pythagorean Unit Circle instrument (<code>model: 'trigonometry'</code>) instead of generating the Cartesian curve.</li>
+                    <li><strong>LaTeX Prose Filter Hardening:</strong> Stripped LaTeX formatting sequences (<code>ight</code>, <code>left</code>, <code>rac</code>, <code>sqrt</code>) prior to English prose filtering in <code>server/contextManager.js</code>, preventing equations containing LaTeX parentheses from being discarded from active session state.</li>
+                    <li><strong>Multi-Turn Referential Context Recovery:</strong> Upgraded <code>resolveReferentialContext</code> and pattern matching in <code>server/deterministicRouter.js</code> to recognize follow-up phrasing (<em>"graph it please"</em>, <em>"show me on a graph"</em>, <em>"how do i graph this???"</em>), extracting and normalizing active functions across prior dialogue turns.</li>
+                    <li><strong>Pedagogical Graphing Instructions:</strong> Automated step-by-step guidance detailing amplitude ($|A|$), period ($P = rac{2pi}{B}$), and the five key points for one full cycle when students ask how to plot trigonometric functions.</li>
+                    <li><strong>Prompt Instruction Alignment:</strong> Updated system prompts and visualization prompt directives in <code>server/server.js</code> to strictly distinguish between unit circle angle explorations ($	heta in [0, 360^circ]$) and Cartesian function curve plotting (<code>[GRAPH: expression]</code>).</li>
+                    <li><strong>Adaptive Graph Range Scaling:</strong> Enhanced <code>renderInlineGraph</code> in <code>app.js</code> with dynamic x-axis bounds and proportionate grid intervals for functions with stretched periods ($B < 1$, periods up to $8pi$), displaying full oscillation cycles clearly.</li>
+                    <li><strong>Automated Regression Suite:</strong> Added <code>test/test-graphing-intent-routing.js</code> covering direct graphing, multi-turn follow-ups, pedagogical guidance, unit circle preservation, and missing-context clarification.</li>
+                </ul>
+            </div>
+        </article>
+
+<!-- ==================== RELEASE 1.8.45 ==================== -->
         <article class="release-card" id="pythos-1-8-45">
             <div class="release-header">
                 <div>
                     <h2 class="release-version">Pythos 1.8.45</h2>
                     <div class="release-date">Released on October 25, 2026</div>
                 </div>
-                <span class="badge badge-success">Latest</span>
+                <span class="badge badge-secondary">Stable</span>
             </div>
             <div class="release-content">
                 <div class="badge badge-purple" style="margin-bottom: 1rem;">Personal Memory Extraction &amp; Explicit Fact Pipeline</div>
@@ -2261,7 +2290,7 @@
 
   <footer>
     <div>🏛️ Pythos — Free AI Mathematics &amp; Physics Education Initiative. Developed by LANZAR.</div>
-    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-8-45" style="color:var(--primary-color); text-decoration:none;">v1.8.45</a></div>
+    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-8-46" style="color:var(--primary-color); text-decoration:none;">v1.8.46</a></div>
   </footer>
 
   <script>

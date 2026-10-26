@@ -679,8 +679,23 @@ function renderInlineGraph(canvas, exprString) {
     const cleanExpr = sanitizeGraphExpr(exprString);
     const compiled = window.math.compile(cleanExpr);
 
-    const xMin = -10, xMax = 10;
+    let xMin = -10, xMax = 10;
     let yMin = -10, yMax = 10;
+
+    // Adaptive x-axis scaling for trigonometric functions with stretched or compressed period:
+    // e.g. sin(x/4) has B = 1/4 -> period = 8*pi ≈ 25.13 -> window [-35, 35]
+    const trigPeriodMatch = cleanExpr.match(/\b(?:sin|cos|tan)\s*\(\s*(?:([0-9.]+)\s*\*?\s*x|x\s*\/\s*([0-9.]+))\s*\)/i);
+    if (trigPeriodMatch) {
+      const bFactor = trigPeriodMatch[1] ? parseFloat(trigPeriodMatch[1]) : (1 / parseFloat(trigPeriodMatch[2]));
+      if (bFactor > 0) {
+        const period = (2 * Math.PI) / bFactor;
+        if (period > 16) {
+          const span = Math.ceil((period * 1.25) / 5) * 5;
+          xMin = -span;
+          xMax = span;
+        }
+      }
+    }
 
     // Sample function for adaptive bounds and extreme ranges
     const samples = [];
@@ -701,11 +716,11 @@ function renderInlineGraph(canvas, exprString) {
       const p5 = samples[Math.floor(samples.length * 0.05)] || samples[0];
       const p95 = samples[Math.floor(samples.length * 0.95)] || samples[samples.length - 1];
 
-      // Auto-scale if function lies entirely outside [-10, 10] (e.g. x^2 + 50)
-      if (p5 > 10 || p95 < -10) {
+      // Auto-scale if function lies outside default [-10, 10] bounds
+      if (p5 < -10 || p95 > 10 || p5 > 10 || p95 < -10) {
         const pad = Math.max((p95 - p5) * 0.15, 2);
-        yMin = p5 - pad;
-        yMax = p95 + pad;
+        yMin = Math.min(-10, Math.floor(p5 - pad));
+        yMax = Math.max(10, Math.ceil(p95 + pad));
       }
     }
 
@@ -726,7 +741,8 @@ function renderInlineGraph(canvas, exprString) {
     // Grid
     ctx.strokeStyle = gridCol;
     ctx.lineWidth = 1;
-    for (let x = xMin; x <= xMax; x += 2) {
+    const xGridStep = Math.max(2, Math.round((xMax - xMin) / 10));
+    for (let x = Math.floor(xMin); x <= Math.ceil(xMax); x += xGridStep) {
       ctx.beginPath();
       ctx.moveTo(toCanvasX(x), 0);
       ctx.lineTo(toCanvasX(x), height);

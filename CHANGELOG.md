@@ -1,3 +1,17 @@
+## Pythos 1.8.46
+**Release Date:** October 26, 2026
+
+### Fixed & Enhanced
+
+- **Graphing Intent Routing & Multi-Turn Context Recovery**:
+  - Fixed an issue where function plotting queries for trigonometric equations (e.g., $y = 7\sin(x/4)$) and other Cartesian curves routed to the generic Pythagorean Unit Circle instrument (`model: 'trigonometry'`) rather than generating the requested function graph.
+  - Resolved LaTeX prose-filtering collision in `server/contextManager.js` by stripping LaTeX control sequences (`\right`, `\left`, `\frac`, `\sqrt`) prior to prose boundary checks, preventing equations with LaTeX parentheses from being dropped from active session state.
+  - Upgraded `resolveReferentialContext` and intent routing in `server/deterministicRouter.js` to reliably capture contextual follow-up requests (*"graph it please"*, *"show me on a graph"*, *"how do i graph this???"*), recovering the active function expression across multiple dialogue turns.
+  - Provided automatic pedagogical step-by-step guidance on amplitude ($|A|$), period ($P = \frac{2\pi}{B}$), and the five key points for one full cycle when students ask how to graph trigonometric functions.
+  - Refined system prompt directives and `vizPromptInstruction` in `server/server.js` to explicitly differentiate between unit circle angle exploration ($\theta \in [0, 360^\circ]$) and Cartesian curve plotting (`[GRAPH: expression]`), removing conflicting instructions that caused the LLM to emit the unit circle tool for wave functions.
+  - Enhanced `renderInlineGraph` in `app.js` with adaptive x-axis scaling and proportionate grid steps for stretched/compressed trigonometric curves (such as $\sin(x/4)$ with period $8\pi \approx 25.13$), ensuring full cycles are displayed clearly.
+  - Added comprehensive automated regression coverage in `test/test-graphing-intent-routing.js` verifying direct graph requests, contextual follow-ups, pedagogical instructions, unit circle preservation, and missing-context clarification.
+
 ## Pythos 1.8.45
 **Release Date:** October 25, 2026
 
