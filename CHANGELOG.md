@@ -1,3 +1,15 @@
+## Pythos 1.8.45
+**Release Date:** October 25, 2026
+
+### Added & Enhanced
+
+- **Personal Memory Subsystem Audit & Explicit Fact Extraction**:
+  - Implemented birthday and birth month extraction in `server/memoryExtractor.js` under `identity:birthMonth` and `identity:birthday`, supporting natural statements like *"remember that i was born in november"*, *"my birthday is november 15"*, and *"born on Nov 15, 2008"*.
+  - Fixed false mathematical memory defense regex in `server/memoryExtractor.js` to avoid prematurely discarding personal statements containing numbers (dates, grade levels, calendar years).
+  - Added structured extraction for student grade level (`identity:gradeLevel`), learning weaknesses/struggles (`learning:weakness`), and explicit personal facts (`identity:personalNote`).
+  - Integrated birthday, grade level, and student notes into `formatMemoryContext` in `server/memoryService.js`, injecting personal facts cleanly into Pythos system context within the 150-token budget.
+  - Added full test coverage in `test/test-memory-hardening.js` and `test/test-memory-system.js` verifying extraction, queue draining, Firestore persistence, cross-user isolation, and UI ledger presentation.
+
 ## Pythos 1.8.44
 **Release Date:** October 25, 2026
 

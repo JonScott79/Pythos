@@ -164,6 +164,52 @@ function runMemoryHardeningTests() {
     console.log('  ✓ Account Identity (Jonathan Scott) and Addressed-as (Jon) remain strictly separated.');
   });
 
+  // -------------------------------------------------------------
+  // Group 5: Personal Facts & Explicit Instruction Extraction
+  // -------------------------------------------------------------
+  console.log('\n▶ [GROUP 5] Personal Facts & Explicit Instruction Extraction');
+
+  test('Explicit birth month: "remember that i was born in november" -> birthMonth = November', () => {
+    const candidates = memoryExtractor.extractCandidates("remember that i was born in november", "");
+    const bdayCand = candidates.find(c => c.facet === 'birthMonth');
+    assert.ok(bdayCand, 'Should extract birthMonth');
+    assert.strictEqual(bdayCand.category, 'identity');
+    assert.strictEqual(bdayCand.value, 'November');
+    assert.strictEqual(bdayCand.kind, 'observed_fact');
+    assert.ok(bdayCand.confidence >= 0.90);
+  });
+
+  test('Explicit birthday with day: "my birthday is on November 15th" -> birthday = November 15', () => {
+    const candidates = memoryExtractor.extractCandidates("my birthday is on November 15th", "");
+    const bdayCand = candidates.find(c => c.facet === 'birthday');
+    assert.ok(bdayCand, 'Should extract birthday with day');
+    assert.strictEqual(bdayCand.value, 'November 15');
+  });
+
+  test('Explicit grade level: "remember that I am in 10th grade" -> gradeLevel = 10th grade', () => {
+    const candidates = memoryExtractor.extractCandidates("remember that I am in 10th grade", "");
+    const gradeCand = candidates.find(c => c.facet === 'gradeLevel');
+    assert.ok(gradeCand, 'Should extract gradeLevel');
+    assert.strictEqual(gradeCand.value.toLowerCase(), '10th grade');
+  });
+
+  test('Explicit learning difficulty: "remember that I struggle with factoring" -> weakness', () => {
+    const candidates = memoryExtractor.extractCandidates("remember that I struggle with factoring", "");
+    const weakCand = candidates.find(c => c.facet === 'weakness');
+    assert.ok(weakCand, 'Should extract learning weakness');
+    assert.strictEqual(weakCand.category, 'learning');
+    assert.ok(weakCand.value.includes('factoring'));
+  });
+
+  test('Personal memory formatting includes birthday in system prompt', () => {
+    const memoryProfile = {
+      identity: { preferredName: 'Jon', birthMonth: 'November' },
+      preferences: { explanationPacing: 'concise' }
+    };
+    const formattedMemory = memoryService.formatMemoryContext(memoryProfile);
+    assert.ok(formattedMemory.includes('- Birthday/Birth Month: born in November'));
+  });
+
   console.log('\n===================================================================');
   console.log(`✅ ALL ${passed}/${total} MEMORY HARDENING TESTS PASSED (100%)`);
   console.log('===================================================================');

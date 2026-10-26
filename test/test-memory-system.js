@@ -44,6 +44,14 @@ async function runTests() {
   const courseCand = candidates.find(c => c.facet === 'course');
   assert.ok(courseCand.value.includes('AP PHYSICS'));
   console.log('  ✓ Stated name and course extracted with high confidence.');
+  // Birth Month extraction verification
+  const bdayCand = memoryExtractor.extractCandidates("remember that i was born in november", "I will remember that you were born in November.");
+  assert.strictEqual(bdayCand.length, 1, "Should extract exactly 1 candidate for birth month");
+  assert.strictEqual(bdayCand[0].category, "identity");
+  assert.strictEqual(bdayCand[0].facet, "birthMonth");
+  assert.strictEqual(bdayCand[0].value, "November");
+  assert.ok(bdayCand[0].confidence >= 0.90);
+  console.log('  ✓ "remember that i was born in november" extracted into identity:birthMonth.');
 
   // TEST 2: Privacy Filter & PII Rejection (Expanded)
   console.log('TEST 2: Privacy & PII Sanitization & Denylist');
@@ -115,6 +123,12 @@ async function runTests() {
       assistantReply: "Welcome Jake! Let's hit a home run with physics.",
       chatId: 'chat_test_123'
     });
+    const taskIdBday = await memoryService.enqueueExtractionTask(userA, {
+      userText: "remember that i was born in november",
+      assistantReply: "I will remember that you were born in November.",
+      chatId: 'chat_test_123'
+    });
+    assert.ok(taskIdBday, "Birth month task must be enqueued");
     assert.ok(taskId, 'Task must be enqueued with a valid taskId');
 
     const pending = await memoryService.getPendingExtractionTasks(userA, 10);
@@ -129,6 +143,8 @@ async function runTests() {
     const profileA = await memoryService.getStudentMemoryProfile(userA);
     assert.strictEqual(profileA?.identity?.preferredName, 'Jake');
     assert.strictEqual(profileA?.preferences?.analogyPreference, 'baseball');
+    assert.strictEqual(profileA?.identity?.birthMonth, 'November', "Profile must contain compiled birthMonth");
+    console.log('  ✓ Birth month persisted and compiled into profile snapshot.');
     console.log('  ✓ Queue drained; candidate facts and preferences committed to profile snapshot.');
 
     const remainingPending = await memoryService.getPendingExtractionTasks(userA, 10);

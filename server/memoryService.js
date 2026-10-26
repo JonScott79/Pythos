@@ -380,6 +380,13 @@ function formatMemoryContext(profile, classification = null) {
     const course = [profile.identity.gradeLevel, profile.identity.course].filter(Boolean).join(', ');
     lines.push(`- Course/Level: ${course}`);
   }
+  if (profile.identity?.birthday || profile.identity?.birthMonth) {
+    const bday = profile.identity.birthday || `born in ${profile.identity.birthMonth}`;
+    lines.push(`- Birthday/Birth Month: ${bday}`);
+  }
+  if (profile.identity?.personalNote) {
+    lines.push(`- Personal Detail: ${profile.identity.personalNote}`);
+  }
 
   // Academic Milestones / Check-ins
   const milestones = profile.milestones?.activeMilestones || [];

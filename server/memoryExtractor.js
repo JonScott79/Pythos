@@ -103,6 +103,91 @@ const FACT_PATTERNS = [
     confidence: 0.88,
     transform: (match) => match[1].toLowerCase()
   },
+  // Birthday Date: "My birthday is November 15", "I was born on November 15, 2008", "My birthday is on November 15th"
+  {
+    category: 'identity',
+    facet: 'birthday',
+    kind: 'observed_fact',
+    confidence: 0.95,
+    customExtractor: (text) => {
+      if (/\b(?:says?|said|told\s+me|claims?|thinks?|if|suppose|imagine|pretend|not\s+born)\b/i.test(text)) {
+        return null;
+      }
+      const months = 'January|February|March|April|May|June|July|August|September|October|November|December';
+      const match = text.match(new RegExp(`\\b(?:(?:please\\s+)?remember\\s+(?:that\\s+)?|keep\\s+in\\s+mind\\s+(?:that\\s+)?)?(?:my\\s+birthday\\s+is(?:\\s+on)?|i\\s+(?:was\\s+)?born\\s+on)\\s+(${months})\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:\\s*,?\\s*(\\d{4}))?\\b`, 'i'));
+      if (!match) return null;
+      const m = match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase();
+      const d = match[2];
+      const y = match[3];
+      return y ? `${m} ${d}, ${y}` : `${m} ${d}`;
+    }
+  },
+  // Birth Month: "Remember that I was born in November", "I was born in November", "My birth month is November", "My birthday is in November"
+  {
+    category: 'identity',
+    facet: 'birthMonth',
+    kind: 'observed_fact',
+    confidence: 0.95,
+    customExtractor: (text) => {
+      if (/\b(?:says?|said|told\s+me|claims?|thinks?|if|suppose|imagine|pretend|not\s+born)\b/i.test(text)) {
+        return null;
+      }
+      const months = 'January|February|March|April|May|June|July|August|September|October|November|December';
+      // If full date with day already present, let birthday pattern handle it
+      if (new RegExp(`\\b(${months})\\s+\\d{1,2}\\b`, 'i').test(text)) {
+        return null;
+      }
+      const match = text.match(new RegExp(`\\b(?:(?:please\\s+)?remember\\s+(?:that\\s+)?|keep\\s+in\\s+mind\\s+(?:that\\s+)?)?(?:i\\s+(?:was\\s+)?born\\s+in|my\\s+birth\\s*month\\s+is|my\\s+birthday\\s+is\\s+in|my\\s+birthday\\s+is)\\s+(${months})\\b`, 'i'));
+      if (!match) return null;
+      return match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase();
+    }
+  },
+  // Grade Level: "I'm a sophomore", "I'm in 10th grade", "I am a high school junior", "I'm in grade 11"
+  {
+    category: 'identity',
+    facet: 'gradeLevel',
+    kind: 'observed_fact',
+    confidence: 0.92,
+    customExtractor: (text) => {
+      if (/\b(?:if|suppose|imagine|pretend|not)\b/i.test(text)) return null;
+      const match = text.match(/\b(?:(?:please\s+)?remember\s+(?:that\s+)?|i(?:\'m|\s+am)\s+(?:a\s+|an\s+|in\s+)?|in\s+)(freshman|sophomore|junior|senior|\d{1,2}(?:th|st|nd|rd)?\s+grade|grade\s+\d{1,2})\b/i);
+      if (!match) return null;
+      const raw = match[1].trim();
+      return raw.charAt(0).toUpperCase() + raw.slice(1);
+    }
+  },
+  // Learning Weakness / Difficulty: "I struggle with fractions", "Remember that I have trouble with integrals"
+  {
+    category: 'learning',
+    facet: 'weakness',
+    kind: 'observed_fact',
+    confidence: 0.90,
+    customExtractor: (text) => {
+      if (/\b(?:don\'t|not|never)\s+(?:struggle|have\s+trouble)\b/i.test(text)) return null;
+      const match = text.match(/\b(?:(?:please\s+)?remember\s+(?:that\s+)?|keep\s+in\s+mind\s+(?:that\s+)?)?(?:i\s+(?:always\s+)?(?:struggle\s+with|have\s+trouble\s+with|get\s+confused\s+(?:by|with)|find\s+difficult|find\s+hard))\s+([a-zA-Z0-9\s-]+?)(?:\.|$|,|\band\b)/i);
+      if (!match) return null;
+      const topic = match[1].trim().toLowerCase();
+      if (topic.length < 3 || topic.length > 50) return null;
+      return `struggles with ${topic}`;
+    }
+  },
+  // General explicit student notes: "Remember that I play chess", "Please remember that my dog's name is Max"
+  {
+    category: 'identity',
+    facet: 'personalNote',
+    kind: 'observed_fact',
+    confidence: 0.85,
+    customExtractor: (text) => {
+      const match = text.match(/\b(?:(?:please\s+)?remember\s+(?:that\s+|this:?\s*)|keep\s+in\s+mind\s+that\s+)(i\s+[a-zA-Z0-9\s\',.-]+|my\s+[a-zA-Z0-9\s\',.-]+)\b/i);
+      if (!match) return null;
+      const statement = match[1].trim();
+      if (/\b(?:born\s+in|birthday|test|exam|quiz|grade|physics|calculus|algebra|geometry|call\s+me|name\s+is)\b/i.test(statement)) {
+        return null;
+      }
+      if (statement.length < 5 || statement.length > 80) return null;
+      return statement.charAt(0).toUpperCase() + statement.slice(1);
+    }
+  },
   // Upcoming Exam / Milestone: "I have a calc test on Friday", "studying for my calculus exam on Tuesday", "My physics quiz is tomorrow"
   {
     category: 'milestones',
@@ -182,8 +267,9 @@ function extractCandidates(userText, assistantReply) {
 
   // False mathematical memory defense (Task 7):
   // Reject memory candidates that attempt to store mathematical claims or propositions
-  if (/\bremember\s+(?:that\s+)?.*?(?:[=+\-*/^]|equals?|pi\b|\d+)/i.test(text) ||
-      /\b(?:2\s*\+\s*2\s*=\s*5|pi\s*(?:equals?|=)\s*3|\d+\s*[+\-*/=]\s*\d+)\b/i.test(text)) {
+  if (/\b(?:2\s*\+\s*2\s*=\s*5|pi\s*(?:equals?|=)\s*3|\d+\s*[+\-*/^=]\s*\d+\s*=\s*\d+)\b/i.test(text) ||
+      /\bremember\s+(?:that\s+)?.*?(?:=\s*[-+]?\d+|equals?\s+[-+]?\d+|pi\b|\d+\s*[-+*/^]\s*\d+\s*=)/i.test(text) ||
+      /[-+*/^].*?=/i.test(text)) {
     return [];
   }
 
