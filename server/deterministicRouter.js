@@ -1001,13 +1001,18 @@ function looksLikeMathExpression(expr) {
 function normalizeGraphExpression(expr) {
   if (!expr || typeof expr !== 'string') return null;
   let s = expr.trim();
-  s = s.replace(/^\$\$|\$\$$/g, '').replace(/^\$|\$$/g, '').trim();
+  s = s.replace(/^\$\$+/g, '').replace(/\$\$+$/g, '').replace(/^\$+/g, '').replace(/\$+$/g, '').trim();
   s = s.replace(/^\\boxed\{([\s\S]*)\}$/, '$1').trim();
-  s = s.replace(/^(?:f\(x\)|g\(x\)|h\(x\)|y)\s*=\s*/i, '').trim();
   s = s.replace(/[;,.?!]+$/, '').trim();
 
-  // Strip natural language lead-ins
-  s = s.replace(/^(?:the\s+function\s+|the\s+curve\s+|the\s+graph\s+|equation\s+|plot\s+|graph\s+)+/i, '').trim();
+  // Strip conversational wrappers, referential lead-ins, and polite tags:
+  // e.g. "this please: y=7*sin(x/4)", "this: y=2x+1", "it please: y=...", "for me:", "this for me:"
+  s = s.replace(/^(?:(?:for\s+me|this|it|that|these|those)\s*)+(?:please|kindly)?[:\s]*/i, '')
+       .replace(/^(?:(?:the\s+)?(?:function|curve|equation|formula))\s*(?:for\s+me)?[:\s]*/i, '')
+       .replace(/^(?:the\s+function\s+|the\s+curve\s+|the\s+graph\s+|equation\s+|plot\s+|graph\s+)+/i, '')
+       .trim();
+
+  s = s.replace(/^(?:f\(x\)|g\(x\)|h\(x\)|y)\s*=\s*/i, '').trim();
 
   s = s.replace(/\\left\(/g, '(')
        .replace(/\\right\)/g, ')')
@@ -1481,13 +1486,15 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   }
 
   // 0. Direct or Referential Function Graphing Requests
-  // Matches: "graph y = 7 sin(x/4)", "plot f(x) = x^2 - 4", "graph it please", "show me on a graph", "how do i graph this???"
+  // Matches: "graph y = 7 sin(x/4)", "plot f(x) = x^2 - 4", "graph it please", "show me on a graph", "how do i graph this???", "try again"
+  const isGraphRetry = /^(?:try\s+again|retry|plot\s+again|graph\s+again|redraw)[.?!]*$/i.test(clean);
   const isGraphQuery =
     /^(?:(?:can\s+you\s+|could\s+you\s+)?(?:please\s+)?(?:plot|graph|draw)|now\s+(?:plot|graph|draw))\b/i.test(clean) ||
     /^(?:plot|graph|draw)\b/i.test(clean) ||
     /\b(?:show|display|see|view)\s+(?:me\s+)?(?:(?:it|this|that|the\s+function|the\s+curve)\s+)?(?:on\s+a\s+graph|in\s+a\s+graph|as\s+a\s+graph|on\s+the\s+graph)\b/i.test(clean) ||
     /\b(?:show|display)\s+(?:me\s+)?(?:the\s+)?(?:graph|plot)\s*(?:of\s+(?:this|it|that|the\s+function|the\s+curve))?\b/i.test(clean) ||
-    /\b(?:how\s+(?:do|can)\s+(?:i|we|you)\s+|how\s+to\s+)(?:plot|graph|draw)\s+(?:this|it|that|the\s+function|the\s+curve)\b/i.test(clean);
+    /\b(?:how\s+(?:do|can)\s+(?:i|we|you)\s+|how\s+to\s+)(?:plot|graph|draw)\s+(?:this|it|that|the\s+function|the\s+curve)\b/i.test(clean) ||
+    (isGraphRetry && Boolean(resolveReferentialContext(clean, conversationHistory)));
 
   if (isGraphQuery) {
     const isHowTo = /\b(?:how\s+(?:do|can)\s+(?:i|we|you)|how\s+to)\b/i.test(clean);
@@ -1498,13 +1505,19 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
     if (directMatch) {
       let candidate = directMatch[1].trim();
       candidate = candidate
-        .replace(/\s+(?:please|for\s+me|on\s+a\s+graph|in\s+a\s+graph|on\s+the\s+graph)$/i, '')
+        .replace(/\s+(?:please|kindly|for\s+me|on\s+a\s+graph|in\s+a\s+graph|on\s+the\s+graph)$/i, '')
         .replace(/[?!.]+$/, '')
         .trim();
 
-      if (!/^(it|this|that|these|those|the\s+function|the\s+curve|the\s+graph)$/i.test(candidate)) {
+      // Strip leading conversational phrases: e.g. "this please:", "this:", "it please:", "this function:", "for me:"
+      candidate = candidate
+        .replace(/^(?:(?:for\s+me|this|it|that|these|those)\s*)+(?:please|kindly)?[:\s]*/i, '')
+        .replace(/^(?:(?:the\s+)?(?:function|curve|equation|formula))\s*(?:for\s+me)?[:\s]*/i, '')
+        .trim();
+
+      if (!/^(?:it|this|that|these|those|the\s+function|the\s+curve|the\s+graph)?$/i.test(candidate) && candidate.length > 0) {
         const normalized = normalizeGraphExpression(candidate);
-        if (normalized && /[xX]/.test(normalized) && looksLikeMathExpression(normalized)) {
+        if (normalized && /[xX]/.test(normalized) && isConcreteGraphableExpression(normalized) && looksLikeMathExpression(normalized)) {
           directExpr = normalized;
         }
       }

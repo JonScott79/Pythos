@@ -913,9 +913,14 @@ function selectAppropriateTool(studentIntent, userText, conversationHistory = []
   }
 
   // 4. Function Graphing Request (Takes priority over general visual request if graph/plot specified)
-  const graphMatch = clean.match(/\b(?:graph|plot)\s+(?:(?:the\s+)?(?:parabola|curve|function|equation)[:\s]*|(?:this\s+function[:\s]*))?(?:y\s*=\s*|f\(x\)\s*=\s*)?([a-zA-Z0-9^*/+\-.\s()]+?)(?:\s+on\s+\[([-0-9.]+),\s*([-0-9.]+)\]|\s+from\s+([-0-9.]+)\s+to\s+([-0-9.]+)|\s*$)/i);
+  const graphMatch = clean.match(/\b(?:graph|plot)\s+(?:(?:the\s+)?(?:parabola|curve|function|equation)[:\s]*|(?:this\s+function[:\s]*)|(?:this\s*(?:please|kindly)?[:\s]*))?(?:y\s*=\s*|f\(x\)\s*=\s*)?([a-zA-Z0-9^*/+\-.\s()]+?)(?:\s+on\s+\[([-0-9.]+),\s*([-0-9.]+)\]|\s+from\s+([-0-9.]+)\s+to\s+([-0-9.]+)|\s*$)/i);
   if (graphMatch && !/\b(?:draw\s+a\s+triangle|sketch\s+the\s+triangle)\b/i.test(lower)) {
-    const rawExpr = graphMatch[1].trim();
+    let rawExpr = graphMatch[1].trim();
+    rawExpr = rawExpr
+      .replace(/^(?:(?:for\s+me|this|it|that|these|those)\s*)+(?:please|kindly)?[:\s]*/i, '')
+      .replace(/^(?:(?:the\s+)?(?:function|curve|equation|formula))\s*(?:for\s+me)?[:\s]*/i, '')
+      .replace(/^(?:f\(x\)|g\(x\)|h\(x\)|y)\s*=\s*/i, '')
+      .trim();
     if (rawExpr.length > 0 && /[xX0-9]/.test(rawExpr)) {
       let domain = [-10, 10];
       if (graphMatch[2] !== undefined && graphMatch[3] !== undefined) {

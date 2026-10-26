@@ -222,6 +222,66 @@ test('TEST H: Verification that appendMessage handles invalid/missing expression
   assert(!appJs.match(/fallbackToGenericSine/i), 'app.js must not contain silent generic sine fallbacks');
 });
 
+// -------------------------------------------------------------
+// Test I: Conversational Text Contamination & Retry Resilience
+// -------------------------------------------------------------
+console.log('\n▶ [TEST I] Conversational text contamination and retry resilience');
+test('TEST I1: Direct graphing with conversational wrapper "graph this please: y=7*sin(x/4)" strips prose', () => {
+  const intent = analyzeDeterministicIntent('graph this please: y=7*sin(x/4)', []);
+  assert(intent, 'Router must handle conversational graph command');
+  assert.strictEqual(intent.type, 'GRAPH_PLOT');
+  assert.strictEqual(intent.expression, '7*sin(x/4)', 'Expression must NOT contain conversational text like "this please:"');
+
+  const response = buildDeterministicResponse(intent);
+  assert(response.includes('[GRAPH: 7*sin(x/4)]'), 'Token must be pure mathematical expression');
+  assert(!response.includes('this please'), 'Response must not leak conversational text');
+});
+
+test('TEST I2: Conversational follow-up sequence retains exact expression and passes renderer validation', () => {
+  const history = [
+    { role: 'user', content: 'What is the amplitude and period of y = 7sin(x/4)?' },
+    { role: 'assistant', content: 'The amplitude is 7 and the period is 8π. Key points: (0,0), (2π, 7), (4π, 0), (6π, -7), (8π, 0).' }
+  ];
+
+  // Turn 2: User says "graph it please"
+  const intentFollowup = analyzeDeterministicIntent('graph it please', history);
+  assert(intentFollowup, 'Must resolve contextual graph request');
+  assert.strictEqual(intentFollowup.type, 'GRAPH_PLOT');
+  assert.strictEqual(intentFollowup.expression, '7*sin(x/4)');
+
+  const responseFollowup = buildDeterministicResponse(intentFollowup);
+  assert(responseFollowup.includes('[GRAPH: 7*sin(x/4)]'));
+
+  // Verify app.js sanitizeGraphExpr cleans the payload without error
+  const fs = require('fs');
+  const path = require('path');
+  const appJs = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+  const sanitizeFnMatch = appJs.match(/function sanitizeGraphExpr\([\s\S]*?\n\}/);
+  assert(sanitizeFnMatch, 'sanitizeGraphExpr must exist in app.js');
+  
+  // Test sanitizeGraphExpr against raw intent expression and legacy contaminated string
+  const sanitizeFn = new Function('raw', `${sanitizeFnMatch[0]}; return sanitizeGraphExpr(raw);`);
+  const cleanFromIntent = sanitizeFn(intentFollowup.expression);
+  assert.strictEqual(cleanFromIntent, '7*sin(x/4)');
+
+  const cleanFromContaminated = sanitizeFn('this please: y=7*sin(x/4)');
+  assert.strictEqual(cleanFromContaminated, '7*sin(x/4)', 'sanitizeGraphExpr in app.js must recover pure math from contaminated string');
+});
+
+test('TEST I3: "try again" / "retry" after graph request preserves active function graph', () => {
+  const history = [
+    { role: 'user', content: 'What is the amplitude and period of y = 7sin(x/4)?' },
+    { role: 'assistant', content: 'The amplitude is 7 and the period is 8π.' },
+    { role: 'user', content: 'graph it please' },
+    { role: 'assistant', content: 'Here is the plot for $f(x) = 7*sin(x/4)$:\n\n[GRAPH: 7*sin(x/4)]' }
+  ];
+
+  const intentRetry = analyzeDeterministicIntent('try again', history);
+  assert(intentRetry, 'Router must handle "try again" following a graph interaction');
+  assert.strictEqual(intentRetry.type, 'GRAPH_PLOT');
+  assert.strictEqual(intentRetry.expression, '7*sin(x/4)');
+});
+
 console.log('\n================================================================');
 console.log(`🎉 ALL ${passed}/${total} GRAPHING INTENT REGRESSION TESTS PASSED`);
 console.log('================================================================\n');

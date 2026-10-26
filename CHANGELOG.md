@@ -1,3 +1,11 @@
+## Pythos 1.8.48
+### Critical Fix: Conversational Prose Stripping & Graph Expression Sanitization
+- **Conversational Prefix Stripping:** In `server/deterministicRouter.js`, generalized `normalizeGraphExpression()` and direct candidate extraction to cleanly strip conversational and referential prefixes (e.g. `this please:`, `this:`, `it please:`, `this function:`, `for me:`). Fixed bug where input `graph this please: y=7*sin(x/4)` emitted contaminated payload `this please: y=7*sin(x/4)`.
+- **Renderer Sanitization Resilience:** In `app.js`, upgraded `sanitizeGraphExpr()` to strip conversational wrappers and referential prefixes before Math.js compilation, guaranteeing that any upstream prose contamination is cleansed before evaluation and rendering.
+- **Graphing Retry & Follow-Up Support:** Added handling in `server/deterministicRouter.js` for follow-up retry commands (`try again`, `retry`, `plot again`, `redraw`) to recover and replot the active function graph from session context.
+- **Tool Controller Hardening:** In `server/toolController.js`, enhanced `render_function_graph` regex and argument normalization to strip polite prefixes and ensure clean mathematical expressions.
+- **Regression Suite:** Added Test I (`TEST I1`, `TEST I2`, `TEST I3`) in `test/test-graphing-intent-routing.js` verifying conversational wrapper stripping, end-to-end follow-up renderer sanitization, and retry resilience.
+
 ## Pythos 1.8.47
 ### Critical Fix: Graphing Expression Parameter Retention & Concrete Function Routing
 - **Concrete Function Resolution:** Added isConcreteGraphableExpression() in server/deterministicRouter.js to guarantee that pedagogical formula templates (e.g., f(x) = sin(Bx), y = A*sin(Bx), y = mx + b) in assistant responses are never misidentified as concrete user graph requests.

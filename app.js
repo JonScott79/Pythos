@@ -632,6 +632,14 @@ function sanitizeGraphExpr(raw) {
   if (!raw || typeof raw !== "string") return "";
   let expr = raw.trim();
 
+  // Strip conversational wrappers & referential prefixes:
+  // e.g. "this please: y=7*sin(x/4)", "this: y = 3*cos(2*x)", "it please: y=2x+1", "for me: y=..."
+  expr = expr
+    .replace(/^(?:(?:for\s+me|this|it|that|these|those)\s*)+(?:please|kindly)?[:\s]*/i, "")
+    .replace(/^(?:(?:the\s+)?(?:function|curve|equation|formula))\s*(?:for\s+me)?[:\s]*/i, "")
+    .replace(/^(?:the\s+function\s+|the\s+curve\s+|the\s+graph\s+|equation\s+|plot\s+|graph\s+)+/i, "")
+    .trim();
+
   // Strip prefixes & LaTeX delimiters
   expr = expr
     .replace(/^f\(x\)\s*=\s*/i, "")
