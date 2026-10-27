@@ -1487,14 +1487,20 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
 
   // 0. Direct or Referential Function Graphing Requests
   // Matches: "graph y = 7 sin(x/4)", "plot f(x) = x^2 - 4", "graph it please", "show me on a graph", "how do i graph this???", "try again"
+  const hasGeometricShape = /\b(?:right\s+triangle|triangle|circle|rectangle|square|polygon|quadrilateral|sector|trapezoid|rhombus|ellipse)\b/i.test(clean);
+  const hasExplicitEquation = /(?:[fgy]\s*\([a-z]\)\s*=|y\s*=|(?<![a-zA-Z])[xX]\s*[\^+\-*/])/i.test(clean);
+  const isExplicitGraphVerb = /^(?:(?:can\s+you\s+|could\s+you\s+)?(?:please\s+)?(?:graph|plot)|now\s+(?:graph|plot)|graph|plot)\b/i.test(clean);
+  const isPluralDemonstrative = /\b(?:these|those)\b/i.test(clean);
+
   const isGraphRetry = /^(?:try\s+again|retry|plot\s+again|graph\s+again|redraw)[.?!]*$/i.test(clean);
-  const isGraphQuery =
+  const isGraphQuery = !(hasGeometricShape && !hasExplicitEquation) && (
     /^(?:(?:can\s+you\s+|could\s+you\s+)?(?:please\s+)?(?:plot|graph|draw)|now\s+(?:plot|graph|draw))\b/i.test(clean) ||
     /^(?:plot|graph|draw)\b/i.test(clean) ||
     /\b(?:show|display|see|view)\s+(?:me\s+)?(?:(?:it|this|that|the\s+function|the\s+curve)\s+)?(?:on\s+a\s+graph|in\s+a\s+graph|as\s+a\s+graph|on\s+the\s+graph)\b/i.test(clean) ||
     /\b(?:show|display)\s+(?:me\s+)?(?:the\s+)?(?:graph|plot)\s*(?:of\s+(?:this|it|that|the\s+function|the\s+curve))?\b/i.test(clean) ||
     /\b(?:how\s+(?:do|can)\s+(?:i|we|you)\s+|how\s+to\s+)(?:plot|graph|draw)\s+(?:this|it|that|the\s+function|the\s+curve)\b/i.test(clean) ||
-    (isGraphRetry && Boolean(resolveReferentialContext(clean, conversationHistory)));
+    (isGraphRetry && Boolean(resolveReferentialContext(clean, conversationHistory)))
+  );
 
   if (isGraphQuery) {
     const isHowTo = /\b(?:how\s+(?:do|can)\s+(?:i|we|you)|how\s+to)\b/i.test(clean);
@@ -1533,11 +1539,13 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
       };
     }
 
-    // Explicit graphing intent with no active function in conversation
-    return {
-      type: 'GRAPH_CLARIFICATION',
-      promptMessage: 'Which function would you like me to graph? (e.g., $y = 7\\sin(x/4)$ or $f(x) = x^2 - 4$)'
-    };
+    if (isExplicitGraphVerb && !hasGeometricShape && !isPluralDemonstrative) {
+      // Explicit graphing intent with no active function in conversation
+      return {
+        type: 'GRAPH_CLARIFICATION',
+        promptMessage: 'Which function would you like me to graph? (e.g., $y = 7\\sin(x/4)$ or $f(x) = x^2 - 4$)'
+      };
+    }
   }
 
   // Referential angle visualization requests (ONLY for pure angles in standard position, NOT functions):
@@ -1684,7 +1692,7 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
 
   // B. Circle & Sector Geometry with Sliders
   const wantsCircleSliders = /(?:circle|sector|radius).*(?:with\s+sliders|interactive|sliders)/i.test(clean) ||
-                             /(?:open|show|launch|display|give\s+me)\s+(?:a\s+|an\s+)?(?:interactive\s+)?circle/i.test(clean);
+                             /(?:open|show|launch|display|give\s+me|draw|sketch|plot)\s+(?:a\s+|an\s+)?(?:interactive\s+)?circle/i.test(clean);
   if (wantsCircleSliders) {
     const customVars = {};
     const radiusMatch = clean.match(/radius\s*(?:of|=|is)?\s*(\d+(?:\.\d+)?)/i);
@@ -2282,10 +2290,16 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
               } else {
                 return {
                   type: 'ALGEBRA_CONTRADICTION',
-                  result: 'IMPOSSIBLE',
-                  solution: 'IMPOSSIBLE',
-                  formatted: `Contradiction: Equation simplifies to 0 = ${B.toFixed(4)}, which has no solution.`,
-                  reason: 'Contradiction: Inconsistent linear equation (no solution).'
+                  equation: rawEq,
+                  variable: v,
+                  result: 'No solution',
+                  solution: 'No solution',
+                  formatted: `Contradiction: Equation simplifies to 0 = ${parseFloat(B.toFixed(6))}, which has no solution.`,
+                  reason: 'Contradiction: Inconsistent linear equation (no solution).',
+                  steps: [
+                    `Subtract the variable term to isolate constants: $0 = ${parseFloat(B.toFixed(6))}$`,
+                    `Since $0 = ${parseFloat(B.toFixed(6))}$ is a mathematical contradiction (false statement), there is no value of $${v}$ that satisfies the equation.`
+                  ]
                 };
               }
             }
@@ -3225,6 +3239,19 @@ If you ever want a tool that isn't here yet, just hit the **🚩 Report** button
       out += `${idx + 1}. ${s}\n`;
     });
     out += `\n$$\n${intent.formatted}\n$$\n\n\\boxed{${intent.solution !== undefined ? intent.solution : intent.formatted}}\n\nWould you like to verify this root by substitution or solve another equation?`;
+    return out;
+  }
+
+  if (intent.type === 'ALGEBRA_CONTRADICTION') {
+    let out = `✅ Here is the step-by-step analysis for $${intent.equation || 'the equation'}$:\n\n`;
+    if (intent.steps && Array.isArray(intent.steps)) {
+      intent.steps.forEach((s, idx) => {
+        out += `${idx + 1}. ${s}\n`;
+      });
+    } else {
+      out += `Simplifying both sides yields a false statement (${intent.formatted || 'contradiction'}).\n`;
+    }
+    out += `\n$$\n\\text{No solution}\n$$\n\n\\boxed{\\text{No solution}}\n\nBecause this equation results in a contradiction, no value of $${intent.variable || 'x'}$ satisfies it.`;
     return out;
   }
 

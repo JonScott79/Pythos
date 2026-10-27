@@ -334,19 +334,6 @@ function validateToolRequest(rawRequest) {
       break;
     }
 
-    case TOOL_ALLOWLIST.SOLVE_CALCULUS:
-    case TOOL_ALLOWLIST.SOLVE_GEOMETRY: {
-      const steps = Array.isArray(toolResult.derivationSteps) && toolResult.derivationSteps.length > 0
-        ? '\nDerivation Steps:\n' + toolResult.derivationSteps.map(s => '  * ' + s).join('\n')
-        : '';
-      body = `Status: SUCCESS
-Operation: ${toolResult.operation}
-Authoritative Verified Value: ${toolResult.formattedResult || toolResult.result}
-Exact Value: ${toolResult.result}${steps}
-Pedagogical Directive: Use these exact verified values and derivation steps in your explanation. Do not contradict or alter them.`;
-      break;
-    }
-
     case TOOL_ALLOWLIST.SEARCH_CONVERSATION_HISTORY: {
       if (!args.query || typeof args.query !== 'string' || args.query.trim().length === 0) {
         return { valid: false, error: 'search_conversation_history requires a non-empty "query" string.' };
@@ -1163,6 +1150,19 @@ Pedagogical Directive: ${toolResult.feedback || (toolResult.isEqual ? 'Acknowled
       break;
 
     
+    case TOOL_ALLOWLIST.SOLVE_CALCULUS:
+    case TOOL_ALLOWLIST.SOLVE_GEOMETRY: {
+      const steps = Array.isArray(toolResult.derivationSteps) && toolResult.derivationSteps.length > 0
+        ? '\nDerivation Steps:\n' + toolResult.derivationSteps.map(s => '  * ' + s).join('\n')
+        : '';
+      body = `Status: SUCCESS
+Operation: ${toolResult.operation}
+Authoritative Verified Value: ${toolResult.formattedResult || toolResult.result}
+Exact Value: ${toolResult.result}${steps}
+Pedagogical Directive: Use these exact verified values and derivation steps in your explanation. Do not contradict or alter them.`;
+      break;
+    }
+
     case TOOL_ALLOWLIST.SEARCH_CONVERSATION_HISTORY:
       if (toolResult.results && toolResult.results.length > 0) {
         const summary = toolResult.results.map((r, i) =>

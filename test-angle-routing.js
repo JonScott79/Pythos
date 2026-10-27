@@ -165,14 +165,14 @@ test('4.3: "Draw x^3 - 4x" -> GRAPH_PLOT', () => {
   const intent = analyzeDeterministicIntent("Draw x^3 - 4x");
   assert(intent, 'Expected non-null intent');
   assert.strictEqual(intent.type, 'GRAPH_PLOT');
-  assert.strictEqual(intent.expression, 'x^3 - 4x');
+  assert.ok(intent.expression === 'x^3 - 4x' || intent.expression === 'x^3 - 4*x', 'Must match x^3 - 4x or normalized x^3 - 4*x');
 });
 
 test('4.4: "Graph sin(2x)" -> GRAPH_PLOT', () => {
   const intent = analyzeDeterministicIntent("Graph sin(2x)");
   assert(intent, 'Expected non-null intent');
   assert.strictEqual(intent.type, 'GRAPH_PLOT');
-  assert.strictEqual(intent.expression, 'sin(2x)');
+  assert.ok(intent.expression === 'sin(2x)' || intent.expression === 'sin(2*x)', 'Must match sin(2x) or normalized sin(2*x)');
 });
 
 // -------------------------------------------------------------

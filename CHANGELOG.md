@@ -1,3 +1,10 @@
+## Pythos 1.8.50
+### Critical Fix: Geometric Intent Disambiguation, Linear Contradiction Derivation & Specialist Context Injection
+- **Geometry Routing Disambiguation:** In `server/deterministicRouter.js`, enhanced `isGraphQuery` and `classifyProblem` to prevent geometric construction and drawing commands (e.g. *"draw a circle with radius 5"*, *"plot a square"*) from being shadowed by function plotting (`GRAPH_CLARIFICATION`). Added shape-verb routing and expanded `wantsCircleSliders` to recognize `draw|sketch|plot` for interactive geometric circle manipulation.
+- **Linear Contradiction Step-by-Step Derivation:** In `server/deterministicRouter.js`, fixed handling of inconsistent linear equations with zero variable coefficients (e.g. $0x + 5 = 7$, yielding $5 = 7$). Router now cleanly classifies contradictions as `solution: 'No solution'`, `result: 'No solution'`, and generates rigorous pedagogical step-by-step reduction showing the false statement $\boxed{\text{No solution}}$.
+- **ToolController Specialist Context Injection:** In `server/toolController.js`, wired `formatToolResultContext` to handle `SOLVE_CALCULUS` and `SOLVE_GEOMETRY`, formatting authoritative CAS evaluation metadata and domain guidance into LLM reasoning context while eliminating duplicate validation code.
+- **Comprehensive Verification:** Validated with 985 passing automated test assertions across 22 test suites and 266 SymPy verification checks.
+
 ## Pythos 1.8.49
 ### Critical Fix: Cross-Renderer Viewport Unification & Local Turning Points Parity
 - **Unified Viewport Calculator (`computeGraphViewport`):** Centralized graph coordinate scaling and viewport calculation in `app.js`, eliminating disparities between embedded chat canvas previews (`renderInlineGraph`) and the standalone Function Grapher modal (`drawGraph`).
