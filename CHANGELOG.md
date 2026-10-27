@@ -1,3 +1,10 @@
+## Pythos 1.8.49
+### Critical Fix: Cross-Renderer Viewport Unification & Local Turning Points Parity
+- **Unified Viewport Calculator (`computeGraphViewport`):** Centralized graph coordinate scaling and viewport calculation in `app.js`, eliminating disparities between embedded chat canvas previews (`renderInlineGraph`) and the standalone Function Grapher modal (`drawGraph`).
+- **Cubic & Polynomial Turning Points Preservation:** Corrected over-aggressive vertical range expansion that previously sampled extreme tails ($x = \pm 10$) of cubic functions like $f(x) = x^3 - 3x$, which inflated $y$-bounds to $[-913, 913]$ and compressed local turning points to sub-pixel flatlines ($0.4\text{px}$). Standard functions centered around the origin now preserve the canonical $[-10, 10]$ viewing window, clearly highlighting local maxima at $(-1, 2)$, local minima at $(1, -2)$, and the inflection point at $(0, 0)$ with $40\text{px}$ vertical separation on the embedded canvas.
+- **Off-Center Vertical Adaptation:** Vertically shifted functions (e.g. $x^2 + 50$) continue to automatically adapt vertical bounds so curves and vertices are never clipped.
+- **Cross-Renderer Parity Test Suite:** Added Test K (`TEST K1` and `TEST K2`) in `test/test-graphing-intent-routing.js` verifying exact coordinate and evaluation parity for $f(x) = x^3 - 3x$ across both rendering paths.
+
 ## Pythos 1.8.48
 ### Critical Fix: Conversational Prose Stripping & Graph Expression Sanitization
 - **Conversational Prefix Stripping:** In `server/deterministicRouter.js`, generalized `normalizeGraphExpression()` and direct candidate extraction to cleanly strip conversational and referential prefixes (e.g. `this please:`, `this:`, `it please:`, `this function:`, `for me:`). Fixed bug where input `graph this please: y=7*sin(x/4)` emitted contaminated payload `this please: y=7*sin(x/4)`.

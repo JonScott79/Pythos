@@ -617,14 +617,79 @@ function extractBalancedVizBlocks(text) {
 }
 
 // Export for testing in Node / CommonJS and Browser environments
+// Unified graph viewport calculator to ensure identical math, bounds & viewports across all renderers
+function computeGraphViewport(compiled, exprString) {
+  const cleanExpr = sanitizeGraphExpr(exprString);
+  let xMin = -10, xMax = 10;
+  let yMin = -10, yMax = 10;
+
+  // Adaptive x-axis scaling for trigonometric functions with stretched or compressed period:
+  // e.g. sin(x/4) has B = 1/4 -> period = 8*pi ≈ 25.13 -> window [-35, 35]
+  const flattenedTrig = cleanExpr.replace(/[()\s]/g, '');
+  const trigPeriodMatch = flattenedTrig.match(/\b(?:sin|cos|tan)\*?(?:([0-9.]+)\*?x|x\*?\/([0-9.]+)|x)/i);
+  let bFactor = 1;
+  if (trigPeriodMatch) {
+    if (trigPeriodMatch[1]) {
+      bFactor = parseFloat(trigPeriodMatch[1]);
+    } else if (trigPeriodMatch[2]) {
+      bFactor = 1 / parseFloat(trigPeriodMatch[2]);
+    } else {
+      bFactor = 1;
+    }
+    if (bFactor > 0) {
+      const period = (2 * Math.PI) / bFactor;
+      if (period > 16) {
+        const span = Math.ceil((period * 1.25) / 5) * 5;
+        xMin = -span;
+        xMax = span;
+      }
+    }
+  }
+
+  // Sample function across x-range for adaptive vertical bounds
+  const samples = [];
+  const numSamples = 100;
+  const stepSample = (xMax - xMin) / numSamples;
+  for (let i = 0; i <= numSamples; i++) {
+    const x = xMin + i * stepSample;
+    try {
+      const y = compiled.evaluate({ x });
+      if (typeof y === 'number' && isFinite(y) && !isNaN(y) && Math.abs(y) < 1e5) {
+        samples.push(y);
+      }
+    } catch (_) {}
+  }
+
+  if (samples.length > 0) {
+    samples.sort((a, b) => a - b);
+    const p5 = samples[Math.floor(samples.length * 0.05)] || samples[0];
+    const p95 = samples[Math.floor(samples.length * 0.95)] || samples[samples.length - 1];
+
+    // If the function lies ENTIRELY outside standard [-10, 10] bounds (e.g. x^2 + 50 or -x^2 - 50),
+    // adapt the y-bounds with padding so the curve remains visible.
+    // Standard cubic, polynomial, and wave functions that cross/oscillate around y in [-10, 10]
+    // preserve the default [-10, 10] frame so critical local features (maxima, minima, inflections)
+    // are not squashed by extreme cubic tails at x = ±10.
+    if (p5 > 10 || p95 < -10) {
+      const pad = Math.max((p95 - p5) * 0.15, 2);
+      yMin = p5 - pad;
+      yMax = p95 + pad;
+    }
+  }
+
+  return { xMin, xMax, yMin, yMax, bFactor, trigPeriodMatch: Boolean(trigPeriodMatch) };
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     extractBalancedVizBlocks,
-    sanitizeGraphExpr
+    sanitizeGraphExpr,
+    computeGraphViewport
   };
 }
 if (typeof window !== 'undefined') {
   window.extractBalancedVizBlocks = extractBalancedVizBlocks;
+  window.computeGraphViewport = computeGraphViewport;
 }
 
 // Helper: robust expression compiler supporting LaTeX and implicit multiplication
@@ -694,58 +759,9 @@ function renderInlineGraph(canvas, exprString) {
     const cleanExpr = sanitizeGraphExpr(exprString);
     const compiled = window.math.compile(cleanExpr);
 
-    let xMin = -10, xMax = 10;
-    let yMin = -10, yMax = 10;
-
-    // Adaptive x-axis scaling for trigonometric functions with stretched or compressed period:
-    // Flattens nested parens so (((x)/(4))), x/4, and 0.25*x all match correctly
-    const flattenedTrig = cleanExpr.replace(/[()\s]/g, '');
-    const trigPeriodMatch = flattenedTrig.match(/\b(?:sin|cos|tan)\*?(?:([0-9.]+)\*?x|x\*?\/([0-9.]+)|x)/i);
-    let bFactor = 1;
-    if (trigPeriodMatch) {
-      if (trigPeriodMatch[1]) {
-        bFactor = parseFloat(trigPeriodMatch[1]);
-      } else if (trigPeriodMatch[2]) {
-        bFactor = 1 / parseFloat(trigPeriodMatch[2]);
-      } else {
-        bFactor = 1;
-      }
-      if (bFactor > 0) {
-        const period = (2 * Math.PI) / bFactor;
-        if (period > 16) {
-          const span = Math.ceil((period * 1.25) / 5) * 5;
-          xMin = -span;
-          xMax = span;
-        }
-      }
-    }
-
-    // Sample function for adaptive bounds and extreme ranges
-    const samples = [];
-    const numSamples = 100;
-    const stepSample = (xMax - xMin) / numSamples;
-    for (let i = 0; i <= numSamples; i++) {
-      const x = xMin + i * stepSample;
-      try {
-        const y = compiled.evaluate({ x });
-        if (typeof y === "number" && isFinite(y) && !isNaN(y) && Math.abs(y) < 1e5) {
-          samples.push(y);
-        }
-      } catch (_) {}
-    }
-
-    if (samples.length > 0) {
-      samples.sort((a, b) => a - b);
-      const p5 = samples[Math.floor(samples.length * 0.05)] || samples[0];
-      const p95 = samples[Math.floor(samples.length * 0.95)] || samples[samples.length - 1];
-
-      // Auto-scale if function lies outside default [-10, 10] bounds
-      if (p5 < -10 || p95 > 10 || p5 > 10 || p95 < -10) {
-        const pad = Math.max((p95 - p5) * 0.15, 2);
-        yMin = Math.min(-10, Math.floor(p5 - pad));
-        yMax = Math.max(10, Math.ceil(p95 + pad));
-      }
-    }
+    // Unified adaptive viewport & scaling across renderers
+    const viewport = computeGraphViewport(compiled, cleanExpr);
+    const { xMin, xMax, yMin, yMax, bFactor, trigPeriodMatch } = viewport;
 
     const toCanvasX = x => ((x - xMin) / (xMax - xMin)) * width;
     const toCanvasY = y => height - ((y - yMin) / (yMax - yMin)) * height;
@@ -5062,50 +5078,9 @@ function drawGraph(exprString) {
     const cleanExpr = sanitizeGraphExpr(exprString);
     const compiled = window.math.compile(cleanExpr);
 
-    let xMin = -10, xMax = 10;
-    let yMin = -10, yMax = 10;
-
-    // Adaptive x-axis scaling for trigonometric functions with stretched period:
-    const flattenedTrig = cleanExpr.replace(/[()\s]/g, '');
-    const trigPeriodMatch = flattenedTrig.match(/\b(?:sin|cos|tan)\*?(?:([0-9.]+)\*?x|x\*?\/([0-9.]+)|x)/i);
-    let bFactor = 1;
-    if (trigPeriodMatch) {
-      bFactor = trigPeriodMatch[1] ? parseFloat(trigPeriodMatch[1]) : (trigPeriodMatch[2] ? (1 / parseFloat(trigPeriodMatch[2])) : 1);
-      if (bFactor > 0) {
-        const period = (2 * Math.PI) / bFactor;
-        if (period > 16) {
-          const span = Math.ceil((period * 1.25) / 5) * 5;
-          xMin = -span;
-          xMax = span;
-        }
-      }
-    }
-
-    // Sample function for adaptive bounds
-    const samples = [];
-    const numSamples = 100;
-    const stepSample = (xMax - xMin) / numSamples;
-    for (let i = 0; i <= numSamples; i++) {
-      const x = xMin + i * stepSample;
-      try {
-        const y = compiled.evaluate({ x });
-        if (typeof y === "number" && isFinite(y) && !isNaN(y) && Math.abs(y) < 1e5) {
-          samples.push(y);
-        }
-      } catch (_) {}
-    }
-
-    if (samples.length > 0) {
-      samples.sort((a, b) => a - b);
-      const p5 = samples[Math.floor(samples.length * 0.05)] || samples[0];
-      const p95 = samples[Math.floor(samples.length * 0.95)] || samples[samples.length - 1];
-
-      if (p5 > 10 || p95 < -10) {
-        const pad = Math.max((p95 - p5) * 0.15, 2);
-        yMin = p5 - pad;
-        yMax = p95 + pad;
-      }
-    }
+    // Unified adaptive viewport & scaling across renderers
+    const viewport = computeGraphViewport(compiled, cleanExpr);
+    const { xMin, xMax, yMin, yMax } = viewport;
 
     const toCanvasX = x => ((x - xMin) / (xMax - xMin)) * width;
     const toCanvasY = y => height - ((y - yMin) / (yMax - yMin)) * height;

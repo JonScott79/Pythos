@@ -318,10 +318,90 @@ test('TEST J2: renderInlineGraph bFactor is scoped and defined across entire can
   const path = require('path');
   const appJs = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
 
-  // Verify let bFactor = 1 is declared at the top of renderInlineGraph
+  // Verify bFactor is populated and scoped via computeGraphViewport in renderInlineGraph
   const renderFnMatch = appJs.match(/function renderInlineGraph[\s\S]*?\n\}/);
   assert(renderFnMatch, 'renderInlineGraph must exist');
-  assert(renderFnMatch[0].includes('let bFactor = 1;'), 'bFactor must be declared in outer function scope');
+  assert(renderFnMatch[0].includes('bFactor'), 'bFactor must be referenced in renderInlineGraph');
+  assert(renderFnMatch[0].includes('computeGraphViewport'), 'renderInlineGraph must use unified computeGraphViewport');
+});
+
+// -------------------------------------------------------------
+// Test K: Cross-Renderer Parity & Cubic Turning Points Preservation
+// -------------------------------------------------------------
+console.log('\n▶ [TEST K] Cross-renderer parity & cubic turning points preservation');
+test('TEST K1: Exact function parity for f(x) = x^3 - 3*x across embedded and standalone viewports', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const appJs = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+  const mathjs = require('../server/node_modules/mathjs');
+
+  const sanitizeMatch = appJs.match(/function sanitizeGraphExpr\([\s\S]*?\n\}/);
+  const viewportMatch = appJs.match(/function computeGraphViewport\([\s\S]*?\n\}/);
+  assert(sanitizeMatch && viewportMatch, 'app.js must define sanitizeGraphExpr and computeGraphViewport');
+
+  const fnEval = new Function('mathjs', `
+    ${sanitizeMatch[0]}
+    ${viewportMatch[0]}
+    return { sanitizeGraphExpr, computeGraphViewport };
+  `);
+  const { sanitizeGraphExpr, computeGraphViewport } = fnEval(mathjs);
+
+  const rawExpr = 'f(x) = x^3 - 3*x';
+  const cleanExpr = sanitizeGraphExpr(rawExpr);
+  assert.strictEqual(cleanExpr, 'x^3 - 3*x', 'Expression must sanitize cleanly to scalar form');
+
+  const compiled = mathjs.compile(cleanExpr);
+
+  // 1. Verify exact mathematical values at key cubic points:
+  const f = x => compiled.evaluate({ x });
+  const yLocalMax = f(-1); // Local maximum at (-1, 2)
+  const yInflection = f(0); // Inflection point at (0, 0)
+  const yLocalMin = f(1); // Local minimum at (1, -2)
+
+  assert.strictEqual(yLocalMax, 2, 'f(-1) must evaluate exactly to 2');
+  assert.strictEqual(yInflection, 0, 'f(0) must evaluate exactly to 0');
+  assert.strictEqual(yLocalMin, -2, 'f(1) must evaluate exactly to -2');
+
+  // 2. Verify viewport bounds preserve the [-10, 10] frame rather than blowing up to [-913, 913]
+  const vp = computeGraphViewport(compiled, cleanExpr);
+  assert.strictEqual(vp.xMin, -10);
+  assert.strictEqual(vp.xMax, 10);
+  assert.strictEqual(vp.yMin, -10, 'yMin must remain -10 to display local turning points with high visual fidelity');
+  assert.strictEqual(vp.yMax, 10, 'yMax must remain 10');
+
+  // 3. Verify pixel separation between local maximum and minimum on 200px height inline canvas
+  const height = 200;
+  const toCanvasY = y => height - ((y - vp.yMin) / (vp.yMax - vp.yMin)) * height;
+
+  const pyMax = toCanvasY(yLocalMax);
+  const pyMin = toCanvasY(yLocalMin);
+  const deltaPx = pyMin - pyMax; // In canvas coordinates, larger y is lower on screen
+
+  assert.strictEqual(deltaPx, 40, 'Turning points must have 40px separation on 200px canvas (not squashed to 0.4px)');
+  assert(pyMax < pyMin, 'Local max must render higher on canvas (smaller Y coordinate) than local min');
+});
+
+test('TEST K2: Off-center functions (e.g. x^2 + 50) still adapt vertical bounds correctly', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const appJs = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+  const mathjs = require('../server/node_modules/mathjs');
+
+  const sanitizeMatch = appJs.match(/function sanitizeGraphExpr\([\s\S]*?\n\}/);
+  const viewportMatch = appJs.match(/function computeGraphViewport\([\s\S]*?\n\}/);
+  const fnEval = new Function('mathjs', `
+    ${sanitizeMatch[0]}
+    ${viewportMatch[0]}
+    return { sanitizeGraphExpr, computeGraphViewport };
+  `);
+  const { sanitizeGraphExpr, computeGraphViewport } = fnEval(mathjs);
+
+  const cleanExpr = sanitizeGraphExpr('x^2 + 50');
+  const compiled = mathjs.compile(cleanExpr);
+  const vp = computeGraphViewport(compiled, cleanExpr);
+
+  assert(vp.yMin > 10, 'Function entirely above 10 must shift yMin upward so vertex is visible');
+  assert(vp.yMax > 100, 'yMax must encompass function values');
 });
 
 console.log('\n================================================================');
