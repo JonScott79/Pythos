@@ -692,6 +692,48 @@ if (typeof window !== 'undefined') {
   window.computeGraphViewport = computeGraphViewport;
 }
 
+/**
+ * Parses circle equations for the 2D Cartesian function grapher:
+ * - x^2 + y^2 = r^2 or x^2 + y^2 = C
+ * - (x - h)^2 + (y - k)^2 = r^2 or (x - h)^2 + (y - k)^2 = C
+ */
+function parseCircleExpr(raw) {
+  if (!raw || typeof raw !== "string") return null;
+  let s = raw.trim();
+  s = s.replace(/^(?:the\s+circle\s+|circle\s+|a\s+circle\s+)/i, "").trim();
+  s = s.replace(/\s+(?:please|kindly|for\s+me|on\s+a\s+graph|in\s+a\s+graph|on\s+the\s+graph)$/i, "");
+  s = s.replace(/[?.!]+$/, "").trim();
+  s = s.replace(/\s+/g, "");
+
+  // Form 1: x^2 + y^2 = r^2 or x^2 + y^2 = C
+  const m1 = s.match(/^(?:x\^2|\(x\)\^2)\+(?:y\^2|\(y\)\^2)=(\d+(?:\.\d+)?|\d+\^2)$/i);
+  if (m1) {
+    let r2 = m1[1].includes("^2") ? Math.pow(parseFloat(m1[1].replace("^2", "")), 2) : parseFloat(m1[1]);
+    if (r2 <= 0) return null;
+    const r = Math.round(Math.sqrt(r2) * 10000) / 10000;
+    return { h: 0, k: 0, r, rSquared: r2, label: `x^2 + y^2 = ${m1[1]}` };
+  }
+
+  // Form 2: (x - h)^2 + (y - k)^2 = C
+  const m2 = s.match(/^\(x([+-]\d+(?:\.\d+)?)\)\^2\+\(y([+-]\d+(?:\.\d+)?)\)\^2=(\d+(?:\.\d+)?|\d+\^2)$/i);
+  if (m2) {
+    const h = -parseFloat(m2[1]);
+    const k = -parseFloat(m2[2]);
+    let r2 = m2[3].includes("^2") ? Math.pow(parseFloat(m2[3].replace("^2", "")), 2) : parseFloat(m2[3]);
+    if (r2 <= 0) return null;
+    const r = Math.round(Math.sqrt(r2) * 10000) / 10000;
+    const hStr = h >= 0 ? `(x - ${h})` : `(x + ${Math.abs(h)})`;
+    const kStr = k >= 0 ? `(y - ${k})` : `(y + ${Math.abs(k)})`;
+    return { h, k, r, rSquared: r2, label: `${hStr}^2 + ${kStr}^2 = ${m2[3]}` };
+  }
+
+  return null;
+}
+
+if (typeof window !== "undefined") {
+  window.parseCircleExpr = parseCircleExpr;
+}
+
 // Helper: robust expression compiler supporting LaTeX and implicit multiplication
 function sanitizeGraphExpr(raw) {
   if (!raw || typeof raw !== "string") return "";
@@ -753,7 +795,118 @@ function renderInlineGraph(canvas, exprString) {
   const height = canvas.height;
   ctx.clearRect(0, 0, width, height);
 
-  if (!window.math || !exprString || !exprString.trim()) return false;
+  if (!exprString || !exprString.trim()) return false;
+
+  const circle = parseCircleExpr(exprString);
+  if (circle) {
+    const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+    const bgCol = isDark ? "#0b1120" : "#ffffff";
+    const gridCol = isDark ? "#1e293b" : "#f1f5f9";
+    const axisCol = isDark ? "#475569" : "#cbd5e1";
+    const labelCol = isDark ? "#94a3b8" : "#64748b";
+    const curveCol = isDark ? "#38bdf8" : "#2a728f";
+
+    // Maintain 1:1 Euclidean aspect ratio across canvas dimensions
+    const rSpan = circle.r * 2.8;
+    const yMin = circle.k - rSpan / 2;
+    const yMax = circle.k + rSpan / 2;
+    const scale = height / (yMax - yMin);
+    const xSpan = width / scale;
+    const xMin = circle.h - xSpan / 2;
+    const xMax = circle.h + xSpan / 2;
+
+    const toCanvasX = x => ((x - xMin) / (xMax - xMin)) * width;
+    const toCanvasY = y => height - ((y - yMin) / (yMax - yMin)) * height;
+
+    // Background
+    ctx.fillStyle = bgCol;
+    ctx.fillRect(0, 0, width, height);
+
+    // Grid
+    ctx.strokeStyle = gridCol;
+    ctx.lineWidth = 1;
+    const gridStep = Math.max(1, Math.round(circle.r / 3));
+    for (let x = Math.floor(xMin); x <= Math.ceil(xMax); x += gridStep) {
+      ctx.beginPath();
+      ctx.moveTo(toCanvasX(x), 0);
+      ctx.lineTo(toCanvasX(x), height);
+      ctx.stroke();
+    }
+    for (let y = Math.floor(yMin); y <= Math.ceil(yMax); y += gridStep) {
+      ctx.beginPath();
+      ctx.moveTo(0, toCanvasY(y));
+      ctx.lineTo(width, toCanvasY(y));
+      ctx.stroke();
+    }
+
+    // Axes
+    ctx.strokeStyle = axisCol;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    const clampedY0 = Math.max(0, Math.min(height, toCanvasY(0)));
+    const clampedX0 = Math.max(0, Math.min(width, toCanvasX(0)));
+    ctx.moveTo(0, clampedY0);
+    ctx.lineTo(width, clampedY0);
+    ctx.moveTo(clampedX0, 0);
+    ctx.lineTo(clampedX0, height);
+    ctx.stroke();
+
+    // Axis Labels
+    ctx.fillStyle = labelCol;
+    ctx.font = "10px Inter, sans-serif";
+    ctx.fillText("x", width - 12, clampedY0 > height - 15 ? clampedY0 - 15 : clampedY0 - 4);
+    ctx.fillText("y", clampedX0 < 15 ? clampedX0 + 15 : clampedX0 + 4, 12);
+
+    // Draw Circle Curve
+    ctx.strokeStyle = curveCol;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    const steps = 180;
+    for (let i = 0; i <= steps; i++) {
+      const theta = (i / steps) * 2 * Math.PI;
+      const px = circle.h + circle.r * Math.cos(theta);
+      const py = circle.k + circle.r * Math.sin(theta);
+      const cx = toCanvasX(px);
+      const cy = toCanvasY(py);
+      if (i === 0) ctx.moveTo(cx, cy);
+      else ctx.lineTo(cx, cy);
+    }
+    ctx.closePath();
+    ctx.stroke();
+
+    // Key Reference Points: Center + 4 Cardinal Points
+    const keyPoints = [
+      { x: circle.h, y: circle.k, label: `(${circle.h}, ${circle.k})` },
+      { x: circle.h + circle.r, y: circle.k, label: `(${circle.h + circle.r}, ${circle.k})` },
+      { x: circle.h - circle.r, y: circle.k, label: `(${circle.h - circle.r}, ${circle.k})` },
+      { x: circle.h, y: circle.k + circle.r, label: `(${circle.h}, ${circle.k + circle.r})` },
+      { x: circle.h, y: circle.k - circle.r, label: `(${circle.h}, ${circle.k - circle.r})` }
+    ];
+
+    ctx.font = "bold 9px Inter, sans-serif";
+    ctx.textAlign = "center";
+    for (const pt of keyPoints) {
+      const canX = toCanvasX(pt.x);
+      const canY = toCanvasY(pt.y);
+      if (canX >= 0 && canX <= width && canY >= 0 && canY <= height) {
+        ctx.beginPath();
+        ctx.arc(canX, canY, 4, 0, 2 * Math.PI);
+        ctx.fillStyle = isDark ? "#f59e0b" : "#d97706";
+        ctx.fill();
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = isDark ? "#ffffff" : "#0f172a";
+        ctx.stroke();
+
+        ctx.fillStyle = isDark ? "#fbbf24" : "#b45309";
+        const offset = pt.y >= circle.k ? -8 : 13;
+        ctx.fillText(pt.label, canX, Math.max(10, Math.min(height - 4, canY + offset)));
+      }
+    }
+
+    return true;
+  }
+
+  if (!window.math) return false;
 
   try {
     const cleanExpr = sanitizeGraphExpr(exprString);
@@ -1823,7 +1976,8 @@ function appendMessage(role, text, images = null, metadata = {}) {
 
         const caption = document.createElement("div");
         caption.className = "msg-graph-caption";
-        caption.innerHTML = `<strong>📈 Rendered Graph:</strong> <code>f(x) = ${escapeHtml(exprToGraph)}</code>`;
+        const labelPrefix = /=/.test(exprToGraph) ? "" : "f(x) = ";
+        caption.innerHTML = `<strong>📈 Rendered Graph:</strong> <code>${labelPrefix}${escapeHtml(exprToGraph)}</code>`;
 
         const openBtn = document.createElement("button");
         openBtn.className = "msg-graph-open-btn";
@@ -5072,7 +5226,118 @@ function drawGraph(exprString) {
   const height = graphCanvas.height;
   graphCtx.clearRect(0, 0, width, height);
 
-  if (!window.math || !exprString || !exprString.trim()) return;
+  if (!exprString || !exprString.trim()) return;
+
+  const circle = parseCircleExpr(exprString);
+  if (circle) {
+    const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+    const bgCol = isDark ? "#0b1120" : "#ffffff";
+    const gridCol = isDark ? "#1e293b" : "#f1f5f9";
+    const axisCol = isDark ? "#475569" : "#cbd5e1";
+    const labelCol = isDark ? "#94a3b8" : "#64748b";
+    const curveCol = isDark ? "#38bdf8" : "#2a728f";
+
+    // Maintain 1:1 Euclidean aspect ratio across modal canvas dimensions
+    const rSpan = circle.r * 2.8;
+    const yMin = circle.k - rSpan / 2;
+    const yMax = circle.k + rSpan / 2;
+    const scale = height / (yMax - yMin);
+    const xSpan = width / scale;
+    const xMin = circle.h - xSpan / 2;
+    const xMax = circle.h + xSpan / 2;
+
+    const toCanvasX = x => ((x - xMin) / (xMax - xMin)) * width;
+    const toCanvasY = y => height - ((y - yMin) / (yMax - yMin)) * height;
+
+    // Background
+    graphCtx.fillStyle = bgCol;
+    graphCtx.fillRect(0, 0, width, height);
+
+    // Grid
+    graphCtx.strokeStyle = gridCol;
+    graphCtx.lineWidth = 1;
+    const gridStep = Math.max(1, Math.round(circle.r / 3));
+    for (let x = Math.floor(xMin); x <= Math.ceil(xMax); x += gridStep) {
+      graphCtx.beginPath();
+      graphCtx.moveTo(toCanvasX(x), 0);
+      graphCtx.lineTo(toCanvasX(x), height);
+      graphCtx.stroke();
+    }
+    for (let y = Math.floor(yMin); y <= Math.ceil(yMax); y += gridStep) {
+      graphCtx.beginPath();
+      graphCtx.moveTo(0, toCanvasY(y));
+      graphCtx.lineTo(width, toCanvasY(y));
+      graphCtx.stroke();
+    }
+
+    // Axes
+    graphCtx.strokeStyle = axisCol;
+    graphCtx.lineWidth = 1.5;
+    graphCtx.beginPath();
+    const clampedY0 = Math.max(0, Math.min(height, toCanvasY(0)));
+    const clampedX0 = Math.max(0, Math.min(width, toCanvasX(0)));
+    graphCtx.moveTo(0, clampedY0);
+    graphCtx.lineTo(width, clampedY0);
+    graphCtx.moveTo(clampedX0, 0);
+    graphCtx.lineTo(clampedX0, height);
+    graphCtx.stroke();
+
+    // Axis Labels
+    graphCtx.fillStyle = labelCol;
+    graphCtx.font = "10px Inter, sans-serif";
+    graphCtx.fillText("x", width - 12, clampedY0 > height - 15 ? clampedY0 - 15 : clampedY0 - 4);
+    graphCtx.fillText("y", clampedX0 < 15 ? clampedX0 + 15 : clampedX0 + 4, 12);
+
+    // Draw Circle Curve
+    graphCtx.strokeStyle = curveCol;
+    graphCtx.lineWidth = 2.5;
+    graphCtx.beginPath();
+    const steps = 180;
+    for (let i = 0; i <= steps; i++) {
+      const theta = (i / steps) * 2 * Math.PI;
+      const px = circle.h + circle.r * Math.cos(theta);
+      const py = circle.k + circle.r * Math.sin(theta);
+      const cx = toCanvasX(px);
+      const cy = toCanvasY(py);
+      if (i === 0) graphCtx.moveTo(cx, cy);
+      else graphCtx.lineTo(cx, cy);
+    }
+    graphCtx.closePath();
+    graphCtx.stroke();
+
+    // Key Reference Points: Center + 4 Cardinal Points
+    const keyPoints = [
+      { x: circle.h, y: circle.k, label: `(${circle.h}, ${circle.k})` },
+      { x: circle.h + circle.r, y: circle.k, label: `(${circle.h + circle.r}, ${circle.k})` },
+      { x: circle.h - circle.r, y: circle.k, label: `(${circle.h - circle.r}, ${circle.k})` },
+      { x: circle.h, y: circle.k + circle.r, label: `(${circle.h}, ${circle.k + circle.r})` },
+      { x: circle.h, y: circle.k - circle.r, label: `(${circle.h}, ${circle.k - circle.r})` }
+    ];
+
+    graphCtx.font = "bold 9px Inter, sans-serif";
+    graphCtx.textAlign = "center";
+    for (const pt of keyPoints) {
+      const canX = toCanvasX(pt.x);
+      const canY = toCanvasY(pt.y);
+      if (canX >= 0 && canX <= width && canY >= 0 && canY <= height) {
+        graphCtx.beginPath();
+        graphCtx.arc(canX, canY, 4, 0, 2 * Math.PI);
+        graphCtx.fillStyle = isDark ? "#f59e0b" : "#d97706";
+        graphCtx.fill();
+        graphCtx.lineWidth = 1.5;
+        graphCtx.strokeStyle = isDark ? "#ffffff" : "#0f172a";
+        graphCtx.stroke();
+
+        graphCtx.fillStyle = isDark ? "#fbbf24" : "#b45309";
+        const offset = pt.y >= circle.k ? -8 : 13;
+        graphCtx.fillText(pt.label, canX, Math.max(10, Math.min(height - 4, canY + offset)));
+      }
+    }
+
+    return;
+  }
+
+  if (!window.math) return;
 
   try {
     const cleanExpr = sanitizeGraphExpr(exprString);

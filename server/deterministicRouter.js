@@ -1045,6 +1045,86 @@ function normalizeGraphExpression(expr) {
 }
 
 /**
+ * Parses circle equations in standard 2D Cartesian form:
+ * - x^2 + y^2 = r^2 or x^2 + y^2 = C (centered at origin)
+ * - (x - h)^2 + (y - k)^2 = r^2 or (x - h)^2 + (y - k)^2 = C
+ * Returns { h, k, radius, rSquared, equation } or null.
+ */
+function parseCircleEquation(str) {
+  if (!str || typeof str !== 'string') return null;
+  let clean = str.trim().toLowerCase();
+
+  // Remove graph/plot prefixes:
+  clean = clean.replace(/^(?:(?:can\s+you\s+|could\s+you\s+)?(?:please\s+)?(?:plot|graph|draw)|now\s+(?:plot|graph|draw)|plot|graph|draw)\s+/i, '');
+  clean = clean.replace(/^(?:the\s+circle\s+|circle\s+|a\s+circle\s+|the\s+curve\s+|the\s+equation\s+)+/i, '');
+  clean = clean.replace(/\s+(?:please|kindly|for\s+me|on\s+a\s+graph|in\s+a\s+graph|on\s+the\s+graph)$/i, '');
+  clean = clean.replace(/[?.!]+$/, '').trim();
+  clean = clean.replace(/\s+/g, '');
+
+  // Form 1: x^2 + y^2 = C or x^2 + y^2 = r^2
+  const m1 = clean.match(/^(?:x\^2|\(x\)\^2)\+(?:y\^2|\(y\)\^2)=(\d+(?:\.\d+)?|\d+\^2)$/i);
+  if (m1) {
+    let r2;
+    if (m1[1].includes('^2')) {
+      const base = parseFloat(m1[1].replace('^2', ''));
+      r2 = base * base;
+    } else {
+      r2 = parseFloat(m1[1]);
+    }
+    if (r2 <= 0) return null;
+    const r = Math.round(Math.sqrt(r2) * 10000) / 10000;
+    return {
+      h: 0,
+      k: 0,
+      radius: r,
+      rSquared: r2,
+      equation: `x^2 + y^2 = ${m1[1]}`
+    };
+  }
+
+  // Form 2: (x - h)^2 + (y - k)^2 = C
+  const m2 = clean.match(/^\(x([+-]\d+(?:\.\d+)?)\)\^2\+\(y([+-]\d+(?:\.\d+)?)\)\^2=(\d+(?:\.\d+)?|\d+\^2)$/i);
+  if (m2) {
+    const h = -parseFloat(m2[1]);
+    const k = -parseFloat(m2[2]);
+    let r2 = m2[3].includes('^2') ? Math.pow(parseFloat(m2[3].replace('^2', '')), 2) : parseFloat(m2[3]);
+    if (r2 <= 0) return null;
+    const r = Math.round(Math.sqrt(r2) * 10000) / 10000;
+    const hStr = h >= 0 ? `(x - ${h})` : `(x + ${Math.abs(h)})`;
+    const kStr = k >= 0 ? `(y - ${k})` : `(y + ${Math.abs(k)})`;
+    return {
+      h,
+      k,
+      radius: r,
+      rSquared: r2,
+      equation: `${hStr}^2 + ${kStr}^2 = ${m2[3]}`
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Checks whether user query describes an implicit equation containing both x and y with an equality.
+ */
+function isImplicitEquationQuery(str) {
+  if (!str || typeof str !== 'string') return false;
+  let clean = str.trim().toLowerCase();
+  clean = clean.replace(/^(?:(?:can\s+you\s+|could\s+you\s+)?(?:please\s+)?(?:plot|graph|draw)|now\s+(?:plot|graph|draw)|plot|graph|draw)\s+/i, '');
+  clean = clean.replace(/^(?:(?:for\s+me|this|it|that|these|those)\s*)+(?:please|kindly)?[:\s]*/i, '')
+               .replace(/^(?:(?:the\s+)?(?:function|curve|equation|formula))\s*(?:for\s+me)?[:\s]*/i, '')
+               .replace(/^(?:the\s+function\s+|the\s+curve\s+|the\s+graph\s+|equation\s+|plot\s+|graph\s+)+/i, '')
+               .trim();
+
+  if (/^(?:f\(x\)|g\(x\)|h\(x\)|y)\s*=/i.test(clean)) return false;
+
+  const hasEquals = /=/.test(clean);
+  const hasX = /\b[xX]\b|[xX]/.test(clean);
+  const hasY = /\b[yY]\b|[yY]/.test(clean);
+  return hasEquals && hasX && hasY;
+}
+
+/**
  * Validates that an expression is a concrete numerical function of x
  * (e.g. 7*sin(x/4), 3*cos(2x), x^2 - 4) rather than an abstract formula template
  * containing unbound parameter variables (e.g. sin(Bx), A*sin(Bx), mx + b, ax^2 + bx + c).
@@ -1504,6 +1584,32 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
 
   if (isGraphQuery) {
     const isHowTo = /\b(?:how\s+(?:do|can)\s+(?:i|we|you)|how\s+to)\b/i.test(clean);
+
+    // 0a. Direct Circle Equation Graphing: e.g. "Graph the circle x^2 + y^2 = 25", "plot x^2 + y^2 = 16"
+    const circleData = parseCircleEquation(clean);
+    if (circleData) {
+      return {
+        type: 'GRAPH_CIRCLE',
+        equation: circleData.equation,
+        h: circleData.h,
+        k: circleData.k,
+        radius: circleData.radius,
+        rSquared: circleData.rSquared,
+        isHowTo
+      };
+    }
+
+    // 0b. Unsupported General Implicit Equation: e.g. "Graph x^3 + y^3 = 25", "plot y^2 - x^2 = 1"
+    if (isImplicitEquationQuery(clean)) {
+      const eqMatch = clean.match(/(?:plot|graph|draw)\s+(?:the\s+curve\s+|the\s+equation\s+|of\s+)?([^.?!]+)/i) ||
+                      clean.match(/([^.?!]+=[^.?!]+)/i);
+      const rawEq = eqMatch ? eqMatch[1].trim() : clean;
+      return {
+        type: 'IMPLICIT_GRAPH_UNSUPPORTED',
+        equation: rawEq
+      };
+    }
+
     let directExpr = null;
 
     const directMatch = clean.match(/^(?:(?:can\s+you\s+|could\s+you\s+)?(?:please\s+)?(?:plot|graph|draw)|now\s+(?:plot|graph|draw))\s+(.+)$/i) ||
@@ -1529,7 +1635,15 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
       }
     }
 
-    const targetExpr = directExpr || resolveReferentialContext(clean, conversationHistory);
+    // Only allow referential context lookup if user's prompt is genuinely referential
+    // (e.g. "graph it please", "show me on a graph", "how do i graph this", "try again"),
+    // NEVER when the user typed a new explicit equation/formula that failed to parse!
+    const isReferentialQuery = isGraphRetry ||
+      /^(?:(?:can\s+you\s+|could\s+you\s+)?(?:please\s+)?(?:plot|graph|draw)|now\s+(?:plot|graph|draw)|plot|graph|draw)\s+(?:it|this|that|the\s+function|the\s+curve|the\s+graph)(?:\s+please)?$/i.test(clean) ||
+      /\b(?:show|display|see|view)\s+(?:me\s+)?(?:(?:it|this|that|the\s+function|the\s+curve)\s+)?(?:on\s+a\s+graph|in\s+a\s+graph|as\s+a\s+graph|on\s+the\s+graph)\b/i.test(clean) ||
+      /\b(?:how\s+(?:do|can)\s+(?:i|we|you)\s+|how\s+to\s+)(?:plot|graph|draw)\s+(?:this|it|that|the\s+function|the\s+curve)\b/i.test(clean);
+
+    const targetExpr = directExpr || (isReferentialQuery ? resolveReferentialContext(clean, conversationHistory) : null);
     if (targetExpr) {
       return {
         type: 'GRAPH_PLOT',
@@ -2840,6 +2954,18 @@ function buildDeterministicResponse(intent) {
 
   if (intent.type === 'ANSWER_FORMAT_MISMATCH') {
     return intent.message;
+  }
+
+  if (intent.type === 'GRAPH_CIRCLE') {
+    const r = intent.radius;
+    const h = intent.h || 0;
+    const k = intent.k || 0;
+    const centerStr = `(${h}, ${k})`;
+    return `📈 **Circle Graph: ${intent.equation}$**\n\nThe equation ${intent.equation}$ represents a circle centered at ${centerStr}$ with radius $r = ${r}$.\n\n[GRAPH: ${intent.equation}]\n\n- **Standard Form:** $(x - h)^2 + (y - k)^2 = r^2$\n- **Center:** $(h, k) = ${centerStr}$\n- **Radius:** $r = \\sqrt{${intent.rSquared}} = ${r}$\n- **Four Cardinal Points:** $(${h + r}, ${k})$, $(${h - r}, ${k})$, $(${h}, ${k + r})$, $(${h}, ${k - r})$\n- **Domain:** $[${h - r}, ${h + r}]$\n- **Range:** $[${k - r}, ${k + r}]`;
+  }
+
+  if (intent.type === 'IMPLICIT_GRAPH_UNSUPPORTED') {
+    return `📈 **Implicit Equation Graphing Limitation**\n\nThe equation ${intent.equation}$ is an implicit equation involving both $x$ and $y$.\n\nPythos's 2D function grapher plots single-variable Cartesian functions $y = f(x)$ and standard conic circles ($x^2 + y^2 = r^2$). General non-isolated implicit curves cannot currently be plotted on this 2D canvas.\n\nTo graph this relation, consider solving for $y$ explicitly in terms of $x$ (e.g. plotting individual explicit branches), or let me know if you would like to analyze its algebraic properties step-by-step!`;
   }
 
   if (intent.type === 'GRAPH_PLOT') {

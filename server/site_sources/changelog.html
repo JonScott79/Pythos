@@ -22,14 +22,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="assets/favicon.png">
-  <title>Pythos Release History &amp; Changelog | v1.8.50</title>
+  <title>Pythos Release History &amp; Changelog | v1.8.51</title>
   <meta name="description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://pythos.lanzar.me/changelog.html">
 
   <!-- OPEN GRAPH -->
-  <meta property="og:title" content="Pythos Release History &amp; Changelog | v1.8.50">
+  <meta property="og:title" content="Pythos Release History &amp; Changelog | v1.8.51">
   <meta property="og:description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta property="og:url" content="https://pythos.lanzar.me/changelog.html">
   <meta property="og:type" content="article">
@@ -41,7 +41,7 @@
 
   <!-- TWITTER CARD -->
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Pythos Release History &amp; Changelog | v1.8.50">
+  <meta name="twitter:title" content="Pythos Release History &amp; Changelog | v1.8.51">
   <meta name="twitter:description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="twitter:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
 
@@ -532,7 +532,7 @@
         <a href="nonprofit.html" class="nav-link">Mission &amp; Roadmap</a>
         <a href="license.html" class="nav-link">License</a>
         <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" class="nav-link">Facebook</a>
-        <a href="changelog.html#pythos-1-8-50" class="nav-link active" aria-current="page">v1.8.50</a>
+        <a href="changelog.html#pythos-1-8-51" class="nav-link active" aria-current="page">v1.8.51</a>
       </div>
     </div>
 
@@ -562,7 +562,34 @@
         <!-- ==================== RELEASE 1.8.28 ==================== -->
         <!-- ==================== RELEASE 1.8.29 ==================== -->
     <!-- ==================== RELEASE 1.8.31 ==================== -->
-                                                                                                                                                                                                                                                                                                                                                                                <!-- ==================== RELEASE 1.8.50 ==================== -->
+                                                                                                                                                                                                                                                                                                                                                                                <!-- ==================== RELEASE 1.8.51 ==================== -->
+        <article class="release-card" id="pythos-1-8-51">
+            <header class="release-header">
+                <div>
+                    <h2 class="release-version">Pythos 1.8.51</h2>
+                    <div class="release-meta">
+                        <time datetime="2026-10-27"><i class="far fa-calendar-alt"></i> October 27, 2026</time>
+                        <span><i class="fas fa-tag"></i> Patch Release</span>
+                        <span><i class="fas fa-shield-alt"></i> Circle Equation Graphing, 1:1 Aspect Ratio &amp; Referential State Guard</span>
+                    </div>
+                </div>
+                <span class="badge badge-success">Latest</span>
+            </header>
+            <div class="release-body">
+                <p><strong>Pythos 1.8.51</strong> resolves equation parameter drop and referential state collisions when graphing Cartesian circles and conic sections. Standard form circles ($x^2 + y^2 = r^2$) are preserved and plotted with uniform Euclidean 1:1 aspect ratio, multi-turn history lookups are guarded against stale expression contamination, and unsupported implicit equations receive explicit limitation disclosures.</p>
+
+                <h3><i class="fas fa-chart-line text-primary"></i> Fixed &amp; Enhanced</h3>
+                <ul>
+                    <li><strong>Cartesian Circle Equation Graphing:</strong> Added <code>parseCircleEquation()</code> in <code>server/deterministicRouter.js</code> to extract center $(h, k)$, radius $r$, and cardinal points from circle equations, mounting <code>[GRAPH: equation]</code> with exact mathematical specifications.</li>
+                    <li><strong>Referential Context Collision Guard:</strong> Guarded <code>resolveReferentialContext()</code> so multi-turn lookups only trigger on genuine referential phrasing (<em>"graph it please"</em>, <em>"show me on a graph"</em>, <em>"try again"</em>). Fixed defect where unparsed implicit formulas silently substituted stale functions ($f(x) = x^2$) from prior session turns.</li>
+                    <li><strong>Implicit Equation Transparency:</strong> Implemented <code>isImplicitEquationQuery()</code> to detect non-circle implicit equations (e.g. $x^3 + y^3 = 25$), returning an honest capability notice rather than substituting a generic parabola.</li>
+                    <li><strong>Euclidean 1:1 Canvas Aspect Ratio:</strong> Upgraded <code>renderInlineGraph()</code> and <code>drawGraph()</code> in <code>app.js</code> with <code>parseCircleExpr()</code>, rendering circles with uniform pixel scaling ($r_x = r_y$) so circular geometry is never distorted into an ellipse, complete with center dot and cardinal intercept markers.</li>
+                    <li><strong>Regression Test Coverage:</strong> Added Test L (8 subtests) in <code>test/test-graphing-intent-routing.js</code> verifying direct circle queries, multi-turn isolation, slider preservation, and coordinate geometry.</li>
+                </ul>
+            </div>
+        </article>
+
+        <!-- ==================== RELEASE 1.8.50 ==================== -->
         <article class="release-card" id="pythos-1-8-50">
             <header class="release-header">
                 <div>
@@ -573,7 +600,7 @@
                         <span><i class="fas fa-shield-alt"></i> Geometry Intent Disambiguation, Linear Contradictions &amp; Specialist Injection</span>
                     </div>
                 </div>
-                <span class="badge badge-success">Latest</span>
+                <span class="badge badge-secondary">Stable</span>
             </header>
             <div class="release-body">
                 <p><strong>Pythos 1.8.50</strong> strengthens mathematical intent routing, equation solving rigor, and specialist tool execution context. Geometric drawing requests are disambiguated from function plotting, inconsistent linear equations ($0x + c = d$) provide step-by-step contradiction derivations, and specialist calculus and geometry CAS outputs are reliably formatted into reasoning context.</p>
@@ -2316,7 +2343,7 @@
 
   <footer>
     <div>🏛️ Pythos — Free AI Mathematics &amp; Physics Education Initiative. Developed by LANZAR.</div>
-    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-8-50" style="color:var(--primary-color); text-decoration:none;">v1.8.50</a></div>
+    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-8-51" style="color:var(--primary-color); text-decoration:none;">v1.8.51</a></div>
   </footer>
 
   <script>

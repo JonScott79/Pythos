@@ -1,3 +1,11 @@
+## Pythos 1.8.51
+### Critical Fix: Circle Equation Graphing, 1:1 Aspect Ratio Rendering & Referential State Guard
+- **Cartesian Circle Equation Graphing:** In `server/deterministicRouter.js`, implemented `parseCircleEquation()` to recognize and route standard form circle equations ($x^2 + y^2 = r^2$ and $(x - h)^2 + (y - k)^2 = r^2$) directly to `GRAPH_CIRCLE`, extracting center coordinates $(h, k)$, radius $r$, and key cardinal intercept points.
+- **Referential State Collision Prevention:** Guarded `resolveReferentialContext()` so multi-turn history lookups only trigger on genuine referential follow-ups (*"graph it please"*, *"show me on a graph"*, *"try again"*). Fixed regression where unparsed implicit formulas silently grabbed stale expressions ($f(x) = x^2$) from prior session turns.
+- **Unsupported Implicit Equation Transparency:** Added `isImplicitEquationQuery()` to detect non-circle implicit relations (e.g. $x^3 + y^3 = 25$, $y^2 - x^2 = 1$), returning an honest capability limitation disclosure rather than substituting a generic function or falling back to a parabola.
+- **Euclidean 1:1 Aspect Ratio Canvas Renderer:** In `app.js`, implemented `parseCircleExpr()` in both `renderInlineGraph()` and `drawGraph()` (standalone modal), computing uniform pixel scaling ($r_x = r_y$) so circles render as true geometric circles without elliptic distortion, complete with center dot and cardinal intercept markers.
+- **Comprehensive Regression Suite:** Added Test L (`TEST L1` through `TEST L8`) in `test/test-graphing-intent-routing.js` validating direct equations, multi-turn isolation, slider preservation, and sub-pixel coordinate geometry.
+
 ## Pythos 1.8.50
 ### Critical Fix: Geometric Intent Disambiguation, Linear Contradiction Derivation & Specialist Context Injection
 - **Geometry Routing Disambiguation:** In `server/deterministicRouter.js`, enhanced `isGraphQuery` and `classifyProblem` to prevent geometric construction and drawing commands (e.g. *"draw a circle with radius 5"*, *"plot a square"*) from being shadowed by function plotting (`GRAPH_CLARIFICATION`). Added shape-verb routing and expanded `wantsCircleSliders` to recognize `draw|sketch|plot` for interactive geometric circle manipulation.

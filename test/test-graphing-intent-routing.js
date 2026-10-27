@@ -404,6 +404,143 @@ test('TEST K2: Off-center functions (e.g. x^2 + 50) still adapt vertical bounds 
   assert(vp.yMax > 100, 'yMax must encompass function values');
 });
 
+// -------------------------------------------------------------
+// Test L: Circle Equation & Implicit Equation Graphing Integrity
+// -------------------------------------------------------------
+console.log('▶ [TEST L] Circle equation & implicit equation graphing integrity');
+
+test('TEST L1: Circle equation with prompt "Graph the circle x^2 + y^2 = 25." preserves equation and routes to GRAPH_CIRCLE', () => {
+  const intent = analyzeDeterministicIntent('Graph the circle x^2 + y^2 = 25.', []);
+  assert(intent, 'Router must recognize circle graphing intent');
+  assert.strictEqual(intent.type, 'GRAPH_CIRCLE');
+  assert.strictEqual(intent.equation, 'x^2 + y^2 = 25');
+  assert.strictEqual(intent.radius, 5);
+  assert.strictEqual(intent.h, 0);
+  assert.strictEqual(intent.k, 0);
+
+  const resp = buildDeterministicResponse(intent);
+  assert(resp.includes('[GRAPH: x^2 + y^2 = 25]'), 'Response must mount [GRAPH: x^2 + y^2 = 25]');
+  assert(resp.includes('Radius:'), 'Response must list Radius');
+  assert(resp.includes('(5, 0)'), 'Response must document cardinal intercepts');
+  assert(!resp.includes('f(x) = x^2'), 'Must never claim f(x) = x^2');
+});
+
+test('TEST L2: Circle equation with prompt "Graph x^2 + y^2 = 25." preserves equation and routes to GRAPH_CIRCLE', () => {
+  const intent = analyzeDeterministicIntent('Graph x^2 + y^2 = 25.', []);
+  assert(intent, 'Router must recognize circle graphing intent');
+  assert.strictEqual(intent.type, 'GRAPH_CIRCLE');
+  assert.strictEqual(intent.equation, 'x^2 + y^2 = 25');
+  assert.strictEqual(intent.radius, 5);
+});
+
+test('TEST L3: Geometric drawing prompt "Draw a circle with radius 5." routes to interactive slider model (CLASSICAL_MODEL_VIZ)', () => {
+  const intent = analyzeDeterministicIntent('Draw a circle with radius 5.', []);
+  assert(intent, 'Router must recognize circle slider model');
+  assert.strictEqual(intent.type, 'CLASSICAL_MODEL_VIZ');
+  assert.strictEqual(intent.model, 'circle');
+  assert.deepStrictEqual(intent.customVars, { radius: 5 });
+});
+
+test('TEST L4: Standard function graphing "Graph y = x^2." routes to GRAPH_PLOT with expression "x^2"', () => {
+  const intent = analyzeDeterministicIntent('Graph y = x^2.', []);
+  assert(intent, 'Router must recognize standard parabola');
+  assert.strictEqual(intent.type, 'GRAPH_PLOT');
+  assert.strictEqual(intent.expression, 'x^2');
+});
+
+test('TEST L5: Trigonometric function graphing "Graph y = 7 sin(x/4)." routes to GRAPH_PLOT with expression "7*sin(x/4)"', () => {
+  const intent = analyzeDeterministicIntent('Graph y = 7 sin(x/4).', []);
+  assert(intent, 'Router must recognize trigonometric wave');
+  assert.strictEqual(intent.type, 'GRAPH_PLOT');
+  assert.strictEqual(intent.expression, '7*sin(x/4)');
+});
+
+test('TEST L6: Multi-turn protection: "Graph the circle x^2 + y^2 = 25." with previous turn "x^2" in history NEVER reverts to "x^2"', () => {
+  const historyWithX2 = [
+    { role: 'user', content: 'graph y = x^2' },
+    { role: 'assistant', content: 'Here is the plot for $f(x) = x^2$:\n\n[GRAPH: x^2]' }
+  ];
+  const intent = analyzeDeterministicIntent('Graph the circle x^2 + y^2 = 25.', historyWithX2);
+  assert(intent, 'Router must recognize circle intent in multi-turn conversation');
+  assert.strictEqual(intent.type, 'GRAPH_CIRCLE');
+  assert.strictEqual(intent.equation, 'x^2 + y^2 = 25');
+  assert.strictEqual(intent.radius, 5);
+
+  const resp = buildDeterministicResponse(intent);
+  assert(resp.includes('[GRAPH: x^2 + y^2 = 25]'), 'Must mount circle graph token');
+  assert(!resp.includes('[GRAPH: x^2]'), 'Must NEVER substitute x^2 from history');
+  assert(!resp.includes('f(x) = x^2'), 'Must NEVER claim f(x) = x^2');
+});
+
+test('TEST L7: Unsupported implicit equation "Graph x^3 + y^3 = 25" never silently becomes a different supported function (e.g. x^2)', () => {
+  const historyWithX2 = [
+    { role: 'user', content: 'graph y = x^2' },
+    { role: 'assistant', content: 'Here is the plot for $f(x) = x^2$:\n\n[GRAPH: x^2]' }
+  ];
+  const intent = analyzeDeterministicIntent('Graph x^3 + y^3 = 25', historyWithX2);
+  assert(intent, 'Router must detect unsupported implicit equation');
+  assert.strictEqual(intent.type, 'IMPLICIT_GRAPH_UNSUPPORTED');
+  assert(intent.equation.includes('x^3') && intent.equation.includes('y^3'), 'Preserves raw implicit equation');
+
+  const resp = buildDeterministicResponse(intent);
+  assert(resp.includes('Implicit Equation Graphing Limitation'), 'Must provide honest limitation disclosure');
+  assert(!resp.includes('[GRAPH: x^2]'), 'Must NEVER substitute stale x^2 from history');
+  assert(!resp.includes('f(x) = x^2'), 'Must NEVER claim f(x) = x^2');
+});
+
+test('TEST L8: Frontend client parser and 1:1 aspect ratio coordinate verification for circles on canvas', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const appJs = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+
+  const circleParserMatch = appJs.match(/function parseCircleExpr\([\s\S]*?\n\}/);
+  assert(circleParserMatch, 'app.js must contain parseCircleExpr');
+  const fnEval = new Function(`
+    ${circleParserMatch[0]}
+    return { parseCircleExpr };
+  `);
+  const { parseCircleExpr } = fnEval();
+
+  // Test frontend circle expression extraction
+  const c1 = parseCircleExpr('x^2 + y^2 = 25');
+  assert(c1, 'parseCircleExpr must parse x^2 + y^2 = 25');
+  assert.strictEqual(c1.h, 0);
+  assert.strictEqual(c1.k, 0);
+  assert.strictEqual(c1.r, 5);
+
+  const c2 = parseCircleExpr('(x - 2)^2 + (y + 3)^2 = 49');
+  assert(c2, 'parseCircleExpr must parse shifted circle');
+  assert.strictEqual(c2.h, 2);
+  assert.strictEqual(c2.k, -3);
+  assert.strictEqual(c2.r, 7);
+
+  // Test aspect ratio on 360x200 canvas
+  const width = 360;
+  const height = 200;
+  const rSpan = c1.r * 2.8;
+  const yMin = c1.k - rSpan / 2;
+  const yMax = c1.k + rSpan / 2;
+  const scale = height / (yMax - yMin);
+  const xSpan = width / scale;
+  const xMin = c1.h - xSpan / 2;
+  const xMax = c1.h + xSpan / 2;
+
+  const toCanvasX = x => ((x - xMin) / (xMax - xMin)) * width;
+  const toCanvasY = y => height - ((y - yMin) / (yMax - yMin)) * height;
+
+  const cx0 = toCanvasX(0);
+  const cy0 = toCanvasY(0);
+  const cxRight = toCanvasX(5);
+  const cyTop = toCanvasY(5);
+
+  const rxPixels = cxRight - cx0;
+  const ryPixels = cy0 - cyTop;
+
+  assert(Math.abs(rxPixels - ryPixels) < 1e-9, 'rx in pixels must equal ry in pixels for 1:1 Euclidean circularity');
+  assert.strictEqual(cx0, 180, 'Center must be exactly in the center horizontally (180px)');
+  assert.strictEqual(cy0, 100, 'Center must be exactly in the center vertically (100px)');
+});
+
 console.log('\n================================================================');
 console.log(`🎉 ALL ${passed}/${total} GRAPHING INTENT REGRESSION TESTS PASSED`);
 console.log('================================================================\n');
