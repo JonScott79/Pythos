@@ -541,6 +541,16 @@ test('TEST L8: Frontend client parser and 1:1 aspect ratio coordinate verificati
   assert.strictEqual(cy0, 100, 'Center must be exactly in the center vertically (100px)');
 });
 
+
+test('TEST L9: Server deterministic gate authorizes GRAPH_CIRCLE and IMPLICIT_GRAPH_UNSUPPORTED directly', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const serverJs = fs.readFileSync(path.join(__dirname, '..', 'server', 'server.js'), 'utf8');
+
+  assert(serverJs.includes("deterministicIntent.type === 'GRAPH_CIRCLE'"), 'server.js must authorize GRAPH_CIRCLE in deterministic visual gate');
+  assert(serverJs.includes("deterministicIntent.type === 'IMPLICIT_GRAPH_UNSUPPORTED'"), 'server.js must authorize IMPLICIT_GRAPH_UNSUPPORTED in deterministic visual gate');
+});
+
 console.log('\n================================================================');
 console.log(`🎉 ALL ${passed}/${total} GRAPHING INTENT REGRESSION TESTS PASSED`);
 console.log('================================================================\n');

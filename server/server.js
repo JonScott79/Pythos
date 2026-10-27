@@ -1742,6 +1742,8 @@ app.post('/api/chat', async (req, res) => {
                                         deterministicIntent.type === 'PROJECTILE_VIZ' ||
                                         deterministicIntent.type === 'GEOMETRY_VIZ' ||
                                         deterministicIntent.type === 'GRAPH_PLOT' ||
+                                        deterministicIntent.type === 'GRAPH_CIRCLE' ||
+                                        deterministicIntent.type === 'IMPLICIT_GRAPH_UNSUPPORTED' ||
                                         deterministicIntent.type === 'NUMBER_LINE_VIZ' ||
                                         deterministicIntent.type === 'VIZ_SUBJECT_CLARIFICATION' ||
                                         deterministicIntent.type === 'INPUT_AMBIGUITY_CLARIFICATION' ||
