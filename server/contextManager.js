@@ -191,13 +191,22 @@ function detectTopicTransitionIntent(userText) {
   }
 
   // 3. Explicit correction / modification of previous problem or premise disambiguation
-  const isCorrection = /\b(?:wait|sorry|actually|correction|oops|no\s*wait|typo)\b.*?\b(?:is\s+actually|i\s+meant|i\s+mean|i\s+said|instead\s+of|actually\s+shows|actually\s+find|(?:the\s+)?equation\s+(?:was|is))\b/i.test(lower) ||
+  const isPremiseOrCorrection =
+    /\b(?:i\s+think\s+)?(?:you\s+have|you\s+got|you\'?re\s+using|you\s+used)\s+(?:the|teh|a)\s+(?:wrong|incorrect)\s+([a-zA-Z\s]+)/i.test(lower) ||
+    /\b(?:the|teh)\s+([a-zA-Z\s]+)\s+(?:is|was|are|were|seems?)\s+(?:wrong|incorrect|off)\b/i.test(lower) ||
+    /\b(?:the|teh)\s+([a-zA-Z\s]+)\s+(?:should|would|must)\s+be\s+([0-9.]+|[a-zA-Z0-9+\-*/^()]+)/i.test(lower) ||
+    /\b(?:you\s+have|you\s+got)\s+(?:teh|the)\s+([a-zA-Z\s]+)\s+wrong\b/i.test(lower) ||
+    /\b(?:i\s+think\s+)?(?:you|you\'ve|there\'?s)\s+(?:have\s+)?(?:made\s+a\s+mistake|got\s+the\s+wrong|have\s+the\s+wrong|used\s+the\s+wrong)\b/i.test(lower) ||
+    /\b(?:the\s+angle|the\s+number|the\s+side|the\s+formula|the\s+value)\s+(?:is\s+actually|is\s+supposed\s+to\s+be|should\s+be|would\s+be)\s+([0-9.]+|[a-zA-Z0-9+\-*/^()]+)/i.test(lower);
+
+  const isCorrection = isPremiseOrCorrection ||
+                       /\b(?:wait|sorry|actually|correction|oops|no\s*wait|typo)\b.*?\b(?:is\s+actually|i\s+meant|i\s+mean|i\s+said|instead\s+of|actually\s+shows|actually\s+find|(?:the\s+)?equation\s+(?:was|is))\b/i.test(lower) ||
                        /\b(?:i\s+meant|meant\s+to\s+say|my\s+bad,?\s+i\s+meant|typo,?\s+meant|actually\s+the\s+third\s+side\s+is|actually\s+i\s+need|actually,?\s+solve\s+for|(?:the\s+)?equation\s+(?:was|is)\s+actually|actually[,\s]+(?:the\s+)?equation\s+(?:was|is))\b/i.test(lower) ||
-                       /^(?:nope|nah|no|not\s+quite)[,.\s]+(?:future|actually|i\s+mean|it'?s|i\s+meant|not\s+that|another|next)\b/i.test(lower) ||
+                       /^(?:nope|nah|no|not\s+quite)[,.\s]+(?:future|actually|i\s+mean|it\'?s|i\s+meant|not\s+that|another|next)\b/i.test(lower) ||
                        /^(?:nope|nah)[,.\s!]*$/i.test(lower) ||
-                       /^(?:(?:nope|nah|no)[,.\s]+)?(?:that'?s|that\s+is)\s+not\s+what\s+i\s+(?:meant|said|asked|was\s+saying)\b/i.test(lower) ||
+                       /^(?:(?:nope|nah|no)[,.\s]+)?(?:that\'?s|that\s+is)\s+not\s+what\s+i\s+(?:meant|said|asked|was\s+saying)\b/i.test(lower) ||
                        /^(?:(?:nope|nah|no)[,.\s]+)?you\s+misunderstood\b/i.test(lower) ||
-                       /^(?:i\s+don'?t\s+mean\s+that|not\s+what\s+i\s+mean|not\s+what\s+i\s+asked)\b/i.test(lower);
+                       /^(?:i\s+don\'?t\s+mean\s+that|not\s+what\s+i\s+mean|not\s+what\s+i\s+asked)\b/i.test(lower);
   if (isCorrection) {
     return {
       type: 'CORRECTION',
@@ -476,15 +485,24 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
     }
 
     // Extract parameter corrections from user turn
-    const valCorrection = msg.content.match(/(?:(?:the\s+)?([a-zA-Z]+)\s+is\s+actually\s+(\d+(?:\.\d+)?)|(?:actually|meant)\s+(?:the\s+)?([a-zA-Z]+)\s*(?:as|is)?\s*(\d+(?:\.\d+)?))/i);
+    const valCorrection = 
+      msg.content.match(/(?:(?:the|teh)\s+)?([a-zA-Z]+(?:\s+for\s+[a-zA-Z\s]+)?)\s+(?:is\s+actually|is|should\s+be|would\s+be|must\s+be)\s+(\d+(?:\.\d+)?)/i) ||
+      msg.content.match(/(?:actually|meant)\s+(?:(?:the|teh)\s+)?([a-zA-Z]+)\s*(?:as|is)?\s*(\d+(?:\.\d+)?)/i) ||
+      msg.content.match(/\b([a-zA-Z]+)\s*=\s*(\d+(?:\.\d+)?)\b/i);
     if (valCorrection && currentActive) {
-      const pName = (valCorrection[1] || valCorrection[3]).toLowerCase();
+      const rawParam = (valCorrection[1] || valCorrection[3] || '').trim();
       const pVal = parseFloat(valCorrection[2] || valCorrection[4]);
-      if (!currentActive.knownVariables) currentActive.knownVariables = {};
-      currentActive.knownVariables[pName] = pVal;
-      currentActive.verifiedSolution = null;
-      currentActive.isCompleted = false;
-      currentActive.currentStepEquation = null;
+      if (rawParam && Number.isFinite(pVal)) {
+        if (!currentActive.knownVariables) currentActive.knownVariables = {};
+        const pKey = rawParam.toLowerCase().replace(/^(?:the|teh)\s+/i, '').replace(/\s+/g, '_');
+        currentActive.knownVariables[pKey] = pVal;
+        if (pKey.includes('angle')) {
+          currentActive.knownVariables['angle'] = pVal;
+        }
+        currentActive.verifiedSolution = null;
+        currentActive.isCompleted = false;
+        currentActive.currentStepEquation = null;
+      }
     }
 
     const isHighConfidence = classification &&

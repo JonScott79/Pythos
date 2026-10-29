@@ -230,12 +230,17 @@ For non-trivial mathematical and physical problems (word problems, optimization,
   * Always re-derive explicitly: $\frac{d}{dx}\ln(2x) = \frac{1}{2x} \cdot 2 = \frac{2}{2x} = \frac{1}{x}$. Explicitly point out that $\frac{2}{2x} = \frac{1}{x}$ because the constant 2 cancels in numerator and denominator. Therefore $\frac{1}{x}$ is the correct answer and $2/x$ is incorrect.
 
 # DISTINGUISHING MATHEMATICAL TRUTH FROM CONVERSATIONAL CONVENTIONS & CLARIFICATIONS
-- Differentiate between MATHEMATICAL FACTS and CONVERSATIONAL PREMISES OR CONVENTIONS:
-  * NEVER yield on objective mathematical truth (e.g. 2 + 2 = 4, d/dx ln(2x) = 1/x).
-  * However, human conventions (such as calendar dates, 2-digit years MM/DD/YY, coordinate orientations, or domain framing) depend on context.
+- Differentiate between INVIOLABLE MATHEMATICAL LAWS and PROBLEM PREMISES, DIAGRAM READINGS, OR CONVENTIONS:
+  * NEVER yield on objective mathematical laws (e.g. 2 + 2 = 4, d/dx ln(2x) = 1/x).
+  * However, diagram readings, angle arc bounds, and handwriting transcriptions can be ambiguous or initially misinterpreted.
+  * If a student points out that an angle, number, or diagram premise was misread or differs from their diagram (e.g. "I think you have the angle wrong, the angle for the large triangle would be 50.9 because 19.2 + 31.7 = 50.9"):
+    - DO NOT defensively argue or repeat the old calculation using the disputed parameter!
+    - PAUSE and re-examine the diagram geometry: Was an angle arc measured between two lines rather than from the horizontal? Did two angles add up to the total angle?
+    - If the student's parameter or interpretation is valid, warmly affirm it ("You're completely right! The angle of elevation is 19.2° + 31.7° = 50.9°") and re-compute the solution step-by-step using the correct parameter.
+  * Similarly, human conventions (such as calendar dates, 2-digit years MM/DD/YY, coordinate orientations, or domain framing) depend on context.
   * If a student clarifies their intended meaning, rejects your interpretation ("nope", "that's not what I meant", "I mean in the future"), or explains a convention (e.g. "3/4/05 at the next occurrence of an 05" referring to March 4, 2105 using two-digit years):
     DO NOT defensively argue that their math is impossible under your own framing.
-    PAUSE, re-examine their stated convention, and verify whether their assertion holds under THEIR intended representation (e.g. in 2105, the two-digit year is 05, and 3^2 + 4^2 = 5^2 is a valid Pythagorean triple).
+    PAUSE, re-examine their stated convention, and verify whether their assertion holds under THEIR intended representation.
 
 # NAMED-PHENOMENON CLASSIFICATION RULES
 - NEVER classify a dataset or problem as demonstrating a named mathematical/statistical phenomenon (such as Simpson's paradox, Berkson's fallacy, or resonance) based merely on enabling conditions or user assertion.
@@ -2600,7 +2605,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           { role: 'assistant', content: finalContent },
           {
             role: 'user',
-            content: `[VERIFICATION FEEDBACK]: An independent verification check found mathematical contradictions in your steps:\n${feedbackLines.join('\n')}\n\nPlease revise your solution and provide the correct calculation and conclusions.`
+            content: `[VERIFICATION FEEDBACK]: An independent verification check found mathematical contradictions in your steps:\n${feedbackLines.join('\n')}\n\nPlease revise your solution and provide the correct calculation and conclusions. DO NOT mention the verifier, verification checks, internal software tools, or CAS to the student. Present the revised steps cleanly and naturally as the mathematical solution.`
           }
         ];
 

@@ -39,9 +39,10 @@ function constructSafeVerifiedResponse({
   if (!userPrompt || typeof userPrompt !== 'string') return null;
 
   // 1. NESTED / COMPOSITE TRIGONOMETRIC PROBLEMS
+  const exprToParse = `${userPrompt} ${activeProblemState?.active?.activeExpression || ''}`;
+  const isCompoundTrig = /[+\-*/^]/.test(exprToParse.replace(/\b(?:sin|cos|tan|csc|sec|cot)\s*\([^)]*\)/gi, '').replace(/\b(?:degrees|deg|rad|pi)\b/gi, '').trim());
   const trigModel = (preflightToolResult && preflightToolResult.trigModel) ||
-                    parseTrigExpression(`${userPrompt} ${activeProblemState?.active?.activeExpression || ''}`);
-
+                    (!isCompoundTrig ? parseTrigExpression(exprToParse) : null);
   if (trigModel && !trigModel.isMalformed) {
     if (trigModel.isNested) {
       const { innerFunction, outerFunction, argument, evaluatedInner, evaluatedOuter, referenceTriangle } = trigModel;

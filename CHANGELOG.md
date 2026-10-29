@@ -1,3 +1,13 @@
+## Pythos 1.8.52
+### Critical Fix: Verification Bridge Equation Hardening, Complete Root Set Extraction & Student Premise Intelligence
+- **Verification Bridge Multiline Equation Hardening:** Fixed greedy multiline regex in `server/verificationBridge.js` that matched across newlines when validating factorization checks (e.g. `0.\n9-15+6 = 0`), which caused Math.js to produce a `ResultSet` array and falsely trigger `EXTRANEOUS_ROOT`, causing the system to mistakenly withhold verified solutions from students.
+- **Complete Quadratic Root Extraction:** Overhauled Pattern 5c in `server/verificationBridge.js` to iteratively collect the complete root set (e.g. $x = 2$ and $x = 3$) from both explicit assignments and solution listings, preventing false `INCOMPLETE_ROOT_SET` withholding.
+- **Multivariable Curve & Graphing Claim Guard:** Introduced `isSingleVarEq()` and graphing directive bypass in `server/verificationBridge.js` to guarantee that 2D curves and circles (e.g. $x^2 + y^2 = 25$) never generate bogus 1D scalar root claims against auxiliary properties like radius ($r = 5$).
+- **Safe Response Compound Trig Truncation Guard:** Guarded `server/safeResponseConstructor.js` against truncating compound trigonometric arithmetic (such as $1/\sin(20^\circ) - \sin(20^\circ)$) down to a single reference triangle.
+- **Student Premise & Diagram Correction Intent:** Expanded `server/studentIntentClassifier.js`, `server/contextManager.js`, and `server/studentWorkEvaluator.js` to recognize when students point out diagram parameter errors or composite angle additions (e.g. $19.2^\circ + 31.7^\circ = 50.9^\circ$), updating the active context and instructing the pedagogical engine to adopt the student's corrected premise without stubborn refusal.
+- **Vision Extractor Composite Angle Rules:** Added explicit section to `server/visionExtractor.js` for identifying composite adjacent angles in geometric diagrams and enforcing rounding precision notation.
+- **Client XSS Defense Compliance:** Hardened `app.js` with `escapeHtml(String(reason))` on visualization failure alert cards.
+
 ## Pythos 1.8.51
 ### Critical Fix: Circle Equation Graphing, 1:1 Aspect Ratio Rendering & Referential State Guard
 - **Cartesian Circle Equation Graphing:** In `server/deterministicRouter.js`, implemented `parseCircleEquation()` to recognize and route standard form circle equations ($x^2 + y^2 = r^2$ and $(x - h)^2 + (y - k)^2 = r^2$) directly to `GRAPH_CIRCLE`, extracting center coordinates $(h, k)$, radius $r$, and key cardinal intercept points.

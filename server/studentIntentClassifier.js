@@ -118,15 +118,35 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
                                          /^(?:(?:nope|nah|no)[,.\s]+)?you\s+misunderstood\b/i.test(lower) ||
                                          /^(?:i\s+don'?t\s+mean\s+that|not\s+what\s+i\s+mean|not\s+what\s+i\s+asked)\b/i.test(lower);
 
+  const isPremiseOrCorrection = 
+    /\b(?:i\s+think\s+)?(?:you\s+have|you\s+got|you'?re\s+using|you\s+used)\s+(?:the|teh|a)\s+(?:wrong|incorrect)\s+([a-zA-Z\s]+)/i.test(lower) ||
+    /\b(?:the|teh)\s+([a-zA-Z\s]+)\s+(?:is|was|are|were|seems?)\s+(?:wrong|incorrect|off)\b/i.test(lower) ||
+    /\b(?:the|teh)\s+([a-zA-Z\s]+)\s+(?:should|would|must)\s+be\s+([0-9.]+|[a-zA-Z0-9+\-*/^()]+)/i.test(lower) ||
+    /\b(?:you\s+have|you\s+got)\s+(?:teh|the)\s+([a-zA-Z\s]+)\s+wrong\b/i.test(lower) ||
+    /\b(?:i\s+think\s+)?(?:you|you've|there'?s)\s+(?:have\s+)?(?:made\s+a\s+mistake|got\s+the\s+wrong|have\s+the\s+wrong|used\s+the\s+wrong)\b/i.test(lower) ||
+    /\b(?:the\s+angle|the\s+number|the\s+side|the\s+formula|the\s+value)\s+(?:is\s+actually|is\s+supposed\s+to\s+be|should\s+be|would\s+be)\s+([0-9.]+|[a-zA-Z0-9+\-*/^()]+)/i.test(lower);
+
   const isCorrection = isConversationalDisambiguation ||
+                       isPremiseOrCorrection ||
                        /\b(?:wait|sorry|actually|correction|oops|no\s*wait)\b.*?\b(?:i\s+meant|i\s+mean|i\s+said|instead\s+of)\b/i.test(lower) ||
                        /\b(?:i\s+meant|meant\s+to\s+say|my\s+bad,?\s+i\s+meant|typo,?\s+meant)\b/i.test(lower) ||
                        /^(?:no,?\s+)?(?:i\s+meant|actually\s+i\s+meant)\b/i.test(lower) ||
                        /^(?:no,?\s+)?(?:that'?s\s+not\s+what\s+i\s+got|i\s+got\s+something\s+else|that'?s\s+wrong|i\s+didn'?t\s+get\s+that)\b/i.test(lower);
   if (isCorrection) {
     signals.push(isConversationalDisambiguation ? 'conversational_disambiguation_marker' : 'correction_linguistic_marker');
-    const correctionExprMatch = clean.match(/(?:i\s+meant|meant\s+to\s+say|meant|said|instead\s+of)\s+([a-zA-Z0-9+\-*/^().\s=θ?-]+)$/i);
-    let extractedExpr = correctionExprMatch ? correctionExprMatch[1].trim() : null;
+    const correctionExprMatch = 
+      clean.match(/(?:i\s+meant|meant\s+to\s+say|meant|said|instead\s+of)\s+([a-zA-Z0-9+\-*/^().\s=θ?-]+)$/i) ||
+      clean.match(/(?:(?:the|teh)\s+)?([a-zA-Z\s]+?)\s+(?:would|should|is|must)\s+be\s+([0-9.]+|[a-zA-Z0-9+\-*/^()]+)/i) ||
+      clean.match(/(?:(?:the|teh)\s+)?([a-zA-Z\s]+?)\s*=\s*([0-9.]+|[a-zA-Z0-9+\-*/^()]+)/i);
+    let extractedExpr = null;
+    if (correctionExprMatch) {
+      if (correctionExprMatch[2]) {
+        const param = correctionExprMatch[1].trim().replace(/^(?:the|teh)\s+/i, '');
+        extractedExpr = `${param} = ${correctionExprMatch[2].trim()}`;
+      } else {
+        extractedExpr = correctionExprMatch[1].trim();
+      }
+    }
     if (extractedExpr && (containsMathSymbols(extractedExpr) || /^[-+]?\d+(?:\.\d+)?$/.test(extractedExpr) || /^[a-zA-Z]\s*=\s*[-+]?\d+/.test(extractedExpr))) {
       signals.push('correction_with_math_expression');
       return {

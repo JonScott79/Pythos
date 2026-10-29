@@ -1128,7 +1128,11 @@ function formatStudentWorkContext(classification, evaluation, activeProblemState
   if (classification.intent === INTENTS.VALIDATION_REQUEST && (!evaluation || !evaluation.status.startsWith('STEP_VERIFIED') && !evaluation.status.startsWith('ANSWER_VERIFIED'))) {
     out += `- Action Required: Student is explicitly requesting validation ("Is this right?"). Check their previous statement against verified ground truth.\n`;
   } else if (classification.intent === INTENTS.CORRECTION) {
-    out += `- Action Required: Student is issuing a correction or typo fix. Respect their latest statement over prior turns.\n`;
+    out += `- Action Required: Student is issuing a correction, parameter update, or premise clarification ("${classification.extractedExpression || 'premise correction'}"). Respect their latest statement over prior turns and re-evaluate the problem using their corrected parameter.\n`;
+    out += `- CRITICAL PEDAGOGICAL DIRECTIVE ON STUDENT CORRECTION / PARAMETER DISAGREEMENT:\n`;
+    out += `  * If the student indicates an angle, parameter, or value from a diagram or handwriting differs from what was initially read (e.g. "${classification.extractedExpression || 'parameter correction'}"), DO NOT stubbornly defend a prior assumption!\n`;
+    out += `  * Re-examine the geometry using their parameter. If their premise or angle is valid (e.g. the angle for the larger triangle is 50.9°), warmly affirm their correction, show the recalculated values step-by-step, and state the correct answer.\n`;
+    out += `  * NEVER mention internal software tools, CAS verifiers, or verification constraints to the student.\n`;
   } else if (classification.intent === INTENTS.REFRAME_REQUEST) {
     out += `- Action Required: Student requested an alternative explanation. Use a different mental model, visual analogy, or concrete numbers.\n`;
   } else if (classification.intent === INTENTS.EUREKA_OR_GRATITUDE) {
@@ -1162,6 +1166,9 @@ function stripModelScratchpad(content) {
   text = text.replace(/(?:\|\s*\\){2,}[^\n]*/gi, '');
   text = text.replace(/(?:Below|Here)\s+is\s+(?:a\s+)?(?:quick\s+)?geometric\s+sketch[^\n.]*[\n.]?/gi, '');
   text = text.replace(/---\s*###\s*\d+\.\s*Visualizing\s+the\s+triangle[\s\S]*$/gi, '');
+  // 4. Strip leaked references to internal software verifiers and CAS checks
+  text = text.replace(/^[^\n]*?\b(?:the\s+verifier|verifier\'?s\s+constraints|verifier\s+to\s+flag|flag\s+the\s+intermediate\s+results|flagged\s+by\s+the\s+verifier|satisfies\s+the\s+verifier|outside\s+the\s+trigonometric\s+range)[^\n]*(?:\n|$)/gim, '');
+  text = text.replace(/(?:\b[A-Z][^.\n!?]*?\b(?:the\s+verifier|verifier\'?s\s+constraints|verifier\s+to\s+flag|flag\s+the\s+intermediate\s+results|flagged\s+by\s+the\s+verifier|satisfies\s+the\s+verifier|outside\s+the\s+trigonometric\s+range)[^.\n!?]*[.\!?]["'”’]?\s*)/gi, '');
   return text.trim();
 }
 

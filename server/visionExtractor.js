@@ -63,6 +63,15 @@ Carefully examine the image and adhere to these strict rules:
      * Form requirements (e.g. exact answer, simplest radical form, as a simplified fraction, do not round)
      * Required units (e.g. in meters, in seconds, in kg)
    - State these explicit constraints clearly in your problem statement transcription so that student work can be validated against them.
+   - CRITICAL NOTATION FIDELITY: "nearest 100th" means two decimal places (0.01). NEVER confuse or misread "100th" as "10th" (0.1).
+
+7. GEOMETRIC DIAGRAMS & COMPOSITE ANGLES:
+   - When a diagram shows multiple triangles, adjacent angles, or multiple rays sharing a common vertex:
+     * Carefully identify what each angle arc spans.
+     * Distinguish between an angle of elevation measured from the horizontal ground line versus an angle measured between two adjacent rays/hypotenuses.
+     * If an angle arc is marked between two rays (e.g., between an inner/lower hypotenuse and an outer/upper hypotenuse), the total angle of elevation for the upper hypotenuse is the SUM of the angles (e.g. $19.2^\circ + 31.7^\circ = 50.9^\circ$).
+     * Look for explicit total angle markers (such as an outer arc or handwritten notation $\theta = \dots$ or total degree values).
+     * Cross-check whether common base or height lengths are physically consistent before assuming independent elevation angles.
 `;
 }
 

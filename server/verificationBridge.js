@@ -725,6 +725,7 @@ function extractClaims(text, userPrompt = '') {
   // Helper to isolate pure mathematical equation from surrounding conversational prose
   function cleanAndNormalizeEquation(rawEqStr) {
     if (!rawEqStr || typeof rawEqStr !== 'string' || !rawEqStr.includes('=')) return null;
+    if (rawEqStr.includes('\n') || rawEqStr.includes('\r')) return null;
     const parts = rawEqStr.split('=');
     if (parts.length !== 2) return null;
     const rawLhs = parts[0].trim();
@@ -818,15 +819,26 @@ function extractClaims(text, userPrompt = '') {
   }
 
   // 5. Algebraic Equations & Stated Solutions (Generalized)
+  // Helper to test if equation is single-variable 1D
+  function isSingleVarEq(eqStr) {
+    if (!eqStr || typeof eqStr !== 'string') return false;
+    const varsInEq = new Set();
+    const varMatches = eqStr.match(/\b([a-zA-Z])\b/g) || [];
+    for (const vm of varMatches) {
+      if (!/^(?:e|i|pi)$/i.test(vm)) varsInEq.add(vm.toLowerCase());
+    }
+    return varsInEq.size <= 1;
+  }
+
   // Pattern 5a: Equation followed by "solutions:" / "roots:" (e.g. "x^2 - 5x + 6 = 0, solutions: 2, 3")
-  const eqSolutionsRegex = /([a-zA-Z0-9^+\-*/().\\{}\s]+=[a-zA-Z0-9^+\-*/().\\{}\s]+)[,;:\s]+(?:with\s+)?(?:solutions?|roots?)\s*[:=]?\s*([-\d.,\s*andor]+)/gi;
+  const eqSolutionsRegex = /([^\n\r;=]+=[^\n\r;=]+)[,;:\s]+(?:with\s+)?(?:solutions?|roots?)\s*(?:are|is|:|=)?\s*([-\d.,\s*andor]+)/gi;
   let eqSolMatch;
   while ((eqSolMatch = eqSolutionsRegex.exec(text)) !== null) {
     const rawEq = eqSolMatch[1].trim();
     const rawSols = eqSolMatch[2].trim();
     const numbers = rawSols.match(/[-+]?\d+(?:\.\d+)?/g);
     const cleaned = cleanAndNormalizeEquation(rawEq);
-    if (numbers && cleaned) {
+    if (numbers && cleaned && isSingleVarEq(cleaned.equation)) {
       claims.push({
         domain: 'algebra',
         claim_type: 'equation_solution',
@@ -841,7 +853,7 @@ function extractClaims(text, userPrompt = '') {
   }
 
   // Pattern 5b: Equation followed by explicit solution assignment (e.g. "2x + 3 = 11, x = 4" or "x^2 - 5x + 6 = 0, x = 2 or x = 3")
-  const eqVarRegex = /([a-zA-Z0-9^+\-*/().\\{}\s]+=[a-zA-Z0-9^+\-*/().\\{}\s]+)[,;:\s]+(?:=>\s*|\\implies\s+|so\s+|therefore\s+)?([a-zA-Z])\s*=\s*([-\d.]+)(?:\s*(?:,|and|or)\s*\2\s*=\s*([-\d.]+))?/gi;
+  const eqVarRegex = /([^\n\r;=]+=[^\n\r;=]+)[,;:\s]+(?:=>\s*|\\implies\s+|so\s+|therefore\s+)?([a-zA-Z])\s*=\s*([-\d.]+)(?:\s*(?:,|and|or)\s*\2\s*=\s*([-\d.]+))?/gi;
   let eqVarMatch;
   while ((eqVarMatch = eqVarRegex.exec(text)) !== null) {
     const rawEq = eqVarMatch[1].trim();
@@ -851,7 +863,10 @@ function extractClaims(text, userPrompt = '') {
     const sols = [parseFloat(eqVarMatch[3])];
     if (eqVarMatch[4]) sols.push(parseFloat(eqVarMatch[4]));
     const cleaned = cleanAndNormalizeEquation(rawEq);
-    if (cleaned) {
+    if (cleaned && isSingleVarEq(cleaned.equation)) {
+      // Verify that the assigned variable actually exists in the equation
+      const varInEq = new RegExp(`\\b${variable}\\b`, 'i').test(cleaned.equation);
+      if (!varInEq) continue;
       const alreadyClaimed = claims.some(c => c.data?.equation === cleaned.equation && c.claim_type === 'equation_solution');
       if (!alreadyClaimed) {
         claims.push({
@@ -870,11 +885,12 @@ function extractClaims(text, userPrompt = '') {
 
   // Pattern 5c: Solved equation from prompt/context where candidate states solution (e.g. "x = -5", "\boxed{x = -5}", "\boxed{3, 9}", or "\boxed{\,x=3,\;9\,}")
   const isSystemPrompt = ((promptStr.match(/=/g) || []).length >= 2) || /\bsystem\b/i.test(promptStr);
-  if (promptStr && !isSystemPrompt) {
-    const promptEqMatch = promptStr.match(/([a-zA-Z0-9^+\-*/().\\{}\s]+=[a-zA-Z0-9^+\-*/().\\{}\s]+)/);
+  const isGraphPrompt = /\b(?:graph|plot|draw|sketch)\b/i.test(promptStr);
+  if (promptStr && !isSystemPrompt && !isGraphPrompt) {
+    const promptEqMatch = promptStr.match(/([^\n\r;=]+=[^\n\r;=]+)/);
     if (promptEqMatch) {
       const cleaned = cleanAndNormalizeEquation(promptEqMatch[1]);
-      if (cleaned) {
+      if (cleaned && isSingleVarEq(cleaned.equation)) {
         const v = cleaned.variable;
         let sols = [];
         let rawMatchStr = null;
@@ -904,14 +920,27 @@ function extractClaims(text, userPrompt = '') {
           }
         }
 
-        // If not in boxed, check explicit assignments like x = 3 or x = 9, or x = 3, 9
+        // If not in boxed, check explicit assignments like x = 3 or x = 9, or x = 3, 9, or "solutions are 2 and 3"
         if (sols.length === 0) {
-          const assignRegex = new RegExp(`(?:\\b${v}\\s*=\\s*|solutions?:?\\s*|roots?:?\\s*)([-+]?\\d+(?:\\.\\d+)?)(?:\\s*(?:,|and|or|;)?\\s*(?:${v}\\s*=\\s*)?([-+]?\\d+(?:\\.\\d+)?))?`, 'i');
-          const assignMatch = text.match(assignRegex);
-          if (assignMatch) {
-            sols = [parseFloat(assignMatch[1])];
-            if (assignMatch[2]) sols.push(parseFloat(assignMatch[2]));
-            rawMatchStr = assignMatch[0];
+          const solListRegex = new RegExp('(?:solutions?|roots?)\\s*(?:are|is|:|=)?\\s*([-\\d.,\\s*andor]+)', 'i');
+          const listMatch = text.match(solListRegex);
+          if (listMatch) {
+            const nums = listMatch[1].match(/[-+]?\d+(?:\.\d+)?/g);
+            if (nums && nums.length > 0) {
+              nums.forEach(n => {
+                const val = Number(n);
+                if (!sols.includes(val)) sols.push(val);
+              });
+              rawMatchStr = listMatch[0];
+            }
+          }
+
+          const assignAllRegex = new RegExp('\\b' + v + '\\s*=\\s*([-\+]?\\d+(?:\\.\\d+)?)', 'gi');
+          let m;
+          while ((m = assignAllRegex.exec(text)) !== null) {
+            const val = Number(m[1]);
+            if (!sols.includes(val)) sols.push(val);
+            if (!rawMatchStr) rawMatchStr = m[0];
           }
         }
 

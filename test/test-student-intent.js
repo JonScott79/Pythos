@@ -262,6 +262,86 @@ function runStudentIntentTests() {
     const legit = 'We should check our work by plugging in x = 4.';
     assert.strictEqual(stripModelScratchpad(legit), legit);
   });
+
+  test('Scratchpad sanitizer removes leaked internal verifier references', () => {
+    const { stripModelScratchpad } = require('../server/studentWorkEvaluator');
+    const leaked = 'I appreciate the feedback.\nThe issue is that the numbers I reported were rounded before the multiplication, which caused the verifier to flag the intermediate results as “outside the trigonometric range.”\nLet’s redo the calculation with full precision.\nBy keeping the full-precision values until the final step, the calculation satisfies the verifier’s constraints.';
+    const cleaned = stripModelScratchpad(leaked);
+    assert.ok(!cleaned.includes('outside the trigonometric range'), 'Must strip verifier error string');
+    assert.ok(!cleaned.includes('verifier to flag'), 'Must strip verifier to flag');
+    assert.ok(!cleaned.includes('verifier’s constraints'), 'Must strip verifier constraints');
+    assert.ok(cleaned.includes('Let’s redo the calculation with full precision.'), 'Must preserve legit text');
+  });
+
+  // -------------------------------------------------------------
+  // GROUP 6: Premise & Parameter Correction Tests
+  // -------------------------------------------------------------
+  console.log('\n▶ [GROUP 6] Premise & Parameter Correction Tests');
+
+  test('Correction on user pointing out wrong angle ("i think you have teh angle wrong, the angle for the large triangle would be 50.9")', () => {
+    const res = classifyStudentIntent('i think you have teh angle wrong, the angle for the large triangle would be 50.9');
+    assert.strictEqual(res.intent, INTENTS.CORRECTION);
+    assert.ok(res.extractedExpression && res.extractedExpression.includes('50.9'), 'Must extract 50.9 angle parameter');
+  });
+
+  test('Correction on user pointing out wrong angle ("you have the angle wrong")', () => {
+    const res = classifyStudentIntent('you have the angle wrong');
+    assert.strictEqual(res.intent, INTENTS.CORRECTION);
+  });
+
+  test('Correction on user pointing out wrong angle with typo ("you have teh angle wrong")', () => {
+    const res = classifyStudentIntent('you have teh angle wrong');
+    assert.strictEqual(res.intent, INTENTS.CORRECTION);
+  });
+
+  test('Correction on angle should be ("the angle should be 50.9")', () => {
+    const res = classifyStudentIntent('the angle should be 50.9');
+    assert.strictEqual(res.intent, INTENTS.CORRECTION);
+    assert.ok(res.extractedExpression && res.extractedExpression.includes('50.9'));
+  });
+
+  test('Correction on angle would be ("the angle for the large triangle would be 50.9")', () => {
+    const res = classifyStudentIntent('the angle for the large triangle would be 50.9');
+    assert.strictEqual(res.intent, INTENTS.CORRECTION);
+    assert.ok(res.extractedExpression && res.extractedExpression.includes('50.9'));
+  });
+
+  test('Correction on user challenging formula ("i think you have the wrong formula")', () => {
+    const res = classifyStudentIntent('i think you have the wrong formula');
+    assert.strictEqual(res.intent, INTENTS.CORRECTION);
+  });
+
+  test('Naked "I think" with number is PROPOSED_ANSWER ("I think 7")', () => {
+    const res = classifyStudentIntent('I think 7');
+    assert.strictEqual(res.intent, INTENTS.PROPOSED_ANSWER);
+    assert.strictEqual(res.extractedExpression, '7');
+  });
+
+  test('ContextManager detects topic transition on angle correction and updates knownVariables', () => {
+    const { detectTopicTransitionIntent, buildBoundedConversationContext } = require('../server/contextManager');
+    const trans = detectTopicTransitionIntent('i think you have teh angle wrong, the angle for the large triangle would be 50.9');
+    assert.strictEqual(trans.type, 'CORRECTION');
+
+    const messages = [
+      { role: 'user', content: 'How do I solve this?' },
+      { role: 'assistant', content: 'Based on the image... Smaller triangle hypotenuse 89.2, angle 19.2. Larger triangle hypotenuse 125, angle 31.7.' },
+      { role: 'user', content: 'i got x=67.77' },
+      { role: 'assistant', content: 'Why 67.77 is not correct... The answer is 36.3.' },
+      { role: 'user', content: 'i think you have teh angle wrong, the angle for the large triangle would be 50.9' }
+    ];
+    const bounded = buildBoundedConversationContext(messages);
+    assert.ok(bounded.activeProblemState && bounded.activeProblemState.active, 'Must have active problem state');
+    assert.strictEqual(bounded.activeProblemState.active.knownVariables.angle, 50.9, 'Must update known angle to 50.9');
+    assert.strictEqual(bounded.activeProblemState.active.verifiedSolution, null, 'Must invalidate stale 36.3 solution');
+  });
+
+  test('Pedagogical context directs model to honor student angle correction', () => {
+    const intent = classifyStudentIntent('i think you have teh angle wrong, the angle for the large triangle would be 50.9');
+    const ctx = formatStudentWorkContext(intent, null);
+    assert.ok(ctx.includes('CORRECTION'));
+    assert.ok(ctx.includes('50.9'));
+    assert.ok(ctx.includes('DO NOT stubbornly defend'));
+  });
   console.log('\n===============================================================');
   console.log(`✅ ALL ${passed}/${total} STUDENT INTENT & WORK TESTS PASSED (100%)`);
   console.log('===============================================================');

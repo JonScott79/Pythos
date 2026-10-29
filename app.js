@@ -2180,7 +2180,7 @@ function appendMessage(role, text, images = null, metadata = {}) {
           : "The interactive visualization isn't available right now, but I can still walk you through the problem step by step. The verified mathematical solution below remains valid and accurate.";
 
         vizContainer.innerHTML = `
-          <div class="viz-render-fail" role="alert">
+          <div class="viz-render-fail" role="alert" data-reason="${escapeHtml(String(reason))}">
             <div style="font-weight: 600; margin-bottom: 4px;">${titleMsg}</div>
             <div style="font-size: 0.85em; opacity: 0.95;">${bodyMsg}</div>
           </div>
