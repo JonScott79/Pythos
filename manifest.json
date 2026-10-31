@@ -1,7 +1,7 @@
 {
   "name": "Pythos | Free AI Mathematics & Physics Tutor",
   "short_name": "Pythos",
-  "description": "Free AI mathematics and physics study companion developed by a student for students.",
+  "description": "Free AI mathematics and physics tutor with step-by-step verified problem solving, graphing, and simulations.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#fcfbf9",

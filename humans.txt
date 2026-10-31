@@ -4,7 +4,7 @@ Organization: LANZAR
 Site: https://pythos.lanzar.me
 
 /* SITE */
-Last update: 2026/10/04
+Last update: 2026/10/31 (v1.8.52)
 Standards: HTML5, CSS3, ES6+ Modules, KaTeX, Web Speech API
 Aesthetic: Clean Modern Academic / Mathematical Precision
 Philosophy: "Always draw it out first. Make STEM accessible to every student."
