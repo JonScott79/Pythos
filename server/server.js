@@ -575,7 +575,31 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json({ limit: '15mb' }));
+// Phase 1.1: Conservative default JSON body limit (256kb), with 15mb permitted only for /api/chat (multimodal images)
+const defaultJsonParser = express.json({ limit: '256kb' });
+const chatJsonParser = express.json({ limit: '15mb' });
+app.use((req, res, next) => {
+  if (req.path === '/api/chat') {
+    return chatJsonParser(req, res, next);
+  }
+  return defaultJsonParser(req, res, next);
+});
+
+app.use((err, req, res, next) => {
+  if (err && (err.type === 'entity.too.large' || err.status === 413)) {
+    return res.status(413).json({
+      error: 'payload_too_large',
+      message: 'Request payload exceeds the maximum allowed size for this endpoint.'
+    });
+  }
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    return res.status(400).json({
+      error: 'invalid_json',
+      message: 'Malformed JSON request body.'
+    });
+  }
+  next(err);
+});
 
 // Phase 0.1: Explicitly block access to container filesystem, application source, reports, and config files
 const fs = require('fs');
@@ -664,36 +688,23 @@ app.get('/version', (req, res) => {
   res.status(200).json({ version: pkg.version });
 });
 
-// Standalone liveness probe: Returns 200 immediately without depending on Ollama availability
+// Standalone liveness probe (Phase 1.4 Sanitized): Returns basic service availability only.
+// Detailed provider, model, and environment diagnostics are restricted to authenticated /admin/status.
 app.get('/health', (req, res) => {
   const pkg = require('./package.json');
-  const firebaseAdmin = require('./firebaseAdmin');
-  const { getCasTelemetry } = require('./verificationBridge');
   res.status(200).json({
     status: 'ok',
     service: 'pythos-api',
     version: pkg.version,
-    model: OLLAMA_MODEL,
-    visionModel: OLLAMA_VISION_MODEL,
-    hasAuth: Boolean(OLLAMA_API_KEY),
-    budgetPolicy: providerPolicy.getPolicyTelemetry(),
-    firebaseAdmin: firebaseAdmin.getAdminSdkStatus ? firebaseAdmin.getAdminSdkStatus() : null,
-    casVerification: getCasTelemetry ? getCasTelemetry() : null,
-    specialistAssist: specialistAssist.getSpecialistTelemetry(),
-    projectKnowledge: projectKnowledgeService.getServiceTelemetry(),
-    uptime: process.uptime(),
     timestamp: new Date().toISOString()
   });
 });
 
-// Deep readiness probe: Tests if configured Ollama backend (local or cloud) is actively responding
+// Readiness probe (Phase 1.4 Sanitized): Returns readiness status without exposing internal model lists or binary paths
 app.get('/health/ready', async (req, res) => {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
-    const { getCasTelemetry } = require('./verificationBridge');
-    const casStatus = getCasTelemetry ? getCasTelemetry() : null;
-    
     const checkRes = await fetch(`${OLLAMA_HOST}/api/tags`, {
       method: 'GET',
       headers: getOllamaHeaders(),
@@ -702,33 +713,22 @@ app.get('/health/ready', async (req, res) => {
     clearTimeout(timeout);
 
     if (checkRes.ok) {
-      let models = [];
-      try {
-        const data = await checkRes.json();
-        models = (data.models || []).map(m => m.name || m.model || m);
-      } catch (e) {}
       return res.status(200).json({
         status: 'ready',
-        ollama: 'connected',
-        model: OLLAMA_MODEL,
-        visionModel: OLLAMA_VISION_MODEL,
-        availableModels: models,
-        casVerification: casStatus
+        service: 'pythos-api',
+        timestamp: new Date().toISOString()
       });
     }
     return res.status(503).json({
       status: 'degraded',
-      ollama: 'error',
-      statusCode: checkRes.status,
-      casVerification: casStatus
+      service: 'pythos-api',
+      timestamp: new Date().toISOString()
     });
   } catch (err) {
-    const { getCasTelemetry } = require('./verificationBridge');
     return res.status(503).json({
       status: 'degraded',
-      ollama: 'unreachable',
-      message: err.message,
-      casVerification: getCasTelemetry ? getCasTelemetry() : null
+      service: 'pythos-api',
+      timestamp: new Date().toISOString()
     });
   }
 });
@@ -1818,10 +1818,15 @@ app.post('/api/chat', async (req, res) => {
 
   // Extract latest user query
   const lastUserMsg = [...messages].reverse().find(m => m && m.role === 'user');
-  // Setup per-request AbortController for cancellation
+  // Setup per-request AbortController for cancellation with automatic lifecycle cleanup (Phase 1.2)
   const abortController = new AbortController();
   activeControllers.add(abortController);
   let acquiredSemaphore = false;
+  const cleanupActiveController = () => {
+    activeControllers.delete(abortController);
+  };
+  res.once('finish', cleanupActiveController);
+  res.once('close', cleanupActiveController);
 
   // Fast-Path: Deterministic Candidate Generation & Mandatory Verification Gate
   // Note: Evaluated BEFORE acquiring concurrency slots, but deterministic candidates
@@ -2212,6 +2217,7 @@ app.post('/api/chat', async (req, res) => {
 
   // Multimodal Hosted Vision Gateway Bridge
   // If active user turn or conversation history contains images, route via provider selection layer with backup fallback
+  let visionQueueOrTimeoutError = null;
   if (conversationNeedsVision) {
     try {
       await concurrencyLimiter.acquire(abortController.signal, REQUEST_TIMEOUT_MS);
@@ -2361,6 +2367,8 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           retryAfter: classified.retryAfter || 0
         });
       }
+    } catch (vAcqErr) {
+      visionQueueOrTimeoutError = vAcqErr;
     } finally {
       if (!candidateResult && acquiredSemaphore) {
         concurrencyLimiter.release();
@@ -2421,6 +2429,9 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
   }
 
   try {
+    if (visionQueueOrTimeoutError) {
+      throw visionQueueOrTimeoutError;
+    }
     if (!candidateResult) {
       // Acquire concurrency slot (cancellable by signal and bounded by timeout)
       if (!acquiredSemaphore) {
@@ -3071,6 +3082,25 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
     }
 
   } catch (error) {
+    if (error && (error.code === 'QUEUE_FULL' || (error.message && error.message.includes('EQUEUEFULL')))) {
+      if (!res.headersSent && !res.writableEnded) {
+        if (isStreaming) {
+          res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+          res.write(JSON.stringify({
+            type: 'error',
+            error: 'queue_full',
+            message: 'Server request queue is currently full. Please try again shortly.',
+            retryAfter: 5
+          }) + '\n');
+          return res.end();
+        }
+        return res.status(503).json({
+          error: 'queue_full',
+          message: 'Server request queue is currently full. Please try again shortly.',
+          retryAfter: 5
+        });
+      }
+    }
     if (res.headersSent) {
       if (!res.writableEnded) {
         try {

@@ -65,6 +65,35 @@ function generateReportId() {
 }
 
 /**
+ * Validates that a reportId strictly matches safe format (no path traversal, slashes, or null bytes).
+ */
+function isValidReportId(reportId) {
+  if (!reportId || typeof reportId !== 'string') return false;
+  const trimmed = reportId.trim();
+  if (
+    trimmed.length < 3 ||
+    trimmed.length > 64 ||
+    trimmed.includes('..') ||
+    trimmed.includes('/') ||
+    trimmed.includes('\\') ||
+    trimmed.includes('\0')
+  ) {
+    return false;
+  }
+  return /^PY-[a-f0-9]{8}$/i.test(trimmed);
+}
+
+/**
+ * Verifies that a resolved filesystem path is strictly inside REPORTS_BASE_DIR.
+ */
+function isPathInsideReportsDir(targetPath) {
+  if (!targetPath || typeof targetPath !== 'string') return false;
+  const baseResolved = path.resolve(REPORTS_BASE_DIR);
+  const targetResolved = path.resolve(targetPath);
+  return targetResolved.startsWith(baseResolved + path.sep);
+}
+
+/**
  * Formats a Date object into YYYY-MM-DD string in UTC.
  */
 function getDateFolder(date = new Date()) {
@@ -227,6 +256,83 @@ function createReport({
 }
 
 /**
+ * Asynchronous version of createReport using non-blocking fs.promises operations (Phase 1.3).
+ */
+async function createReportAsync({
+  question,
+  response,
+  claims = [],
+  verification = [],
+  model = 'pythos:latest',
+  description = '',
+  source = 'student',
+  metadata = {},
+  reporterUid = null
+}) {
+  const reportId = generateReportId();
+  const now = new Date();
+  const timestamp = now.toISOString();
+  const dateFolder = getDateFolder(now);
+  const targetDir = path.join(REPORTS_BASE_DIR, dateFolder);
+  await fs.promises.mkdir(targetDir, { recursive: true });
+  const filePath = path.join(targetDir, `${reportId}.json`);
+
+  if (!isPathInsideReportsDir(filePath)) {
+    throw new Error('Unsafe report file path rejected');
+  }
+
+  let resolvedSource = source;
+  if (resolvedSource !== 'system_auto_flag' && resolvedSource !== 'test') {
+    const isTestMetadata = metadata && (metadata.testId || metadata.isTest || metadata.client_version === 'v2.1');
+    if (isTestMetadata || (process.env.NODE_ENV === 'test' && source === 'test')) {
+      resolvedSource = 'test';
+    } else {
+      resolvedSource = 'student';
+    }
+  }
+
+  const reportData = {
+    report_id: reportId,
+    timestamp,
+    source: resolvedSource,
+    model_version: sanitizeForPrivacy(String(model || 'pythos:latest').slice(0, 120)),
+    student_description: description ? sanitizeForPrivacy(String(description).trim().slice(0, 5000)) : null,
+    interaction: {
+      question: sanitizeForPrivacy(String(question || '').slice(0, 20000)),
+      response: sanitizeForPrivacy(String(response || '').slice(0, 50000))
+    },
+    claims: Array.isArray(claims) ? claims.slice(0, 100) : [],
+    verification_results: Array.isArray(verification) ? verification.slice(0, 100) : [],
+    diagnostics: sanitizeObjectDeep(metadata || {}),
+    review: {
+      status: 'unreviewed',
+      notes: '',
+      history: [
+        {
+          status: 'unreviewed',
+          changed_at: timestamp,
+          changed_by: source === 'system_auto_flag' ? 'system' : 'student_submission'
+        }
+      ],
+      regression_test_created: false
+    }
+  };
+
+  await fs.promises.writeFile(filePath, JSON.stringify(reportData, null, 2), 'utf8');
+
+  firestoreService.saveBugReport(reportId, reportData, reporterUid).catch(err => {
+    console.error(`[REPORT SERVICE] Firestore dual-write failed for ${reportId}:`, err.message);
+  });
+
+  return {
+    status: 'ok',
+    reportId,
+    filePath,
+    dateFolder
+  };
+}
+
+/**
  * Converts a Firestore bug report document into the standard Pythos report JSON shape.
  */
 function firestoreDocToReportShape(data) {
@@ -275,6 +381,7 @@ function firestoreDocToReportShape(data) {
  * @returns {Promise<Object|null>|Object|null}
  */
 async function findReportById(reportId) {
+  if (!isValidReportId(reportId)) return null;
   // 1. Try Firestore first if available
   if (firestoreService.getBugReport) {
     try {
@@ -303,11 +410,14 @@ async function findReportById(reportId) {
  * Synchronous local disk lookup for backwards compatibility.
  */
 function findReportOnDisk(reportId) {
+  if (!isValidReportId(reportId)) return null;
   if (!fs.existsSync(REPORTS_BASE_DIR)) return null;
 
   const dateFolders = fs.readdirSync(REPORTS_BASE_DIR);
   for (const folder of dateFolders) {
-    const candidatePath = path.join(REPORTS_BASE_DIR, folder, `${reportId}.json`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(folder)) continue;
+    const candidatePath = path.join(REPORTS_BASE_DIR, folder, `${reportId.trim()}.json`);
+    if (!isPathInsideReportsDir(candidatePath)) continue;
     if (fs.existsSync(candidatePath)) {
       try {
         const raw = fs.readFileSync(candidatePath, 'utf8');
@@ -637,6 +747,9 @@ module.exports = {
   isReportingEnabled,
   setReportingEnabled,
   createReport,
+  createReportAsync,
+  isValidReportId,
+  isPathInsideReportsDir,
   findReportById,
   findReportOnDisk,
   getReportById,

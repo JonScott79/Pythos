@@ -479,8 +479,15 @@ async function runIntegrationTests() {
   const port = server.address().port;
 
   try {
-    await runAsyncTest('Integration: GET /health returns clean budgetPolicy telemetry', async () => {
-      const res = await fetch(`http://localhost:${port}/health`);
+    await runAsyncTest('Integration: GET /health is sanitized and GET /admin/status returns clean budgetPolicy telemetry', async () => {
+      const healthRes = await fetch(`http://localhost:${port}/health`);
+      assert.strictEqual(healthRes.status, 200);
+      const healthData = await healthRes.json();
+      assert.strictEqual(healthData.status, 'ok');
+      assert.strictEqual(healthData.budgetPolicy, undefined, 'Public /health must not leak internal budgetPolicy');
+      assert.strictEqual(healthData.firebaseAdmin, undefined, 'Public /health must not leak firebaseAdmin env flags');
+
+      const res = await fetch(`http://localhost:${port}/admin/status`);
       assert.strictEqual(res.status, 200);
       const data = await res.json();
       assert.strictEqual(data.status, 'ok');

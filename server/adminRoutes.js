@@ -85,17 +85,26 @@ async function adminAuth(req, res, next) {
   next();
 }
 
-// GET /admin/status: Public diagnostic check reporting backend & Admin SDK readiness
+router.use(adminAuth);
+
+// GET /admin/status: Protected administrative diagnostic telemetry (Phase 1.4)
 router.get('/status', (req, res) => {
+  const providerPolicy = require('./providerPolicy');
+  const { getCasTelemetry } = require('./verificationBridge');
+  const specialistAssist = require('./specialistAssist');
+  const projectKnowledgeService = require('./projectKnowledgeService');
+
   res.status(200).json({
     status: 'ok',
+    budgetPolicy: providerPolicy.getPolicyTelemetry(),
     firebaseAdmin: firebaseAdmin.getAdminSdkStatus ? firebaseAdmin.getAdminSdkStatus() : null,
+    casVerification: getCasTelemetry ? getCasTelemetry() : null,
+    specialistAssist: specialistAssist.getSpecialistTelemetry ? specialistAssist.getSpecialistTelemetry() : null,
+    projectKnowledge: projectKnowledgeService.getServiceTelemetry ? projectKnowledgeService.getServiceTelemetry() : null,
     uptimeSeconds: Math.floor(process.uptime()),
     timestamp: new Date().toISOString()
   });
 });
-
-router.use(adminAuth);
 
 // Destructive queue & task clearing MUST be a POST request
 router.post('/clear-queue', (req, res) => {
