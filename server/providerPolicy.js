@@ -16,18 +16,22 @@ const VALID_BUDGET_MODES = new Set(['free_only', 'paid_enabled']);
 // Map<providerName, { rateLimitedUntil: number, retryAfter: number }>
 const rateLimitState = new Map();
 
-// Embedded Groq free-tier key — centralized fallback.
-// This allows isConfigured() to correctly detect that a Groq key is available
-// even when process.env.GROQ_API_KEY is not explicitly set.
-const GROQ_EMBEDDED_KEY = ['gsk_', 'HqgML4jckL', 'ulSbs6EH0a', 'WGdyb3FYf1', 'bctOrzZMD6', 'BslSSu8AU1xc'].join('');
+// Non-secret test placeholder used strictly in local non-production test suites when GROQ_API_KEY is unset.
+// Production secrets MUST be supplied via the GROQ_API_KEY environment variable (never baked into image/source).
+const GROQ_EMBEDDED_KEY = 'gsk_test_placeholder_configure_GROQ_API_KEY_in_env';
 
 /**
- * Resolves Groq API key with centralized embedded fallback.
+ * Resolves Groq API key from environment variable.
+ * In local test/dev environments without GROQ_API_KEY, returns non-secret test placeholder
+ * so offline unit/mock suites can validate provider selection logic.
  */
 function getGroqApiKey() {
   const key = process.env.GROQ_API_KEY;
   if (key && typeof key === 'string' && key.trim().length > 0) {
     return key.trim();
+  }
+  if (process.env.NODE_ENV === 'production' && process.env.RAILWAY_ENVIRONMENT) {
+    return null;
   }
   return GROQ_EMBEDDED_KEY;
 }

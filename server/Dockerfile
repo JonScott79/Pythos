@@ -11,10 +11,15 @@ RUN npm ci --only=production
 
 COPY . ./
 
-EXPOSE 3006
+# Prepare writable reports directory and enforce non-root user ownership (Phase 0.3)
+RUN mkdir -p /app/reports && chown -R node:node /app
 
 ENV NODE_ENV=production
 ENV PORT=3006
 ENV OLLAMA_HOST=http://localhost:11434
+
+USER node
+
+EXPOSE 3006
 
 CMD ["npm", "start"]

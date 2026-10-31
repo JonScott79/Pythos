@@ -6,6 +6,7 @@
     Responsibilities
 
     - Lightweight static streaming with correct MIME headers
+    - Strict path containment and sensitive directory blocking (Phase 0.1)
 */
 
 const http = require('http');
@@ -13,7 +14,7 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = 3005;
-const PUBLIC_DIR = __dirname;
+const PUBLIC_DIR = path.resolve(__dirname);
 
 const MIME_TYPES = {
   '.html': 'text/html',
@@ -28,14 +29,40 @@ const MIME_TYPES = {
   '.ico': 'image/x-icon',
   '.woff': 'font/woff',
   '.woff2': 'font/woff2',
-  '.ttf': 'font/ttf'
+  '.ttf': 'font/ttf',
+  '.webp': 'image/webp'
 };
 
+function isBlockedRelativePath(relFromRoot) {
+  if (!relFromRoot || relFromRoot.startsWith('..') || path.isAbsolute(relFromRoot)) return true;
+  const normalized = relFromRoot.replace(/\\/g, '/');
+  if (/(^|\/)\./.test(normalized)) return true;
+  if (/^(server|reports|node_modules|campaign_|test|benchmark|package(-lock)?\.json|Dockerfile|netlify\.toml|railway\.toml|firestore\.rules)/i.test(normalized)) {
+    return true;
+  }
+  return false;
+}
+
 const server = http.createServer((req, res) => {
-  let reqPath = req.url.split('?')[0];
+  let reqPath;
+  try {
+    reqPath = decodeURIComponent(req.url.split('?')[0]);
+  } catch (_) {
+    res.writeHead(400, { 'Content-Type': 'text/plain' });
+    res.end('400 Bad Request');
+    return;
+  }
   if (reqPath === '/') reqPath = '/index.html';
 
-  const filePath = path.join(PUBLIC_DIR, reqPath);
+  const normalizedRel = reqPath.replace(/^[/\\]+/, '');
+  const filePath = path.resolve(PUBLIC_DIR, normalizedRel);
+  const relFromRoot = path.relative(PUBLIC_DIR, filePath);
+
+  if (isBlockedRelativePath(relFromRoot)) {
+    res.writeHead(404, { 'Content-Type': 'text/plain' });
+    res.end('404 Not Found');
+    return;
+  }
 
   fs.stat(filePath, (err, stats) => {
     if (err || !stats.isFile()) {
@@ -52,6 +79,10 @@ const server = http.createServer((req, res) => {
   });
 });
 
-server.listen(PORT, () => {
-  console.log(`Pythos Frontend running on http://localhost:${PORT}`);
-});
+if (require.main === module) {
+  server.listen(PORT, () => {
+    console.log(`Pythos Frontend running on http://localhost:${PORT}`);
+  });
+}
+
+module.exports = { server, isBlockedRelativePath };

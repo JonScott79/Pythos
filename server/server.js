@@ -514,6 +514,8 @@ const activeControllers = new Set();
 const ALLOWED_ORIGINS = [
   'https://pythos.lanzar.me',
   'https://lanzar.me',
+  'https://www.lanzar.me',
+  'https://ai.lanzar.me',
   'http://localhost:3000',
   'http://localhost:3005',
   'http://localhost:8080',
@@ -521,33 +523,140 @@ const ALLOWED_ORIGINS = [
   'http://127.0.0.1:5500'
 ];
 
+function isOriginAllowed(origin) {
+  if (!origin) return true; // Non-browser requests (curl, server-to-server health checks)
+  const extraOrigins = (process.env.CORS_ALLOWED_ORIGINS || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+  if (ALLOWED_ORIGINS.includes(origin) || extraOrigins.includes(origin)) {
+    return true;
+  }
+  if (/^https:\/\/[a-z0-9-]+--pythos-lanzar\.netlify\.app$/i.test(origin)) {
+    return true;
+  }
+  if (/^https:\/\/([a-z0-9-]+\.)?lanzar\.me$/i.test(origin)) {
+    return true;
+  }
+  return false;
+}
+
 const app = express();
 
+// Phase 0.3: Disable Express server fingerprinting header
+app.disable('x-powered-by');
+
 // =====================================
-// Middleware
+// Middleware (Phase 0.1 & 0.2 Hardened)
 // =====================================
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow non-browser requests (like curl, postman, server-to-server health checks)
     if (!origin) return callback(null, true);
-    
-    // Check if origin matches allowed list or subdomains of lanzar.me / netlify.app preview deploys
-    const isAllowed = ALLOWED_ORIGINS.includes(origin) ||
-                      /^https:\/\/[a-z0-9-]+--pythos-lanzar\.netlify\.app$/i.test(origin) ||
-                      /^https:\/\/([a-z0-9-]+\.)?lanzar\.me$/i.test(origin);
-
-    if (isAllowed) {
-      callback(null, true);
-    } else {
-      callback(null, true); // Permissive in gateway mode with header validation
+    if (isOriginAllowed(origin)) {
+      return callback(null, true);
     }
+    return callback(null, false);
   },
+  credentials: false,
   methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-Key']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-Key', 'X-Request-Id'],
+  optionsSuccessStatus: 204
 }));
 
+// Reject cross-origin requests from disallowed browser origins before route execution
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && !isOriginAllowed(origin)) {
+    return res.status(403).json({
+      error: 'cors_origin_denied',
+      message: 'Origin is not permitted by CORS policy.'
+    });
+  }
+  next();
+});
+
 app.use(express.json({ limit: '15mb' }));
-app.use(express.static(path.join(__dirname, '..')));
+
+// Phase 0.1: Explicitly block access to container filesystem, application source, reports, and config files
+const fs = require('fs');
+const BLOCKED_STATIC_PREFIXES = [
+  '/etc', '/proc', '/sys', '/var', '/usr', '/bin', '/sbin', '/lib', '/opt',
+  '/root', '/home', '/tmp', '/dev', '/run', '/app', '/server', '/reports',
+  '/node_modules', '/campaign_', '/test', '/benchmark', '/.'
+];
+const BLOCKED_STATIC_FILES = new Set([
+  '/package.json', '/package-lock.json', '/dockerfile', '/railway.toml',
+  '/netlify.toml', '/firestore.rules', '/verifier.py', '/server.js',
+  '/dev-server.js', '/staticserver.js', '/.env', '/.env.example', '/.dockerignore'
+]);
+
+app.use((req, res, next) => {
+  let decodedPath = req.path || '/';
+  try {
+    decodedPath = decodeURIComponent(req.path || '/');
+  } catch (_) {
+    return res.status(400).json({ error: 'bad_request', message: 'Malformed URL path.' });
+  }
+  const lowerPath = decodedPath.toLowerCase().replace(/\\/g, '/');
+  if (
+    lowerPath.includes('..') ||
+    /(^|\/)\./.test(lowerPath) ||
+    BLOCKED_STATIC_FILES.has(lowerPath) ||
+    BLOCKED_STATIC_PREFIXES.some(prefix =>
+      lowerPath === prefix ||
+      lowerPath.startsWith(prefix + '/') ||
+      (prefix.endsWith('_') && lowerPath.startsWith(prefix))
+    )
+  ) {
+    return res.status(404).json({ error: 'not_found', message: 'Resource not found.' });
+  }
+  next();
+});
+
+// Explicitly define permitted public asset directories (never mount '..' unconditionally)
+const WORKSPACE_ROOT = path.resolve(__dirname, '..');
+const IS_CONTAINER_ROOT = WORKSPACE_ROOT === '/' || WORKSPACE_ROOT === path.parse(WORKSPACE_ROOT).root;
+const PERMITTED_PUBLIC_DIRS = [
+  'assets', 'css', 'js', 'vizEngine', 'about', 'algebra',
+  'calculus', 'physics', 'subjects', 'tools', 'validation', 'admin'
+];
+const PERMITTED_PUBLIC_FILES = new Set([
+  '/index.html', '/app.js', '/analytics.js', '/changelog.html',
+  '/license.html', '/nonprofit.html', '/privacy.html', '/accessibility.html',
+  '/manifest.json', '/site.webmanifest', '/robots.txt', '/sitemap.xml',
+  '/humans.txt', '/llms.txt', '/flyer.html', '/errors.html',
+  '/400.html', '/403.html', '/404.html', '/418.html',
+  '/500.html', '/502.html', '/503.html', '/504.html'
+]);
+
+if (!IS_CONTAINER_ROOT && fs.existsSync(path.join(WORKSPACE_ROOT, 'index.html'))) {
+  for (const dirName of PERMITTED_PUBLIC_DIRS) {
+    const fullDir = path.join(WORKSPACE_ROOT, dirName);
+    if (fs.existsSync(fullDir)) {
+      app.use(`/${dirName}`, express.static(fullDir, { dotfiles: 'ignore', fallthrough: true }));
+    }
+  }
+  app.get('/', (req, res) => {
+    res.sendFile(path.join(WORKSPACE_ROOT, 'index.html'));
+  });
+  app.use((req, res, next) => {
+    if (req.method === 'GET' && PERMITTED_PUBLIC_FILES.has(req.path)) {
+      const targetFile = path.join(WORKSPACE_ROOT, req.path.slice(1));
+      if (fs.existsSync(targetFile)) {
+        return res.sendFile(targetFile);
+      }
+    }
+    next();
+  });
+} else if (fs.existsSync(path.join(__dirname, 'site_sources'))) {
+  const siteSourcesDir = path.join(__dirname, 'site_sources');
+  for (const dirName of ['about', 'algebra', 'calculus', 'physics', 'subjects', 'tools', 'validation']) {
+    const fullDir = path.join(siteSourcesDir, dirName);
+    if (fs.existsSync(fullDir)) {
+      app.use(`/${dirName}`, express.static(fullDir, { dotfiles: 'ignore', fallthrough: true }));
+    }
+  }
+}
 
 // Standalone version endpoint
 app.get('/version', (req, res) => {

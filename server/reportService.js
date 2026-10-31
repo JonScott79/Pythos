@@ -20,8 +20,13 @@ const path = require('path');
 const crypto = require('crypto');
 const firestoreService = require('./firestoreService');
 
-// Base reports directory at project root
-const REPORTS_BASE_DIR = path.resolve(__dirname, '..', 'reports');
+// Base reports directory: uses REPORTS_DIR env var if set, or /app/reports inside container root, or ../reports in local workspace
+const _parentDir = path.resolve(__dirname, '..');
+const REPORTS_BASE_DIR = process.env.REPORTS_DIR
+  ? path.resolve(process.env.REPORTS_DIR)
+  : (_parentDir === '/' || _parentDir === path.parse(_parentDir).root
+      ? path.resolve(__dirname, 'reports')
+      : path.resolve(__dirname, '..', 'reports'));
 
 // Allowed review statuses
 const VALID_REVIEW_STATUSES = [

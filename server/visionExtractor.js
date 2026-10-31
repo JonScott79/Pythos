@@ -205,9 +205,11 @@ function isVisionIntent(text, hasAttachedImage = false) {
     const clean = trimmed.replace(/[?.,!]+$/, '').trim();
     const hasEquation = /[a-zA-Z0-9+\-*\/^().\s]+\s*=\s*[a-zA-Z0-9+\-*\/^().\s]+/.test(clean) && !/^[a-zA-Z]\s*=/.test(clean);
     const hasArithmetic = /^(?:(?:calculate|compute|evaluate|what\s+is|find|value\s+of)\s*)?[-+*\/^0-9.(),\s]+$/i.test(clean) && /\d/.test(clean);
-    const hasCalculus = /\b(?:derivative|integral|integrate|differentiate|limit|dx|dy\/dx)\b/i.test(clean);
+    const hasMathTokens = /\d|[+\-*\/^=]|\b(?:sin|cos|tan|sec|csc|cot|log|ln|sqrt)\b|\b[fgh]\([a-z]\)/i.test(clean);
+    const isDeicticOnly = /\bthis\s+(?:equation|problem|expression|function|system|integral|derivative|limit|polynomial|quadratic|question|exercise)\b/i.test(clean) && !hasMathTokens;
+    const hasCalculus = !isDeicticOnly && hasMathTokens && /\b(?:derivative|integral|integrate|differentiate|limit|dx|dy\/dx)\b/i.test(clean);
     const hasConceptual = /\b(?:what\s+is\s+the\s+formula|why\s+is|explain\s+the\s+concept|theorem|definition)\b/i.test(clean);
-    const hasAlgebra = /\b(?:solve|factor|simplify|expand|evaluate|root|roots|quadratic)\b/i.test(clean);
+    const hasAlgebra = !isDeicticOnly && hasMathTokens && /\b(?:solve|factor|simplify|expand|evaluate|root|roots|quadratic)\b/i.test(clean);
 
     let hasCompleteMath = hasEquation || hasArithmetic || hasCalculus || hasConceptual || hasAlgebra;
     if (!hasCompleteMath) {
