@@ -2035,15 +2035,13 @@ function appendMessage(role, text, images = null, metadata = {}) {
         openBtn.innerHTML = `Open in Graph ↗`;
         openBtn.addEventListener("click", () => {
           const graphWin = document.getElementById("floatGraphWindow");
-          const graphToggle = document.getElementById("toolGraphBtn");
           const graphInput = document.getElementById("graphFuncInput");
           
           if (graphWin && graphInput) {
-            graphWin.style.display = "flex";
-            if (graphToggle) graphToggle.classList.add("active");
+            openFloatingWindowById("floatGraphWindow", "toolGraphBtn");
             graphInput.value = exprToGraph;
             const plotBtn = document.getElementById("graphPlotBtn");
-            if (plotBtn) plotBtn.click();
+            if (plotBtn) setTimeout(() => plotBtn.click(), 30);
           }
         });
 
@@ -4781,17 +4779,29 @@ document.addEventListener("keydown", (e) => {
 // // FLOATING WINDOW UTILITIES
 //
 // =====================================
+let topFloatingZIndex = 1005;
+function bringFloatingWindowToFront(winEl) {
+  if (!winEl || winEl.classList.contains("docked-equation-drawer")) return;
+  topFloatingZIndex += 1;
+  winEl.style.zIndex = String(topFloatingZIndex);
+}
+
 function makeDraggable(winEl, handleEl) {
   let isDragging = false;
   let offsetX = 0;
   let offsetY = 0;
 
+  winEl.addEventListener("mousedown", () => {
+    bringFloatingWindowToFront(winEl);
+  });
+
   handleEl.addEventListener("mousedown", (e) => {
+    if (winEl.classList.contains("docked-equation-drawer")) return;
     if (e.target.closest("button")) return; // Don't drag when clicking close/action buttons
     isDragging = true;
     offsetX = e.clientX - winEl.getBoundingClientRect().left;
     offsetY = e.clientY - winEl.getBoundingClientRect().top;
-    winEl.style.zIndex = 1001; // Bring to front
+    bringFloatingWindowToFront(winEl);
   });
 
   document.addEventListener("mousemove", (e) => {
@@ -4808,18 +4818,27 @@ function makeDraggable(winEl, handleEl) {
   });
 }
 
-function setupFloatingTool(toggleBtnId, windowId, closeBtnId) {
-  const toggleBtn = document.getElementById(toggleBtnId);
+function syncPearsonExpandButtonState(isOpen) {
+  const pearsonBtn = document.getElementById("pearsonExpandBtn");
+  const pearsonLabel = document.getElementById("pearsonExpandLabel");
+  if (pearsonBtn) {
+    pearsonBtn.classList.toggle("active", Boolean(isOpen));
+    pearsonBtn.setAttribute("aria-expanded", isOpen ? "true" : "false");
+  }
+  if (pearsonLabel) {
+    pearsonLabel.textContent = isOpen ? "∑ Hide Builder ▾" : "∑ More Equations ▴";
+  }
+}
+
+function openFloatingWindowById(windowId, toggleBtnId) {
   const win = document.getElementById(windowId);
-  const closeBtn = document.getElementById(closeBtnId);
-  if (!toggleBtn || !win || !closeBtn) return;
-  const header = win.querySelector(".window-header");
+  const toggleBtn = toggleBtnId ? document.getElementById(toggleBtnId) : document.querySelector(`[aria-controls="${windowId}"]`);
+  if (!win) return;
 
-  if (header) makeDraggable(win, header);
-
-  function openTool() {
-    // Close other open floating tools on mobile & desktop
-    document.querySelectorAll(".floating-window").forEach(other => {
+  // Allow multiple applets to stay open simultaneously on desktop;
+  // only collapse other floating windows on narrow mobile screens (<= 640px)
+  if (window.innerWidth <= 640 && !win.classList.contains("docked-equation-drawer")) {
+    document.querySelectorAll(".floating-window:not(.docked-equation-drawer)").forEach(other => {
       if (other !== win) {
         other.style.setProperty("display", "none", "important");
         other.classList.remove("active");
@@ -4830,12 +4849,49 @@ function setupFloatingTool(toggleBtnId, windowId, closeBtnId) {
         }
       }
     });
-    win.style.setProperty("display", "flex", "important");
-    win.classList.add("active");
+  }
+
+  win.style.setProperty("display", "flex", "important");
+  win.classList.add("active");
+  bringFloatingWindowToFront(win);
+  if (toggleBtn) {
     toggleBtn.classList.add("active");
     toggleBtn.setAttribute("aria-expanded", "true");
-    
-    // Focus first interactive control in floating window for screen reader & keyboard navigation
+  }
+  if (windowId === "floatEditorWindow") {
+    syncPearsonExpandButtonState(true);
+    ensureMathLiveLoaded().catch(() => {});
+  }
+}
+
+function closeFloatingWindowById(windowId, toggleBtnId) {
+  const win = document.getElementById(windowId);
+  const toggleBtn = toggleBtnId ? document.getElementById(toggleBtnId) : document.querySelector(`[aria-controls="${windowId}"]`);
+  if (!win) return;
+  win.style.setProperty("display", "none", "important");
+  win.classList.remove("active");
+  if (toggleBtn) {
+    toggleBtn.classList.remove("active");
+    toggleBtn.setAttribute("aria-expanded", "false");
+  }
+  if (windowId === "floatEditorWindow") {
+    syncPearsonExpandButtonState(false);
+  }
+}
+
+function setupFloatingTool(toggleBtnId, windowId, closeBtnId) {
+  const toggleBtn = document.getElementById(toggleBtnId);
+  const win = document.getElementById(windowId);
+  const closeBtn = document.getElementById(closeBtnId);
+  if (!toggleBtn || !win || !closeBtn) return;
+  const header = win.querySelector(".window-header");
+
+  if (header && !win.classList.contains("docked-equation-drawer")) {
+    makeDraggable(win, header);
+  }
+
+  function openTool() {
+    openFloatingWindowById(windowId, toggleBtnId);
     const targetInput = win.querySelector("input:not([readonly]), math-field, button");
     if (targetInput) {
       setTimeout(() => targetInput.focus(), 60);
@@ -4843,10 +4899,7 @@ function setupFloatingTool(toggleBtnId, windowId, closeBtnId) {
   }
 
   function closeTool() {
-    win.style.setProperty("display", "none", "important");
-    win.classList.remove("active");
-    toggleBtn.classList.remove("active");
-    toggleBtn.setAttribute("aria-expanded", "false");
+    closeFloatingWindowById(windowId, toggleBtnId);
     toggleBtn.focus();
   }
 
@@ -4880,13 +4933,14 @@ setupFloatingTool("toolMatrixBtn", "floatMatrixWindow", "matrixCloseBtn");
 setupFloatingTool("toolEditorBtn", "floatEditorWindow", "editorCloseBtn");
 
 // =====================================
-// // VISUAL EQUATION EDITOR (MathLive — Lazy-Loaded on Demand)
+// // VISUAL EQUATION EDITOR & PEARSON BAR (MathLive — Lazy-Loaded on Demand)
 //
 // =====================================
 const mathField = document.getElementById("visualMathField");
 const editorStatusMsg = document.getElementById("editorStatusMsg");
 const editorModeToggle = document.getElementById("editorModeToggle");
 const editorPaletteContainer = document.getElementById("editorPaletteContainer");
+const pearsonExpandBtn = document.getElementById("pearsonExpandBtn");
 
 let mathLiveLoadPromise = null;
 function ensureMathLiveLoaded() {
@@ -4915,6 +4969,58 @@ if (toolEditorBtnEl) {
     ensureMathLiveLoaded().catch(() => {});
   });
 }
+
+if (pearsonExpandBtn) {
+  pearsonExpandBtn.addEventListener("click", () => {
+    const editorWin = document.getElementById("floatEditorWindow");
+    if (!editorWin) return;
+    const isVisible = editorWin.classList.contains("active") || (editorWin.style.display !== "none" && window.getComputedStyle(editorWin).display !== "none");
+    if (isVisible) {
+      closeFloatingWindowById("floatEditorWindow", "toolEditorBtn");
+    } else {
+      openFloatingWindowById("floatEditorWindow", "toolEditorBtn");
+      if (mathField) setTimeout(() => mathField.focus(), 60);
+    }
+  });
+}
+
+// Track last focused math input so Pearson quick-strip buttons insert into active input or chat bar
+let lastFocusedMathInput = document.getElementById("userInput");
+["userInput", "calcDisplay", "graphFuncInput", "checkEqInput", "matrixAInput", "unitsValueInput"].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) {
+    el.addEventListener("focus", () => {
+      lastFocusedMathInput = el;
+    });
+  }
+});
+
+// Wire Pearson Quick Math Bar buttons
+document.querySelectorAll(".pearson-quick-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const quickLatex = btn.getAttribute("data-quick-latex") || "";
+    const quickText = btn.getAttribute("data-quick-text") || quickLatex;
+    const editorWin = document.getElementById("floatEditorWindow");
+    const editorOpen = editorWin && (editorWin.classList.contains("active") || (editorWin.style.display !== "none" && window.getComputedStyle(editorWin).display !== "none"));
+
+    if (editorOpen && mathField) {
+      insertIntoMathField(quickLatex);
+      return;
+    }
+
+    const targetEl = lastFocusedMathInput || document.getElementById("userInput");
+    if (targetEl) {
+      const start = typeof targetEl.selectionStart === "number" ? targetEl.selectionStart : targetEl.value.length;
+      const end = typeof targetEl.selectionEnd === "number" ? targetEl.selectionEnd : targetEl.value.length;
+      const cur = targetEl.value === "0" && targetEl.id === "calcDisplay" ? "" : targetEl.value;
+      targetEl.value = cur.substring(0, start) + quickText + cur.substring(end);
+      targetEl.focus();
+      const newCursor = start + quickText.length;
+      try { targetEl.setSelectionRange(newCursor, newCursor); } catch (_) {}
+      targetEl.dispatchEvent(new Event("input"));
+    }
+  });
+});
 
 let isKeyboardMode = false;
 
@@ -4945,19 +5051,101 @@ function showEditorStatus(msg) {
   setTimeout(() => { editorStatusMsg.style.display = "none"; }, 2500);
 }
 
+function getEquationBuilderLatex() {
+  if (mathField) {
+    if (typeof mathField.getValue === "function") {
+      const v = mathField.getValue("latex");
+      if (v && v.trim()) return v.trim();
+    }
+    if (typeof mathField.value === "string" && mathField.value.trim()) {
+      return mathField.value.trim();
+    }
+    if (typeof mathField.textContent === "string" && mathField.textContent.trim()) {
+      return mathField.textContent.trim();
+    }
+  }
+  const userInp = document.getElementById("userInput");
+  if (userInp && userInp.value.trim()) {
+    return userInp.value.trim().replace(/^\$+|\$+$/g, "");
+  }
+  return "";
+}
+
+function insertIntoMathField(template) {
+  if (!mathField || !template) return;
+  if (typeof mathField.insert === "function") {
+    mathField.insert(template, { focus: true });
+    return;
+  }
+  const cleaned = template.replace(/#\?/g, "x");
+  if (typeof mathField.value === "string") {
+    mathField.value = (mathField.value ? mathField.value + " " : "") + cleaned;
+  } else {
+    mathField.textContent = (mathField.textContent ? mathField.textContent + " " : "") + cleaned;
+  }
+  ensureMathLiveLoaded().then(() => {
+    if (mathField && typeof mathField.focus === "function") mathField.focus();
+  }).catch(() => {});
+}
+
+function convertLatexToMathJs(rawLatex, { stripFunctionPrefix = false, stripAllLhs = false } = {}) {
+  if (!rawLatex) return "";
+  let s = String(rawLatex).trim();
+  s = s.replace(/\\placeholder\{([^}]*)\}/g, "$1").replace(/#\?/g, "x");
+  if (stripFunctionPrefix) {
+    s = s.replace(/^[fgh]\s*\(\s*[a-zA-Z]\s*\)\s*=\s*/i, "").replace(/^y\s*=\s*/i, "");
+  }
+  if (stripAllLhs && s.includes("=")) {
+    const parts = s.split("=");
+    if (parts.length === 2 && /^[a-zA-Z0-9_()^\s]+$/.test(parts[0].trim()) && parts[0].trim().length <= 8) {
+      s = parts[1].trim();
+    }
+  }
+  s = s.replace(/\\begin\{[pbvBV]?matrix\}([\s\S]*?)\\end\{[pbvBV]?matrix\}/g, (_, body) => {
+    const rows = body.split(/\\\\/).map(r => r.trim()).filter(Boolean);
+    const parsedRows = rows.map(r => `[${r.split("&").map(c => c.trim() || "0").join(", ")}]`);
+    return `[${parsedRows.join(", ")}]`;
+  });
+  for (let i = 0; i < 5; i++) {
+    s = s.replace(/\\frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g, "(($1)/($2))");
+    s = s.replace(/\\frac\s*(\d)\s*(\d)/g, "(($1)/($2))");
+    s = s.replace(/\\sqrt\s*\[([^\[\]]+)\]\s*\{([^{}]+)\}/g, "nthRoot($2, $1)");
+    s = s.replace(/\\sqrt\s*\{([^{}]+)\}/g, "sqrt($1)");
+    s = s.replace(/\\left\|([^|]+)\\right\|/g, "abs($1)");
+  }
+  s = s
+    .replace(/\\left\s*([(\[{])/g, "$1")
+    .replace(/\\right\s*([)\]}])/g, "$1")
+    .replace(/\\(?:cdot|times)/g, "*")
+    .replace(/\\div/g, "/")
+    .replace(/\\pm/g, "+")
+    .replace(/\\pi\b/g, "pi")
+    .replace(/\\theta\b/g, "theta")
+    .replace(/\\infty\b/g, "Infinity")
+    .replace(/\\le\b/g, "<=")
+    .replace(/\\ge\b/g, ">=")
+    .replace(/\\neq\b/g, "!=")
+    .replace(/\\(?:sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|sinh|cosh|tanh|ln|log)\b/g, (m) => m.slice(1))
+    .replace(/\^\{([^{}]+)\}/g, "^($1)")
+    .replace(/_\{([^{}]+)\}/g, "_$1")
+    .replace(/[{}]/g, (ch) => (ch === "{" ? "(" : ")"))
+    .replace(/\\,/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return s;
+}
+
 // Click-to-insert palette templates directly into visual math-field
 document.querySelectorAll(".palette-btn[data-insert]").forEach(btn => {
   btn.addEventListener("click", () => {
     const template = btn.getAttribute("data-insert");
-    if (mathField && mathField.insert) {
-      mathField.insert(template, { focus: true });
-    }
+    insertIntoMathField(template);
   });
 });
 
 // 1. Send Expression to Pythos Chat
 document.getElementById("sendEqToPythos").addEventListener("click", () => {
-  const latex = mathField ? mathField.value : "";
+  const latex = getEquationBuilderLatex();
   if (!latex) return;
   const inputEl = document.getElementById("userInput");
   inputEl.value += (inputEl.value ? " " : "") + `$${latex}$`;
@@ -4968,70 +5156,75 @@ document.getElementById("sendEqToPythos").addEventListener("click", () => {
 
 // 2. Send Expression to Scientific Calculator
 document.getElementById("sendEqToCalc").addEventListener("click", () => {
-  const latex = mathField ? mathField.value : "";
+  const latex = getEquationBuilderLatex();
   if (!latex) return;
-  // Convert basic LaTeX to calculator expression
-  let expr = latex
-    .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, "($1)/($2)")
-    .replace(/\\sqrt\{([^}]+)\}/g, "sqrt($1)")
-    .replace(/\\cdot/g, "*")
-    .replace(/\\times/g, "*")
-    .replace(/\\pi/g, "pi")
-    .replace(/\\left\(/g, "(")
-    .replace(/\\right\)/g, ")");
-  
-  const calcWin = document.getElementById("floatCalcWindow");
-  const calcToggle = document.getElementById("toolCalcBtn");
-  calcWin.style.display = "flex";
-  calcToggle.classList.add("active");
+  const expr = convertLatexToMathJs(latex, { stripFunctionPrefix: true, stripAllLhs: true });
+
+  openFloatingWindowById("floatCalcWindow", "toolCalcBtn");
   const calcDisplayEl = document.getElementById("calcDisplay");
-  if (calcDisplayEl) calcDisplayEl.value = expr;
-  showEditorStatus("Sent to Calculator!");
+  if (calcDisplayEl) {
+    calcDisplayEl.value = expr;
+    calcCurrentExpr = expr;
+    if (!/[a-df-zA-Z]/.test(expr.replace(/\b(sin|cos|tan|sqrt|ln|log|pi|abs|nthRoot)\b/g, ""))) {
+      try { evaluateCalculator(); } catch (_) {}
+    }
+  }
+  showEditorStatus("Sent to Scientific Calculator!");
 });
 
 // 3. Send Expression to Function Grapher
 document.getElementById("sendEqToGraph").addEventListener("click", () => {
-  const latex = mathField ? mathField.value : "";
+  const latex = getEquationBuilderLatex();
   if (!latex) return;
-  let expr = latex
-    .replace(/f\(x\)\s*=\s*/g, "")
-    .replace(/y\s*=\s*/g, "")
-    .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, "($1)/($2)")
-    .replace(/\\sqrt\{([^}]+)\}/g, "sqrt($1)")
-    .replace(/\\cdot/g, "*")
-    .replace(/\\times/g, "*")
-    .replace(/\\left\(/g, "(")
-    .replace(/\\right\)/g, ")");
-  
-  const graphWin = document.getElementById("floatGraphWindow");
-  const graphToggle = document.getElementById("toolGraphBtn");
-  graphWin.style.display = "flex";
-  graphToggle.classList.add("active");
+  const expr = convertLatexToMathJs(latex, { stripFunctionPrefix: true, stripAllLhs: true });
+
+  openFloatingWindowById("floatGraphWindow", "toolGraphBtn");
   const graphInput = document.getElementById("graphFuncInput");
   if (graphInput) {
     graphInput.value = expr;
     const plotBtn = document.getElementById("graphPlotBtn");
-    if (plotBtn) plotBtn.click();
+    if (plotBtn) setTimeout(() => plotBtn.click(), 30);
   }
-  showEditorStatus("Sent & Plotted in Grapher!");
+  showEditorStatus("Sent & Plotted in Function Grapher!");
 });
 
 // 4. Send Expression to Check My Work
 document.getElementById("sendEqToCheck").addEventListener("click", () => {
-  const latex = mathField ? mathField.value : "";
+  const latex = getEquationBuilderLatex();
   if (!latex) return;
-  const checkWin = document.getElementById("floatCheckWindow");
-  const checkToggle = document.getElementById("toolCheckBtn");
-  checkWin.style.display = "flex";
-  checkToggle.classList.add("active");
+  const expr = convertLatexToMathJs(latex, { stripFunctionPrefix: false, stripAllLhs: false });
+
+  openFloatingWindowById("floatCheckWindow", "toolCheckBtn");
   const checkEqInputEl = document.getElementById("checkEqInput");
-  if (checkEqInputEl) checkEqInputEl.value = latex;
+  if (checkEqInputEl) {
+    checkEqInputEl.value = expr.includes("=") ? expr : `${expr} = 0`;
+    checkEqInputEl.focus();
+  }
   showEditorStatus("Sent to Check My Work!");
 });
 
-// 5. Copy LaTeX Code
+// 5. Send Expression to Matrix Calculator
+const sendEqToMatrixBtn = document.getElementById("sendEqToMatrix");
+if (sendEqToMatrixBtn) {
+  sendEqToMatrixBtn.addEventListener("click", () => {
+    const latex = getEquationBuilderLatex();
+    if (!latex) return;
+    const expr = convertLatexToMathJs(latex);
+
+    openFloatingWindowById("floatMatrixWindow", "toolMatrixBtn");
+    const matAInput = document.getElementById("matrixAInput");
+    if (matAInput) {
+      matAInput.value = expr.startsWith("[") ? expr : `[${expr}]`;
+      matAInput.focus();
+    }
+    showEditorStatus("Sent to Matrix Calculator!");
+  });
+}
+
+// 6. Copy LaTeX Code
 document.getElementById("copyEqLaTeX").addEventListener("click", () => {
-  const latex = mathField ? mathField.value : "";
+  const latex = getEquationBuilderLatex();
+  if (!latex) return;
   navigator.clipboard.writeText(latex);
   showEditorStatus("LaTeX copied to clipboard!");
 });

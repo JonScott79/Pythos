@@ -1518,6 +1518,153 @@
       border-color: var(--primary-color);
     }
 
+    /* Sim Lab CTA Shimmer Animation on Page Load */
+    .tool-btn.sim-lab-cta {
+      position: relative;
+      overflow: hidden;
+      border-color: rgba(56, 189, 248, 0.55);
+      color: var(--primary-color);
+      font-weight: 600;
+      animation: simLabGlowPulse 3.2s ease-in-out infinite;
+    }
+
+    .tool-btn.sim-lab-cta::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: -130%;
+      width: 110%;
+      height: 100%;
+      background: linear-gradient(
+        110deg,
+        transparent 15%,
+        rgba(56, 189, 248, 0.35) 45%,
+        rgba(250, 204, 21, 0.45) 50%,
+        rgba(56, 189, 248, 0.35) 55%,
+        transparent 85%
+      );
+      transform: skewX(-20deg);
+      animation: simLabShimmerSweep 3.2s ease-in-out infinite;
+      pointer-events: none;
+    }
+
+    @keyframes simLabShimmerSweep {
+      0% { left: -130%; }
+      45%, 100% { left: 140%; }
+    }
+
+    @keyframes simLabGlowPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0); }
+      50% { box-shadow: 0 0 12px 1px rgba(56, 189, 248, 0.32); }
+    }
+
+    /* Pearson-Style Docked Equation Bar & Expandable Drawer at Bottom of Chat Bar */
+    .pearson-equation-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      margin-top: 6px;
+      padding: 4px 8px;
+      background: var(--surface-color);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      flex-wrap: wrap;
+    }
+
+    .pearson-quick-strip {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-wrap: wrap;
+      flex: 1;
+    }
+
+    .pearson-quick-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-right: 4px;
+      white-space: nowrap;
+      user-select: none;
+    }
+
+    .pearson-quick-btn {
+      background: var(--input-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 5px;
+      color: var(--text-main);
+      padding: 2px 7px;
+      min-height: 26px;
+      min-width: 28px;
+      font-size: 0.82rem;
+      font-family: 'Inter', serif;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+
+    .pearson-quick-btn:hover {
+      background: var(--sidebar-hover);
+      border-color: var(--primary-color);
+      color: var(--primary-color);
+      transform: translateY(-1px);
+    }
+
+    .pearson-expand-btn {
+      background: var(--chat-ai-bg);
+      border: 1px solid var(--primary-color);
+      color: var(--primary-color);
+      font-size: 0.73rem;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      white-space: nowrap;
+      transition: all 0.18s;
+    }
+
+    .pearson-expand-btn:hover,
+    .pearson-expand-btn.active {
+      background: var(--primary-color);
+      color: #ffffff;
+    }
+
+    .floating-window.docked-equation-drawer {
+      position: relative !important;
+      top: auto !important;
+      right: auto !important;
+      left: auto !important;
+      bottom: auto !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      margin-top: 6px;
+      z-index: 40;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+      border: 1px solid var(--primary-color);
+    }
+
+    .floating-window.docked-equation-drawer .window-header {
+      cursor: default;
+      padding: 6px 12px;
+    }
+
+    .floating-window.docked-equation-drawer .palette-grid {
+      grid-template-columns: repeat(9, 1fr);
+      gap: 4px;
+    }
+
+    @media (max-width: 900px) {
+      .floating-window.docked-equation-drawer .palette-grid {
+        grid-template-columns: repeat(6, 1fr);
+      }
+    }
+
     /* Welcome Oracle Card / Empty State */
     .welcome-oracle-card {
       background: var(--surface-card);
@@ -4393,11 +4540,11 @@
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
               <span>Check Work</span>
             </button>
-            <button id="toolGraphBtn" class="tool-btn" title="Function Grapher" aria-label="Graph — Open Function Grapher" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatGraphWindow">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
-              <span>Graph</span>
+            <button id="toolCalcBtn" class="tool-btn" title="Scientific Calculator" aria-label="Calc — Open Scientific Calculator" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatCalcWindow">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="6" x2="16" y2="6"></line><line x1="16" y1="14" x2="16" y2="18"></line><path d="M8 10h.01"></path><path d="M12 10h.01"></path><path d="M16 10h.01"></path><path d="M8 14h.01"></path><path d="M12 14h.01"></path><path d="M8 18h.01"></path><path d="M12 18h.01"></path></svg>
+              <span>Calc</span>
             </button>
-            <button id="toolSimLabBtn" class="tool-btn" title="Sim Lab (Interactive PhET-style Physics and Math Experiments)" aria-label="Sim Lab — Open Classical Physics and Math Simulation Lab" aria-haspopup="dialog" aria-expanded="false" aria-controls="simLabOverlay">
+            <button id="toolSimLabBtn" class="tool-btn sim-lab-cta" title="Sim Lab (Interactive PhET-style Physics and Math Experiments)" aria-label="Sim Lab — Open Classical Physics and Math Simulation Lab" aria-haspopup="dialog" aria-expanded="false" aria-controls="simLabOverlay">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(45 12 12)"></ellipse>
                 <ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(-45 12 12)"></ellipse>
@@ -4407,14 +4554,14 @@
             </button>
 
             <div class="toolbox-popover-wrap">
-              <button id="toolboxMenuBtn" type="button" class="tool-btn" title="More Math &amp; Physics Instruments (Calculator, Units, Matrix, Formulas, Scratchpad, Math Keyboard)" aria-label="Toolbox — Open secondary tools menu" aria-haspopup="true" aria-expanded="false" aria-controls="toolboxPopoverMenu">
+              <button id="toolboxMenuBtn" type="button" class="tool-btn" title="More Math &amp; Physics Instruments (Grapher, Units, Matrix, Formulas, Scratchpad, Math Keyboard)" aria-label="Toolbox — Open secondary tools menu" aria-haspopup="true" aria-expanded="false" aria-controls="toolboxPopoverMenu">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="7" width="20" height="14" rx="2"></rect><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"></path></svg>
                 <span>Toolbox ▾</span>
               </button>
               <div id="toolboxPopoverMenu" class="toolbox-popover-menu" role="menu" aria-label="Secondary Math and Physics Instruments">
-                <button id="toolCalcBtn" class="tool-btn" role="menuitem" title="Scientific Calculator" aria-label="Calc — Open Scientific Calculator" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatCalcWindow">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="6" x2="16" y2="6"></line><line x1="16" y1="14" x2="16" y2="18"></line><path d="M8 10h.01"></path><path d="M12 10h.01"></path><path d="M16 10h.01"></path><path d="M8 14h.01"></path><path d="M12 14h.01"></path><path d="M8 18h.01"></path><path d="M12 18h.01"></path></svg>
-                  <span>Calc (Scientific Calculator)</span>
+                <button id="toolGraphBtn" class="tool-btn" role="menuitem" title="Function Grapher" aria-label="Graph — Open Function Grapher" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatGraphWindow">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+                  <span>Graph (Function Grapher)</span>
                 </button>
                 <button id="toolUnitsBtn" class="tool-btn" role="menuitem" title="Physics &amp; Math Unit Converter" aria-label="Units — Open Unit Converter" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatUnitsWindow">
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
@@ -4474,6 +4621,101 @@
               </svg>
             </button>
           </form>
+
+          <!-- PEARSON-STYLE QUICK MATH BAR AT BOTTOM OF CHAT BAR -->
+          <div id="pearsonEquationBar" class="pearson-equation-bar" role="toolbar" aria-label="Quick Equation Builder Strip">
+            <div class="pearson-quick-strip">
+              <span class="pearson-quick-label">Math:</span>
+              <button type="button" class="pearson-quick-btn" data-quick-latex="\frac{#?}{#?}" data-quick-text="(a)/(b)" title="Insert Fraction (a/b)" aria-label="a/b — Insert Fraction">a⁄b</button>
+              <button type="button" class="pearson-quick-btn" data-quick-latex="#?^{#?}" data-quick-text="^2" title="Insert Exponent (x^n)" aria-label="x² — Insert Exponent">x²</button>
+              <button type="button" class="pearson-quick-btn" data-quick-latex="#?_{#?}" data-quick-text="_1" title="Insert Subscript (x_n)" aria-label="xₙ — Insert Subscript">xₙ</button>
+              <button type="button" class="pearson-quick-btn" data-quick-latex="\sqrt{#?}" data-quick-text="sqrt()" title="Insert Square Root" aria-label="√x — Insert Square Root">√x</button>
+              <button type="button" class="pearson-quick-btn" data-quick-latex="\sqrt[#?]{#?}" data-quick-text="nthRoot(x,n)" title="Insert N-th Root" aria-label="ⁿ√x — Insert N-th Root">ⁿ√x</button>
+              <button type="button" class="pearson-quick-btn" data-quick-latex="\left|#?\right|" data-quick-text="abs()" title="Insert Absolute Value |x|" aria-label="|x| — Insert Absolute Value">|x|</button>
+              <button type="button" class="pearson-quick-btn" data-quick-latex="\pi" data-quick-text="pi" title="Insert Pi (π)" aria-label="π — Insert Pi">π</button>
+              <button type="button" class="pearson-quick-btn" data-quick-latex="\theta" data-quick-text="theta" title="Insert Theta (θ)" aria-label="θ — Insert Theta">θ</button>
+              <button type="button" class="pearson-quick-btn" data-quick-latex="\infty" data-quick-text="inf" title="Insert Infinity (∞)" aria-label="∞ — Insert Infinity">∞</button>
+              <button type="button" class="pearson-quick-btn" data-quick-latex="\pm" data-quick-text="+/-" title="Insert Plus-Minus (±)" aria-label="± — Insert Plus-Minus">±</button>
+              <button type="button" class="pearson-quick-btn" data-quick-latex="\le" data-quick-text="<=" title="Insert Less Than or Equal (≤)" aria-label="≤ — Insert Less Than or Equal">≤</button>
+              <button type="button" class="pearson-quick-btn" data-quick-latex="\ge" data-quick-text=">=" title="Insert Greater Than or Equal (≥)" aria-label="≥ — Insert Greater Than or Equal">≥</button>
+            </div>
+            <button type="button" id="pearsonExpandBtn" class="pearson-expand-btn" title="Expand Full Equation Builder &amp; Send to Applets" aria-label="More Equations — Expand Visual Equation Builder" aria-expanded="false" aria-controls="floatEditorWindow">
+              <span id="pearsonExpandLabel">∑ More Equations ▴</span>
+            </button>
+          </div>
+
+          <!-- DOCKED EXPANDABLE EQUATION BUILDER DRAWER (Pearson-Style) -->
+          <div id="floatEditorWindow" class="floating-window docked-equation-drawer" role="region" aria-label="Equation Builder" tabindex="-1" style="display: none;" data-clarity-mask="true">
+            <div class="window-header">
+              <div class="window-title" id="editorWindowTitle">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                Equation Builder &amp; Applet Dispatcher
+              </div>
+              <div class="window-controls">
+                <button type="button" class="win-btn" id="editorModeToggle" title="Toggle between Visual Palette and Keyboard typing mode" aria-label="Keyboard Mode — Toggle Keyboard Typing Mode" style="font-size:0.75rem; background:var(--sidebar-hover); color:var(--text-main); border:1px solid var(--border-color); font-weight:600; padding:2px 8px;">⌨️ Keyboard Mode</button>
+                <button type="button" class="win-btn win-close" id="editorCloseBtn" title="Collapse Equation Builder" aria-label="Close Equation Builder window">×</button>
+              </div>
+            </div>
+            <div class="window-body">
+              <div class="math-field-container">
+                <math-field id="visualMathField" class="custom-math-field" aria-label="Visual Interactive Math Expression Editor">x^2 - 4</math-field>
+              </div>
+
+              <div class="palette-tabs" id="editorPaletteContainer">
+                <div class="palette-grid" role="group" aria-label="Mathematical Symbol and Template Palette">
+                  <button type="button" class="palette-btn math-symbol-btn" data-insert="\frac{#?}{#?}" title="Fraction (a/b)" aria-label="Insert Fraction template"><span>\(\frac{a}{b}\)</span></button>
+                  <button type="button" class="palette-btn math-symbol-btn" data-insert="#?^{#?}" title="Exponent / Power" aria-label="Insert Exponent power template"><span>\(x^2\)</span></button>
+                  <button type="button" class="palette-btn math-symbol-btn" data-insert="#?_{#?}" title="Subscript" aria-label="Insert Subscript template"><span>\(x_n\)</span></button>
+                  <button type="button" class="palette-btn math-symbol-btn" data-insert="\sqrt{#?}" title="Square Root" aria-label="Insert Square Root template"><span>\(\sqrt{x}\)</span></button>
+                  <button type="button" class="palette-btn math-symbol-btn" data-insert="\sqrt[#?]{#?}" title="N-th Root" aria-label="Insert N-th Root template"><span>\(\sqrt[n]{x}\)</span></button>
+                  <button type="button" class="palette-btn math-symbol-btn" data-insert="\left(#?\right)" title="Parentheses" aria-label="Insert Parentheses template"><span>\((x)\)</span></button>
+                  <button type="button" class="palette-btn math-symbol-btn" data-insert="\left|#?\right|" title="Absolute Value" aria-label="Insert Absolute Value template"><span>\(|x|\)</span></button>
+                  <button type="button" class="palette-btn math-symbol-btn" data-insert="\int_{#?}^{#?} #? \, dx" title="Definite Integral" aria-label="Insert Definite Integral template"><span>\(\int_a^b\)</span></button>
+                  <button type="button" class="palette-btn math-symbol-btn" data-insert="\int #? \, dx" title="Indefinite Integral" aria-label="Insert Indefinite Integral template"><span>\(\int dx\)</span></button>
+                  <button type="button" class="palette-btn math-symbol-btn" data-insert="\frac{d}{dx}\left(#?\right)" title="Derivative (d/dx)" aria-label="Insert Derivative d over dx template"><span>\(\frac{d}{dx}\)</span></button>
+                  <button type="button" class="palette-btn math-symbol-btn" data-insert="\frac{\partial}{\partial x}\left(#?\right)" title="Partial Derivative" aria-label="Insert Partial Derivative template"><span>\(\frac{\partial}{\partial x}\)</span></button>
+                  <button type="button" class="palette-btn math-symbol-btn" data-insert="\lim_{#? \to #?} #?" title="Limit" aria-label="Insert Limit template"><span>\(\lim_{x \to 0}\)</span></button>
+                  <button type="button" class="palette-btn math-symbol-btn" data-insert="\sum_{#?}^{#?} #?" title="Summation" aria-label="Insert Summation template"><span>\(\sum\)</span></button>
+                  <button type="button" class="palette-btn math-symbol-btn" data-insert="\sin\left(#?\right)" title="Sine" aria-label="Insert Sine function"><span>\(\sin(x)\)</span></button>
+                  <button type="button" class="palette-btn math-symbol-btn" data-insert="\cos\left(#?\right)" title="Cosine" aria-label="Insert Cosine function"><span>\(\cos(x)\)</span></button>
+                  <button type="button" class="palette-btn math-symbol-btn" data-insert="\tan\left(#?\right)" title="Tangent" aria-label="Insert Tangent function"><span>\(\tan(x)\)</span></button>
+                  <button type="button" class="palette-btn math-symbol-btn" data-insert="\ln\left(#?\right)" title="Natural Log" aria-label="Insert Natural Log template"><span>\(\ln(x)\)</span></button>
+                  <button type="button" class="palette-btn math-symbol-btn" data-insert="\log_{#?}\left(#?\right)" title="Logarithm with Base" aria-label="Insert Logarithm with Base template"><span>\(\log_b(x)\)</span></button>
+                  <button type="button" class="palette-btn math-symbol-btn" data-insert="\pi" title="Pi" aria-label="Insert Pi symbol"><span>\(\pi\)</span></button>
+                  <button type="button" class="palette-btn math-symbol-btn" data-insert="\theta" title="Theta" aria-label="Insert Theta symbol"><span>\(\theta\)</span></button>
+                  <button type="button" class="palette-btn math-symbol-btn" data-insert="\infty" title="Infinity" aria-label="Insert Infinity symbol"><span>\(\infty\)</span></button>
+                  <button type="button" class="palette-btn math-symbol-btn" data-insert="\pm" title="Plus-Minus" aria-label="Insert Plus-Minus symbol"><span>\(\pm\)</span></button>
+                  <button type="button" class="palette-btn math-symbol-btn" data-insert="\le" title="Less than or equal" aria-label="Insert Less than or equal symbol"><span>\(\le\)</span></button>
+                  <button type="button" class="palette-btn math-symbol-btn" data-insert="\ge" title="Greater than or equal" aria-label="Insert Greater than or equal symbol"><span>\(\ge\)</span></button>
+                  <button type="button" class="palette-btn math-symbol-btn" data-insert="\neq" title="Not Equal" aria-label="Insert Not Equal symbol"><span>\(\neq\)</span></button>
+                  <button type="button" class="palette-btn math-symbol-btn" data-insert="\Delta" title="Delta" aria-label="Insert Delta symbol"><span>\(\Delta\)</span></button>
+                  <button type="button" class="palette-btn math-symbol-btn" data-insert="\begin{pmatrix} #? & #? \\ #? & #? \end{pmatrix}" title="2x2 Matrix" aria-label="Insert 2x2 Matrix template"><span>\(\begin{pmatrix} \cdot & \cdot \\ \cdot & \cdot \end{pmatrix}\)</span></button>
+                </div>
+              </div>
+
+              <div class="editor-actions-bar" role="group" aria-label="Equation Actions">
+                <button type="button" class="editor-action-btn primary" id="sendEqToPythos" title="Send equation to Pythos chat" aria-label="Ask Pythos — Send equation to Pythos chat">
+                  <span>Ask Pythos ↵</span>
+                </button>
+                <button type="button" class="editor-action-btn" id="sendEqToCalc" title="Send to Scientific Calculator" aria-label="→ Calc — Send expression to Scientific Calculator">
+                  <span>→ Calc</span>
+                </button>
+                <button type="button" class="editor-action-btn" id="sendEqToGraph" title="Send to Function Grapher" aria-label="→ Graph — Send function to Grapher">
+                  <span>→ Graph</span>
+                </button>
+                <button type="button" class="editor-action-btn" id="sendEqToCheck" title="Send to Check My Work" aria-label="→ Check Work — Send equation to Check My Work">
+                  <span>→ Check Work</span>
+                </button>
+                <button type="button" class="editor-action-btn" id="sendEqToMatrix" title="Send to Matrix Calculator" aria-label="→ Matrix — Send matrix to Matrix Calculator">
+                  <span>→ Matrix</span>
+                </button>
+                <button type="button" class="editor-action-btn" id="copyEqLaTeX" title="Copy LaTeX code to clipboard" aria-label="📋 Copy — Copy LaTeX code to clipboard">
+                  <span>📋 Copy</span>
+                </button>
+              </div>
+              <div id="editorStatusMsg" class="editor-status" style="display:none;" role="status" aria-live="polite"></div>
+            </div>
+          </div>
         </div>
         
         <footer class="polyglot-footer" role="contentinfo">
@@ -4632,7 +4874,7 @@
   </div>
 
   <!-- FLOATING TOOL WINDOW: SCIENTIFIC CALCULATOR -->
-  <div id="floatCalcWindow" class="floating-window" role="region" aria-label="Scientific Calculator" tabindex="-1" style="display: none; top: 120px; right: 40px; width: 320px;" data-clarity-mask="true">
+  <div id="floatCalcWindow" class="floating-window" role="region" aria-label="Scientific Calculator" tabindex="-1" style="display: none; top: 80px; right: 24px; width: 320px;" data-clarity-mask="true">
     <div class="window-header">
       <div class="window-title" id="calcWindowTitle">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="6" x2="16" y2="6"></line></svg>
@@ -4690,7 +4932,7 @@
   </div>
 
   <!-- FLOATING TOOL WINDOW: FUNCTION GRAPHER -->
-  <div id="floatGraphWindow" class="floating-window" role="region" aria-label="Function Grapher" tabindex="-1" style="display: none; top: 120px; right: 40px; width: 440px;" data-clarity-mask="true">
+  <div id="floatGraphWindow" class="floating-window" role="region" aria-label="Function Grapher" tabindex="-1" style="display: none; top: 80px; right: 360px; width: 420px;" data-clarity-mask="true">
     <div class="window-header">
       <div class="window-title" id="graphWindowTitle">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
@@ -4713,7 +4955,7 @@
   </div>
 
   <!-- FLOATING TOOL WINDOW: CHECK MY WORK -->
-  <div id="floatCheckWindow" class="floating-window" role="region" aria-label="Check My Work Step Verifier" tabindex="-1" style="display: none; top: 120px; right: 40px; width: 380px;" data-clarity-mask="true">
+  <div id="floatCheckWindow" class="floating-window" role="region" aria-label="Check My Work Step Verifier" tabindex="-1" style="display: none; top: 140px; right: 60px; width: 380px;" data-clarity-mask="true">
     <div class="window-header">
       <div class="window-title" id="checkWindowTitle">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
@@ -4745,7 +4987,7 @@
   </div>
 
   <!-- FLOATING TOOL WINDOW: UNIT CONVERTER -->
-  <div id="floatUnitsWindow" class="floating-window" role="region" aria-label="Unit Converter" tabindex="-1" style="display: none; top: 140px; right: 40px; width: 340px;" data-clarity-mask="true">
+  <div id="floatUnitsWindow" class="floating-window" role="region" aria-label="Unit Converter" tabindex="-1" style="display: none; top: 180px; right: 100px; width: 340px;" data-clarity-mask="true">
     <div class="window-header">
       <div class="window-title" id="unitsWindowTitle">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
@@ -4771,7 +5013,7 @@
   </div>
 
   <!-- FLOATING TOOL WINDOW: MATRIX CALCULATOR -->
-  <div id="floatMatrixWindow" class="floating-window" role="region" aria-label="Matrix Calculator" tabindex="-1" style="display: none; top: 140px; right: 40px; width: 360px;" data-clarity-mask="true">
+  <div id="floatMatrixWindow" class="floating-window" role="region" aria-label="Matrix Calculator" tabindex="-1" style="display: none; top: 210px; right: 140px; width: 360px;" data-clarity-mask="true">
     <div class="window-header">
       <div class="window-title" id="matrixWindowTitle">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line><line x1="15" y1="3" x2="15" y2="21"></line><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line></svg>
@@ -4798,124 +5040,6 @@
         <button class="calc-key op-key" id="matAddBtn" title="Add Matrix A and Matrix B" aria-label="A + B — Add Matrix A and Matrix B">A + B</button>
       </div>
       <div id="matrixResultArea" class="check-result-area" style="display:none;" role="status" aria-live="polite"></div>
-    </div>
-  </div>
-
-  <!-- FLOATING TOOL WINDOW: EQUATION BUILDER (Visual Math Input) -->
-  <div id="floatEditorWindow" class="floating-window" role="region" aria-label="Equation Builder" tabindex="-1" style="display: none; top: 100px; right: 30px; width: 490px;" data-clarity-mask="true">
-    <div class="window-header">
-      <div class="window-title" id="editorWindowTitle">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-        Equation Builder
-      </div>
-      <div class="window-controls">
-        <button class="win-btn" id="editorModeToggle" title="Toggle between Visual Palette and Keyboard typing mode" aria-label="Keyboard Mode — Toggle Keyboard Typing Mode" style="font-size:0.75rem; background:var(--sidebar-hover); color:var(--text-main); border:1px solid var(--border-color); font-weight:600; padding:2px 8px;">⌨️ Keyboard Mode</button>
-        <button class="win-btn win-close" id="editorCloseBtn" title="Close Equation Builder" aria-label="Close Equation Builder window">×</button>
-      </div>
-    </div>
-    <div class="window-body">
-      <!-- Visual Interactive MathField (MathLive) -->
-      <div class="math-field-container">
-        <math-field id="visualMathField" class="custom-math-field" aria-label="Visual Interactive Math Expression Editor">x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}</math-field>
-      </div>
-
-      <!-- Quick Template Palette (Rendered Mathematical Keyboard) -->
-      <div class="palette-tabs" id="editorPaletteContainer">
-        <div class="palette-grid" role="group" aria-label="Mathematical Symbol and Template Palette">
-          <!-- Rendered Stacked Fraction -->
-          <button class="palette-btn math-symbol-btn" data-insert="\frac{#?}{#?}" title="Fraction (a/b)" aria-label="Insert Fraction template">
-            <span>\(\frac{a}{b}\)</span>
-          </button>
-          <!-- Exponent / Power -->
-          <button class="palette-btn math-symbol-btn" data-insert="#?^{#?}" title="Exponent / Power" aria-label="Insert Exponent power template">
-            <span>\(x^2\)</span>
-          </button>
-          <!-- Subscript -->
-          <button class="palette-btn math-symbol-btn" data-insert="#?_{#?}" title="Subscript" aria-label="Insert Subscript template">
-            <span>\(x_n\)</span>
-          </button>
-          <!-- Square Root -->
-          <button class="palette-btn math-symbol-btn" data-insert="\sqrt{#?}" title="Square Root" aria-label="Insert Square Root template">
-            <span>\(\sqrt{x}\)</span>
-          </button>
-          <!-- N-th Root -->
-          <button class="palette-btn math-symbol-btn" data-insert="\sqrt[#?]{#?}" title="N-th Root" aria-label="Insert N-th Root template">
-            <span>\(\sqrt[n]{x}\)</span>
-          </button>
-          <!-- Parentheses -->
-          <button class="palette-btn math-symbol-btn" data-insert="\left(#?\right)" title="Parentheses" aria-label="Insert Parentheses template">
-            <span>\((x)\)</span>
-          </button>
-          <!-- Absolute Value -->
-          <button class="palette-btn math-symbol-btn" data-insert="\left|#?\right|" title="Absolute Value" aria-label="Insert Absolute Value template">
-            <span>\(|x|\)</span>
-          </button>
-          <!-- Integral -->
-          <button class="palette-btn math-symbol-btn" data-insert="\int_{#?}^{#?} #? \, dx" title="Definite Integral" aria-label="Insert Definite Integral template">
-            <span>\(\int_a^b\)</span>
-          </button>
-          <!-- Derivative as proper stacked fraction -->
-          <button class="palette-btn math-symbol-btn" data-insert="\frac{d}{dx}\left(#?\right)" title="Derivative (d/dx)" aria-label="Insert Derivative d over dx template">
-            <span>\(\frac{d}{dx}\)</span>
-          </button>
-          <!-- Limit with subscript -->
-          <button class="palette-btn math-symbol-btn" data-insert="\lim_{#? \to #?} #?" title="Limit" aria-label="Insert Limit template">
-            <span>\(\lim_{x \to 0}\)</span>
-          </button>
-          <!-- Summation with bounds -->
-          <button class="palette-btn math-symbol-btn" data-insert="\sum_{#?}^{#?} #?" title="Summation" aria-label="Insert Summation template">
-            <span>\(\sum\)</span>
-          </button>
-          <!-- Pi -->
-          <button class="palette-btn math-symbol-btn" data-insert="\pi" title="Pi" aria-label="Insert Pi symbol">
-            <span>\(\pi\)</span>
-          </button>
-          <!-- Theta -->
-          <button class="palette-btn math-symbol-btn" data-insert="\theta" title="Theta" aria-label="Insert Theta symbol">
-            <span>\(\theta\)</span>
-          </button>
-          <!-- Plus-Minus -->
-          <button class="palette-btn math-symbol-btn" data-insert="\pm" title="Plus-Minus" aria-label="Insert Plus-Minus symbol">
-            <span>\(\pm\)</span>
-          </button>
-          <!-- Less than or equal -->
-          <button class="palette-btn math-symbol-btn" data-insert="\le" title="Less than or equal" aria-label="Insert Less than or equal symbol">
-            <span>\(\le\)</span>
-          </button>
-          <!-- Greater than or equal -->
-          <button class="palette-btn math-symbol-btn" data-insert="\ge" title="Greater than or equal" aria-label="Insert Greater than or equal symbol">
-            <span>\(\ge\)</span>
-          </button>
-          <!-- Not Equal -->
-          <button class="palette-btn math-symbol-btn" data-insert="\neq" title="Not Equal" aria-label="Insert Not Equal symbol">
-            <span>\(\neq\)</span>
-          </button>
-          <!-- Rendered 2x2 Matrix -->
-          <button class="palette-btn math-symbol-btn" data-insert="\begin{pmatrix} #? & #? \\ #? & #? \end{pmatrix}" title="2x2 Matrix" aria-label="Insert 2x2 Matrix template">
-            <span>\(\begin{pmatrix} \cdot & \cdot \\ \cdot & \cdot \end{pmatrix}\)</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Action Dispatcher Bar: Send Expression Across Tools -->
-      <div class="editor-actions-bar" role="group" aria-label="Equation Actions">
-        <button class="editor-action-btn primary" id="sendEqToPythos" title="Send equation to Pythos chat" aria-label="Ask Pythos — Send equation to Pythos chat">
-          <span>Ask Pythos ↵</span>
-        </button>
-        <button class="editor-action-btn" id="sendEqToCalc" title="Send to Scientific Calculator" aria-label="→ Calc — Send expression to Scientific Calculator">
-          <span>→ Calc</span>
-        </button>
-        <button class="editor-action-btn" id="sendEqToGraph" title="Send to Function Grapher" aria-label="→ Graph — Send function to Grapher">
-          <span>→ Graph</span>
-        </button>
-        <button class="editor-action-btn" id="sendEqToCheck" title="Send to Check My Work" aria-label="→ Check Work — Send equation to Check My Work">
-          <span>→ Check Work</span>
-        </button>
-        <button class="editor-action-btn" id="copyEqLaTeX" title="Copy LaTeX code to clipboard" aria-label="📋 Copy — Copy LaTeX code to clipboard">
-          <span>📋 Copy</span>
-        </button>
-      </div>
-      <div id="editorStatusMsg" class="editor-status" style="display:none;" role="status" aria-live="polite"></div>
     </div>
   </div>
 

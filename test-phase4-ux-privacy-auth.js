@@ -43,23 +43,33 @@ async function runTests() {
 
   assert(
     beforePopover.includes('id="toolCheckBtn"') &&
-    beforePopover.includes('id="toolGraphBtn"') &&
+    beforePopover.includes('id="toolCalcBtn"') &&
     beforePopover.includes('id="toolSimLabBtn"') &&
-    !beforePopover.includes('id="toolCalcBtn"') &&
+    beforePopover.includes('sim-lab-cta') &&
+    !beforePopover.includes('id="toolGraphBtn"') &&
     !beforePopover.includes('id="toolUnitsBtn"'),
-    'Primary toolbar displays exactly 3 primary tools directly (Check Work, Graph, Sim Lab)'
+    'Primary toolbar displays 3 primary tools directly (Check Work, Calc, Sim Lab with shimmer CTA)'
   );
 
   assert(
     insidePopover.includes('id="toolboxMenuBtn"') &&
     insidePopover.includes('id="toolboxPopoverMenu"') &&
-    insidePopover.includes('id="toolCalcBtn"') &&
+    insidePopover.includes('id="toolGraphBtn"') &&
     insidePopover.includes('id="toolUnitsBtn"') &&
     insidePopover.includes('id="toolMatrixBtn"') &&
     insidePopover.includes('id="toolEditorBtn"') &&
     insidePopover.includes('id="toolFormulasBtn"') &&
     insidePopover.includes('id="toolScratchpadBtn"'),
-    'Secondary tools (Calc, Units, Matrix, Equation Builder, Formulas, Scratchpad) are organized inside accessible Toolbox popover'
+    'Secondary tools (Graph, Units, Matrix, Equation Builder, Formulas, Scratchpad) are organized inside accessible Toolbox popover'
+  );
+
+  assert(
+    indexHtml.includes('id="pearsonEquationBar"') &&
+    indexHtml.includes('id="pearsonExpandBtn"') &&
+    indexHtml.includes('docked-equation-drawer') &&
+    appJs.includes('convertLatexToMathJs') &&
+    appJs.includes('openFloatingWindowById'),
+    'Pearson-style quick math bar and expandable docked Equation Builder with multi-applet dispatcher are present'
   );
 
   console.log('\n--- 4.2 Onboarding & Account Options ---');
