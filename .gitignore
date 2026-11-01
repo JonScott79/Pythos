@@ -39,3 +39,6 @@ scratch/
 
 # Local print & promotional materials
 flyer.html
+
+dist/
+

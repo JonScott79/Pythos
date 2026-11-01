@@ -547,6 +547,17 @@ const app = express();
 // Phase 0.3: Disable Express server fingerprinting header
 app.disable('x-powered-by');
 
+// Phase 0.3: Enforce HTTP security headers on all gateway and API responses
+app.use((req, res, next) => {
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()');
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://www.gstatic.com https://apis.google.com https://www.clarity.ms https://*.clarity.ms; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://fonts.googleapis.com; font-src 'self' data: https://cdn.jsdelivr.net https://unpkg.com https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://pythos-api.lanzar.me https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com https://www.gstatic.com https://cdn.jsdelivr.net https://unpkg.com https://www.clarity.ms https://*.clarity.ms; frame-src 'self' https://*.firebaseapp.com https://accounts.google.com; object-src 'none'; base-uri 'self';");
+  next();
+});
+
 // =====================================
 // Middleware (Phase 0.1 & 0.2 Hardened)
 // =====================================
