@@ -2629,6 +2629,21 @@ loginBtn.addEventListener("click", async () => {
 
 logoutBtn.addEventListener("click", async () => {
   try {
+    if (currentUser && currentUser.isLanzarId && window.lanzarIdAuthProvider) {
+      window.lanzarIdAuthProvider.signOut();
+      currentUser = null;
+      loginBtn.style.display = "block";
+      const lanzarBtn = document.getElementById("lanzarIdLoginBtn");
+      if (lanzarBtn) lanzarBtn.style.display = "flex";
+      const anonNotice = document.getElementById("anonSyncNotice");
+      if (anonNotice) anonNotice.style.display = "block";
+      userInfo.style.display = "none";
+      logoutBtn.style.display = "none";
+      document.getElementById("chatHistoryList").innerHTML = "";
+      currentChatId = null;
+      clearChatUI();
+      return;
+    }
     await ensureFirebaseInitialized();
     await signOut(auth);
   } catch (_) {}
@@ -2640,6 +2655,10 @@ function bindFirebaseAuthListener() {
     if (user) {
       currentUser = user;
       loginBtn.style.display = "none";
+      const lanzarBtn = document.getElementById("lanzarIdLoginBtn");
+      if (lanzarBtn) lanzarBtn.style.display = "none";
+      const anonNotice = document.getElementById("anonSyncNotice");
+      if (anonNotice) anonNotice.style.display = "none";
       userInfo.style.display = "flex";
       logoutBtn.style.display = "block";
       userName.textContent = user.displayName;
@@ -2649,10 +2668,14 @@ function bindFirebaseAuthListener() {
         clearChatUI();
       }
       loadSidebarChats();
-    } else {
+    } else if (!currentUser || !currentUser.isLanzarId) {
       const wasLoggedIn = Boolean(currentUser);
       currentUser = null;
       loginBtn.style.display = "block";
+      const lanzarBtn = document.getElementById("lanzarIdLoginBtn");
+      if (lanzarBtn) lanzarBtn.style.display = "flex";
+      const anonNotice = document.getElementById("anonSyncNotice");
+      if (anonNotice) anonNotice.style.display = "block";
       userInfo.style.display = "none";
       logoutBtn.style.display = "none";
       document.getElementById("chatHistoryList").innerHTML = "";
@@ -6838,6 +6861,239 @@ if (studyHubCloseBtn) {
   studyHubCloseBtn.addEventListener("click", () => {
     const details = document.getElementById("studyHubDetails");
     if (details) details.removeAttribute("open");
+  });
+}
+
+// Bind Searchable Quick-Start Filter inside Study Hub Drawer (Phase 4.6)
+const studyHubSearchInput = document.getElementById("studyHubSearchInput");
+if (studyHubSearchInput) {
+  studyHubSearchInput.addEventListener("input", () => {
+    const q = studyHubSearchInput.value.trim().toLowerCase();
+    document.querySelectorAll("#studyHubDrawer .study-nav-chip, #studyHubDrawer .study-faq-item").forEach(el => {
+      const text = (el.textContent || "").toLowerCase();
+      el.style.display = (!q || text.includes(q)) ? "" : "none";
+    });
+  });
+}
+
+// Bind Secondary Toolbox Popover Menu & Shortcuts (Phase 4.1)
+const toolboxMenuBtn = document.getElementById("toolboxMenuBtn");
+const toolboxPopoverMenu = document.getElementById("toolboxPopoverMenu");
+function closeToolboxPopover() {
+  if (toolboxPopoverMenu) toolboxPopoverMenu.classList.remove("open");
+  if (toolboxMenuBtn) toolboxMenuBtn.setAttribute("aria-expanded", "false");
+}
+if (toolboxMenuBtn && toolboxPopoverMenu) {
+  toolboxMenuBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const willOpen = !toolboxPopoverMenu.classList.contains("open");
+    if (willOpen) {
+      toolboxPopoverMenu.classList.add("open");
+      toolboxMenuBtn.setAttribute("aria-expanded", "true");
+      const firstItem = toolboxPopoverMenu.querySelector("button");
+      if (firstItem) setTimeout(() => firstItem.focus(), 30);
+    } else {
+      closeToolboxPopover();
+    }
+  });
+  toolboxPopoverMenu.querySelectorAll("button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      closeToolboxPopover();
+    });
+  });
+  document.addEventListener("click", (e) => {
+    if (!toolboxPopoverMenu.contains(e.target) && e.target !== toolboxMenuBtn) {
+      closeToolboxPopover();
+    }
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && toolboxPopoverMenu.classList.contains("open")) {
+      closeToolboxPopover();
+      toolboxMenuBtn.focus();
+    }
+  });
+}
+
+const toolFormulasBtn = document.getElementById("toolFormulasBtn");
+if (toolFormulasBtn) {
+  toolFormulasBtn.addEventListener("click", () => {
+    if (typeof openMathGuide === "function") openMathGuide();
+  });
+}
+
+const toolScratchpadBtn = document.getElementById("toolScratchpadBtn");
+if (toolScratchpadBtn) {
+  toolScratchpadBtn.addEventListener("click", () => {
+    if (input) {
+      input.rows = 4;
+      input.placeholder = "Scratchpad Mode: Write multi-line steps, equations, or notes here (Shift+Enter for new line, Enter to verify with Pythos)...";
+      autoResizeInput();
+      input.focus();
+    }
+  });
+}
+
+// Bind LANZAR ID Authentication & Consent Modal (Phase 4.2, 4.3, 4.4)
+const lanzarIdLoginBtn = document.getElementById("lanzarIdLoginBtn");
+const lanzarIdModal = document.getElementById("lanzarIdModal");
+const lanzarIdModalCloseBtn = document.getElementById("lanzarIdModalCloseBtn");
+const lanzarCancelBtn = document.getElementById("lanzarCancelBtn");
+const lanzarSubmitBtn = document.getElementById("lanzarSubmitBtn");
+const lanzarModeLoginTab = document.getElementById("lanzarModeLoginTab");
+const lanzarModeRegisterTab = document.getElementById("lanzarModeRegisterTab");
+const lanzarDisplayNameGroup = document.getElementById("lanzarDisplayNameGroup");
+const lanzarDisplayNameInput = document.getElementById("lanzarDisplayNameInput");
+const lanzarEmailInput = document.getElementById("lanzarEmailInput");
+const lanzarPasswordInput = document.getElementById("lanzarPasswordInput");
+const mailingListConsentCheckbox = document.getElementById("mailingListConsentCheckbox");
+const lanzarUnsubscribeBtn = document.getElementById("lanzarUnsubscribeBtn");
+const lanzarAuthStatusMsg = document.getElementById("lanzarAuthStatusMsg");
+
+let lanzarAuthMode = "login";
+let lanzarAuthProviderPromise = null;
+
+async function getLanzarIdProvider() {
+  if (window.lanzarIdAuthProvider) return window.lanzarIdAuthProvider;
+  if (!lanzarAuthProviderPromise) {
+    lanzarAuthProviderPromise = import("./js/lanzarIdAuth.js").then(mod => {
+      const ProviderClass = mod.LanzarIdAuthProvider || mod.default;
+      window.lanzarIdAuthProvider = new ProviderClass(getPythosApiBase());
+      return window.lanzarIdAuthProvider;
+    });
+  }
+  return lanzarAuthProviderPromise;
+}
+
+function applyLanzarIdUserSession(user, token) {
+  if (!user || !token) return;
+  currentUser = {
+    uid: user.uid,
+    email: user.email,
+    displayName: user.displayName || user.email,
+    photoURL: "assets/pythos_avatar.jpg",
+    isLanzarId: true,
+    getIdToken: async () => token
+  };
+  if (loginBtn) loginBtn.style.display = "none";
+  if (lanzarIdLoginBtn) lanzarIdLoginBtn.style.display = "none";
+  const anonNotice = document.getElementById("anonSyncNotice");
+  if (anonNotice) anonNotice.style.display = "none";
+  if (userInfo) userInfo.style.display = "flex";
+  if (logoutBtn) logoutBtn.style.display = "block";
+  if (userName) userName.textContent = `${currentUser.displayName} (LANZAR ID)`;
+  if (userAvatar) userAvatar.src = currentUser.photoURL;
+}
+
+function openLanzarIdModal() {
+  if (!lanzarIdModal) return;
+  if (mailingListConsentCheckbox) mailingListConsentCheckbox.checked = false;
+  if (lanzarAuthStatusMsg) lanzarAuthStatusMsg.style.display = "none";
+  lanzarIdModal.style.display = "flex";
+  if (lanzarEmailInput) setTimeout(() => lanzarEmailInput.focus(), 40);
+}
+
+function closeLanzarIdModal() {
+  if (!lanzarIdModal) return;
+  lanzarIdModal.style.display = "none";
+  if (lanzarIdLoginBtn) lanzarIdLoginBtn.focus();
+}
+
+if (lanzarIdLoginBtn) lanzarIdLoginBtn.addEventListener("click", openLanzarIdModal);
+if (lanzarIdModalCloseBtn) lanzarIdModalCloseBtn.addEventListener("click", closeLanzarIdModal);
+if (lanzarCancelBtn) lanzarCancelBtn.addEventListener("click", closeLanzarIdModal);
+
+if (lanzarModeLoginTab && lanzarModeRegisterTab) {
+  lanzarModeLoginTab.addEventListener("click", () => {
+    lanzarAuthMode = "login";
+    lanzarModeLoginTab.classList.add("active");
+    lanzarModeLoginTab.setAttribute("aria-selected", "true");
+    lanzarModeRegisterTab.classList.remove("active");
+    lanzarModeRegisterTab.setAttribute("aria-selected", "false");
+    if (lanzarDisplayNameGroup) lanzarDisplayNameGroup.style.display = "none";
+    if (lanzarSubmitBtn) {
+      lanzarSubmitBtn.textContent = "Sign In with LANZAR ID";
+      lanzarSubmitBtn.setAttribute("aria-label", "Sign In with LANZAR ID");
+    }
+  });
+  lanzarModeRegisterTab.addEventListener("click", () => {
+    lanzarAuthMode = "register";
+    lanzarModeRegisterTab.classList.add("active");
+    lanzarModeRegisterTab.setAttribute("aria-selected", "true");
+    lanzarModeLoginTab.classList.remove("active");
+    lanzarModeLoginTab.setAttribute("aria-selected", "false");
+    if (lanzarDisplayNameGroup) lanzarDisplayNameGroup.style.display = "block";
+    if (lanzarSubmitBtn) {
+      lanzarSubmitBtn.textContent = "Create LANZAR ID";
+      lanzarSubmitBtn.setAttribute("aria-label", "Create LANZAR ID");
+    }
+  });
+}
+
+if (lanzarSubmitBtn) {
+  lanzarSubmitBtn.addEventListener("click", async () => {
+    const email = lanzarEmailInput ? lanzarEmailInput.value.trim() : "";
+    const password = lanzarPasswordInput ? lanzarPasswordInput.value : "";
+    const displayName = lanzarDisplayNameInput ? lanzarDisplayNameInput.value.trim() : "";
+    const mailingListOptIn = Boolean(mailingListConsentCheckbox && mailingListConsentCheckbox.checked);
+
+    if (!email || !password) {
+      if (lanzarAuthStatusMsg) {
+        lanzarAuthStatusMsg.style.display = "block";
+        lanzarAuthStatusMsg.style.color = "#ef4444";
+        lanzarAuthStatusMsg.textContent = "Please enter both your email and password.";
+      }
+      return;
+    }
+
+    try {
+      const provider = await getLanzarIdProvider();
+      const res = await provider.signInOrRegister({
+        email,
+        password,
+        displayName,
+        mode: lanzarAuthMode,
+        mailingListOptIn
+      });
+      applyLanzarIdUserSession(res.user, res.token);
+      closeLanzarIdModal();
+    } catch (err) {
+      if (lanzarAuthStatusMsg) {
+        lanzarAuthStatusMsg.style.display = "block";
+        lanzarAuthStatusMsg.style.color = "#ef4444";
+        lanzarAuthStatusMsg.textContent = err.message || "Authentication failed.";
+      }
+    }
+  });
+}
+
+if (lanzarUnsubscribeBtn) {
+  lanzarUnsubscribeBtn.addEventListener("click", async (e) => {
+    e.preventDefault();
+    const email = lanzarEmailInput ? lanzarEmailInput.value.trim() : "";
+    if (!email) {
+      if (lanzarAuthStatusMsg) {
+        lanzarAuthStatusMsg.style.display = "block";
+        lanzarAuthStatusMsg.style.color = "var(--primary-color)";
+        lanzarAuthStatusMsg.textContent = "Enter your email address above and click 'unsubscribe anytime' to opt out immediately.";
+      }
+      return;
+    }
+    try {
+      const provider = await getLanzarIdProvider();
+      await provider.unsubscribeMailingList(email);
+      if (mailingListConsentCheckbox) mailingListConsentCheckbox.checked = false;
+      if (lanzarAuthStatusMsg) {
+        lanzarAuthStatusMsg.style.display = "block";
+        lanzarAuthStatusMsg.style.color = "#10b981";
+        lanzarAuthStatusMsg.textContent = `Unsubscribed ${email} from all mailing lists.`;
+      }
+    } catch (err) {
+      if (lanzarAuthStatusMsg) {
+        lanzarAuthStatusMsg.style.display = "block";
+        lanzarAuthStatusMsg.style.color = "#ef4444";
+        lanzarAuthStatusMsg.textContent = err.message || "Unsubscribe request failed.";
+      }
+    }
   });
 }
 

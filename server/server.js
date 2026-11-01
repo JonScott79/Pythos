@@ -27,6 +27,7 @@ const OLLAMA_API_KEY = process.env.OLLAMA_API_KEY ? process.env.OLLAMA_API_KEY.t
 const providerPolicy = require('./providerPolicy');
 const GROQ_API_KEY = providerPolicy.getGroqApiKey();
 const projectKnowledgeService = require('./projectKnowledgeService');
+const lanzarIdService = require('./lanzarIdService');
 const PORT = process.env.PORT || 3006;
 const REQUEST_TIMEOUT_MS = parseInt(process.env.REQUEST_TIMEOUT_MS, 10) || 180000; // 180s timeout for vision models
 const REVISION_TIMEOUT_MS = parseInt(process.env.REVISION_TIMEOUT_MS, 10) || 25000; // 25s bounded timeout for revision calls
@@ -3283,6 +3284,19 @@ async function studentAuthMiddleware(req, res, next) {
   }
 
   const rawToken = authHeader.slice(7).trim();
+
+  // Support LANZAR ID OIDC-compatible signed session tokens alongside Firebase tokens
+  if (rawToken.startsWith('lanzar.')) {
+    const claims = lanzarIdService.verifyLanzarToken(rawToken);
+    if (!claims || !claims.uid || !memoryService.isValidUid(claims.uid)) {
+      return res.status(401).json({ error: 'unauthorized', message: 'Invalid or expired LANZAR ID token.' });
+    }
+    req.studentUid = claims.uid;
+    req.authProvider = 'lanzar_id';
+    req.studentClaims = claims;
+    return next();
+  }
+
   if (!firebaseAdmin.isAdminSdkAvailable()) {
     return res.status(503).json({ error: 'auth_unavailable', message: 'Authentication service currently unavailable.' });
   }
@@ -3379,6 +3393,99 @@ app.post('/api/learning/record', studentAuthMiddleware, async (req, res) => {
     return res.status(400).json(result);
   }
   return res.status(200).json(result);
+});
+
+// =====================================
+// LANZAR ID Ecosystem Authentication & Consent Routes (Phase 4.3 & 4.4)
+// =====================================
+app.get('/api/auth/lanzar/.well-known/openid-configuration', (req, res) => {
+  return res.status(200).json(lanzarIdService.getOidcDiscoveryDocument());
+});
+
+app.post('/api/auth/lanzar/session', async (req, res) => {
+  try {
+    const { email, password, displayName, mode, mailingListOptIn, consentSource, linkedGoogleUid } = req.body || {};
+    const result = await lanzarIdService.authenticateOrRegisterLanzarId({
+      email,
+      password,
+      displayName,
+      mode: mode === 'register' ? 'register' : 'login',
+      mailingListOptIn: mailingListOptIn === true,
+      consentSource: consentSource || 'pythos_lanzar_id_modal',
+      linkedGoogleUid: linkedGoogleUid || null
+    });
+    return res.status(200).json({ status: 'ok', ...result });
+  } catch (err) {
+    return res.status(400).json({ error: 'lanzar_auth_error', message: err.message });
+  }
+});
+
+app.get('/api/auth/lanzar/verify', (req, res) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'unauthorized', message: 'Missing LANZAR ID token.' });
+  }
+  const claims = lanzarIdService.verifyLanzarToken(authHeader.slice(7).trim());
+  if (!claims) {
+    return res.status(401).json({ error: 'unauthorized', message: 'Invalid or expired LANZAR ID token.' });
+  }
+  return res.status(200).json({ status: 'ok', claims });
+});
+
+app.post('/api/auth/lanzar/link-google', async (req, res) => {
+  try {
+    const authHeader = req.headers['authorization'];
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'unauthorized', message: 'Missing LANZAR ID token.' });
+    }
+    const claims = lanzarIdService.verifyLanzarToken(authHeader.slice(7).trim());
+    if (!claims || !claims.uid) {
+      return res.status(401).json({ error: 'unauthorized', message: 'Invalid LANZAR ID token.' });
+    }
+    const { googleUid, googleEmail } = req.body || {};
+    if (!googleUid || typeof googleUid !== 'string') {
+      return res.status(400).json({ error: 'invalid_request', message: 'googleUid is required.' });
+    }
+    const linked = await lanzarIdService.linkGoogleAccountToLanzarId({
+      lanzarUid: claims.uid,
+      googleUid,
+      googleEmail
+    });
+    return res.status(200).json({ status: 'ok', linked });
+  } catch (err) {
+    return res.status(400).json({ error: 'link_error', message: err.message });
+  }
+});
+
+app.post('/api/mailing-list/consent', async (req, res) => {
+  try {
+    const { email, consented, consentSource, uid } = req.body || {};
+    const record = await lanzarIdService.updateMailingListConsent({
+      email,
+      consented: consented === true,
+      consentSource: consentSource || 'pythos_consent_api',
+      uid: uid || null
+    });
+    return res.status(200).json({
+      status: 'ok',
+      email: record.email,
+      subscribed: record.subscribed,
+      consentTimestamp: record.consentTimestamp,
+      consentSource: record.consentSource
+    });
+  } catch (err) {
+    return res.status(400).json({ error: 'consent_error', message: err.message });
+  }
+});
+
+app.post('/api/mailing-list/unsubscribe', async (req, res) => {
+  try {
+    const { email, token } = req.body || {};
+    const result = await lanzarIdService.unsubscribeMailingList({ email, token });
+    return res.status(200).json({ status: 'ok', ...result });
+  } catch (err) {
+    return res.status(400).json({ error: 'unsubscribe_error', message: err.message });
+  }
 });
 
 // =====================================

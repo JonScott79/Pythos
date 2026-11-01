@@ -1427,8 +1427,81 @@
       gap: 6px;
       margin-bottom: 6px;
       padding: 2px;
-      overflow-x: auto;
-      scrollbar-width: none;
+      overflow-x: visible;
+      flex-wrap: wrap;
+      position: relative;
+    }
+
+    .toolbox-popover-wrap {
+      position: relative;
+      display: inline-flex;
+    }
+
+    .toolbox-popover-menu {
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 0;
+      min-width: 210px;
+      background: var(--surface-color);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
+      padding: 6px;
+      display: none;
+      flex-direction: column;
+      gap: 4px;
+      z-index: 950;
+    }
+
+    .toolbox-popover-menu.open {
+      display: flex;
+    }
+
+    .toolbox-popover-menu .tool-btn {
+      width: 100%;
+      justify-content: flex-start;
+      padding: 7px 10px;
+      font-size: 0.78rem;
+      border-color: transparent;
+    }
+
+    .toolbox-popover-menu .tool-btn:hover {
+      background: var(--sidebar-hover);
+      border-color: var(--primary-color);
+    }
+
+    .anon-status-note {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      line-height: 1.35;
+      padding: 6px 8px;
+      border-radius: 6px;
+      background: var(--surface-color);
+      border: 1px dashed var(--border-color);
+      margin-bottom: 4px;
+    }
+
+    .lanzar-id-btn {
+      width: 100%;
+      padding: 7px 10px;
+      background: var(--surface-color);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.78rem;
+      transition: background 0.2s, border-color 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .lanzar-id-btn:hover {
+      background: var(--sidebar-hover);
+      border-color: var(--primary-color);
+      color: var(--primary-color);
     }
 
     .tool-btn {
@@ -4224,7 +4297,13 @@
       </div>
       
       <div class="sidebar-footer">
+        <div id="anonSyncNotice" class="anon-status-note" role="note" aria-label="Anonymous session mode">
+          <strong>Continue anonymously</strong> (active by default) &mdash; Sign in to sync your conversations and personal memory across devices.
+        </div>
         <button id="loginBtn" class="login-btn" aria-label="Login with Google">Login with Google</button>
+        <button id="lanzarIdLoginBtn" type="button" class="lanzar-id-btn" aria-label="Sign in with LANZAR ID" aria-haspopup="dialog" aria-controls="lanzarIdModal">
+          <span>🛡️ Sign in with LANZAR ID</span>
+        </button>
         <div id="userInfo" style="display: none;" class="user-profile" data-clarity-mask="true">
           <img id="userAvatar" src="" alt="User profile avatar" width="32" height="32" data-clarity-mask="true" />
           <div style="flex:1; overflow:hidden;">
@@ -4240,6 +4319,8 @@
           <a href="validation/">Validation</a>
           <a href="about/">About</a>
           <a href="nonprofit.html">Mission &amp; Roadmap</a>
+          <a href="privacy.html">Privacy</a>
+          <a href="accessibility.html">Accessibility</a>
           <a href="license.html">License</a>
           <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" title="Official Facebook Page" aria-label="Facebook — Official Facebook Page">Facebook</a>
           <a href="changelog.html#pythos-1-8-52" title="View Changelog" aria-label="v1.8.52 — Version 1.8.52 Release Notes">v1.8.52</a>
@@ -4316,11 +4397,11 @@
         </div>
 
         <div class="input-area">
-          <!-- PYTHOS MATH TOOLBOX -->
+          <!-- PYTHOS MATH TOOLBOX (3 Primary Visible Tools + Accessible Secondary Toolbox Popover) -->
           <div class="toolbox-bar" role="toolbar" aria-label="Interactive Math and Physics Tools">
-            <button id="toolCalcBtn" class="tool-btn" title="Scientific Calculator" aria-label="Calc — Open Scientific Calculator" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatCalcWindow">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="6" x2="16" y2="6"></line><line x1="16" y1="14" x2="16" y2="18"></line><path d="M8 10h.01"></path><path d="M12 10h.01"></path><path d="M16 10h.01"></path><path d="M8 14h.01"></path><path d="M12 14h.01"></path><path d="M8 18h.01"></path><path d="M12 18h.01"></path></svg>
-              <span>Calc</span>
+            <button id="toolCheckBtn" class="tool-btn" title="Check My Work (Step Verifier)" aria-label="Check Work — Open Check My Work step verifier" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatCheckWindow">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+              <span>Check Work</span>
             </button>
             <button id="toolGraphBtn" class="tool-btn" title="Function Grapher" aria-label="Graph — Open Function Grapher" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatGraphWindow">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
@@ -4334,22 +4415,37 @@
               </svg>
               <span>Sim Lab</span>
             </button>
-            <button id="toolCheckBtn" class="tool-btn" title="Check My Work (Step Verifier)" aria-label="Check Work — Open Check My Work step verifier" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatCheckWindow">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-              <span>Check Work</span>
-            </button>
-            <button id="toolUnitsBtn" class="tool-btn" title="Physics & Math Unit Converter" aria-label="Units — Open Unit Converter" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatUnitsWindow">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
-              <span>Units</span>
-            </button>
-            <button id="toolMatrixBtn" class="tool-btn" title="Matrix & Vector Calculator" aria-label="Matrix — Open Matrix and Vector Calculator" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatMatrixWindow">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line><line x1="15" y1="3" x2="15" y2="21"></line><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line></svg>
-              <span>Matrix</span>
-            </button>
-            <button id="toolEditorBtn" class="tool-btn" title="Equation Builder (Visual Math Input)" aria-label="Equation Builder — Open Visual Equation Builder" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatEditorWindow">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-              <span>Equation Builder</span>
-            </button>
+
+            <div class="toolbox-popover-wrap">
+              <button id="toolboxMenuBtn" type="button" class="tool-btn" title="More Math &amp; Physics Instruments (Calculator, Units, Matrix, Formulas, Scratchpad, Math Keyboard)" aria-label="Toolbox — Open secondary tools menu" aria-haspopup="true" aria-expanded="false" aria-controls="toolboxPopoverMenu">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="7" width="20" height="14" rx="2"></rect><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"></path></svg>
+                <span>Toolbox ▾</span>
+              </button>
+              <div id="toolboxPopoverMenu" class="toolbox-popover-menu" role="menu" aria-label="Secondary Math and Physics Instruments">
+                <button id="toolCalcBtn" class="tool-btn" role="menuitem" title="Scientific Calculator" aria-label="Calc — Open Scientific Calculator" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatCalcWindow">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="6" x2="16" y2="6"></line><line x1="16" y1="14" x2="16" y2="18"></line><path d="M8 10h.01"></path><path d="M12 10h.01"></path><path d="M16 10h.01"></path><path d="M8 14h.01"></path><path d="M12 14h.01"></path><path d="M8 18h.01"></path><path d="M12 18h.01"></path></svg>
+                  <span>Calc (Scientific Calculator)</span>
+                </button>
+                <button id="toolUnitsBtn" class="tool-btn" role="menuitem" title="Physics &amp; Math Unit Converter" aria-label="Units — Open Unit Converter" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatUnitsWindow">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                  <span>Units (Converter)</span>
+                </button>
+                <button id="toolMatrixBtn" class="tool-btn" role="menuitem" title="Matrix &amp; Vector Calculator" aria-label="Matrix — Open Matrix and Vector Calculator" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatMatrixWindow">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line><line x1="15" y1="3" x2="15" y2="21"></line><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line></svg>
+                  <span>Matrix &amp; Vectors</span>
+                </button>
+                <button id="toolEditorBtn" class="tool-btn" role="menuitem" title="Equation Builder (Visual Math Keyboard)" aria-label="Equation Builder — Open Visual Equation Builder" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatEditorWindow">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                  <span>Equation Builder (Math Keyboard)</span>
+                </button>
+                <button id="toolFormulasBtn" type="button" class="tool-btn" role="menuitem" title="Formulas &amp; Syntax Reference" aria-label="Formulas — Open Math Input Guide &amp; Formulas" aria-haspopup="dialog" aria-controls="mathGuideOverlay">
+                  <span>📖 Formulas &amp; Syntax Guide</span>
+                </button>
+                <button id="toolScratchpadBtn" type="button" class="tool-btn" role="menuitem" title="Scratchpad &amp; Quick Notes" aria-label="Scratchpad — Focus input for multi-line scratchpad work">
+                  <span>📝 Scratchpad Mode</span>
+                </button>
+              </div>
+            </div>
           </div>
 
           <!-- PENDING IMAGE ATTACHMENTS STRIP -->
@@ -4546,7 +4642,7 @@
   </div>
 
   <!-- FLOATING TOOL WINDOW: SCIENTIFIC CALCULATOR -->
-  <div id="floatCalcWindow" class="floating-window" role="region" aria-label="Scientific Calculator" tabindex="-1" style="display: none; top: 120px; right: 40px; width: 320px;">
+  <div id="floatCalcWindow" class="floating-window" role="region" aria-label="Scientific Calculator" tabindex="-1" style="display: none; top: 120px; right: 40px; width: 320px;" data-clarity-mask="true">
     <div class="window-header">
       <div class="window-title" id="calcWindowTitle">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="6" x2="16" y2="6"></line></svg>
@@ -4604,7 +4700,7 @@
   </div>
 
   <!-- FLOATING TOOL WINDOW: FUNCTION GRAPHER -->
-  <div id="floatGraphWindow" class="floating-window" role="region" aria-label="Function Grapher" tabindex="-1" style="display: none; top: 120px; right: 40px; width: 440px;">
+  <div id="floatGraphWindow" class="floating-window" role="region" aria-label="Function Grapher" tabindex="-1" style="display: none; top: 120px; right: 40px; width: 440px;" data-clarity-mask="true">
     <div class="window-header">
       <div class="window-title" id="graphWindowTitle">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
@@ -4627,7 +4723,7 @@
   </div>
 
   <!-- FLOATING TOOL WINDOW: CHECK MY WORK -->
-  <div id="floatCheckWindow" class="floating-window" role="region" aria-label="Check My Work Step Verifier" tabindex="-1" style="display: none; top: 120px; right: 40px; width: 380px;">
+  <div id="floatCheckWindow" class="floating-window" role="region" aria-label="Check My Work Step Verifier" tabindex="-1" style="display: none; top: 120px; right: 40px; width: 380px;" data-clarity-mask="true">
     <div class="window-header">
       <div class="window-title" id="checkWindowTitle">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
@@ -4659,7 +4755,7 @@
   </div>
 
   <!-- FLOATING TOOL WINDOW: UNIT CONVERTER -->
-  <div id="floatUnitsWindow" class="floating-window" role="region" aria-label="Unit Converter" tabindex="-1" style="display: none; top: 140px; right: 40px; width: 340px;">
+  <div id="floatUnitsWindow" class="floating-window" role="region" aria-label="Unit Converter" tabindex="-1" style="display: none; top: 140px; right: 40px; width: 340px;" data-clarity-mask="true">
     <div class="window-header">
       <div class="window-title" id="unitsWindowTitle">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
@@ -4685,7 +4781,7 @@
   </div>
 
   <!-- FLOATING TOOL WINDOW: MATRIX CALCULATOR -->
-  <div id="floatMatrixWindow" class="floating-window" role="region" aria-label="Matrix Calculator" tabindex="-1" style="display: none; top: 140px; right: 40px; width: 360px;">
+  <div id="floatMatrixWindow" class="floating-window" role="region" aria-label="Matrix Calculator" tabindex="-1" style="display: none; top: 140px; right: 40px; width: 360px;" data-clarity-mask="true">
     <div class="window-header">
       <div class="window-title" id="matrixWindowTitle">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line><line x1="15" y1="3" x2="15" y2="21"></line><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line></svg>
@@ -4716,7 +4812,7 @@
   </div>
 
   <!-- FLOATING TOOL WINDOW: EQUATION BUILDER (Visual Math Input) -->
-  <div id="floatEditorWindow" class="floating-window" role="region" aria-label="Equation Builder" tabindex="-1" style="display: none; top: 100px; right: 30px; width: 490px;">
+  <div id="floatEditorWindow" class="floating-window" role="region" aria-label="Equation Builder" tabindex="-1" style="display: none; top: 100px; right: 30px; width: 490px;" data-clarity-mask="true">
     <div class="window-header">
       <div class="window-title" id="editorWindowTitle">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
@@ -5234,7 +5330,12 @@
             <strong>Pythos</strong> is an independent, 100% free AI mathematics and physics tutor engineered by a student for students. Master algebra, AP Calculus, and classical mechanics with verified Socratic problem-solving derivations, 2D function graphing, and interactive PhET-style physics simulations.
           </p>
 
-          <div class="study-hub-subtitle">Curriculum Study Guides &amp; Tools</div>
+          <div style="margin-bottom: 12px;">
+            <label for="studyHubSearchInput" class="sr-only">Search Quick-Start Guides, Tools, and FAQ</label>
+            <input type="search" id="studyHubSearchInput" placeholder="Search guides, tools, or FAQ (e.g. grapher, privacy, integrals, sim lab)..." aria-label="Search Quick-Start Guides, Tools, and FAQ" style="width: 100%; padding: 7px 10px; font-size: 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-main); box-sizing: border-box;" />
+          </div>
+
+          <div class="study-hub-subtitle">Curriculum Study Guides &amp; Policies</div>
           <nav class="study-hub-nav" aria-label="Curriculum Guides">
             <a href="algebra/" class="study-nav-chip">📐 Algebra Guide</a>
             <a href="calculus/" class="study-nav-chip">📈 Calculus Guide</a>
@@ -5244,6 +5345,8 @@
             <a href="validation/" class="study-nav-chip">🛡️ Math Verifier Record</a>
             <a href="about/" class="study-nav-chip">🏛️ About Pythos</a>
             <a href="nonprofit.html" class="study-nav-chip">🌱 Mission Roadmap</a>
+            <a href="privacy.html" class="study-nav-chip">🔒 Privacy Policy</a>
+            <a href="accessibility.html" class="study-nav-chip">♿ Accessibility Statement</a>
           </nav>
 
           <div class="study-hub-subtitle">Frequently Asked Questions</div>
@@ -5267,10 +5370,68 @@
             <h3>What physics topics and simulations are covered?</h3>
             <p>Pythos covers classical mechanics, 1D and 2D kinematics, projectile motion, Newton laws of motion, rotational dynamics, work-energy theorem, and includes an interactive 17-experiment Simulation Lab with real-time visual exploration.</p>
           </div>
+          <div class="study-faq-item">
+            <h3>How do I use the Workspace Tools and LANZAR ID?</h3>
+            <p>Use the primary toolbar for <strong>Check Work</strong> (deterministic step verifier), <strong>Graph</strong> (2D function plotter), and <strong>Sim Lab</strong> (17 interactive experiments), or open the <strong>Toolbox</strong> popover for the Scientific Calculator, Unit Converter, Matrix Calculator, and Visual Equation Builder. You can use Pythos anonymously by default or sign in with Google or LANZAR ID to sync conversations and personal memory across devices.</p>
+          </div>
         </div>
       </div>
     </details>
   </aside>
+
+  <!-- LANZAR ID AUTHENTICATION & EXPLICIT CONSENT MODAL (Phase 4.2, 4.3, 4.4) -->
+  <div id="lanzarIdModal" class="report-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="lanzarIdModalTitle" aria-describedby="lanzarIdModalDesc" tabindex="-1" data-clarity-mask="true">
+    <div class="report-modal-card" style="max-width: 460px;">
+      <div class="report-modal-header">
+        <div class="report-modal-title-group">
+          <h3 id="lanzarIdModalTitle">🛡️ LANZAR ID — Ecosystem Sign In</h3>
+          <p id="lanzarIdModalDesc">Unified account across Pythos, Scout Forge, and LANZAR tools</p>
+        </div>
+        <button id="lanzarIdModalCloseBtn" type="button" class="math-guide-close" title="Close dialog" aria-label="Close LANZAR ID Dialog">&times;</button>
+      </div>
+      <div class="report-modal-body" style="gap: 12px;">
+        <div style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.45; background: var(--bg-color); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border-color);">
+          <strong>Anonymous access is always free.</strong> Sign in only if you want to sync your conversation history and personal learning memory across devices, or link with your Google account.
+        </div>
+
+        <div style="display: flex; gap: 6px;" role="tablist" aria-label="LANZAR ID Authentication Mode">
+          <button type="button" id="lanzarModeLoginTab" role="tab" aria-selected="true" class="tool-btn active" style="flex: 1; justify-content: center;">Sign In</button>
+          <button type="button" id="lanzarModeRegisterTab" role="tab" aria-selected="false" class="tool-btn" style="flex: 1; justify-content: center;">Create LANZAR ID</button>
+        </div>
+
+        <div id="lanzarDisplayNameGroup" style="display: none;">
+          <label for="lanzarDisplayNameInput" style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px;">Display Name (Optional)</label>
+          <input type="text" id="lanzarDisplayNameInput" class="check-input" placeholder="e.g. Alex" autocomplete="name" data-clarity-mask="true" />
+        </div>
+
+        <div>
+          <label for="lanzarEmailInput" style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px;">Email Address</label>
+          <input type="email" id="lanzarEmailInput" class="check-input" placeholder="student@example.edu" autocomplete="email" data-clarity-mask="true" />
+        </div>
+
+        <div>
+          <label for="lanzarPasswordInput" style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px;">Password (min. 8 characters)</label>
+          <input type="password" id="lanzarPasswordInput" class="check-input" placeholder="••••••••" autocomplete="current-password" data-clarity-mask="true" />
+        </div>
+
+        <!-- Explicit, Unchecked-by-Default Mailing List Consent (Phase 4.4) -->
+        <div style="background: var(--bg-color); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 0.76rem; color: var(--text-muted);">
+          <label for="mailingListConsentCheckbox" style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer; line-height: 1.4;">
+            <input type="checkbox" id="mailingListConsentCheckbox" style="margin-top: 2px;" />
+            <span>
+              <strong>Optional:</strong> Send me occasional product updates and new STEM study resources from Pythos &amp; LANZAR. (Unchecked by default; never required for account creation. You can <button type="button" id="lanzarUnsubscribeBtn" style="background:none; border:none; padding:0; color:var(--primary-color); text-decoration:underline; font-size:inherit; cursor:pointer;">unsubscribe anytime</button>.)
+            </span>
+          </label>
+        </div>
+
+        <div id="lanzarAuthStatusMsg" style="font-size: 0.8rem; display: none;" role="status" aria-live="polite"></div>
+      </div>
+      <div class="report-modal-actions" style="justify-content: space-between;">
+        <button id="lanzarCancelBtn" type="button" class="report-btn cancel" aria-label="Continue Anonymously — Close LANZAR ID dialog">Continue Anonymously</button>
+        <button id="lanzarSubmitBtn" type="button" class="report-btn submit" aria-label="Sign In with LANZAR ID">Sign In with LANZAR ID</button>
+      </div>
+    </div>
+  </div>
 
 </body>
 </html>
