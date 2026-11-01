@@ -1,0 +1,200 @@
+<!--
+    accessibility.html
+
+    Pythos Accessibility Statement & Conformance Documentation.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script defer src="js/analytics.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <link rel="apple-touch-icon" href="assets/favicon.png">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#2563eb">
+
+  <title>Accessibility Statement (WCAG 2.2 AA) | Pythos AI STEM Tutor</title>
+  <meta name="description" content="Pythos AI accessibility statement: WCAG 2.2 Level AA conformance, screen-reader MathML/KaTeX equations, keyboard navigation, and touch-accessible STEM simulations.">
+  <meta name="author" content="Jon Scott / LANZAR">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://pythos.lanzar.me/accessibility.html">
+
+  <meta property="og:title" content="Accessibility Statement (WCAG 2.2 AA) | Pythos AI STEM Tutor">
+  <meta property="og:description" content="Pythos AI accessibility statement: WCAG 2.2 Level AA conformance, screen-reader MathML/KaTeX equations, keyboard navigation, and touch-accessible STEM simulations.">
+  <meta property="og:url" content="https://pythos.lanzar.me/accessibility.html">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="Pythos">
+  <meta property="og:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
+  <meta property="og:image:width" content="512">
+  <meta property="og:image:height" content="512">
+  <meta property="og:image:alt" content="Pythos Oracle Avatar">
+
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Accessibility Statement (WCAG 2.2 AA) | Pythos AI STEM Tutor">
+  <meta name="twitter:description" content="WCAG 2.2 Level AA accessibility features in Pythos AI: screen reader math, keyboard-first workflows, and high-contrast themes.">
+  <meta name="twitter:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "Pythos Accessibility Statement",
+    "url": "https://pythos.lanzar.me/accessibility.html",
+    "description": "WCAG 2.2 Level AA accessibility statement and assistive technology guide for Pythos AI.",
+    "isPartOf": {
+      "@type": "WebSite",
+      "@id": "https://pythos.lanzar.me/#website"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "LANZAR",
+      "url": "https://lanzar.me"
+    }
+  }
+  </script>
+
+  <style>
+    :root {
+      --bg-color: #fcfbf9;
+      --surface-color: #ffffff;
+      --text-main: #1e293b;
+      --text-muted: #475569;
+      --primary-color: #2a728f;
+      --border-color: #e2e8f0;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-color: #0b0f19;
+        --surface-color: #131b2e;
+        --text-main: #f8fafc;
+        --text-muted: #94a3b8;
+        --primary-color: #38bdf8;
+        --border-color: #1e293b;
+      }
+    }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, 'Inter', sans-serif;
+      background: var(--bg-color);
+      color: var(--text-main);
+      line-height: 1.65;
+    }
+    .skip-link {
+      position: absolute;
+      top: -100px;
+      left: 16px;
+      background: var(--primary-color);
+      color: #fff;
+      padding: 8px 14px;
+      border-radius: 6px;
+      z-index: 9999;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .skip-link:focus { top: 12px; }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    *:focus-visible {
+      outline: 2px solid var(--primary-color);
+      outline-offset: 2px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+    header, nav, main, footer {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 16px 24px;
+    }
+    nav {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      border-bottom: 1px solid var(--border-color);
+      font-size: 0.9rem;
+    }
+    nav a {
+      color: var(--primary-color);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .card {
+      background: var(--surface-color);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+    h1 { font-size: 1.9rem; margin-top: 8px; }
+    h2 { font-size: 1.3rem; color: var(--primary-color); margin-top: 0; }
+  </style>
+</head>
+<body>
+  <a href="#mainContent" class="skip-link">Skip to main content</a>
+
+  <nav aria-label="Primary Navigation">
+    <a href="index.html" class="back-btn">&larr; Back to Pythos Workspace</a>
+    <a href="subjects/">Subjects</a>
+    <a href="validation/">Validation</a>
+    <a href="about/">About</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="license.html">License</a>
+  </nav>
+
+  <main id="mainContent" role="main">
+    <h1>Accessibility Statement</h1>
+    <p><strong>Standard:</strong> WCAG 2.2 Level AA &bull; <strong>Automated &amp; Manual Audit Score:</strong> 100/100 (Desktop &amp; Mobile)</p>
+
+    <section class="card">
+      <h2>1. Commitment to Accessible STEM Education</h2>
+      <p>
+        Pythos is built on the principle that every student deserves free, rigorous mathematics and physics instruction regardless of disability or assistive technology. We engineer our workspace to conform to the <strong>Web Content Accessibility Guidelines (WCAG) 2.2 Level AA</strong>.
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>2. Screen Reader &amp; Mathematical Notation Support</h2>
+      <ul>
+        <li><strong>Semantic MathML + TeX Annotations:</strong> Every equation rendered via KaTeX includes embedded MathML (`katex-mathml`) and semantic speech-order extraction so fractions (`numerator/denominator`), roots, integrals, and boxed final answers (`role="math"`) are read accurately by NVDA, JAWS, and VoiceOver.</li>
+        <li><strong>Live Regions Without Chatter:</strong> The conversation log (`#output`) uses `role="log"` and `aria-live="polite"`, while rotating thinking animations use `aria-hidden="true"` with a single polite status announcement to prevent screen-reader chatter.</li>
+        <li><strong>WCAG 2.5.3 Label-in-Name Compliance:</strong> All interactive buttons and links with `aria-label` attributes preserve their visible text label for speech-input users (Dragon NaturallySpeaking, Voice Control).</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>3. Keyboard Navigation &amp; Focus Management</h2>
+      <ul>
+        <li><strong>Skip Links:</strong> Press `Tab` on page load to jump directly to the math input (`#userInput`) or conversation log (`#output`).</li>
+        <li><strong>Keyboard-Accessible Message Actions:</strong> Message action toolbars (Read Aloud, Copy, Report, Feedback) automatically appear when any button inside a message receives keyboard focus (`:focus-within`).</li>
+        <li><strong>Modal Focus Containment &amp; Escape Dismissal:</strong> All floating calculators, graphers, simulation labs, and dialogs support `Escape` key dismissal and restore focus to the invoking trigger button.</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>4. Visual Contrast, Motion &amp; Touch Targets</h2>
+      <ul>
+        <li><strong>High-Contrast Light &amp; Dark Modes:</strong> Text and interactive controls exceed WCAG AA contrast ratios (`4.5:1` normal text, `8.54:1` on primary dark-mode CTAs).</li>
+        <li><strong>Reduced Motion:</strong> Respects `@media (prefers-reduced-motion: reduce)` across all transitions and animations.</li>
+        <li><strong>Touch Targets:</strong> Interactive controls and mobile range sliders meet or exceed the WCAG 2.5.8 minimum target size (`24x24` CSS pixels).</li>
+      </ul>
+    </section>
+  </main>
+
+  <footer role="contentinfo">
+    <p>&copy; 2026 Jon Scott / LANZAR. Free Education License (PFEL v2.0).</p>
+  </footer>
+</body>
+</html>

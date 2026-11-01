@@ -124,12 +124,25 @@ def dispatch_verification(payload: dict) -> dict:
             "traceback": traceback.format_exc()
         }
 
+def dispatch_payload(payload):
+    """
+    Supports both single-claim dict payloads and batch list payloads.
+    """
+    if isinstance(payload, list):
+        return [dispatch_verification(item) if isinstance(item, dict) else {"verified": False, "status": "ERROR", "error": "Invalid batch item"} for item in payload]
+    elif isinstance(payload, dict) and isinstance(payload.get("batch"), list):
+        return [dispatch_verification(item) if isinstance(item, dict) else {"verified": False, "status": "ERROR", "error": "Invalid batch item"} for item in payload["batch"]]
+    elif isinstance(payload, dict):
+        return dispatch_verification(payload)
+    else:
+        return {"verified": False, "status": "ERROR", "error": "Unsupported payload type"}
+
 def main():
     if len(sys.argv) > 1:
         # Read JSON string argument
         try:
             payload = json.loads(sys.argv[1])
-            res = dispatch_verification(payload)
+            res = dispatch_payload(payload)
             print(json.dumps(res))
         except Exception as e:
             print(json.dumps({"verified": False, "status": "ERROR", "error": str(e)}))
@@ -139,7 +152,7 @@ def main():
             line = sys.stdin.read()
             if line.strip():
                 payload = json.loads(line)
-                res = dispatch_verification(payload)
+                res = dispatch_payload(payload)
                 print(json.dumps(res))
             else:
                 print(json.dumps({"verified": False, "status": "UNKNOWN", "reason": "Empty input"}))

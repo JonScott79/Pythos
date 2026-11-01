@@ -26,7 +26,6 @@
   <link rel="icon" type="image/png" href="assets/favicon.png">
   <link rel="apple-touch-icon" href="assets/favicon.png">
   <link rel="manifest" href="site.webmanifest">
-  <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#2563eb">
   
   <!-- SEO METADATA -->
@@ -44,16 +43,16 @@
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Pythos">
   <meta property="og:locale" content="en_US">
-  <meta property="og:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
-  <meta property="og:image:width" content="512">
-  <meta property="og:image:height" content="512">
+  <meta property="og:image" content="https://pythos.lanzar.me/assets/social/pythos_avatar_1024x1024.jpg">
+  <meta property="og:image:width" content="1024">
+  <meta property="og:image:height" content="1024">
   <meta property="og:image:alt" content="Pythos - Ancient Greek Mathematical Scholar and AI Oracle">
 
   <!-- TWITTER CARD -->
-  <meta name="twitter:card" content="summary">
+  <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Pythos | Free AI Math & Physics Tutor — Step-by-Step Solver">
   <meta name="twitter:description" content="Free AI math & physics tutor. Master algebra, AP Calculus, and physics with verified step-by-step Socratic problem solving, graphing, and simulation tools.">
-  <meta name="twitter:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
+  <meta name="twitter:image" content="https://pythos.lanzar.me/assets/social/pythos_avatar_1024x1024.jpg">
   <meta name="twitter:image:alt" content="Pythos Oracle Avatar">
 
   <!-- JSON-LD STRUCTURED DATA -->
@@ -69,6 +68,8 @@
         "url": "https://pythos.lanzar.me/",
         "applicationCategory": "EducationalApplication",
         "operatingSystem": "All modern web browsers",
+        "softwareVersion": "1.8.52",
+        "dateModified": "2026-10-31",
         "description": "Free AI mathematics and physics tutor providing Socratic step-by-step guidance, deterministic computer algebra verification, 2D function plotting, and study tools.",
         "inLanguage": "en",
         "isAccessibleForFree": true,
@@ -170,40 +171,17 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link id="googleFontsStylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" media="print">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"></noscript>
   
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <link id="katexStylesheet" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" media="print">
+  <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css"></noscript>
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
-  <!-- Deterministic Math Engine -->
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.1/math.js"></script>
-  <!-- Visual Equation Editor (MathLive) -->
-  <script defer src="https://unpkg.com/mathlive"></script>
-  <!-- Pythos Classical Visualization Engine -->
-  <script defer src="vizEngine/vizProtocol.js"></script>
-  <script defer src="vizEngine/vizExtractor.js"></script>
-  <script defer src="vizEngine/scrollPolicy.js"></script>
-  <script defer src="vizEngine/models/projectile.js"></script>
-  <script defer src="vizEngine/models/newtons_laws.js"></script>
-  <script defer src="vizEngine/models/energy_transfer.js"></script>
-  <script defer src="vizEngine/models/momentum.js"></script>
-  <script defer src="vizEngine/models/hookes_law.js"></script>
-  <script defer src="vizEngine/models/waves.js"></script>
-  <script defer src="vizEngine/models/circuits.js"></script>
-  <script defer src="vizEngine/models/trigonometry.js"></script>
-  <script defer src="vizEngine/models/calculus_derivatives.js"></script>
-  <script defer src="vizEngine/models/triangle.js"></script>
-  <script defer src="vizEngine/models/circle.js"></script>
-  <script defer src="vizEngine/models/normal_distribution.js"></script>
-  <script defer src="vizEngine/models/gas_laws.js"></script>
-  <script defer src="vizEngine/models/exponential_growth.js"></script>
-  <script defer src="vizEngine/models/pendulum.js"></script>
-  <script defer src="vizEngine/models/optics.js"></script>
-  <script defer src="vizEngine/models/buoyancy.js"></script>
-  <script defer src="vizEngine/vizRenderer.js"></script>
-  <script defer src="vizEngine/simLab.js"></script>
-  <!-- Client-Side HEIC/HEIF Image Conversion Engine (iOS / iPhone Support) -->
-  <script defer src="assets/vendor/heic2any.min.js"></script>
+  <!-- Deterministic Math Engine (Minified) -->
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.1/math.min.js"></script>
+  <!-- Pythos Classical Visualization Engine (Consolidated Bundle) -->
+  <script defer src="vizEngine/vizEngine.bundle.js"></script>
 
   <!-- =====================================
      Styles
@@ -448,16 +426,17 @@
       overflow: hidden;
     }
 
-    /* Smart responsive zoom: automatically scale to 80% on laptop & compact viewports */
+    /* Responsive compact vertical spacing on laptop viewports (replaces non-standard zoom: 0.8) */
     @media (min-width: 769px) and (max-height: 850px) {
-      body {
-        zoom: 0.8;
-        height: 125vh;
-        min-height: 125vh;
+      .header {
+        padding: 8px 16px;
       }
-      .layout {
-        height: 125vh;
-        min-height: 125vh;
+      .welcome-oracle-card {
+        padding: 16px 20px;
+        margin: 8px auto;
+      }
+      .polyglot-footer {
+        padding: 6px 12px;
       }
     }
 
@@ -614,7 +593,7 @@
     .sidebar-nav-links {
       display: flex;
       flex-wrap: wrap;
-      gap: 6px 10px;
+      gap: 6px 8px;
       justify-content: center;
       margin-top: 10px;
       padding-top: 8px;
@@ -624,9 +603,16 @@
     .sidebar-nav-links a {
       color: var(--text-muted);
       text-decoration: none;
-      font-size: 0.72rem;
+      font-size: 0.74rem;
       font-weight: 500;
-      transition: color 0.15s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 26px;
+      min-width: 26px;
+      padding: 4px 6px;
+      border-radius: 4px;
+      transition: color 0.15s, background 0.15s;
     }
 
     .sidebar-nav-links a:hover {
@@ -638,13 +624,23 @@
       width: 100%;
       padding: 8px;
       background: var(--primary-color);
-      color: white;
+      color: #ffffff;
       border: none;
       border-radius: 5px;
       cursor: pointer;
-      font-weight: 500;
+      font-weight: 600;
       font-size: 0.82rem;
-      transition: background 0.2s;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    [data-theme="dark"] .login-btn {
+      background: var(--primary-color);
+      color: #0f172a;
+    }
+
+    [data-theme="dark"] .login-btn:hover {
+      background: #7dd3fc;
+      color: #0f172a;
     }
 
     .login-btn:hover { background: var(--primary-hover); }
@@ -805,8 +801,11 @@
     }
 
 
-    .message:hover .msg-actions {
+    .message:hover .msg-actions,
+    .message:focus-within .msg-actions,
+    .msg-actions:focus-within {
       opacity: 1;
+      pointer-events: auto;
     }
 
     .msg-copy-btn {
@@ -1428,8 +1427,81 @@
       gap: 6px;
       margin-bottom: 6px;
       padding: 2px;
-      overflow-x: auto;
-      scrollbar-width: none;
+      overflow-x: visible;
+      flex-wrap: wrap;
+      position: relative;
+    }
+
+    .toolbox-popover-wrap {
+      position: relative;
+      display: inline-flex;
+    }
+
+    .toolbox-popover-menu {
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 0;
+      min-width: 210px;
+      background: var(--surface-color);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
+      padding: 6px;
+      display: none;
+      flex-direction: column;
+      gap: 4px;
+      z-index: 950;
+    }
+
+    .toolbox-popover-menu.open {
+      display: flex;
+    }
+
+    .toolbox-popover-menu .tool-btn {
+      width: 100%;
+      justify-content: flex-start;
+      padding: 7px 10px;
+      font-size: 0.78rem;
+      border-color: transparent;
+    }
+
+    .toolbox-popover-menu .tool-btn:hover {
+      background: var(--sidebar-hover);
+      border-color: var(--primary-color);
+    }
+
+    .anon-status-note {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      line-height: 1.35;
+      padding: 6px 8px;
+      border-radius: 6px;
+      background: var(--surface-color);
+      border: 1px dashed var(--border-color);
+      margin-bottom: 4px;
+    }
+
+    .lanzar-id-btn {
+      width: 100%;
+      padding: 7px 10px;
+      background: var(--surface-color);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.78rem;
+      transition: background 0.2s, border-color 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .lanzar-id-btn:hover {
+      background: var(--sidebar-hover);
+      border-color: var(--primary-color);
+      color: var(--primary-color);
     }
 
     .tool-btn {
@@ -4213,19 +4285,25 @@
     <!-- SIDEBAR -->
     <aside class="sidebar" id="sidebar" aria-label="Session Navigation and History">
       <div class="sidebar-header">
-        <button id="newChatBtn" class="new-chat-btn" aria-label="Start new math discussion">
+        <button id="newChatBtn" class="new-chat-btn" aria-label="New Chat — Start new math discussion">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
           New Chat
         </button>
         <button id="sidebarCloseBtn" class="sidebar-close-btn" aria-label="Close navigation sidebar" title="Close Sidebar">✕</button>
       </div>
       
-      <div id="chatHistoryList" class="chat-history" role="navigation" aria-label="Past discussion sessions">
+      <div id="chatHistoryList" class="chat-history" role="navigation" aria-label="Past discussion sessions" data-clarity-mask="true">
         <!-- Chat history items will be injected here via JS -->
       </div>
       
       <div class="sidebar-footer">
-        <button id="loginBtn" class="login-btn" aria-label="Sign in with Google">Login with Google</button>
+        <div id="anonSyncNotice" class="anon-status-note" role="note" aria-label="Anonymous session mode">
+          <strong>Continue anonymously</strong> (active by default) &mdash; Sign in to sync your conversations and personal memory across devices.
+        </div>
+        <button id="loginBtn" class="login-btn" aria-label="Login with Google">Login with Google</button>
+        <button id="lanzarIdLoginBtn" type="button" class="lanzar-id-btn" aria-label="Sign in with LANZAR ID" aria-haspopup="dialog" aria-controls="lanzarIdModal">
+          <span>🛡️ Sign in with LANZAR ID</span>
+        </button>
         <div id="userInfo" style="display: none;" class="user-profile" data-clarity-mask="true">
           <img id="userAvatar" src="" alt="User profile avatar" width="32" height="32" data-clarity-mask="true" />
           <div style="flex:1; overflow:hidden;">
@@ -4235,15 +4313,17 @@
             🧠
           </button>
         </div>
-        <button id="logoutBtn" class="logout-btn" style="display: none;" aria-label="Sign out">Logout</button>
+        <button id="logoutBtn" class="logout-btn" style="display: none;" aria-label="Logout — Sign out">Logout</button>
         <nav class="sidebar-nav-links" aria-label="Study Guides and Changelog">
           <a href="subjects/">Subjects</a>
           <a href="validation/">Validation</a>
           <a href="about/">About</a>
           <a href="nonprofit.html">Mission &amp; Roadmap</a>
+          <a href="privacy.html">Privacy</a>
+          <a href="accessibility.html">Accessibility</a>
           <a href="license.html">License</a>
-          <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" title="Official Facebook Page" aria-label="Official Facebook Page">Facebook</a>
-          <a href="changelog.html#pythos-1-8-52" title="View Changelog" aria-label="Version 1.8.52 Release Notes">v1.8.52</a>
+          <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" title="Official Facebook Page" aria-label="Facebook — Official Facebook Page">Facebook</a>
+          <a href="changelog.html#pythos-1-8-52" title="View Changelog" aria-label="v1.8.52 — Version 1.8.52 Release Notes">v1.8.52</a>
         </nav>
       </div>
     </aside>
@@ -4261,7 +4341,7 @@
         <header class="header">
           <img class="header-avatar" src="assets/pythos_avatar.jpg" alt="Pythos Oracle" width="40" height="40" />
           <div class="header-info">
-            <h1>PYTHOS <a href="changelog.html#pythos-1-8-52" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.52)" aria-label="Version 1.8.52 Release Notes">v1.8.52</a></h1>
+            <h1>PYTHOS <a href="changelog.html#pythos-1-8-52" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.52)" aria-label="v1.8.52 — Version 1.8.52 Release Notes">v1.8.52</a></h1>
             <p>Mathematics & Physics Oracle</p>
           </div>
           <button id="themeToggleBtn" class="theme-toggle-btn" title="Toggle Dark/Light Mode" aria-label="Toggle Dark and Light Theme">
@@ -4289,20 +4369,45 @@
         </noscript>
 
         <!-- CHAT CONVERSATION LOG -->
-        <div id="output" role="log" aria-live="polite" aria-relevant="additions text" aria-atomic="false" aria-label="Conversation History with Pythos Oracle" tabindex="-1" data-clarity-mask="true"></div>
+        <div id="output" role="log" aria-live="polite" aria-relevant="additions text" aria-atomic="false" aria-label="Conversation History with Pythos Oracle" tabindex="-1" data-clarity-mask="true">
+          <div id="welcomeOracleCard" class="welcome-oracle-card" role="region" aria-label="Welcome to Pythos Oracle">
+            <img src="assets/pythos_avatar.jpg" alt="Pythos Oracle" class="welcome-oracle-avatar" width="56" height="56" fetchpriority="high" />
+            <h2 class="welcome-oracle-title">Welcome to Pythos</h2>
+            <p class="welcome-oracle-desc">
+              Free AI mathematics &amp; physics education backed by multiple checks for accuracy.
+              Work through derivations, check your homework, or explore concepts step-by-step.
+              <br><a href="validation/" style="color:var(--primary-color); text-decoration:underline; font-size:0.85rem;">View our public mathematical validation record &rarr;</a>
+            </p>
+            <div class="starter-prompts-title">Try a starter problem:</div>
+            <div class="starter-chips-wrap">
+              <button type="button" class="starter-chip" data-prompt="Help me solve: x^2 - 5x + 6 = 0">
+                <span>📐 Help me solve: x² - 5x + 6 = 0</span>
+              </button>
+              <button type="button" class="starter-chip" data-prompt="Why is d/dx ln(x) = 1/x?">
+                <span>∫ Why is d/dx ln(x) = 1/x?</span>
+              </button>
+              <button type="button" class="starter-chip" data-prompt="Explain how to find projectile range.">
+                <span>🚀 Explain how to find projectile range.</span>
+              </button>
+              <button type="button" class="starter-chip" data-prompt="Graph f(x) = x^3 - 3x">
+                <span>📈 Graph f(x) = x³ - 3x</span>
+              </button>
+            </div>
+          </div>
+        </div>
 
         <div class="input-area">
-          <!-- PYTHOS MATH TOOLBOX -->
+          <!-- PYTHOS MATH TOOLBOX (3 Primary Visible Tools + Accessible Secondary Toolbox Popover) -->
           <div class="toolbox-bar" role="toolbar" aria-label="Interactive Math and Physics Tools">
-            <button id="toolCalcBtn" class="tool-btn" title="Scientific Calculator" aria-label="Open Scientific Calculator" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatCalcWindow">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="6" x2="16" y2="6"></line><line x1="16" y1="14" x2="16" y2="18"></line><path d="M8 10h.01"></path><path d="M12 10h.01"></path><path d="M16 10h.01"></path><path d="M8 14h.01"></path><path d="M12 14h.01"></path><path d="M8 18h.01"></path><path d="M12 18h.01"></path></svg>
-              <span>Calc</span>
+            <button id="toolCheckBtn" class="tool-btn" title="Check My Work (Step Verifier)" aria-label="Check Work — Open Check My Work step verifier" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatCheckWindow">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+              <span>Check Work</span>
             </button>
-            <button id="toolGraphBtn" class="tool-btn" title="Function Grapher" aria-label="Open Function Grapher" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatGraphWindow">
+            <button id="toolGraphBtn" class="tool-btn" title="Function Grapher" aria-label="Graph — Open Function Grapher" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatGraphWindow">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
               <span>Graph</span>
             </button>
-            <button id="toolSimLabBtn" class="tool-btn" title="Sim Lab (Interactive PhET-style Physics and Math Experiments)" aria-label="Open Classical Physics and Math Simulation Lab" aria-haspopup="dialog" aria-expanded="false" aria-controls="simLabOverlay">
+            <button id="toolSimLabBtn" class="tool-btn" title="Sim Lab (Interactive PhET-style Physics and Math Experiments)" aria-label="Sim Lab — Open Classical Physics and Math Simulation Lab" aria-haspopup="dialog" aria-expanded="false" aria-controls="simLabOverlay">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(45 12 12)"></ellipse>
                 <ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(-45 12 12)"></ellipse>
@@ -4310,22 +4415,37 @@
               </svg>
               <span>Sim Lab</span>
             </button>
-            <button id="toolCheckBtn" class="tool-btn" title="Check My Work (Step Verifier)" aria-label="Open Check My Work step verifier" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatCheckWindow">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-              <span>Check Work</span>
-            </button>
-            <button id="toolUnitsBtn" class="tool-btn" title="Physics & Math Unit Converter" aria-label="Open Unit Converter" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatUnitsWindow">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
-              <span>Units</span>
-            </button>
-            <button id="toolMatrixBtn" class="tool-btn" title="Matrix & Vector Calculator" aria-label="Open Matrix and Vector Calculator" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatMatrixWindow">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line><line x1="15" y1="3" x2="15" y2="21"></line><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line></svg>
-              <span>Matrix</span>
-            </button>
-            <button id="toolEditorBtn" class="tool-btn" title="Equation Builder (Visual Math Input)" aria-label="Open Visual Equation Builder" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatEditorWindow">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-              <span>Equation Builder</span>
-            </button>
+
+            <div class="toolbox-popover-wrap">
+              <button id="toolboxMenuBtn" type="button" class="tool-btn" title="More Math &amp; Physics Instruments (Calculator, Units, Matrix, Formulas, Scratchpad, Math Keyboard)" aria-label="Toolbox — Open secondary tools menu" aria-haspopup="true" aria-expanded="false" aria-controls="toolboxPopoverMenu">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="7" width="20" height="14" rx="2"></rect><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"></path></svg>
+                <span>Toolbox ▾</span>
+              </button>
+              <div id="toolboxPopoverMenu" class="toolbox-popover-menu" role="menu" aria-label="Secondary Math and Physics Instruments">
+                <button id="toolCalcBtn" class="tool-btn" role="menuitem" title="Scientific Calculator" aria-label="Calc — Open Scientific Calculator" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatCalcWindow">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="6" x2="16" y2="6"></line><line x1="16" y1="14" x2="16" y2="18"></line><path d="M8 10h.01"></path><path d="M12 10h.01"></path><path d="M16 10h.01"></path><path d="M8 14h.01"></path><path d="M12 14h.01"></path><path d="M8 18h.01"></path><path d="M12 18h.01"></path></svg>
+                  <span>Calc (Scientific Calculator)</span>
+                </button>
+                <button id="toolUnitsBtn" class="tool-btn" role="menuitem" title="Physics &amp; Math Unit Converter" aria-label="Units — Open Unit Converter" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatUnitsWindow">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                  <span>Units (Converter)</span>
+                </button>
+                <button id="toolMatrixBtn" class="tool-btn" role="menuitem" title="Matrix &amp; Vector Calculator" aria-label="Matrix — Open Matrix and Vector Calculator" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatMatrixWindow">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line><line x1="15" y1="3" x2="15" y2="21"></line><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line></svg>
+                  <span>Matrix &amp; Vectors</span>
+                </button>
+                <button id="toolEditorBtn" class="tool-btn" role="menuitem" title="Equation Builder (Visual Math Keyboard)" aria-label="Equation Builder — Open Visual Equation Builder" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatEditorWindow">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                  <span>Equation Builder (Math Keyboard)</span>
+                </button>
+                <button id="toolFormulasBtn" type="button" class="tool-btn" role="menuitem" title="Formulas &amp; Syntax Reference" aria-label="Formulas — Open Math Input Guide &amp; Formulas" aria-haspopup="dialog" aria-controls="mathGuideOverlay">
+                  <span>📖 Formulas &amp; Syntax Guide</span>
+                </button>
+                <button id="toolScratchpadBtn" type="button" class="tool-btn" role="menuitem" title="Scratchpad &amp; Quick Notes" aria-label="Scratchpad — Focus input for multi-line scratchpad work">
+                  <span>📝 Scratchpad Mode</span>
+                </button>
+              </div>
+            </div>
           </div>
 
           <!-- PENDING IMAGE ATTACHMENTS STRIP -->
@@ -4346,7 +4466,7 @@
           <!-- HIDDEN FILE INPUT (Supports standard web formats and iPhone HEIC/HEIF) -->
           <input type="file" id="imageFileInput" accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp,.bmp,image/heic,image/heif" style="display:none;" aria-hidden="true" multiple />
 
-          <form class="input-wrapper" role="search" onsubmit="return false;">
+          <form class="input-wrapper" role="search">
             <button id="attachImgBtn" type="button" class="help-btn" title="Attach picture of math/physics problem or handwritten work" aria-label="Attach picture of problem or notes">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
             </button>
@@ -4371,43 +4491,43 @@
             <span class="sr-only">Choose your preferred language or type in your native tongue:</span>
             <div class="lang-chips-grid" role="group" aria-label="Quick language selector">
               <button type="button" class="lang-chip active" data-lang="en" data-lang-name="English" aria-pressed="true" aria-label="Selected Language: English">
-                <img src="https://flagcdn.com/w40/us.png" alt="United States Flag (English)" class="lang-flag" />
+                <img src="https://flagcdn.com/w40/us.png" alt="United States Flag (English)" class="lang-flag" loading="lazy" width="20" height="15" />
                 <span class="lang-text">English</span>
               </button>
               <button type="button" class="lang-chip" data-lang="es" data-lang-name="Español" aria-pressed="false" aria-label="Switch language to Español">
-                <img src="https://flagcdn.com/w40/mx.png" alt="Mexico Flag (Español)" class="lang-flag" />
+                <img src="https://flagcdn.com/w40/mx.png" alt="Mexico Flag (Español)" class="lang-flag" loading="lazy" width="20" height="15" />
                 <span class="lang-text">Español</span>
               </button>
               <button type="button" class="lang-chip" data-lang="fr" data-lang-name="Français" aria-pressed="false" aria-label="Switch language to Français">
-                <img src="https://flagcdn.com/w40/fr.png" alt="France Flag (Français)" class="lang-flag" />
+                <img src="https://flagcdn.com/w40/fr.png" alt="France Flag (Français)" class="lang-flag" loading="lazy" width="20" height="15" />
                 <span class="lang-text">Français</span>
               </button>
               <button type="button" class="lang-chip" data-lang="de" data-lang-name="Deutsch" aria-pressed="false" aria-label="Switch language to Deutsch">
-                <img src="https://flagcdn.com/w40/de.png" alt="Germany Flag (Deutsch)" class="lang-flag" />
+                <img src="https://flagcdn.com/w40/de.png" alt="Germany Flag (Deutsch)" class="lang-flag" loading="lazy" width="20" height="15" />
                 <span class="lang-text">Deutsch</span>
               </button>
               <button type="button" class="lang-chip" data-lang="ja" data-lang-name="日本語" aria-pressed="false" aria-label="Switch language to 日本語 (Japanese)">
-                <img src="https://flagcdn.com/w40/jp.png" alt="Japan Flag (日本語)" class="lang-flag" />
+                <img src="https://flagcdn.com/w40/jp.png" alt="Japan Flag (日本語)" class="lang-flag" loading="lazy" width="20" height="15" />
                 <span class="lang-text">日本語</span>
               </button>
               <button type="button" class="lang-chip" data-lang="zh" data-lang-name="中文" aria-pressed="false" aria-label="Switch language to 中文 (Chinese)">
-                <img src="https://flagcdn.com/w40/cn.png" alt="China Flag (中文)" class="lang-flag" />
+                <img src="https://flagcdn.com/w40/cn.png" alt="China Flag (中文)" class="lang-flag" loading="lazy" width="20" height="15" />
                 <span class="lang-text">中文</span>
               </button>
               <button type="button" class="lang-chip" data-lang="ko" data-lang-name="한국어" aria-pressed="false" aria-label="Switch language to 한국어 (Korean)">
-                <img src="https://flagcdn.com/w40/kr.png" alt="South Korea Flag (한국어)" class="lang-flag" />
+                <img src="https://flagcdn.com/w40/kr.png" alt="South Korea Flag (한국어)" class="lang-flag" loading="lazy" width="20" height="15" />
                 <span class="lang-text">한국어</span>
               </button>
               <button type="button" class="lang-chip" data-lang="it" data-lang-name="Italiano" aria-pressed="false" aria-label="Switch language to Italiano">
-                <img src="https://flagcdn.com/w40/it.png" alt="Italy Flag (Italiano)" class="lang-flag" />
+                <img src="https://flagcdn.com/w40/it.png" alt="Italy Flag (Italiano)" class="lang-flag" loading="lazy" width="20" height="15" />
                 <span class="lang-text">Italiano</span>
               </button>
               <button type="button" class="lang-chip" data-lang="hi" data-lang-name="हिन्दी" aria-pressed="false" aria-label="Switch language to हिन्दी (Hindi)">
-                <img src="https://flagcdn.com/w40/in.png" alt="India Flag (हिन्दी)" class="lang-flag" />
+                <img src="https://flagcdn.com/w40/in.png" alt="India Flag (हिन्दी)" class="lang-flag" loading="lazy" width="20" height="15" />
                 <span class="lang-text">हिन्दी</span>
               </button>
               <button type="button" class="lang-chip" data-lang="pt" data-lang-name="Português" aria-pressed="false" aria-label="Switch language to Português">
-                <img src="https://flagcdn.com/w40/br.png" alt="Brazil Flag (Português)" class="lang-flag" />
+                <img src="https://flagcdn.com/w40/br.png" alt="Brazil Flag (Português)" class="lang-flag" loading="lazy" width="20" height="15" />
                 <span class="lang-text">Português</span>
               </button>
             </div>
@@ -4522,14 +4642,14 @@
   </div>
 
   <!-- FLOATING TOOL WINDOW: SCIENTIFIC CALCULATOR -->
-  <div id="floatCalcWindow" class="floating-window" role="region" aria-label="Scientific Calculator" tabindex="-1" style="display: none; top: 120px; right: 40px; width: 320px;">
+  <div id="floatCalcWindow" class="floating-window" role="region" aria-label="Scientific Calculator" tabindex="-1" style="display: none; top: 120px; right: 40px; width: 320px;" data-clarity-mask="true">
     <div class="window-header">
       <div class="window-title" id="calcWindowTitle">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="6" x2="16" y2="6"></line></svg>
         Scientific Calculator
       </div>
       <div class="window-controls">
-        <button class="win-btn win-send" id="calcSendToPythos" title="Send Result to Pythos" aria-label="Send calculator result to Pythos chat">Send to Pythos ↵</button>
+        <button class="win-btn win-send" id="calcSendToPythos" title="Send Result to Pythos" aria-label="Send to Pythos chat">Send to Pythos ↵</button>
         <button class="win-btn win-close" id="calcCloseBtn" title="Close Calculator" aria-label="Close Calculator window">×</button>
       </div>
     </div>
@@ -4580,14 +4700,14 @@
   </div>
 
   <!-- FLOATING TOOL WINDOW: FUNCTION GRAPHER -->
-  <div id="floatGraphWindow" class="floating-window" role="region" aria-label="Function Grapher" tabindex="-1" style="display: none; top: 120px; right: 40px; width: 440px;">
+  <div id="floatGraphWindow" class="floating-window" role="region" aria-label="Function Grapher" tabindex="-1" style="display: none; top: 120px; right: 40px; width: 440px;" data-clarity-mask="true">
     <div class="window-header">
       <div class="window-title" id="graphWindowTitle">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
         Function Grapher
       </div>
       <div class="window-controls">
-        <button class="win-btn win-send" id="graphSendToPythos" title="Ask Pythos about this graph" aria-label="Send plotted function to Pythos chat">Ask Pythos ↵</button>
+        <button class="win-btn win-send" id="graphSendToPythos" title="Ask Pythos about this graph" aria-label="Ask Pythos about plotted function">Ask Pythos ↵</button>
         <button class="win-btn win-close" id="graphCloseBtn" title="Close Grapher" aria-label="Close Grapher window">×</button>
       </div>
     </div>
@@ -4603,7 +4723,7 @@
   </div>
 
   <!-- FLOATING TOOL WINDOW: CHECK MY WORK -->
-  <div id="floatCheckWindow" class="floating-window" role="region" aria-label="Check My Work Step Verifier" tabindex="-1" style="display: none; top: 120px; right: 40px; width: 380px;">
+  <div id="floatCheckWindow" class="floating-window" role="region" aria-label="Check My Work Step Verifier" tabindex="-1" style="display: none; top: 120px; right: 40px; width: 380px;" data-clarity-mask="true">
     <div class="window-header">
       <div class="window-title" id="checkWindowTitle">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
@@ -4628,14 +4748,14 @@
           <input type="text" id="checkAnsInput" class="check-input" placeholder="e.g. 6" value="6" />
         </div>
       </div>
-      <button id="checkRunBtn" class="check-run-btn" aria-label="Verify solution deterministically">Verify Deterministically</button>
+      <button id="checkRunBtn" class="check-run-btn" aria-label="Verify Deterministically">Verify Deterministically</button>
       <div id="checkResultArea" class="check-result-area" style="display:none;" role="status" aria-live="polite"></div>
-      <button id="checkAskPythosBtn" class="win-btn win-send" style="display:none; width:100%; margin-top:8px;" title="Have Pythos explain the error" aria-label="Have Pythos explain verification failure">Ask Pythos to Explain Step ↵</button>
+      <button id="checkAskPythosBtn" class="win-btn win-send" style="display:none; width:100%; margin-top:8px;" title="Have Pythos explain the error" aria-label="Ask Pythos to Explain Step">Ask Pythos to Explain Step ↵</button>
     </div>
   </div>
 
   <!-- FLOATING TOOL WINDOW: UNIT CONVERTER -->
-  <div id="floatUnitsWindow" class="floating-window" role="region" aria-label="Unit Converter" tabindex="-1" style="display: none; top: 140px; right: 40px; width: 340px;">
+  <div id="floatUnitsWindow" class="floating-window" role="region" aria-label="Unit Converter" tabindex="-1" style="display: none; top: 140px; right: 40px; width: 340px;" data-clarity-mask="true">
     <div class="window-header">
       <div class="window-title" id="unitsWindowTitle">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
@@ -4661,7 +4781,7 @@
   </div>
 
   <!-- FLOATING TOOL WINDOW: MATRIX CALCULATOR -->
-  <div id="floatMatrixWindow" class="floating-window" role="region" aria-label="Matrix Calculator" tabindex="-1" style="display: none; top: 140px; right: 40px; width: 360px;">
+  <div id="floatMatrixWindow" class="floating-window" role="region" aria-label="Matrix Calculator" tabindex="-1" style="display: none; top: 140px; right: 40px; width: 360px;" data-clarity-mask="true">
     <div class="window-header">
       <div class="window-title" id="matrixWindowTitle">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line><line x1="15" y1="3" x2="15" y2="21"></line><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line></svg>
@@ -4682,24 +4802,24 @@
         <input type="text" id="matrixBInput" class="check-input" placeholder="e.g. [2, 0; 1, 2] or 5" value="[2, 0; 1, 2]" />
       </div>
       <div class="calc-keypad" style="grid-template-columns: repeat(4, 1fr); margin-top:4px;" role="group" aria-label="Matrix Operations">
-        <button class="calc-key op-key" id="matDetBtn" title="Determinant of Matrix A" aria-label="Calculate Determinant of Matrix A">det(A)</button>
-        <button class="calc-key op-key" id="matInvBtn" title="Inverse of Matrix A" aria-label="Calculate Inverse of Matrix A">inv(A)</button>
-        <button class="calc-key op-key" id="matMulBtn" title="Multiply Matrix A by Matrix B" aria-label="Multiply Matrix A by Matrix B">A × B</button>
-        <button class="calc-key op-key" id="matAddBtn" title="Add Matrix A and Matrix B" aria-label="Add Matrix A and Matrix B">A + B</button>
+        <button class="calc-key op-key" id="matDetBtn" title="Determinant of Matrix A" aria-label="det(A) — Calculate Determinant of Matrix A">det(A)</button>
+        <button class="calc-key op-key" id="matInvBtn" title="Inverse of Matrix A" aria-label="inv(A) — Calculate Inverse of Matrix A">inv(A)</button>
+        <button class="calc-key op-key" id="matMulBtn" title="Multiply Matrix A by Matrix B" aria-label="A × B — Multiply Matrix A by Matrix B">A × B</button>
+        <button class="calc-key op-key" id="matAddBtn" title="Add Matrix A and Matrix B" aria-label="A + B — Add Matrix A and Matrix B">A + B</button>
       </div>
       <div id="matrixResultArea" class="check-result-area" style="display:none;" role="status" aria-live="polite"></div>
     </div>
   </div>
 
   <!-- FLOATING TOOL WINDOW: EQUATION BUILDER (Visual Math Input) -->
-  <div id="floatEditorWindow" class="floating-window" role="region" aria-label="Equation Builder" tabindex="-1" style="display: none; top: 100px; right: 30px; width: 490px;">
+  <div id="floatEditorWindow" class="floating-window" role="region" aria-label="Equation Builder" tabindex="-1" style="display: none; top: 100px; right: 30px; width: 490px;" data-clarity-mask="true">
     <div class="window-header">
       <div class="window-title" id="editorWindowTitle">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
         Equation Builder
       </div>
       <div class="window-controls">
-        <button class="win-btn" id="editorModeToggle" title="Toggle between Visual Palette and Keyboard typing mode" aria-label="Toggle Keyboard Typing Mode" style="font-size:0.75rem; background:var(--sidebar-hover); color:var(--text-main); border:1px solid var(--border-color); font-weight:600; padding:2px 8px;">⌨️ Keyboard Mode</button>
+        <button class="win-btn" id="editorModeToggle" title="Toggle between Visual Palette and Keyboard typing mode" aria-label="Keyboard Mode — Toggle Keyboard Typing Mode" style="font-size:0.75rem; background:var(--sidebar-hover); color:var(--text-main); border:1px solid var(--border-color); font-weight:600; padding:2px 8px;">⌨️ Keyboard Mode</button>
         <button class="win-btn win-close" id="editorCloseBtn" title="Close Equation Builder" aria-label="Close Equation Builder window">×</button>
       </div>
     </div>
@@ -4789,19 +4909,19 @@
 
       <!-- Action Dispatcher Bar: Send Expression Across Tools -->
       <div class="editor-actions-bar" role="group" aria-label="Equation Actions">
-        <button class="editor-action-btn primary" id="sendEqToPythos" title="Send equation to Pythos chat" aria-label="Send equation to Pythos chat">
+        <button class="editor-action-btn primary" id="sendEqToPythos" title="Send equation to Pythos chat" aria-label="Ask Pythos — Send equation to Pythos chat">
           <span>Ask Pythos ↵</span>
         </button>
-        <button class="editor-action-btn" id="sendEqToCalc" title="Send to Scientific Calculator" aria-label="Send expression to Scientific Calculator">
+        <button class="editor-action-btn" id="sendEqToCalc" title="Send to Scientific Calculator" aria-label="→ Calc — Send expression to Scientific Calculator">
           <span>→ Calc</span>
         </button>
-        <button class="editor-action-btn" id="sendEqToGraph" title="Send to Function Grapher" aria-label="Send function to Grapher">
+        <button class="editor-action-btn" id="sendEqToGraph" title="Send to Function Grapher" aria-label="→ Graph — Send function to Grapher">
           <span>→ Graph</span>
         </button>
-        <button class="editor-action-btn" id="sendEqToCheck" title="Send to Check My Work" aria-label="Send equation to Check My Work">
+        <button class="editor-action-btn" id="sendEqToCheck" title="Send to Check My Work" aria-label="→ Check Work — Send equation to Check My Work">
           <span>→ Check Work</span>
         </button>
-        <button class="editor-action-btn" id="copyEqLaTeX" title="Copy LaTeX code to clipboard" aria-label="Copy LaTeX code to clipboard">
+        <button class="editor-action-btn" id="copyEqLaTeX" title="Copy LaTeX code to clipboard" aria-label="📋 Copy — Copy LaTeX code to clipboard">
           <span>📋 Copy</span>
         </button>
       </div>
@@ -4824,8 +4944,8 @@
         <div id="pythosConfirmQuote" class="pythos-quote">"What is written on the slate may be erased, but wisdom once gained remains."</div>
       </div>
       <div class="pythos-modal-actions">
-        <button id="pythosConfirmCancel" class="pythos-modal-btn cancel" aria-label="Cancel and keep discussion">Keep Discussion</button>
-        <button id="pythosConfirmOk" class="pythos-modal-btn confirm-delete" aria-label="Confirm and erase discussion session" autofocus>Erase Session</button>
+        <button id="pythosConfirmCancel" class="pythos-modal-btn cancel" aria-label="Keep Discussion — Cancel and keep discussion">Keep Discussion</button>
+        <button id="pythosConfirmOk" class="pythos-modal-btn confirm-delete" aria-label="Erase Session — Confirm and erase discussion session" autofocus>Erase Session</button>
       </div>
     </div>
   </div>
@@ -4880,10 +5000,10 @@
         <div id="memoryStatusNotice" style="font-size: 0.82rem; display: none;" role="status" aria-live="polite"></div>
       </div>
       <div class="report-modal-actions" style="justify-content: space-between;">
-        <button id="memoryClearAllBtn" class="report-btn cancel" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.4);" aria-label="Clear all personal memory">
+        <button id="memoryClearAllBtn" class="report-btn cancel" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.4);" aria-label="🗑️ Forget Everything — Clear all personal memory">
           🗑️ Forget Everything
         </button>
-        <button id="memoryDoneBtn" class="report-btn submit" aria-label="Close dialog">Done</button>
+        <button id="memoryDoneBtn" class="report-btn submit" aria-label="Done — Close dialog">Done</button>
       </div>
     </div>
   </div>
@@ -4976,7 +5096,7 @@
         <button id="trigModalAskPythosBtn" class="report-btn cancel" style="color: var(--primary-color); border-color: var(--primary-color);" aria-label="Ask Pythos about this triangle">
           💬 Ask Pythos About This Triangle
         </button>
-        <button id="trigModalDoneBtn" class="report-btn submit" aria-label="Close dialog">Done</button>
+        <button id="trigModalDoneBtn" class="report-btn submit" aria-label="Done — Close dialog">Done</button>
       </div>
     </div>
   </div>
@@ -5062,7 +5182,7 @@
         <button id="numLineAskPythosBtn" class="report-btn cancel" style="color: var(--primary-color); border-color: var(--primary-color);" aria-label="Ask Pythos about this interval">
           💬 Ask Pythos About This Interval
         </button>
-        <button id="numLineDoneBtn" class="report-btn submit" aria-label="Close dialog">Done</button>
+        <button id="numLineDoneBtn" class="report-btn submit" aria-label="Done — Close dialog">Done</button>
       </div>
     </div>
   </div>
@@ -5119,7 +5239,7 @@
         <button id="chartModalAskPythosBtn" class="report-btn cancel" style="color: var(--primary-color); border-color: var(--primary-color);" aria-label="Ask Pythos about this distribution">
           💬 Ask Pythos About This Distribution
         </button>
-        <button id="chartModalDoneBtn" class="report-btn submit" aria-label="Close dialog">Done</button>
+        <button id="chartModalDoneBtn" class="report-btn submit" aria-label="Done — Close dialog">Done</button>
       </div>
     </div>
   </div>
@@ -5165,7 +5285,7 @@
         <!-- 2. ACTIVE EXPERIMENT VIEW (LAUNCHED SIM) -->
         <div id="simLabActiveView" class="sim-lab-active-view" style="display: none;">
           <div class="sim-lab-active-nav">
-            <button id="simLabBackBtn" class="sim-lab-back-btn" aria-label="Back to simulation catalog">
+            <button id="simLabBackBtn" class="sim-lab-back-btn" aria-label="All Simulations — Back to simulation catalog">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
               <span>All Simulations</span>
             </button>
@@ -5194,7 +5314,7 @@
   <!-- FLOATING STUDY HUB & SEO FAQ DRAWER (DISCREET BOTTOM-RIGHT ACCORDION) -->
   <aside id="studyHubDrawer" class="study-hub-drawer" aria-label="Study Guides and Frequently Asked Questions">
     <details id="studyHubDetails" class="study-hub-details">
-      <summary class="study-hub-toggle" title="Explore Subject Study Guides, Curriculums & FAQ" aria-label="Open Study Guides and FAQ">
+      <summary class="study-hub-toggle" title="Explore Subject Study Guides, Curriculums & FAQ" aria-label="📚 Guides &amp; FAQ — Open Study Guides and FAQ">
         <span>📚 Guides &amp; FAQ</span>
         <svg class="study-hub-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
           <polyline points="6 9 12 15 18 9"></polyline>
@@ -5203,14 +5323,19 @@
       <div class="study-hub-content" role="region" aria-label="Study Guide and FAQ details">
         <div class="study-hub-header">
           <h2>Pythos STEM Study Hub &amp; FAQ</h2>
-          <button type="button" class="study-hub-close" onclick="document.getElementById('studyHubDetails').removeAttribute('open')" aria-label="Close Study Guides">&times;</button>
+          <button type="button" id="studyHubCloseBtn" class="study-hub-close" aria-label="Close Study Guides">&times;</button>
         </div>
         <div class="study-hub-scroll">
           <p class="study-hub-desc">
             <strong>Pythos</strong> is an independent, 100% free AI mathematics and physics tutor engineered by a student for students. Master algebra, AP Calculus, and classical mechanics with verified Socratic problem-solving derivations, 2D function graphing, and interactive PhET-style physics simulations.
           </p>
 
-          <div class="study-hub-subtitle">Curriculum Study Guides &amp; Tools</div>
+          <div style="margin-bottom: 12px;">
+            <label for="studyHubSearchInput" class="sr-only">Search Quick-Start Guides, Tools, and FAQ</label>
+            <input type="search" id="studyHubSearchInput" placeholder="Search guides, tools, or FAQ (e.g. grapher, privacy, integrals, sim lab)..." aria-label="Search Quick-Start Guides, Tools, and FAQ" style="width: 100%; padding: 7px 10px; font-size: 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-main); box-sizing: border-box;" />
+          </div>
+
+          <div class="study-hub-subtitle">Curriculum Study Guides &amp; Policies</div>
           <nav class="study-hub-nav" aria-label="Curriculum Guides">
             <a href="algebra/" class="study-nav-chip">📐 Algebra Guide</a>
             <a href="calculus/" class="study-nav-chip">📈 Calculus Guide</a>
@@ -5220,6 +5345,8 @@
             <a href="validation/" class="study-nav-chip">🛡️ Math Verifier Record</a>
             <a href="about/" class="study-nav-chip">🏛️ About Pythos</a>
             <a href="nonprofit.html" class="study-nav-chip">🌱 Mission Roadmap</a>
+            <a href="privacy.html" class="study-nav-chip">🔒 Privacy Policy</a>
+            <a href="accessibility.html" class="study-nav-chip">♿ Accessibility Statement</a>
           </nav>
 
           <div class="study-hub-subtitle">Frequently Asked Questions</div>
@@ -5240,13 +5367,71 @@
           </div>
 
           <div class="study-faq-item">
-            <h4>What physics topics and simulations are covered?</h4>
+            <h3>What physics topics and simulations are covered?</h3>
             <p>Pythos covers classical mechanics, 1D and 2D kinematics, projectile motion, Newton laws of motion, rotational dynamics, work-energy theorem, and includes an interactive 17-experiment Simulation Lab with real-time visual exploration.</p>
+          </div>
+          <div class="study-faq-item">
+            <h3>How do I use the Workspace Tools and LANZAR ID?</h3>
+            <p>Use the primary toolbar for <strong>Check Work</strong> (deterministic step verifier), <strong>Graph</strong> (2D function plotter), and <strong>Sim Lab</strong> (17 interactive experiments), or open the <strong>Toolbox</strong> popover for the Scientific Calculator, Unit Converter, Matrix Calculator, and Visual Equation Builder. You can use Pythos anonymously by default or sign in with Google or LANZAR ID to sync conversations and personal memory across devices.</p>
           </div>
         </div>
       </div>
     </details>
   </aside>
+
+  <!-- LANZAR ID AUTHENTICATION & EXPLICIT CONSENT MODAL (Phase 4.2, 4.3, 4.4) -->
+  <div id="lanzarIdModal" class="report-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="lanzarIdModalTitle" aria-describedby="lanzarIdModalDesc" tabindex="-1" data-clarity-mask="true">
+    <div class="report-modal-card" style="max-width: 460px;">
+      <div class="report-modal-header">
+        <div class="report-modal-title-group">
+          <h3 id="lanzarIdModalTitle">🛡️ LANZAR ID — Ecosystem Sign In</h3>
+          <p id="lanzarIdModalDesc">Unified account across Pythos, Scout Forge, and LANZAR tools</p>
+        </div>
+        <button id="lanzarIdModalCloseBtn" type="button" class="math-guide-close" title="Close dialog" aria-label="Close LANZAR ID Dialog">&times;</button>
+      </div>
+      <div class="report-modal-body" style="gap: 12px;">
+        <div style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.45; background: var(--bg-color); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border-color);">
+          <strong>Anonymous access is always free.</strong> Sign in only if you want to sync your conversation history and personal learning memory across devices, or link with your Google account.
+        </div>
+
+        <div style="display: flex; gap: 6px;" role="tablist" aria-label="LANZAR ID Authentication Mode">
+          <button type="button" id="lanzarModeLoginTab" role="tab" aria-selected="true" class="tool-btn active" style="flex: 1; justify-content: center;">Sign In</button>
+          <button type="button" id="lanzarModeRegisterTab" role="tab" aria-selected="false" class="tool-btn" style="flex: 1; justify-content: center;">Create LANZAR ID</button>
+        </div>
+
+        <div id="lanzarDisplayNameGroup" style="display: none;">
+          <label for="lanzarDisplayNameInput" style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px;">Display Name (Optional)</label>
+          <input type="text" id="lanzarDisplayNameInput" class="check-input" placeholder="e.g. Alex" autocomplete="name" data-clarity-mask="true" />
+        </div>
+
+        <div>
+          <label for="lanzarEmailInput" style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px;">Email Address</label>
+          <input type="email" id="lanzarEmailInput" class="check-input" placeholder="student@example.edu" autocomplete="email" data-clarity-mask="true" />
+        </div>
+
+        <div>
+          <label for="lanzarPasswordInput" style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px;">Password (min. 8 characters)</label>
+          <input type="password" id="lanzarPasswordInput" class="check-input" placeholder="••••••••" autocomplete="current-password" data-clarity-mask="true" />
+        </div>
+
+        <!-- Explicit, Unchecked-by-Default Mailing List Consent (Phase 4.4) -->
+        <div style="background: var(--bg-color); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 0.76rem; color: var(--text-muted);">
+          <label for="mailingListConsentCheckbox" style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer; line-height: 1.4;">
+            <input type="checkbox" id="mailingListConsentCheckbox" style="margin-top: 2px;" />
+            <span>
+              <strong>Optional:</strong> Send me occasional product updates and new STEM study resources from Pythos &amp; LANZAR. (Unchecked by default; never required for account creation. You can <button type="button" id="lanzarUnsubscribeBtn" style="background:none; border:none; padding:0; color:var(--primary-color); text-decoration:underline; font-size:inherit; cursor:pointer;">unsubscribe anytime</button>.)
+            </span>
+          </label>
+        </div>
+
+        <div id="lanzarAuthStatusMsg" style="font-size: 0.8rem; display: none;" role="status" aria-live="polite"></div>
+      </div>
+      <div class="report-modal-actions" style="justify-content: space-between;">
+        <button id="lanzarCancelBtn" type="button" class="report-btn cancel" aria-label="Continue Anonymously — Close LANZAR ID dialog">Continue Anonymously</button>
+        <button id="lanzarSubmitBtn" type="button" class="report-btn submit" aria-label="Sign In with LANZAR ID">Sign In with LANZAR ID</button>
+      </div>
+    </div>
+  </div>
 
 </body>
 </html>

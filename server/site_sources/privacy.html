@@ -1,0 +1,217 @@
+<!--
+    privacy.html
+
+    Pythos Data Handling & Privacy Policy.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script defer src="js/analytics.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <link rel="apple-touch-icon" href="assets/favicon.png">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#2563eb">
+
+  <title>Privacy &amp; Data Handling Policy | Pythos AI STEM Tutor</title>
+  <meta name="description" content="Transparent explanation of how Pythos AI handles anonymous sessions, optional Google/LANZAR ID accounts, Personal Memory controls, and privacy-masked telemetry.">
+  <meta name="author" content="Jon Scott / LANZAR">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://pythos.lanzar.me/privacy.html">
+
+  <meta property="og:title" content="Privacy &amp; Data Handling Policy | Pythos AI STEM Tutor">
+  <meta property="og:description" content="Transparent explanation of how Pythos AI handles anonymous sessions, optional Google/LANZAR ID accounts, Personal Memory controls, and privacy-masked telemetry.">
+  <meta property="og:url" content="https://pythos.lanzar.me/privacy.html">
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="Pythos">
+  <meta property="og:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
+  <meta property="og:image:width" content="512">
+  <meta property="og:image:height" content="512">
+  <meta property="og:image:alt" content="Pythos Oracle Avatar">
+
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Privacy &amp; Data Handling Policy | Pythos AI STEM Tutor">
+  <meta name="twitter:description" content="How Pythos protects student privacy: anonymous-by-default tutoring, masked analytics, and full Personal Memory deletion controls.">
+  <meta name="twitter:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "Pythos Privacy & Data Handling Policy",
+    "url": "https://pythos.lanzar.me/privacy.html",
+    "description": "Data handling, student privacy protections, telemetry masking, and personal memory controls for Pythos AI.",
+    "isPartOf": {
+      "@type": "WebSite",
+      "@id": "https://pythos.lanzar.me/#website"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "LANZAR",
+      "url": "https://lanzar.me"
+    }
+  }
+  </script>
+
+  <style>
+    :root {
+      --bg-color: #fcfbf9;
+      --surface-color: #ffffff;
+      --text-main: #1e293b;
+      --text-muted: #475569;
+      --primary-color: #2a728f;
+      --border-color: #e2e8f0;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-color: #0b0f19;
+        --surface-color: #131b2e;
+        --text-main: #f8fafc;
+        --text-muted: #94a3b8;
+        --primary-color: #38bdf8;
+        --border-color: #1e293b;
+      }
+    }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, 'Inter', sans-serif;
+      background: var(--bg-color);
+      color: var(--text-main);
+      line-height: 1.65;
+    }
+    .skip-link {
+      position: absolute;
+      top: -100px;
+      left: 16px;
+      background: var(--primary-color);
+      color: #fff;
+      padding: 8px 14px;
+      border-radius: 6px;
+      z-index: 9999;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .skip-link:focus { top: 12px; }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    *:focus-visible {
+      outline: 2px solid var(--primary-color);
+      outline-offset: 2px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+    header, nav, main, footer {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 16px 24px;
+    }
+    nav {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      border-bottom: 1px solid var(--border-color);
+      font-size: 0.9rem;
+    }
+    nav a {
+      color: var(--primary-color);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .card {
+      background: var(--surface-color);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+    h1 { font-size: 1.9rem; margin-top: 8px; }
+    h2 { font-size: 1.3rem; color: var(--primary-color); margin-top: 0; }
+  </style>
+</head>
+<body>
+  <a href="#mainContent" class="skip-link">Skip to main content</a>
+
+  <nav aria-label="Primary Navigation">
+    <a href="index.html" class="back-btn">&larr; Back to Pythos Workspace</a>
+    <a href="subjects/">Subjects</a>
+    <a href="validation/">Validation</a>
+    <a href="about/">About</a>
+    <a href="accessibility.html">Accessibility</a>
+    <a href="license.html">License</a>
+  </nav>
+
+  <main id="mainContent" role="main">
+    <h1>Privacy &amp; Data Handling Policy</h1>
+    <p><strong>Effective Date:</strong> October 31, 2026 &bull; <strong>Platform:</strong> Pythos AI (LANZAR Educational Initiative)</p>
+
+    <section class="card">
+      <h2>1. Anonymous-by-Default Usage</h2>
+      <p>
+        Pythos is designed so students can solve math and physics problems, use all interactive calculators and graphers, and explore the 17-experiment Simulation Lab <strong>100% anonymously without creating an account</strong>. When you use Pythos anonymously, your session state stays in your browser memory and is never linked to a personal profile.
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>2. Optional Sign-In (Google &amp; LANZAR ID)</h2>
+      <p>
+        Signing in with <strong>Google</strong> or <strong>LANZAR ID</strong> is strictly optional and is used only to:
+      </p>
+      <ul>
+        <li>Synchronize your saved math and physics conversation history across your devices.</li>
+        <li>Maintain your optional <strong>Personal Memory</strong> learning preferences (such as your current math course or preferred explanation style).</li>
+      </ul>
+      <p>
+        Account creation never requires subscribing to marketing emails. Our optional mailing-list checkbox is <strong>unchecked by default</strong>, records explicit consent timestamps, and supports immediate one-click unsubscribe at any time.
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>3. Student Control Over Personal Memory &amp; Chat Archives</h2>
+      <p>
+        Signed-in students have complete transparency and control over what Pythos remembers:
+      </p>
+      <ul>
+        <li>Click the <strong>🧠 Personal Memory</strong> button in the sidebar to view every saved learning preference.</li>
+        <li>Edit or delete individual memory items at any time.</li>
+        <li>Click <strong>🗑️ Forget Everything</strong> (`POST /api/memory/clear`) to permanently erase all personal memory records immediately.</li>
+        <li>Delete any saved conversation session from the sidebar history with a single click.</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>4. Homework Images &amp; Problem Reports</h2>
+      <p>
+        When you attach a photo of a homework problem or diagram, the image is compressed locally in your browser and transmitted over encrypted HTTPS solely to transcribe and analyze the mathematical problem. Raw base64 image payloads are automatically stripped before conversation history is saved to cloud storage.
+      </p>
+      <p>
+        Discrepancy reports (`🐞 Report`) are submitted <strong>only when you explicitly click the Report button</strong> to flag a mathematical error for verifier calibration.
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>5. Telemetry &amp; Strict Clarity Masking</h2>
+      <p>
+        To diagnose layout bugs across screen sizes, Pythos uses Microsoft Clarity with strict privacy masking (`data-clarity-mask="true"`) applied to all student input fields (`#userInput`), conversation logs (`#output`), uploaded image strips (`#pendingImagesStrip`), sidebar chat history (`#chatHistoryList`), personal memory modals (`#pythosMemoryModal`), and floating tool windows. Your problem text and homework content are masked from analytics inspection.
+      </p>
+    </section>
+  </main>
+
+  <footer role="contentinfo">
+    <p>&copy; 2026 Jon Scott / LANZAR. Free Education License (PFEL v2.0).</p>
+  </footer>
+</body>
+</html>

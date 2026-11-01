@@ -2389,18 +2389,163 @@ function synthesizeVerificationStepAudit(claim, verification, stepIndex = 0) {
   };
 }
 
+async function runPythonVerifierBatch(claimsBatch) {
+  if (!Array.isArray(claimsBatch) || claimsBatch.length === 0) return [];
+  if (claimsBatch.length === 1) {
+    const single = await runDeterministicVerification(claimsBatch[0]);
+    return [single];
+  }
+
+  return casQueue.run(async () => {
+    return new Promise((resolve) => {
+      const pythonBin = getPythonExecutable();
+      const pythonScript = path.join(__dirname, 'verifier', 'verifier.py');
+      const proc = child_process.spawn(pythonBin, [pythonScript], { stdio: ['pipe', 'pipe', 'pipe'] });
+
+      let stdout = '';
+      let stderr = '';
+      let settled = false;
+
+      function cleanupProcess(terminate = false) {
+        try { if (proc.stdin && !proc.stdin.destroyed) proc.stdin.destroy(); } catch (_) {}
+        try { if (proc.stdout && !proc.stdout.destroyed) proc.stdout.destroy(); } catch (_) {}
+        try { if (proc.stderr && !proc.stderr.destroyed) proc.stderr.destroy(); } catch (_) {}
+        if (terminate) {
+          try {
+            if (process.platform === 'win32') proc.kill();
+            else proc.kill('SIGKILL');
+          } catch (_) {}
+        }
+      }
+
+      const timeoutMs = Math.min(15000, Math.max(5000, claimsBatch.length * 2500));
+      const timer = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          cleanupProcess(true);
+          resolve(claimsBatch.map(() => ({
+            verified: false,
+            status: 'ERROR',
+            error_type: 'CAS_TIMEOUT',
+            reason: `Batch verifier timeout after ${timeoutMs}ms`
+          })));
+        }
+      }, timeoutMs);
+
+      proc.stdout.on('data', (d) => { stdout += d.toString(); });
+      proc.stderr.on('data', (d) => { stderr += d.toString(); });
+
+      proc.on('close', (code) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        cleanupProcess(false);
+
+        if (code === 0 && stdout.trim()) {
+          try {
+            const parsed = JSON.parse(stdout);
+            if (Array.isArray(parsed) && parsed.length === claimsBatch.length) {
+              return resolve(parsed);
+            }
+          } catch (_) {}
+        }
+        resolve(claimsBatch.map(() => ({
+          verified: false,
+          status: 'ERROR',
+          error_type: 'CAS_PROCESS_EXIT_ERROR',
+          reason: stderr.trim() || `Python batch verifier exited with code ${code}`
+        })));
+      });
+
+      proc.on('error', (err) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        cleanupProcess(true);
+        resolve(claimsBatch.map(() => ({
+          verified: false,
+          status: 'ERROR',
+          error_type: 'CAS_EXECUTION_ERROR',
+          reason: err.message
+        })));
+      });
+
+      try {
+        proc.stdin.write(JSON.stringify({ batch: claimsBatch }));
+        proc.stdin.end();
+      } catch (writeErr) {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          cleanupProcess(true);
+          resolve(claimsBatch.map(() => ({
+            verified: false,
+            status: 'ERROR',
+            error_type: 'CAS_PIPE_ERROR',
+            reason: writeErr.message
+          })));
+        }
+      }
+    });
+  });
+}
+
 async function verifyResponseClaims(content, userQueryText, abortSignal) {
   const claims = extractClaims(content, userQueryText || '');
   const internalContradictions = auditInternalConsistency(claims);
   const verificationResults = [];
   const invalidClaims = [];
-
   const verificationAudit = [];
+
+  const resolvedByIndex = new Array(claims.length).fill(null);
+  const pythonPendingIndices = [];
+  const pythonPendingClaims = [];
+  const promptStr = typeof userQueryText === 'string' ? userQueryText.trim() : '';
 
   for (let ci = 0; ci < claims.length; ci++) {
     if (abortSignal && abortSignal.aborted) break;
     const claim = claims[ci];
-    const verification = await runDeterministicVerification(claim, userQueryText || '');
+    if (!claim || typeof claim !== 'object') continue;
+
+    if (promptStr) {
+      claim.userPrompt = promptStr;
+      if (claim.data) claim.data.userPrompt = promptStr;
+      const fidelity = checkPromptClaimFidelity(claim, promptStr);
+      if (!fidelity.ok) {
+        resolvedByIndex[ci] = {
+          verified: false,
+          engine: 'fidelity',
+          status: 'FIDELITY_MISMATCH',
+          error_type: 'PROMPT_CLAIM_FIDELITY_MISMATCH',
+          details: fidelity.reason
+        };
+        continue;
+      }
+    }
+
+    const mathjsResult = mathjsVerifier.verify(claim);
+    if (mathjsResult.status !== 'UNKNOWN') {
+      resolvedByIndex[ci] = mathjsResult;
+    } else {
+      pythonPendingIndices.push(ci);
+      pythonPendingClaims.push(claim);
+    }
+  }
+
+  if (pythonPendingClaims.length > 0 && !(abortSignal && abortSignal.aborted)) {
+    const batchResults = await runPythonVerifierBatch(pythonPendingClaims);
+    for (let bi = 0; bi < pythonPendingIndices.length; bi++) {
+      resolvedByIndex[pythonPendingIndices[bi]] = batchResults[bi] || {
+        verified: false,
+        status: 'ERROR',
+        reason: 'Missing batch verification result'
+      };
+    }
+  }
+
+  for (let ci = 0; ci < claims.length; ci++) {
+    const claim = claims[ci];
+    const verification = resolvedByIndex[ci];
     if (verification) {
       verificationResults.push(verification);
       const auditStep = synthesizeVerificationStepAudit(claim, verification, ci);
@@ -2510,6 +2655,7 @@ module.exports = {
   extractClaims,
   auditInternalConsistency,
   runDeterministicVerification,
+  runPythonVerifierBatch,
   checkPromptClaimFidelity,
   synthesizeVerificationStepAudit,
   verifyResponseClaims,

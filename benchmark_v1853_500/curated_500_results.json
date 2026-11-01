@@ -1,0 +1,97 @@
+{
+  "benchmarkVersion": "v1.8.53-curated-500",
+  "timestamp": "2026-11-01T00:40:18.596Z",
+  "totalProblems": 500,
+  "validProblems": 450,
+  "verifiedCorrect": 450,
+  "validResolutionRate": "100.00%",
+  "faultInjectedProblems": 50,
+  "faultsCaught": 50,
+  "faultCatchRate": "100.00%",
+  "falsePositivesDelivered": 0,
+  "sympyBatchVerified": "5/5",
+  "sympyBatchLatencyMs": 1471,
+  "totalRuntimeMs": 1864,
+  "domains": {
+    "Arithmetic & Order of Operations": {
+      "tested": 50,
+      "validTested": 45,
+      "verifiedCorrect": 45,
+      "faultInjected": 5,
+      "faultCaught": 5,
+      "falsePositives": 0
+    },
+    "Fractions, Decimals & Percentages": {
+      "tested": 50,
+      "validTested": 45,
+      "verifiedCorrect": 45,
+      "faultInjected": 5,
+      "faultCaught": 5,
+      "falsePositives": 0
+    },
+    "Linear Equations": {
+      "tested": 50,
+      "validTested": 45,
+      "verifiedCorrect": 45,
+      "faultInjected": 5,
+      "faultCaught": 5,
+      "falsePositives": 0
+    },
+    "Systems of Equations": {
+      "tested": 50,
+      "validTested": 45,
+      "verifiedCorrect": 45,
+      "faultInjected": 5,
+      "faultCaught": 5,
+      "falsePositives": 0
+    },
+    "Quadratics & Polynomials": {
+      "tested": 50,
+      "validTested": 45,
+      "verifiedCorrect": 45,
+      "faultInjected": 5,
+      "faultCaught": 5,
+      "falsePositives": 0
+    },
+    "Functions & Algebra": {
+      "tested": 50,
+      "validTested": 45,
+      "verifiedCorrect": 45,
+      "faultInjected": 5,
+      "faultCaught": 5,
+      "falsePositives": 0
+    },
+    "Geometry & Trigonometry": {
+      "tested": 50,
+      "validTested": 45,
+      "verifiedCorrect": 45,
+      "faultInjected": 5,
+      "faultCaught": 5,
+      "falsePositives": 0
+    },
+    "Calculus (Derivatives & Integrals)": {
+      "tested": 50,
+      "validTested": 45,
+      "verifiedCorrect": 45,
+      "faultInjected": 5,
+      "faultCaught": 5,
+      "falsePositives": 0
+    },
+    "Matrices & Linear Algebra": {
+      "tested": 50,
+      "validTested": 45,
+      "verifiedCorrect": 45,
+      "faultInjected": 5,
+      "faultCaught": 5,
+      "falsePositives": 0
+    },
+    "Classical Mechanics & Kinematics": {
+      "tested": 50,
+      "validTested": 45,
+      "verifiedCorrect": 45,
+      "faultInjected": 5,
+      "faultCaught": 5,
+      "falsePositives": 0
+    }
+  }
+}

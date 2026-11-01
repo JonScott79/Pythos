@@ -1,3 +1,32 @@
+## Pythos 1.8.53
+**Release Date:** October 31, 2026
+
+### Comprehensive Product Audit Remediation (Security, Performance, Accessibility, UX, Privacy, LANZAR ID & Verification)
+- **Phase 0 — Emergency Security Verification & Container Hardening:**
+  - Restricted static file serving in `server/server.js` and `staticServer.js` to explicit public directories and root static assets, preventing container root filesystem exposure (`/etc/passwd`, `/app/server.js`, `/reports/*`).
+  - Enforced strict CORS origin allowlist validation with HTTP 403 rejection on unauthorized origins and `Vary: Origin` header.
+  - Hardened `Dockerfile` to run under non-root `USER node`, disabled `x-powered-by`, and added `Content-Security-Policy`, `Permissions-Policy`, and `Strict-Transport-Security` headers across `server/server.js`, `staticServer.js`, and `netlify.toml`.
+- **Phase 1 — Backend Security & Resource Protection:**
+  - Replaced global `15mb` JSON parser with a `256kb` default body limit and scoped `15mb` exclusively to `/api/chat`.
+  - Bounded `ConcurrencyLimiter` queue (`maxQueueSize = 25`), returning HTTP `503` (`queue_full`) on overflow and aborting active controllers on client disconnect.
+  - Added per-IP rate limiting (`10 / 15 min`), schema/size validation, path traversal sanitization, and asynchronous `fs.promises` writes on `/api/report`.
+  - Sanitized public `/health` output and gated detailed runtime diagnostics behind Bearer-authenticated `/admin/status`.
+  - Resolved all `npm audit` advisories (`0` vulnerabilities in root and `server/`).
+- **Phase 2 — Performance & Initial Load Optimization:**
+  - Pre-rendered `#welcomeOracleCard` in `index.html`, converted external font/KaTeX stylesheets to non-render-blocking load, and deferred Firebase SDK initialization (`ensureFirebaseInitialized()`) until after initial paint.
+  - Compressed `assets/pythos_avatar.jpg` (`548 KB` -> `6.1 KB`) and `assets/math_bg.jpg` (`1,017 KB` -> `57.7 KB`) with WebP variants, switched `math.js` to `math.min.js`, lazy-loaded `heic2any.min.js` and `mathlive.min.js` on demand, consolidated 22 `vizEngine/*` scripts into `vizEngine/vizEngine.bundle.js`, and enabled gzip compression in `staticServer.js`.
+  - Reduced Mobile LCP from **8.0 s (`8,010 ms`) to 1.0 s (`1,019 ms`)** and Desktop LCP from **4.2 s (`4,152 ms`) to 0.8 s (`817 ms`)**, achieving **100/100 Mobile Performance** and **99/100 Desktop Performance**.
+- **Phase 3 — Accessibility & Interface Improvements:**
+  - Resolved all WCAG 2.5.3 `label-content-name-mismatch` violations, fixed dark-mode `#loginBtn` contrast (`8.33:1`), and expanded `.sidebar-nav-links a` touch targets (`>= 26x26px`), achieving **100/100 Lighthouse Accessibility** on both Mobile and Desktop with 0 failing audits.
+  - Added `:focus-within` visibility for message action buttons (`.msg-actions`), replaced desktop `zoom: 0.8` with responsive CSS media queries, fixed skipped heading levels (`<h3>` under `<h2>`), and removed inline `onclick`/`onsubmit` handlers.
+- **Phase 4 — UX, Onboarding, Privacy, LANZAR ID & Documentation:**
+  - Streamlined the primary toolbar to 3 directly visible primary tools (`Check Work`, `Graph`, `Sim Lab`) plus an accessible `Toolbox` popover menu (`Calc`, `Units`, `Matrix`, `Equation Builder`, `Formulas`, `Scratchpad`).
+  - Added OIDC-compatible **LANZAR ID** ecosystem authentication (`js/lanzarIdAuth.js`, `server/lanzarIdService.js`) with Google account linking, clear anonymous-by-default messaging, and an **unchecked-by-default** mailing-list opt-in checkbox with explicit consent timestamp/source logging and one-click unsubscribe.
+  - Added `privacy.html`, `accessibility.html`, `docs/LANZAR_ID_ARCHITECTURE.md`, and a searchable Study Hub quick-start filter (`#studyHubSearchInput`).
+- **Phase 5 — Verification Engine Batching & Curated Multi-Domain Benchmark:**
+  - Implemented batched SymPy verification (`runPythonVerifierBatch` in `server/verificationBridge.js` and `dispatch_payload` in `server/verifier/verifier.py`) so multi-claim responses execute in a single Python process.
+  - Added `test-phase5-math-regression.js` (18/18 passing across all 14 domains) and `benchmark_v1853_500/run_curated_benchmark.js` (500 curated problems across 10 domains: `450/450` valid verified, `50/50` injected faults caught, `0` false positives).
+
 ## Pythos 1.8.52
 ### Critical Fix: Verification Bridge Equation Hardening, Complete Root Set Extraction & Student Premise Intelligence
 - **Verification Bridge Multiline Equation Hardening:** Fixed greedy multiline regex in `server/verificationBridge.js` that matched across newlines when validating factorization checks (e.g. `0.\n9-15+6 = 0`), which caused Math.js to produce a `ResultSet` array and falsely trigger `EXTRANEOUS_ROOT`, causing the system to mistakenly withhold verified solutions from students.
