@@ -26,7 +26,6 @@
   <link rel="icon" type="image/png" href="assets/favicon.png">
   <link rel="apple-touch-icon" href="assets/favicon.png">
   <link rel="manifest" href="site.webmanifest">
-  <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#2563eb">
   
   <!-- SEO METADATA -->
@@ -172,40 +171,17 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link id="googleFontsStylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" media="print">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"></noscript>
   
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <link id="katexStylesheet" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" media="print">
+  <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css"></noscript>
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
-  <!-- Deterministic Math Engine -->
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.1/math.js"></script>
-  <!-- Visual Equation Editor (MathLive) -->
-  <script defer src="https://unpkg.com/mathlive"></script>
-  <!-- Pythos Classical Visualization Engine -->
-  <script defer src="vizEngine/vizProtocol.js"></script>
-  <script defer src="vizEngine/vizExtractor.js"></script>
-  <script defer src="vizEngine/scrollPolicy.js"></script>
-  <script defer src="vizEngine/models/projectile.js"></script>
-  <script defer src="vizEngine/models/newtons_laws.js"></script>
-  <script defer src="vizEngine/models/energy_transfer.js"></script>
-  <script defer src="vizEngine/models/momentum.js"></script>
-  <script defer src="vizEngine/models/hookes_law.js"></script>
-  <script defer src="vizEngine/models/waves.js"></script>
-  <script defer src="vizEngine/models/circuits.js"></script>
-  <script defer src="vizEngine/models/trigonometry.js"></script>
-  <script defer src="vizEngine/models/calculus_derivatives.js"></script>
-  <script defer src="vizEngine/models/triangle.js"></script>
-  <script defer src="vizEngine/models/circle.js"></script>
-  <script defer src="vizEngine/models/normal_distribution.js"></script>
-  <script defer src="vizEngine/models/gas_laws.js"></script>
-  <script defer src="vizEngine/models/exponential_growth.js"></script>
-  <script defer src="vizEngine/models/pendulum.js"></script>
-  <script defer src="vizEngine/models/optics.js"></script>
-  <script defer src="vizEngine/models/buoyancy.js"></script>
-  <script defer src="vizEngine/vizRenderer.js"></script>
-  <script defer src="vizEngine/simLab.js"></script>
-  <!-- Client-Side HEIC/HEIF Image Conversion Engine (iOS / iPhone Support) -->
-  <script defer src="assets/vendor/heic2any.min.js"></script>
+  <!-- Deterministic Math Engine (Minified) -->
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.1/math.min.js"></script>
+  <!-- Pythos Classical Visualization Engine (Consolidated Bundle) -->
+  <script defer src="vizEngine/vizEngine.bundle.js"></script>
 
   <!-- =====================================
      Styles
@@ -4291,7 +4267,32 @@
         </noscript>
 
         <!-- CHAT CONVERSATION LOG -->
-        <div id="output" role="log" aria-live="polite" aria-relevant="additions text" aria-atomic="false" aria-label="Conversation History with Pythos Oracle" tabindex="-1" data-clarity-mask="true"></div>
+        <div id="output" role="log" aria-live="polite" aria-relevant="additions text" aria-atomic="false" aria-label="Conversation History with Pythos Oracle" tabindex="-1" data-clarity-mask="true">
+          <div id="welcomeOracleCard" class="welcome-oracle-card" role="region" aria-label="Welcome to Pythos Oracle">
+            <img src="assets/pythos_avatar.jpg" alt="Pythos Oracle" class="welcome-oracle-avatar" width="56" height="56" fetchpriority="high" />
+            <h2 class="welcome-oracle-title">Welcome to Pythos</h2>
+            <p class="welcome-oracle-desc">
+              Free AI mathematics &amp; physics education backed by multiple checks for accuracy.
+              Work through derivations, check your homework, or explore concepts step-by-step.
+              <br><a href="validation/" style="color:var(--primary-color); text-decoration:underline; font-size:0.85rem;">View our public mathematical validation record &rarr;</a>
+            </p>
+            <div class="starter-prompts-title">Try a starter problem:</div>
+            <div class="starter-chips-wrap">
+              <button type="button" class="starter-chip" data-prompt="Help me solve: x^2 - 5x + 6 = 0">
+                <span>📐 Help me solve: x² - 5x + 6 = 0</span>
+              </button>
+              <button type="button" class="starter-chip" data-prompt="Why is d/dx ln(x) = 1/x?">
+                <span>∫ Why is d/dx ln(x) = 1/x?</span>
+              </button>
+              <button type="button" class="starter-chip" data-prompt="Explain how to find projectile range.">
+                <span>🚀 Explain how to find projectile range.</span>
+              </button>
+              <button type="button" class="starter-chip" data-prompt="Graph f(x) = x^3 - 3x">
+                <span>📈 Graph f(x) = x³ - 3x</span>
+              </button>
+            </div>
+          </div>
+        </div>
 
         <div class="input-area">
           <!-- PYTHOS MATH TOOLBOX -->
@@ -4373,43 +4374,43 @@
             <span class="sr-only">Choose your preferred language or type in your native tongue:</span>
             <div class="lang-chips-grid" role="group" aria-label="Quick language selector">
               <button type="button" class="lang-chip active" data-lang="en" data-lang-name="English" aria-pressed="true" aria-label="Selected Language: English">
-                <img src="https://flagcdn.com/w40/us.png" alt="United States Flag (English)" class="lang-flag" />
+                <img src="https://flagcdn.com/w40/us.png" alt="United States Flag (English)" class="lang-flag" loading="lazy" width="20" height="15" />
                 <span class="lang-text">English</span>
               </button>
               <button type="button" class="lang-chip" data-lang="es" data-lang-name="Español" aria-pressed="false" aria-label="Switch language to Español">
-                <img src="https://flagcdn.com/w40/mx.png" alt="Mexico Flag (Español)" class="lang-flag" />
+                <img src="https://flagcdn.com/w40/mx.png" alt="Mexico Flag (Español)" class="lang-flag" loading="lazy" width="20" height="15" />
                 <span class="lang-text">Español</span>
               </button>
               <button type="button" class="lang-chip" data-lang="fr" data-lang-name="Français" aria-pressed="false" aria-label="Switch language to Français">
-                <img src="https://flagcdn.com/w40/fr.png" alt="France Flag (Français)" class="lang-flag" />
+                <img src="https://flagcdn.com/w40/fr.png" alt="France Flag (Français)" class="lang-flag" loading="lazy" width="20" height="15" />
                 <span class="lang-text">Français</span>
               </button>
               <button type="button" class="lang-chip" data-lang="de" data-lang-name="Deutsch" aria-pressed="false" aria-label="Switch language to Deutsch">
-                <img src="https://flagcdn.com/w40/de.png" alt="Germany Flag (Deutsch)" class="lang-flag" />
+                <img src="https://flagcdn.com/w40/de.png" alt="Germany Flag (Deutsch)" class="lang-flag" loading="lazy" width="20" height="15" />
                 <span class="lang-text">Deutsch</span>
               </button>
               <button type="button" class="lang-chip" data-lang="ja" data-lang-name="日本語" aria-pressed="false" aria-label="Switch language to 日本語 (Japanese)">
-                <img src="https://flagcdn.com/w40/jp.png" alt="Japan Flag (日本語)" class="lang-flag" />
+                <img src="https://flagcdn.com/w40/jp.png" alt="Japan Flag (日本語)" class="lang-flag" loading="lazy" width="20" height="15" />
                 <span class="lang-text">日本語</span>
               </button>
               <button type="button" class="lang-chip" data-lang="zh" data-lang-name="中文" aria-pressed="false" aria-label="Switch language to 中文 (Chinese)">
-                <img src="https://flagcdn.com/w40/cn.png" alt="China Flag (中文)" class="lang-flag" />
+                <img src="https://flagcdn.com/w40/cn.png" alt="China Flag (中文)" class="lang-flag" loading="lazy" width="20" height="15" />
                 <span class="lang-text">中文</span>
               </button>
               <button type="button" class="lang-chip" data-lang="ko" data-lang-name="한국어" aria-pressed="false" aria-label="Switch language to 한국어 (Korean)">
-                <img src="https://flagcdn.com/w40/kr.png" alt="South Korea Flag (한국어)" class="lang-flag" />
+                <img src="https://flagcdn.com/w40/kr.png" alt="South Korea Flag (한국어)" class="lang-flag" loading="lazy" width="20" height="15" />
                 <span class="lang-text">한국어</span>
               </button>
               <button type="button" class="lang-chip" data-lang="it" data-lang-name="Italiano" aria-pressed="false" aria-label="Switch language to Italiano">
-                <img src="https://flagcdn.com/w40/it.png" alt="Italy Flag (Italiano)" class="lang-flag" />
+                <img src="https://flagcdn.com/w40/it.png" alt="Italy Flag (Italiano)" class="lang-flag" loading="lazy" width="20" height="15" />
                 <span class="lang-text">Italiano</span>
               </button>
               <button type="button" class="lang-chip" data-lang="hi" data-lang-name="हिन्दी" aria-pressed="false" aria-label="Switch language to हिन्दी (Hindi)">
-                <img src="https://flagcdn.com/w40/in.png" alt="India Flag (हिन्दी)" class="lang-flag" />
+                <img src="https://flagcdn.com/w40/in.png" alt="India Flag (हिन्दी)" class="lang-flag" loading="lazy" width="20" height="15" />
                 <span class="lang-text">हिन्दी</span>
               </button>
               <button type="button" class="lang-chip" data-lang="pt" data-lang-name="Português" aria-pressed="false" aria-label="Switch language to Português">
-                <img src="https://flagcdn.com/w40/br.png" alt="Brazil Flag (Português)" class="lang-flag" />
+                <img src="https://flagcdn.com/w40/br.png" alt="Brazil Flag (Português)" class="lang-flag" loading="lazy" width="20" height="15" />
                 <span class="lang-text">Português</span>
               </button>
             </div>

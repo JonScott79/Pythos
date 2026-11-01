@@ -34,18 +34,37 @@
         send_page_view: true
     });
 
-    // Dynamically load Google Analytics script
-    const gaScript = document.createElement('script');
-    gaScript.async = true;
-    gaScript.src = `https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`;
-    document.head.appendChild(gaScript);
+    // Initialize Clarity stub queue so early events are buffered before script load
+    window.clarity = window.clarity || function() {
+        (window.clarity.q = window.clarity.q || []).push(arguments);
+    };
 
-    // Dynamically load Microsoft Clarity script
-    (function(c,l,a,r,i,t,y){
-        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
-        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
-        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
-    })(window, document, "clarity", "script", CLARITY_PROJECT_ID);
+    let scriptsInjected = false;
+    function injectAnalyticsScripts() {
+        if (scriptsInjected) return;
+        scriptsInjected = true;
+
+        // Dynamically load Google Analytics script
+        const gaScript = document.createElement('script');
+        gaScript.async = true;
+        gaScript.src = `https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`;
+        document.head.appendChild(gaScript);
+
+        // Dynamically load Microsoft Clarity script
+        (function(c,l,a,r,i,t,y){
+            c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+            t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+            y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+        })(window, document, "clarity", "script", CLARITY_PROJECT_ID);
+    }
+
+    if (document.readyState === 'complete') {
+        setTimeout(injectAnalyticsScripts, 3500);
+    } else {
+        window.addEventListener('load', function() {
+            setTimeout(injectAnalyticsScripts, 3500);
+        }, { once: true });
+    }
 
     // =====================================
     // Public Methods

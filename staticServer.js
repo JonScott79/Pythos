@@ -12,15 +12,17 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const zlib = require('zlib');
 
 const PORT = 3005;
 const PUBLIC_DIR = path.resolve(__dirname);
 
 const MIME_TYPES = {
-  '.html': 'text/html',
-  '.js': 'text/javascript',
-  '.css': 'text/css',
-  '.json': 'application/json',
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
@@ -32,6 +34,8 @@ const MIME_TYPES = {
   '.ttf': 'font/ttf',
   '.webp': 'image/webp'
 };
+
+const COMPRESSIBLE_EXTS = new Set(['.html', '.js', '.css', '.json', '.svg', '.webmanifest']);
 
 function isBlockedRelativePath(relFromRoot) {
   if (!relFromRoot || relFromRoot.startsWith('..') || path.isAbsolute(relFromRoot)) return true;
@@ -73,9 +77,19 @@ const server = http.createServer((req, res) => {
 
     const ext = path.extname(filePath).toLowerCase();
     const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+    const acceptEncoding = String(req.headers['accept-encoding'] || '');
 
-    res.writeHead(200, { 'Content-Type': contentType });
-    fs.createReadStream(filePath).pipe(res);
+    if (COMPRESSIBLE_EXTS.has(ext) && /\bgzip\b/i.test(acceptEncoding)) {
+      res.writeHead(200, {
+        'Content-Type': contentType,
+        'Content-Encoding': 'gzip',
+        'Vary': 'Accept-Encoding'
+      });
+      fs.createReadStream(filePath).pipe(zlib.createGzip()).pipe(res);
+    } else {
+      res.writeHead(200, { 'Content-Type': contentType });
+      fs.createReadStream(filePath).pipe(res);
+    }
   });
 });
 

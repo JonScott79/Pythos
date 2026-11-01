@@ -13,12 +13,8 @@
     - Client error handling, telemetry, and recovery boundaries
 */
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
-import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, orderBy, serverTimestamp, getDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
-
 // =========================
-// FIREBASE CONFIGURATION
+// FIREBASE CONFIGURATION (Deferred Non-Blocking Initialization)
 // (Shared with LANZAR Auth Hub & Threadline: lanzar-95ae3)
 // =========================
 const firebaseConfig = {
@@ -30,9 +26,63 @@ const firebaseConfig = {
   appId: "1:61309916889:web:a6bce4cb213af2a52250c8"
 };
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+let app = null;
+let auth = null;
+let db = null;
+let initializeApp = null;
+let getAuth = null;
+let signInWithPopup = null;
+let GoogleAuthProvider = null;
+let onAuthStateChanged = null;
+let signOut = null;
+let getFirestore = null;
+let collection = null;
+let addDoc = null;
+let updateDoc = null;
+let deleteDoc = null;
+let doc = null;
+let getDocs = null;
+let query = null;
+let orderBy = null;
+let serverTimestamp = null;
+let getDoc = null;
+let firebaseInitPromise = null;
+
+async function ensureFirebaseInitialized() {
+  if (auth && db) return { app, auth, db };
+  if (firebaseInitPromise) return firebaseInitPromise;
+  firebaseInitPromise = (async () => {
+    const [appMod, authMod, firestoreMod] = await Promise.all([
+      import("https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js"),
+      import("https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js"),
+      import("https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js")
+    ]);
+    initializeApp = appMod.initializeApp;
+    getAuth = authMod.getAuth;
+    signInWithPopup = authMod.signInWithPopup;
+    GoogleAuthProvider = authMod.GoogleAuthProvider;
+    onAuthStateChanged = authMod.onAuthStateChanged;
+    signOut = authMod.signOut;
+    getFirestore = firestoreMod.getFirestore;
+    collection = firestoreMod.collection;
+    addDoc = firestoreMod.addDoc;
+    updateDoc = firestoreMod.updateDoc;
+    deleteDoc = firestoreMod.deleteDoc;
+    doc = firestoreMod.doc;
+    getDocs = firestoreMod.getDocs;
+    query = firestoreMod.query;
+    orderBy = firestoreMod.orderBy;
+    serverTimestamp = firestoreMod.serverTimestamp;
+    getDoc = firestoreMod.getDoc;
+
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+    bindFirebaseAuthListener();
+    return { app, auth, db };
+  })();
+  return firebaseInitPromise;
+}
 
 // =====================================
 // // PYTHOS ENGINE STATE
@@ -2470,8 +2520,32 @@ function appendMessage(role, text, images = null, metadata = {}) {
   }
 }
 
+function bindWelcomeCardChips(card) {
+  if (!card) return;
+  card.querySelectorAll(".starter-chip").forEach(chip => {
+    if (chip.dataset.bound === "true") return;
+    chip.dataset.bound = "true";
+    chip.addEventListener("click", () => {
+      const promptText = chip.getAttribute("data-prompt");
+      if (promptText && input) {
+        input.value = promptText;
+        autoResizeInput();
+        input.focus();
+        if (typeof askPythos === "function" && !isProcessing) {
+          addToPromptHistory(promptText);
+          askPythos(promptText);
+        }
+      }
+    });
+  });
+}
+
 function renderWelcomeCard() {
   const existing = document.getElementById("welcomeOracleCard");
+  if (existing && output && !output.querySelector(".message")) {
+    bindWelcomeCardChips(existing);
+    return;
+  }
   if (existing) existing.remove();
 
   const card = document.createElement("div");
@@ -2480,7 +2554,7 @@ function renderWelcomeCard() {
   card.setAttribute("role", "region");
   card.setAttribute("aria-label", "Welcome to Pythos Oracle");
   card.innerHTML = `
-    <img src="assets/pythos_avatar.jpg" alt="Pythos Oracle" class="welcome-oracle-avatar" width="56" height="56" />
+    <img src="assets/pythos_avatar.jpg" alt="Pythos Oracle" class="welcome-oracle-avatar" width="56" height="56" fetchpriority="high" />
     <h2 class="welcome-oracle-title">Welcome to Pythos</h2>
     <p class="welcome-oracle-desc">
       Free AI mathematics &amp; physics education backed by multiple checks for accuracy.
@@ -2504,28 +2578,20 @@ function renderWelcomeCard() {
     </div>
   `;
 
-  card.querySelectorAll(".starter-chip").forEach(chip => {
-    chip.addEventListener("click", () => {
-      const promptText = chip.getAttribute("data-prompt");
-      if (promptText && input) {
-        input.value = promptText;
-        autoResizeInput();
-        input.focus();
-        if (typeof askPythos === "function" && !isProcessing) {
-          addToPromptHistory(promptText);
-          askPythos(promptText);
-        }
-      }
-    });
-  });
-
+  bindWelcomeCardChips(card);
   output.appendChild(card);
 }
 
 function clearChatUI() {
-  output.innerHTML = "";
+  const existingWelcome = document.getElementById("welcomeOracleCard");
+  const hasMessagesInDom = output && output.querySelector(".message");
+  if (existingWelcome && !hasMessagesInDom && messages.length === 0) {
+    bindWelcomeCardChips(existingWelcome);
+  } else {
+    output.innerHTML = "";
+    renderWelcomeCard();
+  }
   messages = [];
-  renderWelcomeCard();
   // Clear the preview
   const preview = document.getElementById("mathPreview");
   if (preview) preview.style.display = "none";
@@ -2550,41 +2616,53 @@ const userName = document.getElementById("userName");
 const userAvatar = document.getElementById("userAvatar");
 
 loginBtn.addEventListener("click", async () => {
-  const provider = new GoogleAuthProvider();
   try {
+    await ensureFirebaseInitialized();
+    const provider = new GoogleAuthProvider();
     await signInWithPopup(auth, provider);
   } catch (error) {
-    if (error.code === "auth/popup-closed-by-user" || error.code === "auth/cancelled-popup-request") return;
+    if (error && (error.code === "auth/popup-closed-by-user" || error.code === "auth/cancelled-popup-request")) return;
     console.error("Login failed", error);
     alert("Authentication failed.");
   }
 });
 
-logoutBtn.addEventListener("click", () => {
-  signOut(auth);
+logoutBtn.addEventListener("click", async () => {
+  try {
+    await ensureFirebaseInitialized();
+    await signOut(auth);
+  } catch (_) {}
 });
 
-onAuthStateChanged(auth, (user) => {
-  if (user) {
-    currentUser = user;
-    loginBtn.style.display = "none";
-    userInfo.style.display = "flex";
-    logoutBtn.style.display = "block";
-    userName.textContent = user.displayName;
-    userAvatar.src = user.photoURL;
-    currentChatId = null;
-    clearChatUI();
-    loadSidebarChats();
-  } else {
-    currentUser = null;
-    loginBtn.style.display = "block";
-    userInfo.style.display = "none";
-    logoutBtn.style.display = "none";
-    document.getElementById("chatHistoryList").innerHTML = "";
-    currentChatId = null;
-    clearChatUI();
-  }
-});
+function bindFirebaseAuthListener() {
+  if (!onAuthStateChanged || !auth) return;
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      currentUser = user;
+      loginBtn.style.display = "none";
+      userInfo.style.display = "flex";
+      logoutBtn.style.display = "block";
+      userName.textContent = user.displayName;
+      userAvatar.src = user.photoURL;
+      if (messages.length === 0) {
+        currentChatId = null;
+        clearChatUI();
+      }
+      loadSidebarChats();
+    } else {
+      const wasLoggedIn = Boolean(currentUser);
+      currentUser = null;
+      loginBtn.style.display = "block";
+      userInfo.style.display = "none";
+      logoutBtn.style.display = "none";
+      document.getElementById("chatHistoryList").innerHTML = "";
+      if (wasLoggedIn || messages.length === 0) {
+        currentChatId = null;
+        clearChatUI();
+      }
+    }
+  });
+}
 
 // =====================================
 // // FIRESTORE CHAT HISTORY
@@ -4779,13 +4857,41 @@ setupFloatingTool("toolMatrixBtn", "floatMatrixWindow", "matrixCloseBtn");
 setupFloatingTool("toolEditorBtn", "floatEditorWindow", "editorCloseBtn");
 
 // =====================================
-// // VISUAL EQUATION EDITOR (MathLive)
+// // VISUAL EQUATION EDITOR (MathLive — Lazy-Loaded on Demand)
 //
 // =====================================
 const mathField = document.getElementById("visualMathField");
 const editorStatusMsg = document.getElementById("editorStatusMsg");
 const editorModeToggle = document.getElementById("editorModeToggle");
 const editorPaletteContainer = document.getElementById("editorPaletteContainer");
+
+let mathLiveLoadPromise = null;
+function ensureMathLiveLoaded() {
+  if (editorPaletteContainer && !editorPaletteContainer.dataset.mathRendered) {
+    editorPaletteContainer.dataset.mathRendered = "true";
+    renderMath(editorPaletteContainer);
+  }
+  if (typeof window.customElements !== "undefined" && window.customElements.get("math-field")) {
+    return Promise.resolve();
+  }
+  if (mathLiveLoadPromise) return mathLiveLoadPromise;
+  mathLiveLoadPromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/mathlive@0.101.0/mathlive.min.js";
+    script.defer = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Failed to load MathLive equation editor"));
+    document.head.appendChild(script);
+  });
+  return mathLiveLoadPromise;
+}
+
+const toolEditorBtnEl = document.getElementById("toolEditorBtn");
+if (toolEditorBtnEl) {
+  toolEditorBtnEl.addEventListener("click", () => {
+    ensureMathLiveLoaded().catch(() => {});
+  });
+}
 
 let isKeyboardMode = false;
 
@@ -6720,17 +6826,32 @@ document.addEventListener("keydown", (e) => {
 // =====================================
 // INIT
 // =====================================
+// Promote non-blocking external stylesheets once DOM is interactive
+const googleFontsLink = document.getElementById("googleFontsStylesheet");
+if (googleFontsLink) googleFontsLink.media = "all";
+const katexLink = document.getElementById("katexStylesheet");
+if (katexLink) katexLink.media = "all";
+
 clearChatUI();
-checkReportingStatus();
 if (input) {
   input.focus();
 }
 
-// Render KaTeX mathematical typography on the Equation Builder palette
-setTimeout(() => {
-  const palette = document.getElementById("editorPaletteContainer");
-  if (palette) renderMath(palette);
-}, 100);
+// Defer non-critical background checks (reporting status & Firebase auth hydration)
+// until after initial paint so First/Largest Contentful Paint is never delayed
+if (document.readyState === "complete") {
+  setTimeout(() => {
+    checkReportingStatus();
+    ensureFirebaseInitialized().catch(() => {});
+  }, 2500);
+} else {
+  window.addEventListener("load", () => {
+    setTimeout(() => {
+      checkReportingStatus();
+      ensureFirebaseInitialized().catch(() => {});
+    }, 2500);
+  }, { once: true });
+}
 
 if (typeof window !== "undefined") {
   window.latexToMathText = latexToMathText;
