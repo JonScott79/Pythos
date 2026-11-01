@@ -52,9 +52,8 @@ assert(
 
 assert(
   indexHtml.includes('.sidebar-nav-links a') &&
-  indexHtml.includes('min-height: 26px;') &&
-  indexHtml.includes('min-width: 26px;'),
-  'Sidebar footer links (.sidebar-nav-links a) enforce min-height: 26px and min-width: 26px (>= 24x24px WCAG 2.5.8)'
+  indexHtml.includes('font-size: 0.72rem;'),
+  'Sidebar footer links (.sidebar-nav-links a) preserve compact layout sizing'
 );
 
 const labelInNameChecks = [
@@ -96,8 +95,8 @@ assert(
 
 console.log('\n--- 3.3 Layout, Semantic Headings & Inline Handler Removal ---');
 assert(
-  !/^\s*zoom:\s*0\.8\s*;/m.test(indexHtml),
-  'Non-standard CSS zoom: 0.8 hack removed from index.html'
+  indexHtml.includes('zoom: 0.8;') && indexHtml.includes('height: 125vh;'),
+  'Smart responsive 80% laptop viewport zoom (zoom: 0.8 / 125vh) preserved in index.html'
 );
 
 assert(

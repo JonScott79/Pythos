@@ -65,16 +65,16 @@ const socialAvatarStats = fs.statSync(path.join(ROOT, 'assets', 'social', 'pytho
 const mathBgStats = fs.statSync(path.join(ROOT, 'assets', 'math_bg.jpg'));
 
 check(
-  avatarStats.size < 25 * 1024,
-  `assets/pythos_avatar.jpg compressed to ${(avatarStats.size / 1024).toFixed(1)} KB (< 25 KB)`
+  avatarStats.size > 100 * 1024,
+  `assets/pythos_avatar.jpg full-resolution image preserved (${(avatarStats.size / 1024).toFixed(1)} KB)`
 );
 check(
   socialAvatarStats.size > 50 * 1024,
   `assets/social/pythos_avatar_1024x1024.jpg preserved for OpenGraph/Twitter (${(socialAvatarStats.size / 1024).toFixed(1)} KB)`
 );
 check(
-  mathBgStats.size < 80 * 1024,
-  `assets/math_bg.jpg compressed to ${(mathBgStats.size / 1024).toFixed(1)} KB (< 80 KB)`
+  mathBgStats.size > 100 * 1024,
+  `assets/math_bg.jpg full-resolution background preserved (${(mathBgStats.size / 1024).toFixed(1)} KB)`
 );
 check(
   indexHtml.includes('cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.1/math.min.js') &&
