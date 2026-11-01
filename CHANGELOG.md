@@ -1,3 +1,21 @@
+## Pythos 1.8.54
+**Release Date:** November 1, 2026
+
+### Live In-Bar Mathematical Formatting, Real-Time KaTeX Preview & Newsletter Registration Consent
+- **Live In-Bar Mathematical Auto-Formatting (`js/mathInputEngine.js`):**
+  - Instant progressive conversion of natural student mathematical inputs into clean Unicode representations directly inside the `#userInput` textarea as the student types.
+  - Formats exponents ($x^2, x^3, 5^6, a^{n+1}$), roots ($\sqrt{x}, \sqrt{66}$), Greek letters ($\pi, \theta, \alpha, \beta, \gamma, \omega$), fractions ($1/2 \rightarrow ½, 5/4 \rightarrow ⁵⁄₄, 5/6 \rightarrow ⁵⁄₆$), and mathematical operators ($\pm, \le, \ge, \ne, \rightarrow$).
+  - **Zero Caret Drift & Dynamic Alignment:** Accurately recalibrates caret and selection positions using exact prefix-mapping so the cursor never jumps ahead or desynchronizes when character lengths change during formatting.
+  - **English Word Immunity:** Protected regular conversational words (e.g., `pick`, `pie`, `pilot`, `almost`, `apple`, `the`, `that`, `to`, `divided by`) from accidental operator or symbol substitutions.
+- **Live Mathematical KaTeX Preview Pane:**
+  - Non-intrusive progressive preview bar docked above the conversational input that segments input into conversational prose and mathematical expressions.
+  - Renders natural expressions and equations into crisp KaTeX chips while preserving conversational sentences in clean Inter body text.
+  - Includes a quick "Copy LaTeX" utility button for students and educators.
+- **Deterministic Backend Decoding (`server/deterministicRouter.js`):**
+  - Seamlessly decodes Unicode superscripts, fractions, and square roots back into standard mathematical and CAS syntax prior to routing, solving, and SymPy verification.
+- **LANZAR ID Newsletter Consent:**
+  - Added an explicit, unchecked-by-default newsletter consent checkbox during registration with explicit opt-in tracking.
+
 ## Pythos 1.8.53
 **Release Date:** October 31, 2026
 

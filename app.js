@@ -361,26 +361,103 @@ function renderMath(element) {
   doRender();
 }
 
-// Render a KaTeX preview of the user's input below the input box
+// Track current rendered preview LaTeX string for copy button
+let currentPreviewLatex = "";
+
+// Render a real-time KaTeX preview of the user's input above the input box
 function renderInputPreview() {
-  let preview = document.getElementById("mathPreview");
+  const preview = document.getElementById("mathPreview");
+  const rendered = document.getElementById("mathPreviewRendered") || preview;
+  if (!input) return;
   const raw = input.value;
-  // Only show preview if there's a math delimiter present
-  const hasMath = /\$|\\\(|\\\[/.test(raw);
-  if (!hasMath || !raw.trim()) {
+
+  const engine = window.PythosMathInputEngine;
+  if (!engine || !raw.trim()) {
     if (preview) preview.style.display = "none";
+    currentPreviewLatex = "";
     return;
   }
-  if (!preview) {
-    preview = document.createElement("div");
-    preview.id = "mathPreview";
-    preview.style.cssText = "padding:8px 20px;font-size:0.9rem;color:#64748b;border-top:1px dashed #e2e8f0;background:#f8fafc;";
-    document.querySelector(".input-area").appendChild(preview);
+
+  const segments = engine.MathIntentEngine.segmentInput(raw);
+  const mathSegments = segments.filter(s => s.type === "math");
+
+  if (!mathSegments.length) {
+    if (preview) preview.style.display = "none";
+    currentPreviewLatex = "";
+    return;
   }
-  preview.style.display = "block";
-  preview.textContent = raw;
-  renderMath(preview);
+
+  if (preview) {
+    preview.style.display = "block";
+  }
+
+  // Case 1: Pure mathematical expression or single equation
+  if (segments.length === 1 && segments[0].type === "math") {
+    currentPreviewLatex = segments[0].latex || segments[0].raw;
+    if (rendered) {
+      if (window.katex) {
+        try {
+          window.katex.render(currentPreviewLatex, rendered, {
+            displayMode: true,
+            throwOnError: false,
+            errorColor: "#ef4444"
+          });
+          return;
+        } catch (err) {}
+      }
+      rendered.textContent = currentPreviewLatex;
+      renderMath(rendered);
+    }
+    return;
+  }
+
+  // Case 2: Conversational question with mathematical expressions
+  // Render English prose in normal Inter font with preserved spaces, and ONLY render math segments in KaTeX!
+  currentPreviewLatex = mathSegments.map(s => s.latex || s.raw).join(" \\quad ");
+
+  let previewHtml = "";
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    if (seg.type === "text") {
+      previewHtml += `<span style="font-family:'Inter',sans-serif; font-size:0.95rem; font-style:normal; color:var(--text-main); white-space:pre-wrap;">${engine.MathIntentEngine.escapeHtml(seg.raw)}</span>`;
+    } else if (seg.type === "math") {
+      let mathHtml = "";
+      if (window.katex) {
+        try {
+          mathHtml = window.katex.renderToString(seg.latex || seg.raw, {
+            displayMode: false,
+            throwOnError: false,
+            errorColor: "#ef4444"
+          });
+        } catch (e) {
+          mathHtml = engine.MathIntentEngine.escapeHtml(seg.raw);
+        }
+      } else {
+        mathHtml = engine.MathIntentEngine.escapeHtml(seg.raw);
+      }
+      previewHtml += `<span style="display:inline-block; padding:1px 6px; margin:0 3px; border-radius:4px; background:rgba(56,189,248,0.12); border:1px solid rgba(56,189,248,0.3); vertical-align:baseline; color:var(--primary-color);">${mathHtml}</span>`;
+    }
+  }
+
+  if (rendered) {
+    rendered.innerHTML = previewHtml;
+  }
 }
+
+// Wire real-time preview LaTeX copy button
+setTimeout(() => {
+  const mathPreviewCopyBtn = document.getElementById("mathPreviewCopyBtn");
+  if (mathPreviewCopyBtn) {
+    mathPreviewCopyBtn.addEventListener("click", () => {
+      if (!currentPreviewLatex) return;
+      navigator.clipboard.writeText(currentPreviewLatex).then(() => {
+        const orig = mathPreviewCopyBtn.textContent;
+        mathPreviewCopyBtn.textContent = "✓ Copied!";
+        setTimeout(() => { mathPreviewCopyBtn.textContent = orig; }, 1500);
+      }).catch(() => {});
+    });
+  }
+}, 50);
 
 // =====================================
 // // DYNAMIC ROTATING WAIT-STATE SYSTEM
@@ -787,7 +864,8 @@ if (typeof window !== "undefined") {
 // Helper: robust expression compiler supporting LaTeX and implicit multiplication
 function sanitizeGraphExpr(raw) {
   if (!raw || typeof raw !== "string") return "";
-  let expr = raw.trim();
+  const engine = window.PythosMathInputEngine;
+  let expr = engine ? engine.normalizeMathInputForParser(raw.trim()) : raw.trim();
 
   // Strip conversational wrappers & referential prefixes:
   // e.g. "this please: y=7*sin(x/4)", "this: y = 3*cos(2*x)", "it please: y=2x+1", "for me: y=..."
@@ -4577,12 +4655,24 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
+const userInputContainer = document.getElementById("userInputContainer");
+const userInputBackdrop = document.getElementById("userInputBackdrop");
+
+function syncInputOverlay() {
+  if (window.PythosMathInputEngine && userInputBackdrop && input) {
+    window.PythosMathInputEngine.syncInputBackdrop(input, userInputBackdrop, userInputContainer);
+  }
+}
+
 function autoResizeInput() {
   if (!input) return;
   input.style.height = "auto";
   const newHeight = Math.min(Math.max(input.scrollHeight, 38), 180);
   input.style.height = `${newHeight}px`;
   input.style.overflowY = input.scrollHeight > 180 ? "auto" : "hidden";
+  if (userInputBackdrop) {
+    userInputBackdrop.scrollTop = input.scrollTop;
+  }
 }
 
 // Ensure the enclosing form cannot trigger a separate submission
@@ -4648,12 +4738,16 @@ input.addEventListener("keydown", e => {
   }
 });
 
-// Enforce max length and update character counter live
+// Real-time In-Bar Math Rendering & Auto-Formatting
 input.addEventListener("input", () => {
   if (input.value.length > MAX_INPUT_LENGTH) {
     input.value = input.value.substring(0, MAX_INPUT_LENGTH);
   }
+  if (window.PythosMathInputEngine) {
+    window.PythosMathInputEngine.applyAutoFormatToInputElement(input);
+  }
   autoResizeInput();
+  syncInputOverlay();
   const len = input.value.length;
   if (charCounter) {
     if (len > 100) {
@@ -4665,6 +4759,23 @@ input.addEventListener("input", () => {
     }
   }
   renderInputPreview();
+});
+
+input.addEventListener("paste", () => {
+  setTimeout(() => {
+    if (window.PythosMathInputEngine) {
+      window.PythosMathInputEngine.applyAutoFormatToInputElement(input);
+    }
+    autoResizeInput();
+    renderInputPreview();
+  }, 10);
+});
+
+input.addEventListener("scroll", () => {
+  if (userInputBackdrop) {
+    userInputBackdrop.scrollTop = input.scrollTop;
+    userInputBackdrop.scrollLeft = input.scrollLeft;
+  }
 });
 
 // Initialize input sizing
@@ -5441,7 +5552,8 @@ function evaluateCalculator() {
   if (!raw || raw === "Error") return;
 
   try {
-    let expr = raw
+    const engine = window.PythosMathInputEngine;
+    let expr = (engine ? engine.normalizeMathInputForParser(raw) : raw)
       .replace(/÷/g, "/")
       .replace(/×/g, "*")
       .replace(/π/g, "pi")
@@ -5488,6 +5600,9 @@ calcDisplay.addEventListener("keydown", (e) => {
 });
 
 calcDisplay.addEventListener("input", () => {
+  if (window.PythosMathInputEngine) {
+    window.PythosMathInputEngine.applyAutoFormatToInputElement(calcDisplay);
+  }
   calcCurrentExpr = calcDisplay.value;
 });
 
@@ -5542,6 +5657,13 @@ const graphCanvas = document.getElementById("graphCanvas");
 const graphCtx = graphCanvas.getContext("2d");
 const graphFuncInput = document.getElementById("graphFuncInput");
 const graphPlotBtn = document.getElementById("graphPlotBtn");
+if (graphFuncInput) {
+  graphFuncInput.addEventListener("input", () => {
+    if (window.PythosMathInputEngine) {
+      window.PythosMathInputEngine.applyAutoFormatToInputElement(graphFuncInput);
+    }
+  });
+}
 
 function drawGraph(exprString) {
   const width = graphCanvas.width;
@@ -5810,6 +5932,13 @@ const checkResultArea = document.getElementById("checkResultArea");
 const checkAskPythosBtn = document.getElementById("checkAskPythosBtn");
 
 let lastFailedVerification = null;
+if (checkEqInput) {
+  checkEqInput.addEventListener("input", () => {
+    if (window.PythosMathInputEngine) {
+      window.PythosMathInputEngine.applyAutoFormatToInputElement(checkEqInput);
+    }
+  });
+}
 
 checkRunBtn.addEventListener("click", () => {
   const rawEq = checkEqInput.value.trim();
@@ -7139,6 +7268,7 @@ const lanzarDisplayNameInput = document.getElementById("lanzarDisplayNameInput")
 const lanzarEmailInput = document.getElementById("lanzarEmailInput");
 const lanzarPasswordInput = document.getElementById("lanzarPasswordInput");
 const mailingListConsentCheckbox = document.getElementById("mailingListConsentCheckbox");
+const lanzarNewsletterGroup = document.getElementById("lanzarNewsletterGroup");
 const lanzarUnsubscribeBtn = document.getElementById("lanzarUnsubscribeBtn");
 const lanzarAuthStatusMsg = document.getElementById("lanzarAuthStatusMsg");
 
@@ -7181,6 +7311,7 @@ function openLanzarIdModal() {
   if (!lanzarIdModal) return;
   if (mailingListConsentCheckbox) mailingListConsentCheckbox.checked = false;
   if (lanzarAuthStatusMsg) lanzarAuthStatusMsg.style.display = "none";
+  if (lanzarNewsletterGroup) lanzarNewsletterGroup.style.display = (lanzarAuthMode === "register") ? "block" : "none";
   lanzarIdModal.style.display = "flex";
   if (lanzarEmailInput) setTimeout(() => lanzarEmailInput.focus(), 40);
 }
@@ -7203,6 +7334,7 @@ if (lanzarModeLoginTab && lanzarModeRegisterTab) {
     lanzarModeRegisterTab.classList.remove("active");
     lanzarModeRegisterTab.setAttribute("aria-selected", "false");
     if (lanzarDisplayNameGroup) lanzarDisplayNameGroup.style.display = "none";
+    if (lanzarNewsletterGroup) lanzarNewsletterGroup.style.display = "none";
     if (lanzarSubmitBtn) {
       lanzarSubmitBtn.textContent = "Sign In with LANZAR ID";
       lanzarSubmitBtn.setAttribute("aria-label", "Sign In with LANZAR ID");
@@ -7215,6 +7347,7 @@ if (lanzarModeLoginTab && lanzarModeRegisterTab) {
     lanzarModeLoginTab.classList.remove("active");
     lanzarModeLoginTab.setAttribute("aria-selected", "false");
     if (lanzarDisplayNameGroup) lanzarDisplayNameGroup.style.display = "block";
+    if (lanzarNewsletterGroup) lanzarNewsletterGroup.style.display = "block";
     if (lanzarSubmitBtn) {
       lanzarSubmitBtn.textContent = "Create LANZAR ID";
       lanzarSubmitBtn.setAttribute("aria-label", "Create LANZAR ID");

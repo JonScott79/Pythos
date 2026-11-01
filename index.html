@@ -68,7 +68,7 @@
         "url": "https://pythos.lanzar.me/",
         "applicationCategory": "EducationalApplication",
         "operatingSystem": "All modern web browsers",
-        "softwareVersion": "1.8.53",
+        "softwareVersion": "1.8.54",
         "dateModified": "2026-10-31",
         "description": "Free AI mathematics and physics tutor providing Socratic step-by-step guidance, deterministic computer algebra verification, 2D function plotting, and study tools.",
         "inLanguage": "en",
@@ -180,6 +180,8 @@
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.1/math.min.js"></script>
   <!-- Pythos Classical Visualization Engine (Consolidated Bundle) -->
   <script defer src="vizEngine/vizEngine.bundle.js"></script>
+  <!-- Pythos Smart Math Input Engine (Auto-formatting & Live KaTeX preview) -->
+  <script defer src="js/mathInputEngine.js"></script>
 
   <!-- =====================================
      Styles
@@ -1214,6 +1216,66 @@
       border-top: 1px solid var(--border-color);
     }
 
+    /* Real-Time KaTeX Math Preview Bar */
+    .math-live-preview {
+      display: none;
+      margin-bottom: 8px;
+      padding: 8px 14px;
+      background: var(--surface-color);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+      transition: all 0.15s ease-out;
+    }
+    .math-preview-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 4px;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    .math-preview-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      color: var(--primary-color);
+      font-weight: 600;
+    }
+    .math-preview-controls {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .math-preview-copy-btn {
+      background: var(--sidebar-hover);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      border-radius: 4px;
+      padding: 2px 7px;
+      font-size: 0.68rem;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.15s ease;
+    }
+    .math-preview-copy-btn:hover {
+      background: var(--primary-color);
+      color: #ffffff;
+      border-color: var(--primary-color);
+    }
+    .math-preview-rendered {
+      overflow-x: auto;
+      padding: 3px 0;
+      color: var(--text-main);
+      min-height: 24px;
+      font-size: 1.05rem;
+    }
+    .math-preview-rendered .katex-display {
+      margin: 4px 0 !important;
+    }
+
     .input-wrapper {
       display: flex;
       gap: 8px;
@@ -1230,22 +1292,87 @@
       box-shadow: 0 0 0 2px rgba(42, 114, 143, 0.1);
     }
 
-    input,
-    textarea#userInput {
+    .user-input-container {
       flex: 1;
-      background: transparent;
-      border: none;
-      padding: 8px 12px;
-      font-family: 'Inter', sans-serif;
+      position: relative;
+      display: flex;
+      align-items: stretch;
+      min-height: 38px;
+    }
+
+    .user-input-backdrop,
+    textarea#userInput {
+      width: 100%;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       font-size: 0.92rem;
-      outline: none;
+      line-height: 1.4;
+      padding: 8px 12px;
+      margin: 0;
+      border: none;
+      box-sizing: border-box;
+      letter-spacing: normal;
+      word-spacing: normal;
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow-wrap: break-word;
+      tab-size: 2;
+    }
+
+    .user-input-backdrop {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      color: var(--text-main);
+      background: transparent;
+      pointer-events: none;
+      user-select: none;
+      overflow-y: hidden;
+      overflow-x: hidden;
+      z-index: 1;
+      display: none;
+    }
+
+    .user-input-container.has-math-overlay .user-input-backdrop {
+      display: none;
+    }
+
+    .user-input-container.has-math-overlay textarea#userInput {
+      color: var(--text-main);
+      caret-color: var(--text-main);
+    }
+
+    .user-input-container.has-math-overlay textarea#userInput::selection {
+      background: rgba(56, 189, 248, 0.35);
+    }
+
+    .user-input-backdrop .backdrop-text {
+      color: var(--text-main);
+    }
+
+    .user-input-backdrop .backdrop-math {
+      display: inline-block;
+      vertical-align: baseline;
+      color: var(--primary-color);
+      font-weight: 500;
+    }
+
+    .user-input-backdrop .katex {
+      font-size: 1.05em;
+      line-height: 1;
+    }
+
+    textarea#userInput {
+      position: relative;
+      z-index: 2;
+      background: transparent;
       color: var(--text-main);
       resize: none;
-      line-height: 1.4;
       min-height: 38px;
       max-height: 180px;
       height: 38px;
-      box-sizing: border-box;
+      outline: none;
       overflow-y: hidden;
     }
 
@@ -4460,7 +4587,7 @@
           <a href="accessibility.html">Accessibility</a>
           <a href="license.html">License</a>
           <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" title="Official Facebook Page" aria-label="Facebook — Official Facebook Page">Facebook</a>
-          <a href="changelog.html#pythos-1-8-53" title="View Changelog" aria-label="v1.8.53 — Version 1.8.53 Release Notes">v1.8.53</a>
+          <a href="changelog.html#pythos-1-8-54" title="View Changelog" aria-label="v1.8.54 — Version 1.8.54 Release Notes">v1.8.54</a>
         </nav>
       </div>
     </aside>
@@ -4478,7 +4605,7 @@
         <header class="header">
           <img class="header-avatar" src="assets/pythos_avatar.jpg" alt="Pythos Oracle" width="40" height="40" />
           <div class="header-info">
-            <h1>PYTHOS <a href="changelog.html#pythos-1-8-53" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.53)" aria-label="v1.8.53 — Version 1.8.53 Release Notes">v1.8.53</a></h1>
+            <h1>PYTHOS <a href="changelog.html#pythos-1-8-54" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.54)" aria-label="v1.8.54 — Version 1.8.54 Release Notes">v1.8.54</a></h1>
             <p>Mathematics & Physics Oracle</p>
           </div>
           <button id="themeToggleBtn" class="theme-toggle-btn" title="Toggle Dark/Light Mode" aria-label="Toggle Dark and Light Theme">
@@ -4603,13 +4730,30 @@
           <!-- HIDDEN FILE INPUT (Supports standard web formats and iPhone HEIC/HEIF) -->
           <input type="file" id="imageFileInput" accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp,.bmp,image/heic,image/heif" style="display:none;" aria-hidden="true" multiple />
 
+          <!-- REAL-TIME KATEX LIVE MATH PREVIEW BAR -->
+          <div id="mathPreview" class="math-live-preview" role="region" aria-label="Real-time KaTeX math preview" style="display:none;" aria-live="polite">
+            <div class="math-preview-header">
+              <span class="math-preview-tag">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+                <span>Live Math Preview</span>
+              </span>
+              <div class="math-preview-controls">
+                <button type="button" class="math-preview-copy-btn" id="mathPreviewCopyBtn" title="Copy rendered LaTeX code to clipboard" aria-label="Copy LaTeX">Copy LaTeX</button>
+              </div>
+            </div>
+            <div class="math-preview-rendered" id="mathPreviewRendered"></div>
+          </div>
+
           <form class="input-wrapper" role="search">
             <button id="attachImgBtn" type="button" class="help-btn" title="Attach picture of math/physics problem or handwritten work" aria-label="Attach picture of problem or notes">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
             </button>
             <button id="helpBtn" type="button" class="help-btn" title="Math Input Guide" aria-label="Open Math Input Guide" aria-haspopup="dialog" aria-expanded="false" aria-controls="mathGuideOverlay">?</button>
             <label for="userInput" class="sr-only">Ask Pythos a math or physics question, or enter an equation</label>
-            <textarea id="userInput" rows="1" placeholder="Ask a math or physics question, or attach a photo..." autocomplete="off" maxlength="1500" aria-label="Math or physics problem input" autofocus data-clarity-mask="true"></textarea>
+            <div class="user-input-container" id="userInputContainer">
+              <div id="userInputBackdrop" class="user-input-backdrop" aria-hidden="true"></div>
+              <textarea id="userInput" rows="1" placeholder="Ask a math or physics question, or attach a photo..." autocomplete="off" maxlength="1500" aria-label="Math or physics problem input" autofocus data-clarity-mask="true"></textarea>
+            </div>
             <span id="charCounter" class="char-counter" style="display:none;" aria-live="polite">0/1500</span>
             <button id="voiceBtn" type="button" class="help-btn voice-btn" title="Voice Input (Speech-to-Text)" aria-label="Toggle Voice Speech-to-Text Input">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
@@ -5528,12 +5672,15 @@
           <input type="password" id="lanzarPasswordInput" class="check-input" placeholder="••••••••" autocomplete="current-password" data-clarity-mask="true" />
         </div>
 
-        <!-- Explicit, Unchecked-by-Default Mailing List Consent (Phase 4.4) -->
-        <div style="background: var(--bg-color); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 0.76rem; color: var(--text-muted);">
-          <label for="mailingListConsentCheckbox" style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer; line-height: 1.4;">
-            <input type="checkbox" id="mailingListConsentCheckbox" style="margin-top: 2px;" />
-            <span>
-              <strong>Optional:</strong> Send me occasional product updates and new STEM study resources from Pythos &amp; LANZAR. (Unchecked by default; never required for account creation. You can <button type="button" id="lanzarUnsubscribeBtn" style="background:none; border:none; padding:0; color:var(--primary-color); text-decoration:underline; font-size:inherit; cursor:pointer;">unsubscribe anytime</button>.)
+        <!-- Dedicated LANZAR & Pythos Newsletter Subscription Group -->
+        <div id="lanzarNewsletterGroup" class="lanzar-newsletter-group" style="display: none; background: var(--bg-color); padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border-color); margin-top: 4px;">
+          <label for="mailingListConsentCheckbox" style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; line-height: 1.45;">
+            <input type="checkbox" id="mailingListConsentCheckbox" style="margin-top: 3px; width: 16px; height: 16px; accent-color: var(--primary-color); cursor: pointer;" />
+            <span style="font-size: 0.8rem; color: var(--text-main);">
+              <strong>Subscribe to the LANZAR &amp; Pythos Newsletter</strong>
+              <span style="display: block; font-size: 0.74rem; color: var(--text-muted); margin-top: 2px;">
+                Receive occasional STEM study guides, problem walkthroughs, and new simulation releases. (Optional, never required to create an account. You can <button type="button" id="lanzarUnsubscribeBtn" style="background:none; border:none; padding:0; color:var(--primary-color); text-decoration:underline; font-size:inherit; cursor:pointer;">unsubscribe anytime</button>.)
+              </span>
             </span>
           </label>
         </div>

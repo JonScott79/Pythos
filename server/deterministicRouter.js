@@ -295,18 +295,28 @@ function extractArithmeticExpressions(text) {
       .replace(/\\div/g, '/')
       .replace(/\\pi/g, 'pi')
       .replace(/π/g, 'pi')
+      .replace(/√\(/g, 'sqrt(')
+      .replace(/√([0-9a-zA-Z]+)/g, 'sqrt($1)')
+      .replace(/∛\(/g, 'cbrt(')
+      .replace(/∛([0-9a-zA-Z]+)/g, 'cbrt($1)')
+      .replace(/([⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱˣʸ]+)/g, (match) => {
+        const map = { '⁰':'0','¹':'1','²':'2','³':'3','⁴':'4','⁵':'5','⁶':'6','⁷':'7','⁸':'8','⁹':'9','⁺':'+','⁻':'-','⁼':'=','⁽':'(','⁾':')','ⁿ':'n','ⁱ':'i','ˣ':'x','ʸ':'y' };
+        let s = '';
+        for (let j = 0; j < match.length; j++) s += map[match[j]] || match[j];
+        return '^(' + s + ')';
+      })
       .trim();
 
     // Whole-Input Arithmetic Verification:
     // Candidate line must be strictly composed of arithmetic tokens (digits, operations, parens, pi, sqrt).
     const cleanForSyntax = strippedLabelLine
       .replace(/\bpi\b/gi, '1')
-      .replace(/\bsqrt\b/gi, '')
+      .replace(/\b(?:sqrt|cbrt)\b/gi, '')
       .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1)/($2)');
 
     if (/^[-+*/^0-9.()\s]+$/i.test(cleanForSyntax) &&
         /(?:\d|\bpi\b)/i.test(strippedLabelLine) &&
-        (/[-+*/^]/.test(strippedLabelLine) || /\bsqrt\b/.test(strippedLabelLine) || /\(.*\)/.test(strippedLabelLine) || /\\frac/.test(strippedLabelLine))) {
+        (/[-+*/^]/.test(strippedLabelLine) || /\b(?:sqrt|cbrt)\b/.test(strippedLabelLine) || /\(.*\)/.test(strippedLabelLine) || /\\frac/.test(strippedLabelLine))) {
       
       let normalized = strippedLabelLine.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1)/($2)');
       expressions.push(normalized);

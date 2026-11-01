@@ -41,4 +41,5 @@ scratch/
 flyer.html
 
 dist/
+.netlify/
 
