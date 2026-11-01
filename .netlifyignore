@@ -1,0 +1,33 @@
+# Backend & server source code
+server/
+reports/
+staticServer.js
+dev-server.js
+profile_pipeline.js
+smoke-test-live.js
+firestore.rules
+ModelFile
+PYTHOS_FREE_URL
+
+# Test suites, benchmarks, and campaigns
+test/
+test-*.js
+test_*.js
+test_sample.heic
+run-*.js
+run_*.js
+run_*.py
+create_*.py
+benchmark-harness.js
+benchmark_images/
+benchmark_v1853_500/
+campaign_v1825_50k/
+campaign_v1825_50k_rerun/
+campaign_v1835_50k/
+*.json
+!manifest.json
+
+# Internal documentation & markdown reports
+docs/
+*.md
+flyer.html
