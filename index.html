@@ -426,16 +426,17 @@
       overflow: hidden;
     }
 
-    /* Smart responsive zoom: automatically scale to 80% on laptop & compact viewports */
+    /* Responsive compact vertical spacing on laptop viewports (replaces non-standard zoom: 0.8) */
     @media (min-width: 769px) and (max-height: 850px) {
-      body {
-        zoom: 0.8;
-        height: 125vh;
-        min-height: 125vh;
+      .header {
+        padding: 8px 16px;
       }
-      .layout {
-        height: 125vh;
-        min-height: 125vh;
+      .welcome-oracle-card {
+        padding: 16px 20px;
+        margin: 8px auto;
+      }
+      .polyglot-footer {
+        padding: 6px 12px;
       }
     }
 
@@ -592,7 +593,7 @@
     .sidebar-nav-links {
       display: flex;
       flex-wrap: wrap;
-      gap: 6px 10px;
+      gap: 6px 8px;
       justify-content: center;
       margin-top: 10px;
       padding-top: 8px;
@@ -602,9 +603,16 @@
     .sidebar-nav-links a {
       color: var(--text-muted);
       text-decoration: none;
-      font-size: 0.72rem;
+      font-size: 0.74rem;
       font-weight: 500;
-      transition: color 0.15s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 26px;
+      min-width: 26px;
+      padding: 4px 6px;
+      border-radius: 4px;
+      transition: color 0.15s, background 0.15s;
     }
 
     .sidebar-nav-links a:hover {
@@ -616,13 +624,23 @@
       width: 100%;
       padding: 8px;
       background: var(--primary-color);
-      color: white;
+      color: #ffffff;
       border: none;
       border-radius: 5px;
       cursor: pointer;
-      font-weight: 500;
+      font-weight: 600;
       font-size: 0.82rem;
-      transition: background 0.2s;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    [data-theme="dark"] .login-btn {
+      background: var(--primary-color);
+      color: #0f172a;
+    }
+
+    [data-theme="dark"] .login-btn:hover {
+      background: #7dd3fc;
+      color: #0f172a;
     }
 
     .login-btn:hover { background: var(--primary-hover); }
@@ -783,8 +801,11 @@
     }
 
 
-    .message:hover .msg-actions {
+    .message:hover .msg-actions,
+    .message:focus-within .msg-actions,
+    .msg-actions:focus-within {
       opacity: 1;
+      pointer-events: auto;
     }
 
     .msg-copy-btn {
@@ -4191,19 +4212,19 @@
     <!-- SIDEBAR -->
     <aside class="sidebar" id="sidebar" aria-label="Session Navigation and History">
       <div class="sidebar-header">
-        <button id="newChatBtn" class="new-chat-btn" aria-label="Start new math discussion">
+        <button id="newChatBtn" class="new-chat-btn" aria-label="New Chat — Start new math discussion">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
           New Chat
         </button>
         <button id="sidebarCloseBtn" class="sidebar-close-btn" aria-label="Close navigation sidebar" title="Close Sidebar">✕</button>
       </div>
       
-      <div id="chatHistoryList" class="chat-history" role="navigation" aria-label="Past discussion sessions">
+      <div id="chatHistoryList" class="chat-history" role="navigation" aria-label="Past discussion sessions" data-clarity-mask="true">
         <!-- Chat history items will be injected here via JS -->
       </div>
       
       <div class="sidebar-footer">
-        <button id="loginBtn" class="login-btn" aria-label="Sign in with Google">Login with Google</button>
+        <button id="loginBtn" class="login-btn" aria-label="Login with Google">Login with Google</button>
         <div id="userInfo" style="display: none;" class="user-profile" data-clarity-mask="true">
           <img id="userAvatar" src="" alt="User profile avatar" width="32" height="32" data-clarity-mask="true" />
           <div style="flex:1; overflow:hidden;">
@@ -4213,15 +4234,15 @@
             🧠
           </button>
         </div>
-        <button id="logoutBtn" class="logout-btn" style="display: none;" aria-label="Sign out">Logout</button>
+        <button id="logoutBtn" class="logout-btn" style="display: none;" aria-label="Logout — Sign out">Logout</button>
         <nav class="sidebar-nav-links" aria-label="Study Guides and Changelog">
           <a href="subjects/">Subjects</a>
           <a href="validation/">Validation</a>
           <a href="about/">About</a>
           <a href="nonprofit.html">Mission &amp; Roadmap</a>
           <a href="license.html">License</a>
-          <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" title="Official Facebook Page" aria-label="Official Facebook Page">Facebook</a>
-          <a href="changelog.html#pythos-1-8-52" title="View Changelog" aria-label="Version 1.8.52 Release Notes">v1.8.52</a>
+          <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" title="Official Facebook Page" aria-label="Facebook — Official Facebook Page">Facebook</a>
+          <a href="changelog.html#pythos-1-8-52" title="View Changelog" aria-label="v1.8.52 — Version 1.8.52 Release Notes">v1.8.52</a>
         </nav>
       </div>
     </aside>
@@ -4239,7 +4260,7 @@
         <header class="header">
           <img class="header-avatar" src="assets/pythos_avatar.jpg" alt="Pythos Oracle" width="40" height="40" />
           <div class="header-info">
-            <h1>PYTHOS <a href="changelog.html#pythos-1-8-52" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.52)" aria-label="Version 1.8.52 Release Notes">v1.8.52</a></h1>
+            <h1>PYTHOS <a href="changelog.html#pythos-1-8-52" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.52)" aria-label="v1.8.52 — Version 1.8.52 Release Notes">v1.8.52</a></h1>
             <p>Mathematics & Physics Oracle</p>
           </div>
           <button id="themeToggleBtn" class="theme-toggle-btn" title="Toggle Dark/Light Mode" aria-label="Toggle Dark and Light Theme">
@@ -4297,15 +4318,15 @@
         <div class="input-area">
           <!-- PYTHOS MATH TOOLBOX -->
           <div class="toolbox-bar" role="toolbar" aria-label="Interactive Math and Physics Tools">
-            <button id="toolCalcBtn" class="tool-btn" title="Scientific Calculator" aria-label="Open Scientific Calculator" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatCalcWindow">
+            <button id="toolCalcBtn" class="tool-btn" title="Scientific Calculator" aria-label="Calc — Open Scientific Calculator" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatCalcWindow">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="6" x2="16" y2="6"></line><line x1="16" y1="14" x2="16" y2="18"></line><path d="M8 10h.01"></path><path d="M12 10h.01"></path><path d="M16 10h.01"></path><path d="M8 14h.01"></path><path d="M12 14h.01"></path><path d="M8 18h.01"></path><path d="M12 18h.01"></path></svg>
               <span>Calc</span>
             </button>
-            <button id="toolGraphBtn" class="tool-btn" title="Function Grapher" aria-label="Open Function Grapher" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatGraphWindow">
+            <button id="toolGraphBtn" class="tool-btn" title="Function Grapher" aria-label="Graph — Open Function Grapher" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatGraphWindow">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
               <span>Graph</span>
             </button>
-            <button id="toolSimLabBtn" class="tool-btn" title="Sim Lab (Interactive PhET-style Physics and Math Experiments)" aria-label="Open Classical Physics and Math Simulation Lab" aria-haspopup="dialog" aria-expanded="false" aria-controls="simLabOverlay">
+            <button id="toolSimLabBtn" class="tool-btn" title="Sim Lab (Interactive PhET-style Physics and Math Experiments)" aria-label="Sim Lab — Open Classical Physics and Math Simulation Lab" aria-haspopup="dialog" aria-expanded="false" aria-controls="simLabOverlay">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(45 12 12)"></ellipse>
                 <ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(-45 12 12)"></ellipse>
@@ -4313,19 +4334,19 @@
               </svg>
               <span>Sim Lab</span>
             </button>
-            <button id="toolCheckBtn" class="tool-btn" title="Check My Work (Step Verifier)" aria-label="Open Check My Work step verifier" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatCheckWindow">
+            <button id="toolCheckBtn" class="tool-btn" title="Check My Work (Step Verifier)" aria-label="Check Work — Open Check My Work step verifier" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatCheckWindow">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
               <span>Check Work</span>
             </button>
-            <button id="toolUnitsBtn" class="tool-btn" title="Physics & Math Unit Converter" aria-label="Open Unit Converter" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatUnitsWindow">
+            <button id="toolUnitsBtn" class="tool-btn" title="Physics & Math Unit Converter" aria-label="Units — Open Unit Converter" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatUnitsWindow">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
               <span>Units</span>
             </button>
-            <button id="toolMatrixBtn" class="tool-btn" title="Matrix & Vector Calculator" aria-label="Open Matrix and Vector Calculator" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatMatrixWindow">
+            <button id="toolMatrixBtn" class="tool-btn" title="Matrix & Vector Calculator" aria-label="Matrix — Open Matrix and Vector Calculator" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatMatrixWindow">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line><line x1="15" y1="3" x2="15" y2="21"></line><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line></svg>
               <span>Matrix</span>
             </button>
-            <button id="toolEditorBtn" class="tool-btn" title="Equation Builder (Visual Math Input)" aria-label="Open Visual Equation Builder" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatEditorWindow">
+            <button id="toolEditorBtn" class="tool-btn" title="Equation Builder (Visual Math Input)" aria-label="Equation Builder — Open Visual Equation Builder" aria-haspopup="dialog" aria-expanded="false" aria-controls="floatEditorWindow">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
               <span>Equation Builder</span>
             </button>
@@ -4349,7 +4370,7 @@
           <!-- HIDDEN FILE INPUT (Supports standard web formats and iPhone HEIC/HEIF) -->
           <input type="file" id="imageFileInput" accept="image/*,.heic,.heif,.jpg,.jpeg,.png,.webp,.bmp,image/heic,image/heif" style="display:none;" aria-hidden="true" multiple />
 
-          <form class="input-wrapper" role="search" onsubmit="return false;">
+          <form class="input-wrapper" role="search">
             <button id="attachImgBtn" type="button" class="help-btn" title="Attach picture of math/physics problem or handwritten work" aria-label="Attach picture of problem or notes">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
             </button>
@@ -4532,7 +4553,7 @@
         Scientific Calculator
       </div>
       <div class="window-controls">
-        <button class="win-btn win-send" id="calcSendToPythos" title="Send Result to Pythos" aria-label="Send calculator result to Pythos chat">Send to Pythos ↵</button>
+        <button class="win-btn win-send" id="calcSendToPythos" title="Send Result to Pythos" aria-label="Send to Pythos chat">Send to Pythos ↵</button>
         <button class="win-btn win-close" id="calcCloseBtn" title="Close Calculator" aria-label="Close Calculator window">×</button>
       </div>
     </div>
@@ -4590,7 +4611,7 @@
         Function Grapher
       </div>
       <div class="window-controls">
-        <button class="win-btn win-send" id="graphSendToPythos" title="Ask Pythos about this graph" aria-label="Send plotted function to Pythos chat">Ask Pythos ↵</button>
+        <button class="win-btn win-send" id="graphSendToPythos" title="Ask Pythos about this graph" aria-label="Ask Pythos about plotted function">Ask Pythos ↵</button>
         <button class="win-btn win-close" id="graphCloseBtn" title="Close Grapher" aria-label="Close Grapher window">×</button>
       </div>
     </div>
@@ -4631,9 +4652,9 @@
           <input type="text" id="checkAnsInput" class="check-input" placeholder="e.g. 6" value="6" />
         </div>
       </div>
-      <button id="checkRunBtn" class="check-run-btn" aria-label="Verify solution deterministically">Verify Deterministically</button>
+      <button id="checkRunBtn" class="check-run-btn" aria-label="Verify Deterministically">Verify Deterministically</button>
       <div id="checkResultArea" class="check-result-area" style="display:none;" role="status" aria-live="polite"></div>
-      <button id="checkAskPythosBtn" class="win-btn win-send" style="display:none; width:100%; margin-top:8px;" title="Have Pythos explain the error" aria-label="Have Pythos explain verification failure">Ask Pythos to Explain Step ↵</button>
+      <button id="checkAskPythosBtn" class="win-btn win-send" style="display:none; width:100%; margin-top:8px;" title="Have Pythos explain the error" aria-label="Ask Pythos to Explain Step">Ask Pythos to Explain Step ↵</button>
     </div>
   </div>
 
@@ -4685,10 +4706,10 @@
         <input type="text" id="matrixBInput" class="check-input" placeholder="e.g. [2, 0; 1, 2] or 5" value="[2, 0; 1, 2]" />
       </div>
       <div class="calc-keypad" style="grid-template-columns: repeat(4, 1fr); margin-top:4px;" role="group" aria-label="Matrix Operations">
-        <button class="calc-key op-key" id="matDetBtn" title="Determinant of Matrix A" aria-label="Calculate Determinant of Matrix A">det(A)</button>
-        <button class="calc-key op-key" id="matInvBtn" title="Inverse of Matrix A" aria-label="Calculate Inverse of Matrix A">inv(A)</button>
-        <button class="calc-key op-key" id="matMulBtn" title="Multiply Matrix A by Matrix B" aria-label="Multiply Matrix A by Matrix B">A × B</button>
-        <button class="calc-key op-key" id="matAddBtn" title="Add Matrix A and Matrix B" aria-label="Add Matrix A and Matrix B">A + B</button>
+        <button class="calc-key op-key" id="matDetBtn" title="Determinant of Matrix A" aria-label="det(A) — Calculate Determinant of Matrix A">det(A)</button>
+        <button class="calc-key op-key" id="matInvBtn" title="Inverse of Matrix A" aria-label="inv(A) — Calculate Inverse of Matrix A">inv(A)</button>
+        <button class="calc-key op-key" id="matMulBtn" title="Multiply Matrix A by Matrix B" aria-label="A × B — Multiply Matrix A by Matrix B">A × B</button>
+        <button class="calc-key op-key" id="matAddBtn" title="Add Matrix A and Matrix B" aria-label="A + B — Add Matrix A and Matrix B">A + B</button>
       </div>
       <div id="matrixResultArea" class="check-result-area" style="display:none;" role="status" aria-live="polite"></div>
     </div>
@@ -4702,7 +4723,7 @@
         Equation Builder
       </div>
       <div class="window-controls">
-        <button class="win-btn" id="editorModeToggle" title="Toggle between Visual Palette and Keyboard typing mode" aria-label="Toggle Keyboard Typing Mode" style="font-size:0.75rem; background:var(--sidebar-hover); color:var(--text-main); border:1px solid var(--border-color); font-weight:600; padding:2px 8px;">⌨️ Keyboard Mode</button>
+        <button class="win-btn" id="editorModeToggle" title="Toggle between Visual Palette and Keyboard typing mode" aria-label="Keyboard Mode — Toggle Keyboard Typing Mode" style="font-size:0.75rem; background:var(--sidebar-hover); color:var(--text-main); border:1px solid var(--border-color); font-weight:600; padding:2px 8px;">⌨️ Keyboard Mode</button>
         <button class="win-btn win-close" id="editorCloseBtn" title="Close Equation Builder" aria-label="Close Equation Builder window">×</button>
       </div>
     </div>
@@ -4792,19 +4813,19 @@
 
       <!-- Action Dispatcher Bar: Send Expression Across Tools -->
       <div class="editor-actions-bar" role="group" aria-label="Equation Actions">
-        <button class="editor-action-btn primary" id="sendEqToPythos" title="Send equation to Pythos chat" aria-label="Send equation to Pythos chat">
+        <button class="editor-action-btn primary" id="sendEqToPythos" title="Send equation to Pythos chat" aria-label="Ask Pythos — Send equation to Pythos chat">
           <span>Ask Pythos ↵</span>
         </button>
-        <button class="editor-action-btn" id="sendEqToCalc" title="Send to Scientific Calculator" aria-label="Send expression to Scientific Calculator">
+        <button class="editor-action-btn" id="sendEqToCalc" title="Send to Scientific Calculator" aria-label="→ Calc — Send expression to Scientific Calculator">
           <span>→ Calc</span>
         </button>
-        <button class="editor-action-btn" id="sendEqToGraph" title="Send to Function Grapher" aria-label="Send function to Grapher">
+        <button class="editor-action-btn" id="sendEqToGraph" title="Send to Function Grapher" aria-label="→ Graph — Send function to Grapher">
           <span>→ Graph</span>
         </button>
-        <button class="editor-action-btn" id="sendEqToCheck" title="Send to Check My Work" aria-label="Send equation to Check My Work">
+        <button class="editor-action-btn" id="sendEqToCheck" title="Send to Check My Work" aria-label="→ Check Work — Send equation to Check My Work">
           <span>→ Check Work</span>
         </button>
-        <button class="editor-action-btn" id="copyEqLaTeX" title="Copy LaTeX code to clipboard" aria-label="Copy LaTeX code to clipboard">
+        <button class="editor-action-btn" id="copyEqLaTeX" title="Copy LaTeX code to clipboard" aria-label="📋 Copy — Copy LaTeX code to clipboard">
           <span>📋 Copy</span>
         </button>
       </div>
@@ -4827,8 +4848,8 @@
         <div id="pythosConfirmQuote" class="pythos-quote">"What is written on the slate may be erased, but wisdom once gained remains."</div>
       </div>
       <div class="pythos-modal-actions">
-        <button id="pythosConfirmCancel" class="pythos-modal-btn cancel" aria-label="Cancel and keep discussion">Keep Discussion</button>
-        <button id="pythosConfirmOk" class="pythos-modal-btn confirm-delete" aria-label="Confirm and erase discussion session" autofocus>Erase Session</button>
+        <button id="pythosConfirmCancel" class="pythos-modal-btn cancel" aria-label="Keep Discussion — Cancel and keep discussion">Keep Discussion</button>
+        <button id="pythosConfirmOk" class="pythos-modal-btn confirm-delete" aria-label="Erase Session — Confirm and erase discussion session" autofocus>Erase Session</button>
       </div>
     </div>
   </div>
@@ -4883,10 +4904,10 @@
         <div id="memoryStatusNotice" style="font-size: 0.82rem; display: none;" role="status" aria-live="polite"></div>
       </div>
       <div class="report-modal-actions" style="justify-content: space-between;">
-        <button id="memoryClearAllBtn" class="report-btn cancel" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.4);" aria-label="Clear all personal memory">
+        <button id="memoryClearAllBtn" class="report-btn cancel" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.4);" aria-label="🗑️ Forget Everything — Clear all personal memory">
           🗑️ Forget Everything
         </button>
-        <button id="memoryDoneBtn" class="report-btn submit" aria-label="Close dialog">Done</button>
+        <button id="memoryDoneBtn" class="report-btn submit" aria-label="Done — Close dialog">Done</button>
       </div>
     </div>
   </div>
@@ -4979,7 +5000,7 @@
         <button id="trigModalAskPythosBtn" class="report-btn cancel" style="color: var(--primary-color); border-color: var(--primary-color);" aria-label="Ask Pythos about this triangle">
           💬 Ask Pythos About This Triangle
         </button>
-        <button id="trigModalDoneBtn" class="report-btn submit" aria-label="Close dialog">Done</button>
+        <button id="trigModalDoneBtn" class="report-btn submit" aria-label="Done — Close dialog">Done</button>
       </div>
     </div>
   </div>
@@ -5065,7 +5086,7 @@
         <button id="numLineAskPythosBtn" class="report-btn cancel" style="color: var(--primary-color); border-color: var(--primary-color);" aria-label="Ask Pythos about this interval">
           💬 Ask Pythos About This Interval
         </button>
-        <button id="numLineDoneBtn" class="report-btn submit" aria-label="Close dialog">Done</button>
+        <button id="numLineDoneBtn" class="report-btn submit" aria-label="Done — Close dialog">Done</button>
       </div>
     </div>
   </div>
@@ -5122,7 +5143,7 @@
         <button id="chartModalAskPythosBtn" class="report-btn cancel" style="color: var(--primary-color); border-color: var(--primary-color);" aria-label="Ask Pythos about this distribution">
           💬 Ask Pythos About This Distribution
         </button>
-        <button id="chartModalDoneBtn" class="report-btn submit" aria-label="Close dialog">Done</button>
+        <button id="chartModalDoneBtn" class="report-btn submit" aria-label="Done — Close dialog">Done</button>
       </div>
     </div>
   </div>
@@ -5168,7 +5189,7 @@
         <!-- 2. ACTIVE EXPERIMENT VIEW (LAUNCHED SIM) -->
         <div id="simLabActiveView" class="sim-lab-active-view" style="display: none;">
           <div class="sim-lab-active-nav">
-            <button id="simLabBackBtn" class="sim-lab-back-btn" aria-label="Back to simulation catalog">
+            <button id="simLabBackBtn" class="sim-lab-back-btn" aria-label="All Simulations — Back to simulation catalog">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
               <span>All Simulations</span>
             </button>
@@ -5197,7 +5218,7 @@
   <!-- FLOATING STUDY HUB & SEO FAQ DRAWER (DISCREET BOTTOM-RIGHT ACCORDION) -->
   <aside id="studyHubDrawer" class="study-hub-drawer" aria-label="Study Guides and Frequently Asked Questions">
     <details id="studyHubDetails" class="study-hub-details">
-      <summary class="study-hub-toggle" title="Explore Subject Study Guides, Curriculums & FAQ" aria-label="Open Study Guides and FAQ">
+      <summary class="study-hub-toggle" title="Explore Subject Study Guides, Curriculums & FAQ" aria-label="📚 Guides &amp; FAQ — Open Study Guides and FAQ">
         <span>📚 Guides &amp; FAQ</span>
         <svg class="study-hub-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
           <polyline points="6 9 12 15 18 9"></polyline>
@@ -5206,7 +5227,7 @@
       <div class="study-hub-content" role="region" aria-label="Study Guide and FAQ details">
         <div class="study-hub-header">
           <h2>Pythos STEM Study Hub &amp; FAQ</h2>
-          <button type="button" class="study-hub-close" onclick="document.getElementById('studyHubDetails').removeAttribute('open')" aria-label="Close Study Guides">&times;</button>
+          <button type="button" id="studyHubCloseBtn" class="study-hub-close" aria-label="Close Study Guides">&times;</button>
         </div>
         <div class="study-hub-scroll">
           <p class="study-hub-desc">
@@ -5243,7 +5264,7 @@
           </div>
 
           <div class="study-faq-item">
-            <h4>What physics topics and simulations are covered?</h4>
+            <h3>What physics topics and simulations are covered?</h3>
             <p>Pythos covers classical mechanics, 1D and 2D kinematics, projectile motion, Newton laws of motion, rotational dynamics, work-energy theorem, and includes an interactive 17-experiment Simulation Lab with real-time visual exploration.</p>
           </div>
         </div>

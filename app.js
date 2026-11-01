@@ -6832,6 +6832,15 @@ if (googleFontsLink) googleFontsLink.media = "all";
 const katexLink = document.getElementById("katexStylesheet");
 if (katexLink) katexLink.media = "all";
 
+// Bind Study Hub Close Button (replaces inline onclick)
+const studyHubCloseBtn = document.getElementById("studyHubCloseBtn");
+if (studyHubCloseBtn) {
+  studyHubCloseBtn.addEventListener("click", () => {
+    const details = document.getElementById("studyHubDetails");
+    if (details) details.removeAttribute("open");
+  });
+}
+
 clearChatUI();
 if (input) {
   input.focus();

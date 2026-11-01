@@ -78,16 +78,25 @@ const server = http.createServer((req, res) => {
     const ext = path.extname(filePath).toLowerCase();
     const contentType = MIME_TYPES[ext] || 'application/octet-stream';
     const acceptEncoding = String(req.headers['accept-encoding'] || '');
+    const securityHeaders = {
+      'X-Frame-Options': 'SAMEORIGIN',
+      'X-Content-Type-Options': 'nosniff',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+      'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
+      'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()',
+      'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://www.gstatic.com https://apis.google.com https://www.clarity.ms https://*.clarity.ms; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://fonts.googleapis.com; font-src 'self' data: https://cdn.jsdelivr.net https://unpkg.com https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://pythos-api.lanzar.me https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com https://www.gstatic.com https://cdn.jsdelivr.net https://unpkg.com https://www.clarity.ms https://*.clarity.ms; frame-src 'self' https://*.firebaseapp.com https://accounts.google.com; object-src 'none'; base-uri 'self';"
+    };
 
     if (COMPRESSIBLE_EXTS.has(ext) && /\bgzip\b/i.test(acceptEncoding)) {
       res.writeHead(200, {
+        ...securityHeaders,
         'Content-Type': contentType,
         'Content-Encoding': 'gzip',
         'Vary': 'Accept-Encoding'
       });
       fs.createReadStream(filePath).pipe(zlib.createGzip()).pipe(res);
     } else {
-      res.writeHead(200, { 'Content-Type': contentType });
+      res.writeHead(200, { ...securityHeaders, 'Content-Type': contentType });
       fs.createReadStream(filePath).pipe(res);
     }
   });
