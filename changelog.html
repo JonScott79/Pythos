@@ -562,7 +562,37 @@
         <!-- ==================== RELEASE 1.8.28 ==================== -->
         <!-- ==================== RELEASE 1.8.29 ==================== -->
     <!-- ==================== RELEASE 1.8.31 ==================== -->
-                                                                                                                                                                                                                                                                                                                                                                                        <!-- ==================== RELEASE 1.8.52 ==================== -->
+    <!-- ==================== RELEASE 1.8.53 ==================== -->
+        <article class="release-card" id="pythos-1-8-53">
+            <header class="release-header">
+                <div>
+                    <h2 class="release-version">Pythos 1.8.53</h2>
+                    <div class="release-meta">
+                        <time datetime="2026-10-31"><i class="far fa-calendar-alt"></i> October 31, 2026</time>
+                        <span><i class="fas fa-tag"></i> Major Audit Remediation Release</span>
+                        <span><i class="fas fa-shield-alt"></i> Security Hardening, 1.0s Mobile LCP, 100/100 WCAG 2.2 AA, LANZAR ID &amp; Batched SymPy</span>
+                    </div>
+                </div>
+                <span class="release-badge">Production Release</span>
+            </header>
+            
+            <div class="release-body">
+                <p><strong>Pythos 1.8.53</strong> delivers the complete multi-phase product audit remediation across container and backend security, initial load performance, WCAG 2.2 Level AA accessibility, workspace information architecture, OIDC-compatible LANZAR ID ecosystem authentication, explicit mailing-list consent, and batched SymPy verification.</p>
+                
+                <div class="release-section">
+                    <h3>Key Improvements &amp; Audit Remediations</h3>
+                    <ul class="release-list">
+                        <li><strong>Phase 0 &amp; 1 Security Hardening:</strong> Restricted static file serving to explicit public directories, enforced strict CORS origin allowlisting, configured non-root <code>USER node</code> in Docker, added <code>Content-Security-Policy</code>, <code>Permissions-Policy</code>, and <code>Strict-Transport-Security</code> headers, scoped request body limits (<code>256kb</code> default, <code>15mb</code> on <code>/api/chat</code>), bounded inference concurrency queues, rate-limited <code>/api/report</code>, sanitized <code>/health</code>, and resolved all npm advisories (0 vulnerabilities).</li>
+                        <li><strong>Phase 2 Performance Optimization (100/100 Mobile Score, 1.0s LCP):</strong> Pre-rendered the Welcome Oracle card in static HTML, deferred Firebase SDK initialization until after initial paint, compressed avatar and background assets by 96% (saving 1.50 MB), lazy-loaded <code>heic2any</code> and <code>mathlive</code> on demand, consolidated 22 visualization scripts into <code>vizEngine.bundle.js</code>, and enabled streaming gzip compression—cutting total initial transfer size by 85.7% (4.55 MB &rarr; 0.65 MB) and Mobile LCP from 8.0s to 1.0s.</li>
+                        <li><strong>Phase 3 Accessibility (100/100 Mobile &amp; Desktop, 0 Violations):</strong> Resolved all WCAG 2.5.3 label-in-name mismatches, enhanced dark-mode login button contrast to 8.33:1, expanded footer touch targets (&ge; 26&times;26px), added keyboard <code>:focus-within</code> visibility on message actions, replaced desktop <code>zoom: 0.8</code> with responsive CSS, and fixed semantic heading hierarchy.</li>
+                        <li><strong>Phase 4 Workspace UX, LANZAR ID &amp; Privacy:</strong> Streamlined the primary toolbar to 3 primary tools (<code>Check Work</code>, <code>Graph</code>, <code>Sim Lab</code>) plus an accessible <code>Toolbox</code> popover, introduced OIDC-compatible <strong>LANZAR ID</strong> authentication with Google account linking and an unchecked-by-default mailing-list opt-in with one-click unsubscribe, and published dedicated <a href="privacy.html">Privacy</a> and <a href="accessibility.html">Accessibility</a> pages.</li>
+                        <li><strong>Phase 5 Batched SymPy Verification &amp; Curated 500-Problem Benchmark:</strong> Implemented single-process batch SymPy verification in <code>verificationBridge.js</code> and <code>verifier.py</code> (reducing multi-claim CAS latency by ~66%) and validated 100% accuracy and 100% fault detection (0 false positives) across the new 500-problem multi-domain curated benchmark.</li>
+                    </ul>
+                </div>
+            </div>
+        </article>
+
+        <!-- ==================== RELEASE 1.8.52 ==================== -->
         <article class="release-card" id="pythos-1-8-52">
             <header class="release-header">
                 <div>
