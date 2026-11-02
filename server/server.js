@@ -2555,7 +2555,9 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
             model: targetModel,
             content: resOllama.content,
             provider: selectedProvider.name,
-            reasoningPath: 'PRIMARY'
+            reasoningPath: 'PRIMARY',
+            finishReason: resOllama.finishReason || null,
+            truncated: resOllama.truncated === true
           };
           break;
         } else if (selectedProvider.name === 'groq-text') {
@@ -2586,6 +2588,8 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
             content: resGroq.content,
             provider: selectedProvider.name,
             reasoningPath: 'BACKUP',
+            finishReason: resGroq.finishReason || null,
+            truncated: resGroq.truncated === true,
             backupTriggerReason: primaryFailureError ? (primaryFailureError.code || primaryFailureError.message) : 'PRIMARY_UNAVAILABLE'
           };
           break;
@@ -2617,6 +2621,8 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
             content: resGemini.content,
             provider: selectedProvider.name,
             reasoningPath: 'BACKUP',
+            finishReason: resGemini.finishReason || null,
+            truncated: resGemini.truncated === true,
             backupTriggerReason: primaryFailureError ? (primaryFailureError.code || primaryFailureError.message) : 'PRIMARY_UNAVAILABLE'
           };
           break;
@@ -2829,9 +2835,10 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           }
         }
       }
+    }
 
-      // =====================================
-      // DELIVERY GATE: Safe Withholding vs Certified Delivery
+    // =====================================
+    // DELIVERY GATE: Safe Withholding vs Certified Delivery
       // =====================================
       const uncorrectedInvalidClaims = invalidClaims.filter(({ claim, verification }) => {
         // If the verification error was geometric contradiction, range error, or fidelity mismatch, it cannot be overridden by arithmetic CAS
@@ -2961,10 +2968,9 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
               internalContradictionsCount: internalContradictions.length
             }
           });
-          console.log('[REPORT SERVICE] Auto-flagged suspicious interaction for human review.');
-        } catch (flagErr) {
-          console.error('[REPORT SERVICE] Failed to auto-flag report:', flagErr.message);
-        }
+        console.log('[REPORT SERVICE] Auto-flagged suspicious interaction for human review.');
+      } catch (flagErr) {
+        console.error('[REPORT SERVICE] Failed to auto-flag report:', flagErr.message);
       }
     }
 

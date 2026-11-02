@@ -61,6 +61,103 @@ function cleanLatexUnits(str) {
 }
 
 /**
+ * Recursively normalizes LaTeX radicals (\sqrt{...}) and fractions (\frac{...}{...})
+ * using balanced-brace tracking to ensure nested ASTs do not corrupt.
+ */
+function replaceLatexRadicalsAndFractions(str) {
+  if (!str || typeof str !== 'string') return '';
+  let res = str;
+
+  // 1. Balanced-brace replacement for \frac{num}{den} -> ((num)/(den))
+  while (res.includes('\\frac{')) {
+    const idx = res.indexOf('\\frac{');
+    let depth = 0;
+    let numStart = idx + 6;
+    let numEnd = -1;
+    for (let i = numStart; i < res.length; i++) {
+      if (res[i] === '{') depth++;
+      else if (res[i] === '}') {
+        if (depth === 0) { numEnd = i; break; }
+        depth--;
+      }
+    }
+    if (numEnd === -1) break;
+    let denStart = numEnd + 1;
+    while (denStart < res.length && /\s/.test(res[denStart])) denStart++;
+    if (res[denStart] !== '{') break;
+    denStart++;
+    let denEnd = -1;
+    depth = 0;
+    for (let i = denStart; i < res.length; i++) {
+      if (res[i] === '{') depth++;
+      else if (res[i] === '}') {
+        if (depth === 0) { denEnd = i; break; }
+        depth--;
+      }
+    }
+    if (denEnd === -1) break;
+    const num = res.slice(numStart, numEnd);
+    const den = res.slice(denStart, denEnd);
+    res = res.slice(0, idx) + '((' + num + ')/(' + den + '))' + res.slice(denEnd + 1);
+  }
+
+  // 2. Balanced-brace replacement for \sqrt{inner} -> sqrt(inner) from innermost out
+  while (res.includes('\\sqrt{')) {
+    const lastIdx = res.lastIndexOf('\\sqrt{');
+    let depth = 0;
+    let start = lastIdx + 6;
+    let end = -1;
+    for (let i = start; i < res.length; i++) {
+      if (res[i] === '{') depth++;
+      else if (res[i] === '}') {
+        if (depth === 0) { end = i; break; }
+        depth--;
+      }
+    }
+    if (end === -1) break;
+    const inner = res.slice(start, end);
+    res = res.slice(0, lastIdx) + 'sqrt(' + inner + ')' + res.slice(end + 1);
+  }
+
+  return res;
+}
+
+/**
+ * Extracts all numeric values (including positive/negative fractions \frac{a}{b} and a/b)
+ * from a candidate string or boxed expression.
+ */
+function parseSolutionNumbers(rawStr) {
+  if (!rawStr || typeof rawStr !== 'string') return [];
+  const results = [];
+  let s = rawStr;
+
+  // 1. Replace [+-]?\frac{a}{b} with evaluated quotient
+  s = s.replace(/([-\+]?)\s*\\frac\{\s*([-\+]?\d+(?:\.\d+)?)\s*\}\{\s*(\d+(?:\.\d+)?)\s*\}/g, (_, sign, num, den) => {
+    const mult = (sign === '-') ? -1 : 1;
+    const d = Number(den);
+    return (d !== 0) ? (' ' + (mult * Number(num) / d) + ' ') : ' ';
+  });
+
+  // 2. Replace a/b with calculated quotient
+  s = s.replace(/([-\+]?\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)/g, (_, num, den) => {
+    const d = Number(den);
+    return (d !== 0) ? (' ' + (Number(num) / d) + ' ') : ' ';
+  });
+
+  // 3. Extract all remaining numbers
+  const numMatches = s.match(/[-+]?\d+(?:\.\d+)?/g);
+  if (numMatches) {
+    for (const nm of numMatches) {
+      const val = Number(nm);
+      if (Number.isFinite(val) && !results.includes(val)) {
+        results.push(val);
+      }
+    }
+  }
+  return results;
+}
+
+/**
  * Extracts final candidate answer from response text.
  * Returns null if no valid non-empty candidate answer can be extracted (fail-closed).
  */
@@ -726,6 +823,7 @@ function extractClaims(text, userPrompt = '') {
   function cleanAndNormalizeEquation(rawEqStr) {
     if (!rawEqStr || typeof rawEqStr !== 'string' || !rawEqStr.includes('=')) return null;
     if (rawEqStr.includes('\n') || rawEqStr.includes('\r')) return null;
+    rawEqStr = rawEqStr.replace(/\\\[|\\\]|\$\$/g, ' ').trim();
     const parts = rawEqStr.split('=');
     if (parts.length !== 2) return null;
     const rawLhs = parts[0].trim();
@@ -793,21 +891,29 @@ function extractClaims(text, userPrompt = '') {
 
     if (!lhs || !rhs) return null;
 
-    let normLhs = lhs
-      .replace(/\\sqrt\{([^}]+)\}/g, 'sqrt($1)')
+    let normLhs = replaceLatexRadicalsAndFractions(lhs)
       .replace(/\\left\(/g, '(')
       .replace(/\\right\)/g, ')')
       .replace(/\\times/g, '*')
       .replace(/\\cdot/g, '*')
-      .replace(/(\d)\s*([a-zA-Z])(?![a-zA-Z])/g, (m, g1, g2) => g1 + '*' + g2);
+      .replace(/(\d)\s*([a-zA-Z])(?![a-zA-Z])/g, (m, g1, g2) => g1 + '*' + g2)
+      .replace(/(\d)\s*\(/g, (m, g1) => g1 + '*(')
+      .replace(/\)\s*\(/g, ')*(')
+      .replace(/\)\s*([a-zA-Z])/g, (m, g1) => ')*' + g1)
+      .replace(/(\d)\s*(sqrt|sin|cos|tan)/g, (m, g1, g2) => g1 + '*' + g2)
+      .replace(/([a-zA-Z])\s*(sqrt)/g, (m, g1, g2) => g1 + '*' + g2);
 
-    let normRhs = rhs
-      .replace(/\\sqrt\{([^}]+)\}/g, 'sqrt($1)')
+    let normRhs = replaceLatexRadicalsAndFractions(rhs)
       .replace(/\\left\(/g, '(')
       .replace(/\\right\)/g, ')')
       .replace(/\\times/g, '*')
       .replace(/\\cdot/g, '*')
-      .replace(/(\d)\s*([a-zA-Z])(?![a-zA-Z])/g, (m, g1, g2) => g1 + '*' + g2);
+      .replace(/(\d)\s*([a-zA-Z])(?![a-zA-Z])/g, (m, g1, g2) => g1 + '*' + g2)
+      .replace(/(\d)\s*\(/g, (m, g1) => g1 + '*(')
+      .replace(/\)\s*\(/g, ')*(')
+      .replace(/\)\s*([a-zA-Z])/g, (m, g1) => ')*' + g1)
+      .replace(/(\d)\s*(sqrt|sin|cos|tan)/g, (m, g1, g2) => g1 + '*' + g2)
+      .replace(/([a-zA-Z])\s*(sqrt)/g, (m, g1, g2) => g1 + '*' + g2);
 
     const variableMatch = normLhs.match(/\b([a-zA-Z])\b/) || normRhs.match(/\b([a-zA-Z])\b/);
     const variable = variableMatch ? variableMatch[1] : 'x';
@@ -831,14 +937,14 @@ function extractClaims(text, userPrompt = '') {
   }
 
   // Pattern 5a: Equation followed by "solutions:" / "roots:" (e.g. "x^2 - 5x + 6 = 0, solutions: 2, 3")
-  const eqSolutionsRegex = /([^\n\r;=]+=[^\n\r;=]+)[,;:\s]+(?:with\s+)?(?:solutions?|roots?)\s*(?:are|is|:|=)?\s*([-\d.,\s*andor]+)/gi;
+  const eqSolutionsRegex = /([^\n\r;=]+=[^\n\r;=]+)[,;:\s]+(?:with\s+)?(?:solutions?|roots?)\s*(?:are|is|:|=)?\s*([-\d.,\s*andor\\frac{}]+)/gi;
   let eqSolMatch;
   while ((eqSolMatch = eqSolutionsRegex.exec(text)) !== null) {
     const rawEq = eqSolMatch[1].trim();
     const rawSols = eqSolMatch[2].trim();
-    const numbers = rawSols.match(/[-+]?\d+(?:\.\d+)?/g);
+    const numbers = parseSolutionNumbers(rawSols);
     const cleaned = cleanAndNormalizeEquation(rawEq);
-    if (numbers && cleaned && isSingleVarEq(cleaned.equation)) {
+    if (numbers.length > 0 && cleaned && isSingleVarEq(cleaned.equation)) {
       claims.push({
         domain: 'algebra',
         claim_type: 'equation_solution',
@@ -846,24 +952,29 @@ function extractClaims(text, userPrompt = '') {
         data: {
           equation: cleaned.equation,
           variable: cleaned.variable,
-          proposed_solutions: numbers.map(Number)
+          proposed_solutions: numbers
         }
       });
     }
   }
 
   // Pattern 5b: Equation followed by explicit solution assignment (e.g. "2x + 3 = 11, x = 4" or "x^2 - 5x + 6 = 0, x = 2 or x = 3")
-  const eqVarRegex = /([^\n\r;=]+=[^\n\r;=]+)[,;:\s]+(?:=>\s*|\\implies\s+|so\s+|therefore\s+)?([a-zA-Z])\s*=\s*([-\d.]+)(?:\s*(?:,|and|or)\s*\2\s*=\s*([-\d.]+))?/gi;
+  const eqVarRegex = /([^\n\r;=]+=[^\n\r;=]+)[,;:\s]+(?:=>\s*|\\implies\s+|so\s+|therefore\s+)?([a-zA-Z])\s*=\s*([-\+]?(?:\\frac\{\s*[-\+]?\d+(?:\.\d+)?\s*\}\{\s*\d+(?:\.\d+)?\s*\}|[-\+]?\d+(?:\.\d+)?(?:\/\d+(?:\.\d+)?)?))(?:\s*(?:,|and|or)\s*\2\s*=\s*([-\+]?(?:\\frac\{\s*[-\+]?\d+(?:\.\d+)?\s*\}\{\s*\d+(?:\.\d+)?\s*\}|[-\+]?\d+(?:\.\d+)?(?:\/\d+(?:\.\d+)?)?)))?/gi;
   let eqVarMatch;
   while ((eqVarMatch = eqVarRegex.exec(text)) !== null) {
     const rawEq = eqVarMatch[1].trim();
     if (isBareAssignment(rawEq)) continue;
     if (/\b(?:with|where|given|for)\s+[a-zA-Z0-9_]+\s*=/i.test(rawEq)) continue;
     const variable = eqVarMatch[2];
-    const sols = [parseFloat(eqVarMatch[3])];
-    if (eqVarMatch[4]) sols.push(parseFloat(eqVarMatch[4]));
+    const sols = parseSolutionNumbers(eqVarMatch[3]);
+    if (eqVarMatch[4]) {
+      const extraSols = parseSolutionNumbers(eqVarMatch[4]);
+      for (const es of extraSols) {
+        if (!sols.includes(es)) sols.push(es);
+      }
+    }
     const cleaned = cleanAndNormalizeEquation(rawEq);
-    if (cleaned && isSingleVarEq(cleaned.equation)) {
+    if (cleaned && isSingleVarEq(cleaned.equation) && sols.length > 0) {
       // Verify that the assigned variable actually exists in the equation
       const varInEq = new RegExp(`\\b${variable}\\b`, 'i').test(cleaned.equation);
       if (!varInEq) continue;
@@ -908,13 +1019,10 @@ function extractClaims(text, userPrompt = '') {
               sols = compMatches;
               rawMatchStr = boxedMatches[boxedMatches.length - 1].raw;
             } else {
-              const isNumberList = /^[a-zA-Z\s=]*[-+]?\d+(?:\.\d+)?(?:\s*(?:,|and|or|;)\s*(?:[a-zA-Z]\s*=)?\s*[-+]?\d+(?:\.\d+)?)*\s*$/i.test(rawBoxed);
-              if (isNumberList) {
-                const nums = rawBoxed.match(/[-+]?\d+(?:\.\d+)?/g);
-                if (nums && nums.length > 0) {
-                  sols = nums.map(Number);
-                  rawMatchStr = boxedMatches[boxedMatches.length - 1].raw;
-                }
+              const boxedSols = parseSolutionNumbers(rawBoxed);
+              if (boxedSols && boxedSols.length > 0) {
+                sols = boxedSols;
+                rawMatchStr = boxedMatches[boxedMatches.length - 1].raw;
               }
             }
           }
@@ -922,24 +1030,25 @@ function extractClaims(text, userPrompt = '') {
 
         // If not in boxed, check explicit assignments like x = 3 or x = 9, or x = 3, 9, or "solutions are 2 and 3"
         if (sols.length === 0) {
-          const solListRegex = new RegExp('(?:solutions?|roots?)\\s*(?:are|is|:|=)?\\s*([-\\d.,\\s*andor]+)', 'i');
+          const solListRegex = new RegExp('(?:solutions?|roots?)\\s*(?:are|is|:|=)?\\s*([-\\d.,\\s*andor\\\\frac{}]+)', 'i');
           const listMatch = text.match(solListRegex);
           if (listMatch) {
-            const nums = listMatch[1].match(/[-+]?\d+(?:\.\d+)?/g);
-            if (nums && nums.length > 0) {
-              nums.forEach(n => {
-                const val = Number(n);
-                if (!sols.includes(val)) sols.push(val);
+            const listSols = parseSolutionNumbers(listMatch[1]);
+            if (listSols && listSols.length > 0) {
+              listSols.forEach(n => {
+                if (!sols.includes(n)) sols.push(n);
               });
               rawMatchStr = listMatch[0];
             }
           }
 
-          const assignAllRegex = new RegExp('\\b' + v + '\\s*=\\s*([-\+]?\\d+(?:\\.\\d+)?)', 'gi');
+          const assignAllRegex = new RegExp('\\b' + v + '\\s*=\\s*([-\\+]?(?:\\\\frac\\{\\s*[-\\+]?\\d+(?:\\.\\d+)?\\s*\\}\\{\\s*\\d+(?:\\.\\d+)?\\s*\\}|[-\\+]?\\d+(?:\\.\\d+)?(?:\\/\\d+(?:\\.\\d+)?)?))', 'gi');
           let m;
           while ((m = assignAllRegex.exec(text)) !== null) {
-            const val = Number(m[1]);
-            if (!sols.includes(val)) sols.push(val);
+            const parsedVals = parseSolutionNumbers(m[1]);
+            parsedVals.forEach(val => {
+              if (!sols.includes(val)) sols.push(val);
+            });
             if (!rawMatchStr) rawMatchStr = m[0];
           }
         }
@@ -964,7 +1073,6 @@ function extractClaims(text, userPrompt = '') {
       }
     }
   }
-
   // Pattern 5e: Function Evaluation Claims (e.g. "If f(x) = expr, find f(k)" or "Find f(k) where f(x) = expr" -> "f(k) = val" or "\boxed{val}")
   const { analyzeDeterministicIntent } = require('./deterministicRouter');
   let fnIntent = null;
@@ -2543,6 +2651,7 @@ async function verifyResponseClaims(content, userQueryText, abortSignal) {
     }
   }
 
+  const unknownClaims = [];
   for (let ci = 0; ci < claims.length; ci++) {
     const claim = claims[ci];
     const verification = resolvedByIndex[ci];
@@ -2553,8 +2662,12 @@ async function verifyResponseClaims(content, userQueryText, abortSignal) {
         verificationAudit.push(auditStep);
       }
     }
-    if (verification && verification.verified === false && verification.status !== 'UNKNOWN') {
-      invalidClaims.push({ claim, verification, claimIndex: ci });
+    if (verification && verification.verified === false) {
+      if (verification.status === 'UNKNOWN') {
+        unknownClaims.push({ claim, verification, claimIndex: ci });
+      } else {
+        invalidClaims.push({ claim, verification, claimIndex: ci });
+      }
     }
   }
 
@@ -2563,6 +2676,7 @@ async function verifyResponseClaims(content, userQueryText, abortSignal) {
     internalContradictions,
     verificationResults,
     invalidClaims,
+    unknownClaims,
     verificationAudit
   };
 }

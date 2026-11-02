@@ -4419,12 +4419,19 @@ async function askPythos(userText) {
             if (ev.withholdingReason) metaWithholdingReason = ev.withholdingReason;
             if (ev.withholdingExplanation) metaWithholdingExplanation = ev.withholdingExplanation;
             if (ev.withholdingDetails) metaWithholdingDetails = ev.withholdingDetails;
+            const hasAffirmativeVerification = Array.isArray(ev.verification) && ev.verification.some(v => v && v.verified === true && v.status === 'VERIFIED');
             if (ev.withheld) {
               statusBadge.style.color = "#d97706";
               statusBadge.innerHTML = `<span style="color:#d97706; font-weight:500;">Clarification Needed</span>`;
-            } else {
+            } else if (hasAffirmativeVerification && !isTruncated) {
               statusBadge.style.color = "#16a34a";
               statusBadge.innerHTML = `<span style="color:#16a34a; font-weight:500;">✓ Verified</span>`;
+            } else if (isTruncated) {
+              statusBadge.style.color = "#d97706";
+              statusBadge.innerHTML = `<span style="color:#d97706; font-weight:500;">⚠️ Interrupted</span>`;
+            } else {
+              statusBadge.style.color = "#64748b";
+              statusBadge.innerHTML = `<span style="color:#64748b; font-weight:500;">Socratic Solution</span>`;
             }
           } else if (ev.type === "done") {
             if (verificationTimer) { clearTimeout(verificationTimer); verificationTimer = null; }
@@ -4490,6 +4497,14 @@ async function askPythos(userText) {
         }
       } else {
         let sanitizedReply = streamedText.trim();
+        // Remove trailing unescaped backslashes or orphaned spacing backslashes at end of lines or blocks
+        sanitizedReply = sanitizedReply.replace(/(?:\\;|\s)*\\+(?=\s*(?:\r?\n|$|\\\]|\$\$))/g, '');
+        // Auto-close unclosed display math delimiters to prevent KaTeX fracture
+        const openDisplayMath = (sanitizedReply.match(/\\\[/g) || []).length;
+        const closeDisplayMath = (sanitizedReply.match(/\\\]/g) || []).length;
+        if (openDisplayMath > closeDisplayMath) {
+          sanitizedReply += '\n\\]';
+        }
         // Sanitize any runaway ASCII loops or broken unclosed code blocks before markdown rendering
         sanitizedReply = sanitizedReply.replace(/```(?:[a-zA-Z0-9_-]*\n)?[\s\S]*?(?:\|[ \t]*\\|\\[ \t]*\|)[\s\S]*?(?:```|$)/gi, '');
         sanitizedReply = sanitizedReply.replace(/(?:\|\s*\\){2,}[^\n]*/gi, '');
