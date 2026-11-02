@@ -4279,6 +4279,8 @@
         slider.setAttribute("aria-valuenow", state[key]);
         slider.setAttribute("aria-valuetext", `${state[key]} ${v.unit}`);
         slider.setAttribute("data-var-key", key);
+        slider.style.touchAction = "pan-y";
+        slider.addEventListener("focus", () => { try { slider.scrollIntoView({ behavior: "smooth", block: "nearest" }); } catch(_) {} });
 
         slider.addEventListener("input", (e) => {
           const val = Number(e.target.value);

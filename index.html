@@ -68,8 +68,8 @@
         "url": "https://pythos.lanzar.me/",
         "applicationCategory": "EducationalApplication",
         "operatingSystem": "All modern web browsers",
-        "softwareVersion": "1.8.56",
-        "dateModified": "2026-11-01",
+        "softwareVersion": "1.8.57",
+        "dateModified": "2026-11-02",
         "description": "Free AI mathematics and physics tutor providing Socratic step-by-step guidance, deterministic computer algebra verification, 2D function plotting, and study tools.",
         "inLanguage": "en",
         "isAccessibleForFree": true,
@@ -3482,11 +3482,11 @@
     .sim-lab-mount-container {
       flex: 1 1 0%;
       min-height: 0;
-      height: 100%;
+      height: auto;
       overflow-y: auto !important;
       overflow-x: hidden;
-      overscroll-behavior: contain;
-      padding: 10px 18px 24px;
+      overscroll-behavior-y: contain;
+      padding: 10px 18px calc(72px + env(safe-area-inset-bottom, 24px));
       display: flex;
       flex-direction: column;
       box-sizing: border-box;
@@ -4187,8 +4187,13 @@
 
       /* Mount Container and Canvas inside Sim Lab */
       .sim-lab-mount-container {
-        padding: 8px 10px 20px !important;
+        flex: 1 1 0% !important;
+        min-height: 0 !important;
+        height: auto !important;
+        padding: 6px 10px calc(80px + env(safe-area-inset-bottom, 24px)) !important;
         -webkit-overflow-scrolling: touch !important;
+        overscroll-behavior-y: contain !important;
+        scroll-behavior: smooth !important;
       }
       .sim-lab-mount-container.pythos-viz-instrument,
       .sim-lab-mount-container .pythos-viz-instrument {
@@ -4199,7 +4204,7 @@
         top: 0 !important;
         z-index: 15 !important;
         background: var(--surface-color) !important;
-        padding: 4px 0 6px !important;
+        padding: 2px 0 4px !important;
         border-bottom: 1px solid var(--border-color) !important;
       }
       .sim-lab-mount-container .pythos-viz-canvas {
@@ -4207,18 +4212,22 @@
         max-width: 100% !important;
         height: auto !important;
         aspect-ratio: 640 / 300 !important;
-        max-height: 195px !important;
+        max-height: clamp(130px, 24vh, 175px) !important;
         object-fit: contain !important;
       }
       .sim-lab-mount-container .pythos-viz-metrics-row {
-        grid-template-columns: repeat(2, 1fr) !important;
-        gap: 6px !important;
+        grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)) !important;
+        gap: 4px !important;
+        margin-top: 4px !important;
       }
       .sim-lab-mount-container .pythos-viz-metric-card {
-        padding: 6px 8px !important;
+        padding: 3px 6px !important;
+      }
+      .sim-lab-mount-container .pythos-metric-label {
+        font-size: 0.60rem !important;
       }
       .sim-lab-mount-container .pythos-metric-value {
-        font-size: 0.88rem !important;
+        font-size: 0.80rem !important;
         word-break: break-all !important;
       }
 
@@ -4346,6 +4355,96 @@
       .check-run-btn {
         min-height: 42px !important;
         font-size: 0.9rem !important;
+      }
+    }
+
+    /* Classical Sim Lab Landscape Side-by-Side Interactive Workbench */
+    @media (orientation: landscape) and (max-height: 520px), (max-height: 500px) and (min-width: 520px) {
+      .sim-lab-overlay {
+        padding: 0 !important;
+      }
+      .sim-lab-modal {
+        width: 100% !important;
+        height: 100% !important;
+        height: 100dvh !important;
+        border-radius: 0 !important;
+      }
+      .sim-lab-header {
+        padding: 6px 12px !important;
+        gap: 4px !important;
+        flex-direction: row !important;
+        align-items: center !important;
+      }
+      .sim-lab-title-group {
+        display: none !important;
+      }
+      .sim-lab-active-nav {
+        padding: 4px 12px !important;
+        gap: 6px !important;
+      }
+      .sim-lab-active-info {
+        order: 2 !important;
+        width: auto !important;
+        flex: 1 1 auto !important;
+        margin-top: 0 !important;
+      }
+      .sim-lab-mount-container {
+        padding: 6px 12px 16px !important;
+        overflow: hidden !important;
+      }
+      .sim-lab-mount-container.pythos-viz-instrument,
+      .sim-lab-mount-container .pythos-viz-instrument {
+        padding: 0 !important;
+        height: 100% !important;
+        display: flex !important;
+        flex-direction: column !important;
+      }
+      .sim-lab-mount-container .pythos-viz-body {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1.25fr) minmax(260px, 1fr) !important;
+        gap: 10px !important;
+        height: 100% !important;
+        min-height: 0 !important;
+        align-items: stretch !important;
+      }
+      .sim-lab-mount-container .pythos-viz-stage-col {
+        position: static !important;
+        height: 100% !important;
+        min-height: 0 !important;
+        border-bottom: none !important;
+        padding: 0 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: space-between !important;
+      }
+      .sim-lab-mount-container .pythos-viz-stage-wrap {
+        flex: 1 1 0% !important;
+        min-height: 0 !important;
+        height: auto !important;
+      }
+      .sim-lab-mount-container .pythos-viz-canvas {
+        max-height: 100% !important;
+        height: 100% !important;
+        width: 100% !important;
+        aspect-ratio: auto !important;
+        object-fit: contain !important;
+      }
+      .sim-lab-mount-container .pythos-viz-metrics-row {
+        grid-template-columns: repeat(auto-fit, minmax(75px, 1fr)) !important;
+        gap: 4px !important;
+        flex-shrink: 0 !important;
+      }
+      .sim-lab-mount-container .pythos-viz-controls-col {
+        height: 100% !important;
+        min-height: 0 !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        padding-right: 4px !important;
+        padding-bottom: 24px !important;
+      }
+      .sim-lab-mount-container .pythos-viz-controls-panel {
+        padding: 6px 8px !important;
+        gap: 4px !important;
       }
     }
 
@@ -4716,7 +4815,7 @@
           <a href="accessibility.html">Accessibility</a>
           <a href="license.html">License</a>
           <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" title="Official Facebook Page" aria-label="Facebook — Official Facebook Page">Facebook</a>
-          <a href="changelog.html#pythos-1-8-56" title="View Changelog" aria-label="v1.8.56 — Version 1.8.56 Release Notes">v1.8.56</a>
+          <a href="changelog.html#pythos-1-8-57" title="View Changelog" aria-label="v1.8.57 — Version 1.8.57 Release Notes">v1.8.57</a>
         </nav>
       </div>
     </aside>
@@ -4734,7 +4833,7 @@
         <header class="header">
           <img class="header-avatar" src="assets/pythos_avatar.jpg" alt="Pythos Oracle" width="40" height="40" />
           <div class="header-info">
-            <h1>PYTHOS <a href="changelog.html#pythos-1-8-56" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.56)" aria-label="v1.8.56 — Version 1.8.56 Release Notes">v1.8.56</a></h1>
+            <h1>PYTHOS <a href="changelog.html#pythos-1-8-57" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.57)" aria-label="v1.8.57 — Version 1.8.57 Release Notes">v1.8.57</a></h1>
             <p>Mathematics & Physics Oracle</p>
           </div>
           <button id="themeToggleBtn" class="theme-toggle-btn" title="Toggle Dark/Light Mode" aria-label="Toggle Dark and Light Theme">
