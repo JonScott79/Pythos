@@ -4899,34 +4899,104 @@ function bringFloatingWindowToFront(winEl) {
 
 function makeDraggable(winEl, handleEl) {
   let isDragging = false;
+  let activePointerId = null;
   let offsetX = 0;
   let offsetY = 0;
 
-  winEl.addEventListener("mousedown", () => {
-    bringFloatingWindowToFront(winEl);
-  });
+  const bringFront = () => bringFloatingWindowToFront(winEl);
+  winEl.addEventListener("mousedown", bringFront);
+  if (window.PointerEvent) {
+    winEl.addEventListener("pointerdown", bringFront);
+  }
 
-  handleEl.addEventListener("mousedown", (e) => {
-    if (winEl.classList.contains("docked-equation-drawer")) return;
-    if (e.target.closest("button")) return; // Don't drag when clicking close/action buttons
+  const startDrag = (clientX, clientY, pointerId = null) => {
+    if (winEl.classList.contains("docked-equation-drawer")) return false;
     isDragging = true;
-    offsetX = e.clientX - winEl.getBoundingClientRect().left;
-    offsetY = e.clientY - winEl.getBoundingClientRect().top;
+    activePointerId = pointerId;
+    const r = winEl.getBoundingClientRect();
+    offsetX = clientX - r.left;
+    offsetY = clientY - r.top;
     bringFloatingWindowToFront(winEl);
-  });
+    return true;
+  };
 
-  document.addEventListener("mousemove", (e) => {
+  const moveDrag = (clientX, clientY) => {
     if (!isDragging) return;
-    const x = Math.max(10, Math.min(window.innerWidth - winEl.offsetWidth - 10, e.clientX - offsetX));
-    const y = Math.max(10, Math.min(window.innerHeight - winEl.offsetHeight - 10, e.clientY - offsetY));
+    const x = Math.max(10, Math.min(window.innerWidth - winEl.offsetWidth - 10, clientX - offsetX));
+    const y = Math.max(10, Math.min(window.innerHeight - winEl.offsetHeight - 10, clientY - offsetY));
     winEl.style.left = `${x}px`;
     winEl.style.top = `${y}px`;
     winEl.style.right = "auto";
-  });
+  };
 
-  document.addEventListener("mouseup", () => {
+  const endDrag = () => {
     isDragging = false;
-  });
+    activePointerId = null;
+  };
+
+  // Modern Unified Pointer Events (Mouse, Touch, Pen)
+  if (window.PointerEvent) {
+    handleEl.addEventListener("pointerdown", (e) => {
+      if (e.target.closest("button") || e.target.closest("input") || e.target.closest("select")) return;
+      if (startDrag(e.clientX, e.clientY, e.pointerId)) {
+        try { handleEl.setPointerCapture(e.pointerId); } catch (_) {}
+      }
+    });
+
+    handleEl.addEventListener("pointermove", (e) => {
+      if (!isDragging || e.pointerId !== activePointerId) return;
+      moveDrag(e.clientX, e.clientY);
+    });
+
+    const onPointerEnd = (e) => {
+      if (isDragging && (activePointerId === null || e.pointerId === activePointerId)) {
+        try {
+          if (handleEl.hasPointerCapture(e.pointerId)) {
+            handleEl.releasePointerCapture(e.pointerId);
+          }
+        } catch (_) {}
+        endDrag();
+      }
+    };
+    handleEl.addEventListener("pointerup", onPointerEnd);
+    handleEl.addEventListener("pointercancel", onPointerEnd);
+  } else {
+    // Touch & Mouse fallbacks
+    handleEl.addEventListener("mousedown", (e) => {
+      if (e.target.closest("button") || e.target.closest("input") || e.target.closest("select")) return;
+      startDrag(e.clientX, e.clientY);
+    });
+    document.addEventListener("mousemove", (e) => {
+      if (isDragging) moveDrag(e.clientX, e.clientY);
+    });
+    document.addEventListener("mouseup", endDrag);
+
+    handleEl.addEventListener("touchstart", (e) => {
+      if (e.target.closest("button") || e.target.closest("input") || e.target.closest("select")) return;
+      if (e.touches && e.touches[0]) {
+        startDrag(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    }, { passive: true });
+    document.addEventListener("touchmove", (e) => {
+      if (isDragging && e.touches && e.touches[0]) {
+        moveDrag(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    }, { passive: true });
+    document.addEventListener("touchend", endDrag);
+  }
+}
+
+// Visual Viewport Mobile Keyboard Handling
+if (typeof window !== "undefined" && window.visualViewport) {
+  const onViewportChange = () => {
+    if (window.innerWidth <= 768) {
+      const output = document.getElementById("output");
+      if (output && document.activeElement && (document.activeElement.tagName === "TEXTAREA" || document.activeElement.tagName === "INPUT")) {
+        output.scrollTop = output.scrollHeight;
+      }
+    }
+  };
+  window.visualViewport.addEventListener("resize", onViewportChange);
 }
 
 function syncPearsonExpandButtonState(isOpen) {
