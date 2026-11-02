@@ -68,7 +68,7 @@
         "url": "https://pythos.lanzar.me/",
         "applicationCategory": "EducationalApplication",
         "operatingSystem": "All modern web browsers",
-        "softwareVersion": "1.8.54",
+        "softwareVersion": "1.8.55",
         "dateModified": "2026-10-31",
         "description": "Free AI mathematics and physics tutor providing Socratic step-by-step guidance, deterministic computer algebra verification, 2D function plotting, and study tools.",
         "inLanguage": "en",
@@ -726,7 +726,24 @@
     }
 
     @media (max-width: 768px) {
-      .header { padding-left: 54px; } /* Room for mobile menu btn */
+      .header {
+        padding: 6px 12px 6px 52px;
+        gap: 8px;
+      }
+      .header-avatar {
+        width: 32px;
+        height: 32px;
+      }
+      .header-info h1 {
+        font-size: 1.05rem;
+      }
+      .header-info p {
+        font-size: 0.65rem;
+      }
+      #output {
+        padding: 10px 12px;
+        gap: 10px;
+      }
     }
 
     .header-avatar {
@@ -1485,9 +1502,17 @@
       display: inline-flex;
       align-items: center;
       gap: 5px;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      max-width: 100%;
       justify-content: center;
       margin-top: 2px;
+      scrollbar-width: none;
+    }
+
+    .polyglot-footer .lang-chips-grid::-webkit-scrollbar {
+      display: none;
     }
 
     .lang-chip {
@@ -1504,6 +1529,7 @@
       cursor: pointer;
       transition: all 0.15s ease;
       font-family: inherit;
+      flex-shrink: 0;
     }
 
     .lang-chip:hover {
@@ -1542,11 +1568,16 @@
       display: flex;
       align-items: center;
       gap: 6px;
-      margin-bottom: 6px;
-      padding: 2px;
-      overflow-x: visible;
-      flex-wrap: wrap;
+      margin-bottom: 5px;
+      padding: 0;
+      overflow-x: auto;
+      flex-wrap: nowrap;
       position: relative;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+    .toolbox-bar::-webkit-scrollbar {
+      display: none;
     }
 
     .toolbox-popover-wrap {
@@ -1636,6 +1667,7 @@
       white-space: nowrap;
       transition: all 0.2s;
       min-height: 28px;
+      flex-shrink: 0;
       touch-action: manipulation;
     }
 
@@ -1691,20 +1723,27 @@
       align-items: center;
       justify-content: space-between;
       gap: 6px;
-      margin-top: 6px;
-      padding: 4px 8px;
+      margin-top: 4px;
+      padding: 3px 6px;
       background: var(--surface-color);
       border: 1px solid var(--border-color);
       border-radius: 8px;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
+      overflow: hidden;
     }
 
     .pearson-quick-strip {
       display: flex;
       align-items: center;
       gap: 4px;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
       flex: 1;
+      scrollbar-width: none;
+    }
+    .pearson-quick-strip::-webkit-scrollbar {
+      display: none;
     }
 
     .pearson-quick-label {
@@ -1714,6 +1753,7 @@
       margin-right: 4px;
       white-space: nowrap;
       user-select: none;
+      flex-shrink: 0;
     }
 
     .pearson-quick-btn {
@@ -1731,6 +1771,7 @@
       align-items: center;
       justify-content: center;
       transition: all 0.15s;
+      flex-shrink: 0;
     }
 
     .pearson-quick-btn:hover {
@@ -3830,7 +3871,9 @@
       .toolbox-bar {
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
-        padding-bottom: 6px;
+        flex-wrap: nowrap;
+        padding-bottom: 2px;
+        margin-bottom: 3px;
         scrollbar-width: none;
       }
       .toolbox-bar::-webkit-scrollbar {
@@ -3838,9 +3881,69 @@
       }
       .tool-btn {
         flex-shrink: 0;
-        min-height: 40px !important;
-        padding: 6px 12px !important;
-        font-size: 0.8rem !important;
+        min-height: 32px !important;
+        padding: 4px 8px !important;
+        font-size: 0.74rem !important;
+      }
+      .input-area {
+        padding: 5px 8px 3px 8px !important;
+      }
+      .input-wrapper {
+        padding: 4px 6px;
+      }
+      .pearson-equation-bar {
+        margin-top: 3px !important;
+        padding: 2px 4px !important;
+        flex-wrap: nowrap !important;
+      }
+      .pearson-quick-strip {
+        flex-wrap: nowrap !important;
+        gap: 3px !important;
+      }
+      .pearson-quick-btn {
+        min-height: 24px !important;
+        min-width: 24px !important;
+        padding: 1px 5px !important;
+        font-size: 0.76rem !important;
+      }
+      .pearson-expand-btn {
+        font-size: 0.68rem !important;
+        padding: 2px 6px !important;
+      }
+      .polyglot-footer {
+        padding: 3px 8px !important;
+      }
+      .polyglot-footer .lang-chips-grid {
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        justify-content: flex-start !important;
+        gap: 3px !important;
+      }
+      .polyglot-footer .lang-chip {
+        padding: 2px 6px !important;
+        font-size: 0.68rem !important;
+      }
+      .polyglot-footer .footer-disclaimer {
+        font-size: 0.64rem !important;
+        margin-top: 2px !important;
+        line-height: 1.2 !important;
+      }
+      .welcome-oracle-card {
+        padding: 14px 12px !important;
+        border-radius: 12px !important;
+        margin: 8px auto 14px !important;
+      }
+      .welcome-oracle-card .welcome-oracle-avatar {
+        width: 44px !important;
+        height: 44px !important;
+      }
+      .welcome-oracle-card .welcome-oracle-title {
+        font-size: 1.2rem !important;
+        margin-bottom: 4px !important;
+      }
+      .welcome-oracle-card .welcome-oracle-desc {
+        font-size: 0.82rem !important;
+        line-height: 1.35 !important;
       }
       .message {
         max-width: 95% !important;
@@ -4587,7 +4690,7 @@
           <a href="accessibility.html">Accessibility</a>
           <a href="license.html">License</a>
           <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" title="Official Facebook Page" aria-label="Facebook — Official Facebook Page">Facebook</a>
-          <a href="changelog.html#pythos-1-8-54" title="View Changelog" aria-label="v1.8.54 — Version 1.8.54 Release Notes">v1.8.54</a>
+          <a href="changelog.html#pythos-1-8-55" title="View Changelog" aria-label="v1.8.55 — Version 1.8.55 Release Notes">v1.8.55</a>
         </nav>
       </div>
     </aside>
@@ -4605,7 +4708,7 @@
         <header class="header">
           <img class="header-avatar" src="assets/pythos_avatar.jpg" alt="Pythos Oracle" width="40" height="40" />
           <div class="header-info">
-            <h1>PYTHOS <a href="changelog.html#pythos-1-8-54" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.54)" aria-label="v1.8.54 — Version 1.8.54 Release Notes">v1.8.54</a></h1>
+            <h1>PYTHOS <a href="changelog.html#pythos-1-8-55" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.55)" aria-label="v1.8.55 — Version 1.8.55 Release Notes">v1.8.55</a></h1>
             <p>Mathematics & Physics Oracle</p>
           </div>
           <button id="themeToggleBtn" class="theme-toggle-btn" title="Toggle Dark/Light Mode" aria-label="Toggle Dark and Light Theme">

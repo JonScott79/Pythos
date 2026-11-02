@@ -1,3 +1,18 @@
+## Pythos 1.8.55
+**Release Date:** November 1, 2026
+
+### Mobile Workspace Viewport Overhaul, Single-Line Swipe Toolbars & Reclaimed Output Space
+- **Single-Line Horizontal Swipe Toolbars (`index.html`):**
+  - Converted the primary Toolbox bar (`Check Work`, `Calc`, `Sim Lab`, `Toolbox ▾`) into a single non-wrapping swipe row (`flex-wrap: nowrap; overflow-x: auto;`) with hidden scrollbars, eliminating two-row vertical stacking on mobile.
+- **Compact Pearson Quick Math Keypad:**
+  - Upgraded the 12-key Pearson quick math toolbar (fractions, exponents, subscripts, roots, absolute values, Greeks, and inequality operators) and the `∑ More Equations ▴` button into a single-line horizontal swipe strip, saving ~70px of vertical space.
+- **Streamlined Polyglot Language Selector:**
+  - Refactored the 10-language selector grid into an unobtrusive single-row scroll strip, shrinking the footer from ~140px down to ~30px while maintaining full WCAG 2.2 AA accessibility and machine-readable text labels.
+- **Responsive Mobile Header & Welcome Card:**
+  - Optimized header padding (`6px 12px`), avatar size (`32px`), and typography on small viewports so the welcome card and conversation bubbles expand to over 70% of the visible viewport.
+- **Reclaimed Vertical Output Space:**
+  - Reclaimed over 220px of vertical screen real estate, more than doubling visible space for Pythos's mathematical derivations, step-by-step guidance, and interactive graphs.
+
 ## Pythos 1.8.54
 **Release Date:** November 1, 2026
 
