@@ -290,6 +290,24 @@ async function runRationalEquationSuite() {
     assert.strictEqual(resSingle.verified, false, 'Faulty cancellation to (x-1)^2 must be rejected');
   });
 
+  // -------------------------------------------------------------
+  // TEST 7: KaTeX Inline Delimiters & Logarithm Identity Verification
+  // Verifies that \(\log_2 a+1=\log_2(2a)\). strips \( and \) delimiters,
+  // normalizes log base syntax into (log(a)/log(2)), and proves symbolic equivalence.
+  // -------------------------------------------------------------
+  await test('KaTeX inline delimiters & log identity verification', async () => {
+    const text = '\\(\\log_2 a+1=\\log_2(2a)\\).';
+    const claims = vb.extractClaims(text);
+    const logClaim = claims.find(c => c.claim_type === 'symbolic_equivalence');
+    assert.ok(logClaim, 'Must extract symbolic_equivalence claim from KaTeX inline delimiters');
+    assert.strictEqual(logClaim.data.expr1.includes('\\('), false, 'expr1 must not retain \\( delimiter');
+    assert.strictEqual(logClaim.data.expr2.includes('\\)'), false, 'expr2 must not retain \\) delimiter');
+
+    const result = await vb.runDeterministicVerification(logClaim);
+    assert.strictEqual(result.verified, true, 'Log identity log_2(a) + 1 = log_2(2a) must verify to diff = 0');
+    assert.strictEqual(result.status, 'VERIFIED');
+  });
+
   console.log('\n================================================================');
   console.log(`✅ ALL ${passed}/${total} RATIONAL EQUATION REGRESSION TESTS PASSED (100%)`);
   console.log('================================================================\n');

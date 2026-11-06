@@ -1212,7 +1212,7 @@ function extractClaims(text, userPrompt = '') {
     .split(/\r?\n|\\\\|\\\]|\$\$/);
 
   for (let block of rawEquivBlocks) {
-    let cleanBlock = block.replace(/\\\[|\$|\\text\{[^}]*\}/g, ' ').trim();
+    let cleanBlock = block.replace(/\\\[|\\\]|\\\(|\\\)|\\text\{[^}]*\}|\$/g, ' ').trim();
     if (!cleanBlock || !cleanBlock.includes('=')) continue;
     if (cleanBlock.includes('<') || cleanBlock.includes('>') || cleanBlock.includes('≈') || cleanBlock.includes('~')) continue;
     if (/\b(?:d|dt|dx|dy)\b\s*=\s*/.test(cleanBlock)) continue;
@@ -1243,21 +1243,29 @@ function extractClaims(text, userPrompt = '') {
     }
 
     const normLhs = replaceLatexRadicalsAndFractions(lhsRaw)
+      .replace(/\\\(|\\\)/g, '')
+      .replace(/\\log_\{?([a-zA-Z0-9]+)\}?\s*(?:\*|\s)*\(([^()]+)\)/g, '(log($2)/log($1))')
+      .replace(/\\log_\{?([a-zA-Z0-9]+)\}?\s*(?:\*|\s)*([a-zA-Z0-9]+)/g, '(log($2)/log($1))')
+      .replace(/\\log\b|\\ln\b/g, 'log')
       .replace(/\\times|\\cdot/g, '*')
       .replace(/(\d)\s*([a-zA-Z])/g, '$1*$2')
       .replace(/(\d)\s*\(/g, '$1*(')
       .replace(/\)\s*\(/g, ')*(')
       .replace(/\)\s*([a-zA-Z])/g, ')*$1')
-      .replace(/([a-zA-Z0-9])\s*(\()/g, '$1*(')
+      .replace(/\b(?!sin|cos|tan|sec|csc|cot|log|ln|exp|sqrt|asin|acos|atan\b)([a-zA-Z])\s*\(/g, '$1*(')
       .replace(/\s+/g, ' ')
       .trim();
     const normRhs = replaceLatexRadicalsAndFractions(rhsRaw)
+      .replace(/\\\(|\\\)/g, '')
+      .replace(/\\log_\{?([a-zA-Z0-9]+)\}?\s*(?:\*|\s)*\(([^()]+)\)/g, '(log($2)/log($1))')
+      .replace(/\\log_\{?([a-zA-Z0-9]+)\}?\s*(?:\*|\s)*([a-zA-Z0-9]+)/g, '(log($2)/log($1))')
+      .replace(/\\log\b|\\ln\b/g, 'log')
       .replace(/\\times|\\cdot/g, '*')
       .replace(/(\d)\s*([a-zA-Z])/g, '$1*$2')
       .replace(/(\d)\s*\(/g, '$1*(')
       .replace(/\)\s*\(/g, ')*(')
       .replace(/\)\s*([a-zA-Z])/g, ')*$1')
-      .replace(/([a-zA-Z0-9])\s*(\()/g, '$1*(')
+      .replace(/\b(?!sin|cos|tan|sec|csc|cot|log|ln|exp|sqrt|asin|acos|atan\b)([a-zA-Z])\s*\(/g, '$1*(')
       .replace(/\s+/g, ' ')
       .trim();
 

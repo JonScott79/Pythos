@@ -219,12 +219,17 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
 
     try:
         def _norm(s):
-            s = _normalize_implicit_functions(str(s))
+            s = str(s).replace(r'\(', ' ').replace(r'\)', ' ').replace(r'\[', ' ').replace(r'\]', ' ')
+            s = _re.sub(r'\\?log_\{?([a-zA-Z0-9]+)\}?\s*(?:\*|\s)*\(([^()]+)\)', r'(log(\2)/log(\1))', s)
+            s = _re.sub(r'\\?log_\{?([a-zA-Z0-9]+)\}?\s*(?:\*|\s)*([a-zA-Z0-9]+)', r'(log(\2)/log(\1))', s)
+            s = _re.sub(r'\\?ln\b', 'log', s)
+            s = _re.sub(r'\\?log\b', 'log', s)
+            s = _normalize_implicit_functions(s)
             s = _re.sub(r'(\d)\s*([a-zA-Z])', r'\1*\2', s)
             s = _re.sub(r'(\d)\s*\(', r'\1*(', s)
             s = _re.sub(r'\)\s*\(', r')*(', s)
             s = _re.sub(r'\)\s*([a-zA-Z])', r')*\1', s)
-            s = _re.sub(r'([a-zA-Z0-9])\s*\(', r'\1*(', s)
+            s = _re.sub(r'\b(?!sin|cos|tan|sec|csc|cot|log|ln|exp|sqrt|asin|acos|atan\b)([a-zA-Z])\s*\(', r'\1*(', s)
             return s
 
         e1 = sp.sympify(_norm(expr1_str))
@@ -248,7 +253,7 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
             except Exception:
                 pass
 
-        diff = sp.simplify(sp.trigsimp(e1 - e2))
+        diff = sp.simplify(sp.trigsimp(sp.logcombine(e1 - e2, force=True)))
 
         if diff == 0:
             details = f"Symbolic equivalence proven: {expr1_str} ≡ {expr2_str} (Difference simplifies to 0)."
