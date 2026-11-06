@@ -1292,53 +1292,65 @@ function extractClaims(text, userPrompt = '') {
       if (isPct) val = val / 100.0;
 
       const beforeEq = line.slice(0, eqIndex);
-      const suffixMatch = beforeEq.match(/(?:^|[=:,;]|\b(?:is|as|to|of|because|gives|gives\s+us|equals?|we\s+have|so|then|that|therefore|thus|hence|calculate|calculating|compute|computing|find|yields?|get|got)\s+|[a-zA-Z\\]+\s*=)\s*((?:[-+]?[\s0-9.()+\-*/^]+|\bpi\b|\bsqrt\([^\)]+\)|\b(?:log10|log|ln)\s*\([^\)]+\)|\b(?:sin|cos|tan|sec|csc|cot)\s*\([^\)]+\))+)$/i);
-      if (!suffixMatch) continue;
+      const segments = beforeEq.split(/(?:\\approx|\\thickapprox|≈|~|=)/);
+      const candidateExprs = [];
 
-      let expr = suffixMatch[1].trim();
+      for (let sIdx = 0; sIdx < segments.length; sIdx++) {
+        const seg = segments[sIdx];
+        const suffixMatch = seg.match(/(?:^|[=:,;]|\b(?:is|as|to|of|because|gives|gives\s+us|equals?|we\s+have|so|then|that|therefore|thus|hence|calculate|calculating|compute|computing|find|yields?|get|got)\s+|[a-zA-Z\\]+\s*=)\s*((?:[-+]?[\s0-9.()+\-*/^]+|\bpi\b|\bsqrt\([^\)]+\)|\b(?:log10|log|ln)\s*\([^\)]+\)|\b(?:sin|cos|tan|sec|csc|cot)\s*\([^\)]+\))+)$/i);
+        const rawExpr = suffixMatch ? suffixMatch[1].trim() : seg.trim();
+        if (!rawExpr) continue;
 
-      // Clean unbalanced boundary parentheses
-      if (expr.startsWith('(') && !expr.endsWith(')') && (expr.match(/\(/g) || []).length > (expr.match(/\)/g) || []).length) {
-        expr = expr.slice(1).trim();
+        let expr = rawExpr;
+        // Clean unbalanced boundary parentheses
+        if (expr.startsWith('(') && !expr.endsWith(')') && (expr.match(/\(/g) || []).length > (expr.match(/\)/g) || []).length) {
+          expr = expr.slice(1).trim();
+        }
+        if (expr.endsWith(')') && !expr.startsWith('(') && (expr.match(/\)/g) || []).length > (expr.match(/\(/g) || []).length) {
+          expr = expr.slice(0, -1).trim();
+        }
+
+        if (!/(?:\d|\bpi\b)/.test(expr)) continue;
+
+        // Must contain at least one operation (excluding a single leading sign)
+        const withoutLeadingSign = expr.replace(/^[-+]\s*\d+(?:\.\d+)?/, '');
+        if (!/[-+*/^]/.test(withoutLeadingSign) && !/\bsqrt\b/.test(expr) && !/\b(?:sin|cos|tan|sec|csc|cot)\b/i.test(expr)) {
+          continue;
+        }
+
+        // Constant arithmetic cannot contain free variables (e.g. x, y, theta)
+        const nonFunctionLetters = expr
+          .replace(/\b(?:log10|log|ln|sqrt|cbrt|sin|cos|tan|sec|csc|cot|exp|abs|pi)\b/gi, '')
+          .replace(/[^a-zA-Z]/g, '');
+        if (nonFunctionLetters.length > 0) continue;
+
+        // Allow logarithms in sanitized arithmetic
+        const sanitized = expr.replace(/\bpi\b/gi, '1').replace(/\b(?:log10|log|ln)\s*\([^\)]+\)/gi, '1').replace(/\bsqrt\s*\([^\)]+\)/gi, '1').replace(/\b(?:sin|cos|tan|sec|csc|cot)\s*\([^\)]+\)/gi, '1');
+        if (!/^[-+*/^0-9.()\s]+$/.test(sanitized)) continue;
+
+        if (!candidateExprs.includes(expr)) {
+          candidateExprs.push(expr);
+        }
       }
-      if (expr.endsWith(')') && !expr.startsWith('(') && (expr.match(/\)/g) || []).length > (expr.match(/\(/g) || []).length) {
-        expr = expr.slice(0, -1).trim();
-      }
 
-      if (!/(?:\d|\bpi\b)/.test(expr)) continue;
+      for (const expr of candidateExprs) {
+        const rawMatch = `${expr} = ${rawVal}${isPct ? '%' : ''}`;
 
-      // Must contain at least one operation (excluding a single leading sign)
-      const withoutLeadingSign = expr.replace(/^[-+]\s*\d+(?:\.\d+)?/, '');
-      if (!/[-+*/^]/.test(withoutLeadingSign) && !/\bsqrt\b/.test(expr) && !/\b(?:sin|cos|tan|sec|csc|cot)\b/i.test(expr)) {
-        continue;
-      }
-
-      // Constant arithmetic cannot contain free variables (e.g. x, y, theta)
-      const nonFunctionLetters = expr
-        .replace(/\b(?:log10|log|ln|sqrt|cbrt|sin|cos|tan|sec|csc|cot|exp|abs|pi)\b/gi, '')
-        .replace(/[^a-zA-Z]/g, '');
-      if (nonFunctionLetters.length > 0) continue;
-
-      // Allow logarithms in sanitized arithmetic
-      const sanitized = expr.replace(/\bpi\b/gi, '1').replace(/\b(?:log10|log|ln)\s*\([^\)]+\)/gi, '1').replace(/\bsqrt\s*\([^\)]+\)/gi, '1').replace(/\b(?:sin|cos|tan|sec|csc|cot)\s*\([^\)]+\)/gi, '1');
-      if (!/^[-+*/^0-9.()\s]+$/.test(sanitized)) continue;
-
-      const rawMatch = `${expr} = ${rawVal}${isPct ? '%' : ''}`;
-
-      if (!claims.some(c => c.data?.expression === expr && Math.abs(c.data.proposed_value - val) < 1e-4)) {
-        claims.push({
-          domain: 'arithmetic',
-          claim_type: 'arithmetic',
-          raw_match: rawMatch,
-          data: {
-            expression: expr,
-            proposed_value: val,
-            is_approximate: match[0].includes('approx') || match[0].includes('≈') || match[0].includes('~'),
-            tolerance: 0.005,
-            is_percent: isPct,
-            raw_val_str: rawVal
-          }
-        });
+        if (!claims.some(c => c.data?.expression === expr && Math.abs(c.data.proposed_value - val) < 1e-4)) {
+          claims.push({
+            domain: 'arithmetic',
+            claim_type: 'arithmetic',
+            raw_match: rawMatch,
+            data: {
+              expression: expr,
+              proposed_value: val,
+              is_approximate: match[0].includes('approx') || match[0].includes('≈') || match[0].includes('~'),
+              tolerance: 0.005,
+              is_percent: isPct,
+              raw_val_str: rawVal
+            }
+          });
+        }
       }
     }
   }

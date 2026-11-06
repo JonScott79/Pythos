@@ -90,8 +90,25 @@ So the statement is not an identity; for example at x = 1 the two sides differ.`
   assert.ok(formattedHtml.includes('class="katex"'), 'Proof must compile cleanly into KaTeX');
   console.log('  ✔ [PASS] Test 6: Trigonometric identity proof compiles to KaTeX with zero leaks.\n');
 
+  // TEST 7: Chained Equality Discriminant Verification Catches Arithmetic Errors
+  console.log('--- TEST 7: Chained Equality Discriminant Verification ---');
+  const falseDiscriminantTurn = `The algebraic steps lead to the quadratic:
+8x^2 - 44x + 59 = 0
+and its discriminant is:
+\\Delta = (-44)^2 - 4 \\cdot 8 \\cdot 59 = 1936 - 1896 = 40 = 2^2 \\cdot 10.`;
+  const falseRes = await vb.verifyResponseClaims(falseDiscriminantTurn, 'double check the discriminant');
+  assert.ok(falseRes.invalidClaims.length > 0, 'Must flag (-44)^2 - 4*8*59 = 40 as invalid arithmetic');
+  assert.ok(falseRes.invalidClaims.some(ic => ic.verification.details.includes('48')), 'Invalid claim details must state that (-44)^2 - 4*8*59 is 48');
+
+  const trueDiscriminantTurn = `The discriminant is:
+\\Delta = (-44)^2 - 4 \\cdot 8 \\cdot 59 = 1936 - 1888 = 48.`;
+  const trueRes = await vb.verifyResponseClaims(trueDiscriminantTurn, 'double check the discriminant');
+  assert.strictEqual(trueRes.invalidClaims.length, 0, 'Correct arithmetic must have zero invalid claims');
+  assert.ok(trueRes.verificationResults.some(vr => vr.verified === true), 'Correct arithmetic must be verified');
+  console.log('  ✔ [PASS] Test 7: Chained equality discriminant correctly catches 4*8*59 arithmetic slip and validates 48.\n');
+
   console.log('====================================================');
-  console.log('ALL 6 ADMIN REPORT REGRESSION TESTS PASSED! (100%)');
+  console.log('ALL 7 ADMIN REPORT REGRESSION TESTS PASSED! (100%)');
   console.log('====================================================');
   process.exit(0);
 })().catch(err => {
