@@ -1,0 +1,24 @@
+name: Netlify Auto Deploy
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Trigger Netlify Deployment
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch Netlify Build Hook
+        run: |
+          echo "Pinging Netlify build hook for commit: ${{ github.sha }}"
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST -d '{}' "https://api.netlify.com/build_hooks/6aed528eb4e95465f410ced4")
+          echo "Received HTTP response: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+            echo "Netlify deployment triggered successfully."
+          else
+            echo "Error: Failed to trigger Netlify build hook (HTTP $HTTP_STATUS)."
+            exit 1
+          fi
