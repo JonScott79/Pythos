@@ -968,9 +968,16 @@ function extractClaims(text, userPrompt = '') {
   while ((eqVarMatch = eqVarRegex.exec(text)) !== null) {
     const rawEq = eqVarMatch[1].trim();
     if (isBareAssignment(rawEq)) continue;
+    if (/[<>]/.test(rawEq)) continue; // Inequalities (<=, >=) are not algebraic equations
     if (/\b(?:with|where|given|for)\s+[a-zA-Z0-9_]+\s*=/i.test(rawEq)) continue;
     if (/\b(?:determinant|cramer|matrix|D_[a-zA-Z]|D\s*=)/i.test(rawEq)) continue;
+    if (/\b(?:no\s+real|no\s+solution|there\s+is\s+no|impossible|undefined|not\s+equal)\b/i.test(rawEq) || /\b(?:no\s+real|no\s+solution|there\s+is\s+no|impossible|undefined|not\s+equal)\b/i.test(eqVarMatch[0])) continue;
     const variable = eqVarMatch[2];
+    // Ensure the variable is not the argument of a function like cos(x) = 2 or cos^3 x = 2
+    const varEqIdx = eqVarMatch[0].lastIndexOf(variable);
+    const beforeVarSlice = varEqIdx !== -1 ? eqVarMatch[0].slice(0, varEqIdx) : '';
+    if (/\b(?:sin|cos|tan|sec|csc|cot|log|ln|sqrt|exp|cbrt)\b/i.test(beforeVarSlice) || /[\^\*\/]/i.test(beforeVarSlice.trim().slice(-1))) continue;
+
     const sols = parseSolutionNumbers(eqVarMatch[3]);
     if (eqVarMatch[4]) {
       const extraSols = parseSolutionNumbers(eqVarMatch[4]);
@@ -1002,7 +1009,8 @@ function extractClaims(text, userPrompt = '') {
   // Pattern 5c: Solved equation from prompt/context where candidate states solution (e.g. "x = -5", "\boxed{x = -5}", "\boxed{3, 9}", or "\boxed{\,x=3,\;9\,}")
   const isSystemPrompt = ((promptStr.match(/=/g) || []).length >= 2) || /\bsystem\b/i.test(promptStr);
   const isGraphPrompt = /\b(?:graph|plot|draw|sketch)\b/i.test(promptStr);
-  if (promptStr && !isSystemPrompt && !isGraphPrompt) {
+  const isIdentityPrompt = /\b(?:does|is|whether|prove|verify|show)\b.*?[=≈]/i.test(promptStr) || /\b(?:identity|identities)\b/i.test(promptStr);
+  if (promptStr && !isSystemPrompt && !isGraphPrompt && !isIdentityPrompt) {
     const promptEqMatch = promptStr.match(/([^\n\r;=]+=[^\n\r;=]+)/);
     if (promptEqMatch) {
       const cleaned = cleanAndNormalizeEquation(promptEqMatch[1]);
@@ -1018,8 +1026,11 @@ function extractClaims(text, userPrompt = '') {
           // If the boxed content is an algebraic polynomial / identity containing the variable,
           // do NOT treat its coefficients/exponents as candidate roots!
           const hasUnboundVar = new RegExp(`\\b${v}\\b`).test(rawBoxed.replace(/^[a-zA-Z]\s*=/, ''));
-          if (!hasUnboundVar) {
-            const compMatches = rawBoxed.match(/[-+]?i\b/gi);
+          // Ignore integer/parametric solution families (e.g. n\pi, k\pi, for all integers n)
+          const isParametricFamily = /\b[nkm]\b|\\pi\b|\bpi\b/i.test(rawBoxed);
+          if (!hasUnboundVar && !isParametricFamily) {
+            const cleanBoxedForComp = cleanLatexUnits(rawBoxed).replace(/\\pi\b|\bpi\b/gi, '').replace(/^[a-zA-Z]\s*=/, '');
+            const compMatches = cleanBoxedForComp.match(/(?<![a-zA-Z\\])[-+]?(?:\d*(?:\.\d+)?)?i\b(?![a-zA-Z])/g);
             if (compMatches && compMatches.length > 0) {
               sols = compMatches;
               rawMatchStr = boxedMatches[boxedMatches.length - 1].raw;
@@ -1050,6 +1061,12 @@ function extractClaims(text, userPrompt = '') {
           const assignAllRegex = new RegExp('\\b' + v + '\\s*=\\s*([-\\+]?(?:\\\\frac\\{\\s*[-\\+]?\\d+(?:\\.\\d+)?\\s*\\}\\{\\s*\\d+(?:\\.\\d+)?\\s*\\}|[-\\+]?\\d+(?:\\.\\d+)?(?:\\/\\d+(?:\\.\\d+)?)?))', 'gi');
           let m;
           while ((m = assignAllRegex.exec(text)) !== null) {
+            // Do not extract test substitutions or hypothetical assignments:
+            // e.g. "let x = 1", "test x = 1", "try x = 1", "for x = 1", "substitute x = 1", "when x = 1", "at x = 1", "no real x = 1"
+            const prefix = text.slice(Math.max(0, m.index - 30), m.index);
+            if (/\b(?:let|test|testing|try|trying|for|if|when|substitute|substituting|plug|plugging|check|checking|at|with|no\s+real)\s*$/i.test(prefix)) {
+              continue;
+            }
             const parsedVals = parseSolutionNumbers(m[1]);
             parsedVals.forEach(val => {
               if (!sols.includes(val)) sols.push(val);
@@ -1295,6 +1312,12 @@ function extractClaims(text, userPrompt = '') {
       if (!/[-+*/^]/.test(withoutLeadingSign) && !/\bsqrt\b/.test(expr) && !/\b(?:sin|cos|tan|sec|csc|cot)\b/i.test(expr)) {
         continue;
       }
+
+      // Constant arithmetic cannot contain free variables (e.g. x, y, theta)
+      const nonFunctionLetters = expr
+        .replace(/\b(?:log10|log|ln|sqrt|cbrt|sin|cos|tan|sec|csc|cot|exp|abs|pi)\b/gi, '')
+        .replace(/[^a-zA-Z]/g, '');
+      if (nonFunctionLetters.length > 0) continue;
 
       // Allow logarithms in sanitized arithmetic
       const sanitized = expr.replace(/\bpi\b/gi, '1').replace(/\b(?:log10|log|ln)\s*\([^\)]+\)/gi, '1').replace(/\bsqrt\s*\([^\)]+\)/gi, '1').replace(/\b(?:sin|cos|tan|sec|csc|cot)\s*\([^\)]+\)/gi, '1');

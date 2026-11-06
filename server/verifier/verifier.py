@@ -6,6 +6,13 @@ import sys
 import json
 import traceback
 
+if sys.platform == 'win32' or hasattr(sys.stdin, 'reconfigure'):
+    try:
+        sys.stdin.reconfigure(encoding='utf-8')
+        sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+
 from arithmetic_verifier import verify_arithmetic
 from algebra_verifier import verify_algebra, verify_symbolic_equivalence
 from probability_verifier import verify_birthday_problem

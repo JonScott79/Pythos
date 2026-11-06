@@ -955,6 +955,15 @@ function buildEffectivePrompt(messages = []) {
     return latestUser;
   }
 
+  // Guard: If latest turn is a fresh standalone equation (e.g. "tanx+cotx=1", "y=3x+2"),
+  // do not contaminate it with prior problem parameters unless relative references exist
+  const isStandaloneEquation = /^[a-zA-Z0-9().+\-*\/^\\_\s]+=[a-zA-Z0-9().+\-*\/^\\_\s]+$/i.test(latestUser) ||
+                               /^(?:does|is|solve|evaluate|find|calculate|graph|plot)\s+[a-zA-Z0-9().+\-*\/^\\_\s]+=[a-zA-Z0-9().+\-*\/^\\_\s]+$/i.test(latestUser);
+  const hasBackReference = /\b(?:that|this|it|previous|earlier|instead|from\s+that|actually|meant|typo|sorry|wait|no|now)\b/i.test(latestUser);
+  if (isStandaloneEquation && !hasBackReference) {
+    return latestUser;
+  }
+
   // 1. Explicit new problem reset
   const newProblemMatch = latestUser.match(/^(?:never\s+mind[.,]?\s*|(?:let'?s\s+do\s+a\s+)?new\s+problem[:\s]+|different\s+question[:\s]+)(.*)/i);
   if (newProblemMatch && newProblemMatch[1].trim()) {

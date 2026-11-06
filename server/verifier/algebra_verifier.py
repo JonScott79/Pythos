@@ -19,6 +19,57 @@ def _finalize(payload: dict) -> dict:
     payload.pop("error_type", None)
     return payload
 
+import re as _re
+
+_SUPERSCRIPTS = {"²": "^2", "³": "^3", "⁴": "^4", "⁻¹": "^-1"}
+_INVERSE_MAP = {"sin": "asin", "cos": "acos", "tan": "atan"}
+_RENAME = {"arcsin": "asin", "arccos": "acos", "arctan": "atan", "ln": "log"}
+# Longer names first so "sinh" is never read as "sin" + "h"
+_FUNC_NAMES = r"arcsin|arccos|arctan|sinh|cosh|tanh|sin|cos|tan|sec|csc|cot|ln|log|exp"
+# fn [^n | **n] <arg>   where <arg> is a bare token like x, 2x, 3 (not already parenthesised)
+_IMPLICIT_FN = _re.compile(
+    r"\b(" + _FUNC_NAMES + r")\s*(?:(?:\^|\*\*)\s*\{?\s*(-?\d+)\s*\}?)?\s*(?!\()(\d*\.?\d*[a-zA-Z]|\d+\.?\d*)(?![a-zA-Z0-9(])"
+)
+
+
+def _normalize_implicit_functions(expr: str) -> str:
+    """
+    Rewrite implicit function application into explicit SymPy syntax so that
+    'sinx', 'sin x', 'cos²x', 'cos^2 x', 'tan 2x' are parsed as functions of x
+    instead of free symbols named 'sinx' / 'cos'.
+    """
+    if not isinstance(expr, str):
+        return expr
+    s = expr
+    for k, v in _SUPERSCRIPTS.items():
+        s = s.replace(k, v)
+
+    def _sub(m):
+        fn, power, arg = m.group(1), m.group(2), m.group(3)
+        fn = _RENAME.get(fn, fn)
+        arg = _re.sub(r"^(\d+\.?\d*)([a-zA-Z])$", r"\1*\2", arg)
+        if power == "-1" and fn in _INVERSE_MAP:
+            return f"{_INVERSE_MAP[fn]}({arg})"
+        if power:
+            return f"{fn}({arg})**{power}"
+        return f"{fn}({arg})"
+
+    # Undo upstream digit-letter multiplication inside a power: 'cos^2*x' -> 'cos^2 x'
+    s = _re.sub(r"\b(" + _FUNC_NAMES + r")\s*(?:\^|\*\*)\s*(-?\d+)\s*\*\s*(?=[a-zA-Z](?![a-zA-Z(]))", r"\1^\2 ", s)
+
+    prev = None
+    while prev != s:  # repeat for nested/adjacent cases like "sinx cosx"
+        prev = s
+        s = _IMPLICIT_FN.sub(_sub, s)
+    # Explicit calls with renamed functions, e.g. arcsin(x) / ln(x)
+    s = _re.sub(r"\b(arcsin|arccos|arctan|ln)\s*\(", lambda m: _RENAME[m.group(1)] + "(", s)
+    # Implicit multiplication between adjacent function calls: "sin(x) cos(x)" / ")sin("
+    s = _re.sub(r"\)\s*(?=(?:" + _FUNC_NAMES + r")\()", ")*", s)
+    # Implicit multiplication between parenthesised groups: 'sin(x) (cos(x) - 1)'
+    s = _re.sub(r"\)\s+\(", ")*(", s)
+    return s
+
+
 def verify_algebra(claim: dict) -> dict:
     """
     Verifies algebraic equations, solution candidates, lost roots, and extraneous roots.
@@ -33,6 +84,8 @@ def verify_algebra(claim: dict) -> dict:
     if not eq_str:
         return {"verified": False, "status": "UNKNOWN", "reason": "Missing equation"}
 
+    eq_str = _normalize_implicit_functions(eq_str)
+
     try:
         var = sp.Symbol(variable_str)
         if "=" in eq_str:
@@ -44,6 +97,17 @@ def verify_algebra(claim: dict) -> dict:
             lhs_str = eq_str
             rhs_str = "0"
             equation = sp.Eq(sp.sympify(eq_str), 0)
+
+        # Honest failure classification: if the equation still contains symbols other than the
+        # solve variable (unparsed function names, parameters), substitution cannot decide the
+        # claim. Report UNKNOWN instead of mislabelling a correct root as EXTRANEOUS_ROOT.
+        unresolved = {str(s) for s in equation.free_symbols if s != var}
+        if unresolved:
+            return {
+                "verified": False,
+                "status": "UNKNOWN",
+                "reason": f"Equation contains unresolved symbols {sorted(unresolved)}; root check is undecidable."
+            }
 
         # Domain restriction check: parse raw expression with evaluate=False
         # to preserve denominators that SymPy would otherwise simplify away.
