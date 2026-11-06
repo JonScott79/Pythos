@@ -2371,7 +2371,8 @@ function appendMessage(role, text, images = null, metadata = {}) {
   }
 
   // Safe Withholding Secondary Control: "Why do I need more information?"
-  const isWithheld = metadata.withheld || (role === "assistant" && typeof text === "string" && text.includes("I need a little more information to solve this problem"));
+  const allStepsCertified = Array.isArray(metadata.verificationAudit) && metadata.verificationAudit.length > 0 && metadata.verificationAudit.every(s => s.verdict === "VERIFIED");
+  const isWithheld = (metadata.withheld && !allStepsCertified) || (role === "assistant" && typeof text === "string" && text.includes("I need a little more information to solve this problem"));
   if (role === "assistant" && isWithheld) {
     const detailsEl = document.createElement("details");
     detailsEl.className = "pythos-withholding-details";
