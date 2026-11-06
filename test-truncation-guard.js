@@ -13,7 +13,7 @@ console.log("====================================================");
 console.log("TEST SUITE: Response Truncation & Token Budget Guard");
 console.log("====================================================\n");
 
-// 1. Verify server.js contains the low reasoning effort and 2048 token budgeting
+// 1. Verify server.js contains the low reasoning effort and 4096 token budgeting
 const serverSource = fs.readFileSync(path.join(__dirname, 'server/server.js'), 'utf8');
 
 assert.strictEqual(
@@ -23,9 +23,9 @@ assert.strictEqual(
 );
 
 assert.strictEqual(
-  serverSource.includes("max_tokens: Math.min(options?.num_predict || options?.max_tokens || 2048, 2048)"),
+  serverSource.includes("max_tokens: Math.min(options?.num_predict || options?.max_tokens || 4096, 4096)"),
   true,
-  "server.js must allow up to 2048 tokens for text generation"
+  "server.js must allow up to 4096 tokens for text generation"
 );
 
 assert.strictEqual(

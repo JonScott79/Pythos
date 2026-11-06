@@ -11,13 +11,14 @@
 
 const assert = require('assert');
 const fs = require('fs');
+const path = require('path');
 
 console.log('====================================================');
 console.log('⚡ TESTING RENDERING & MATH AUTO-DELIMITING REGRESSION');
 console.log('====================================================\n');
 
 // Read formatResponseText directly from app.js using minimal environment
-const appSource = fs.readFileSync('app.js', 'utf8');
+const appSource = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
 
 // Extract the formatResponseText function from app.js
 const funcMatch = appSource.match(/function formatResponseText\(raw\) \{([\s\S]*?)\n  \}/);

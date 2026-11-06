@@ -157,6 +157,10 @@ When Guided Mode is active on a problem:
   * Intermediate to complex problems (multi-step equations, word problems, physics modeling): Provide meaningful, step-by-step pacing that guides the student through the critical conceptual hurdles.
   * Avoid artificial verbosity: Pythos should never be artificially wordy or mechanically repetitive. Instructional usefulness guides response length.
 
+# ANSWER-FIRST PRINCIPLE & TOKEN EFFICIENCY
+- State the final answer / solution upfront: When solving an equation, calculating a quantity, or providing a solution, state the final answer or solution set immediately at the very beginning (e.g., "**Solution:** $\boxed{x = 4}$" or "The real roots are $\boxed{x = 2 \text{ or } x = 3}$"). Then provide the clean, step-by-step derivation and verification.
+- Avoid token-wasting preamble: Never generate massive multi-column Markdown tables, wordy restatements, or repetitive preliminaries before stating the result. Keep domain restrictions and conditions inline (e.g., "$x > 3$ to ensure valid logarithmic arguments") and jump straight to the solution.
+
 # TOKEN EFFICIENCY & EDUCATIONAL CLARITY
 - Be concise and begin directly with the answer or first useful step.
 - Remove unnecessary greetings, pleasantries, filler, repetition, and unsolicited conclusions.
@@ -855,7 +859,7 @@ async function executeGroqVisionCall(provider, { messages, visionSystemPrompt, o
     model: targetModel,
     messages: formattedMessages,
     temperature: options?.temperature || 0.2,
-    max_tokens: Math.min(options?.num_predict || options?.max_tokens || 2048, 2048),
+    max_tokens: Math.min(options?.num_predict || options?.max_tokens || 4096, 4096),
     stream: false
   });
 
@@ -1033,7 +1037,7 @@ async function executeGeminiVisionCall(provider, { messages, visionSystemPrompt,
     },
     generationConfig: {
       temperature: options?.temperature || 0.2,
-      maxOutputTokens: Math.min(options?.num_predict || options?.max_tokens || 2048, 2048)
+      maxOutputTokens: Math.min(options?.num_predict || options?.max_tokens || 4096, 4096)
     }
   });
 
@@ -1235,7 +1239,7 @@ ${m.content.slice(PYTHOS_SYSTEM_PROMPT.length).trim()}`;
     model: targetModel,
     messages: textMessages,
     temperature: options?.temperature || 0.2,
-    max_tokens: Math.min(options?.num_predict || options?.max_tokens || 2048, 2048),
+    max_tokens: Math.min(options?.num_predict || options?.max_tokens || 4096, 4096),
     stream: false
   };
   if (isReasoningModel) {
@@ -1354,7 +1358,7 @@ async function executeGeminiTextCall(provider, { messages, options, timeoutMs = 
     contents,
     generationConfig: {
       temperature: options?.temperature || 0.2,
-      maxOutputTokens: 2048
+      maxOutputTokens: 4096
     }
   };
   if (sysMsg && sysMsg.content) {
@@ -2216,7 +2220,7 @@ app.post('/api/chat', async (req, res) => {
     {
       temperature: 0.3,
       num_ctx: contextManager.TOTAL_CONTEXT_LIMIT,
-      num_predict: Math.min(options?.num_predict || options?.max_tokens || 2048, 2048)
+      num_predict: Math.min(options?.num_predict || options?.max_tokens || 4096, 4096)
     },
     options || {}
   );
@@ -2224,7 +2228,7 @@ app.post('/api/chat', async (req, res) => {
     effectiveOptions.num_ctx = contextManager.TOTAL_CONTEXT_LIMIT;
   }
   if (!effectiveOptions.num_predict) {
-    effectiveOptions.num_predict = 2048;
+    effectiveOptions.num_predict = 4096;
   }
 
   // Multimodal Hosted Vision Gateway Bridge

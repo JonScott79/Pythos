@@ -79,7 +79,8 @@ So the statement is not an identity; for example at x = 1 the two sides differ.`
   // TEST 6: Student Formatting & KaTeX Compilation (PY-c3972e31)
   console.log('--- TEST 6: Student Identity Proof Formatting ---');
   const fs = require('fs');
-  const appSource = fs.readFileSync('app.js', 'utf8');
+  const path = require('path');
+  const appSource = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
   const funcMatch = appSource.match(/function formatResponseText\(raw\) \{([\s\S]*?)\n  \}/);
   assert.ok(funcMatch, 'formatResponseText must exist in app.js');
   const mockKatex = { renderToString(expr) { return `<span class="katex">${expr}</span>`; } };
