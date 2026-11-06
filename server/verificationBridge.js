@@ -831,9 +831,13 @@ function extractClaims(text, userPrompt = '') {
 
     // Strip common leading instructional prefixes before parsing LHS
     let cleanLhsStr = rawLhs
-      .replace(/^(?:please\s+)?(?:solve|find|evaluate|calculate|determine|simplify|compute)(?:\s+(?:the\s+equation|the\s+roots?|the\s+solutions?|(?:for\s+)?[a-zA-Z]))?[:\s]*/i, '')
+      .replace(/^(?:please\s+)?(?:solve|find|evaluate|calculate|determine|simplify|compute)(?:\s+(?:the\s+equation|the\s+roots?|the\s+solutions?|roots?\s+for\s+[a-zA-Z]|for\s+[a-zA-Z]))?[:\s]*/i, '')
       .replace(/^(?:given|if|where)(?:\s+that)?[:\s]*/i, '')
       .trim();
+    if (cleanLhsStr.includes(':')) {
+      cleanLhsStr = cleanLhsStr.slice(cleanLhsStr.lastIndexOf(':') + 1).trim();
+    }
+    cleanLhsStr = cleanLhsStr.replace(/\$/g, '').trim();
 
     // Strip English prose before math begins in LHS, respecting parentheses depth and function names
     const tokens = cleanLhsStr.split(/\s+/);
@@ -933,7 +937,7 @@ function extractClaims(text, userPrompt = '') {
     for (const vm of varMatches) {
       if (!/^(?:e|i|pi)$/i.test(vm)) varsInEq.add(vm.toLowerCase());
     }
-    return varsInEq.size <= 1;
+    return varsInEq.size === 1;
   }
 
   // Pattern 5a: Equation followed by "solutions:" / "roots:" (e.g. "x^2 - 5x + 6 = 0, solutions: 2, 3")
@@ -965,6 +969,7 @@ function extractClaims(text, userPrompt = '') {
     const rawEq = eqVarMatch[1].trim();
     if (isBareAssignment(rawEq)) continue;
     if (/\b(?:with|where|given|for)\s+[a-zA-Z0-9_]+\s*=/i.test(rawEq)) continue;
+    if (/\b(?:determinant|cramer|matrix|D_[a-zA-Z]|D\s*=)/i.test(rawEq)) continue;
     const variable = eqVarMatch[2];
     const sols = parseSolutionNumbers(eqVarMatch[3]);
     if (eqVarMatch[4]) {

@@ -2751,7 +2751,8 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
 
   // 3h. Physics: Kinematics, Dynamics & Kinetic Energy
   const kinVelMatch = clean.match(/(?:velocity|speed).*?accelerat(?:ing|ion)\s+(?:at\s+|of\s*)?([\d.]+)\s*m\/s\^?2.*?([\d.]+)\s*s(?:econds?)?/i) ||
-                      clean.match(/accelerat(?:ing|ion)\s+(?:at\s+|of\s*)?([\d.]+)\s*m\/s\^?2.*?([\d.]+)\s*s(?:econds?)?.*?(?:velocity|speed)/i);
+                      clean.match(/accelerat(?:ing|ion)\s+(?:at\s+|of\s*)?([\d.]+)\s*m\/s\^?2.*?([\d.]+)\s*s(?:econds?)?.*?(?:velocity|speed)/i) ||
+                      clean.match(/accelerat(?:ing|ion)\s+(?:at\s+|with\s+|of\s*)?([\d.]+)\s*m\/s\^?2.*?(?:velocity|speed).*?([\d.]+)\s*s(?:econds?)?/i);
   if (kinVelMatch) {
     const a = parseFloat(kinVelMatch[1]);
     const t = parseFloat(kinVelMatch[2]);
