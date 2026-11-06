@@ -44,8 +44,8 @@ assert.strictEqual(
 function checkIncomplete(finalContent, candidateResult = {}) {
   const isCandidateTruncated = candidateResult?.truncated === true;
   const endsWithIncompleteHeader = /(?:##\s*Final\s*answer|\*\*Final\s*Answer\*\*|###\s*Answer|###\s*Final\s*Result)[:\s]*$/i.test(finalContent.trim());
-  const displayMathOpen = (finalContent.match(/\\\[/g) || []).length;
-  const displayMathClose = (finalContent.match(/\\\]/g) || []).length;
+  const displayMathOpen = (finalContent.match(/(?<!\\)\\\[/g) || []).length;
+  const displayMathClose = (finalContent.match(/(?<!\\)\\\]/g) || []).length;
   const hasUnclosedDisplayMath = displayMathOpen > displayMathClose;
   return isCandidateTruncated || endsWithIncompleteHeader || hasUnclosedDisplayMath;
 }
@@ -68,3 +68,7 @@ assert.strictEqual(checkIncomplete(providerTruncated, { truncated: true }), true
 
 console.log("✅ All truncation guard assertions passed successfully!");
 console.log("====================================================\n");
+
+// Test case D: Multiline row-breaks with spacing \\[4pt] must not be flagged incomplete
+const rowBreakAnswer = "\\begin{cases}\n x - 2 = 0 \\\\[4pt]\n x - 3 = 0\n\\end{cases}\n\nThese are the roots.";
+assert.strictEqual(checkIncomplete(rowBreakAnswer), false, "Response with LaTeX row breaks must not be flagged incomplete");

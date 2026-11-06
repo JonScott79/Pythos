@@ -2864,8 +2864,8 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
       // Guard against truncated or incomplete responses ending mid-derivation
       const isCandidateTruncated = candidateResult?.truncated === true;
       const endsWithIncompleteHeader = /(?:##\s*Final\s*answer|\*\*Final\s*Answer\*\*|###\s*Answer|###\s*Final\s*Result)[:\s]*$/i.test(finalContent.trim());
-      const displayMathOpen = (finalContent.match(/\\\[/g) || []).length;
-      const displayMathClose = (finalContent.match(/\\\]/g) || []).length;
+      const displayMathOpen = (finalContent.match(/(?<!\\)\\\[/g) || []).length;
+      const displayMathClose = (finalContent.match(/(?<!\\)\\\]/g) || []).length;
       const hasUnclosedDisplayMath = displayMathOpen > displayMathClose;
       const isCandidateIncomplete = isCandidateTruncated || endsWithIncompleteHeader || hasUnclosedDisplayMath;
 

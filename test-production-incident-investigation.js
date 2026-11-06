@@ -94,12 +94,19 @@ Proposed extraneous solution:
   assert.strictEqual(testStr, '2x+9=\\frac{9}{10}', 'Must cleanly strip trailing orphaned backslashes and \\;');
 
   let unclosedStr = '\\[\n2x+9=\\frac{9}{10}';
-  const openMath = (unclosedStr.match(/\\\[/g) || []).length;
-  const closeMath = (unclosedStr.match(/\\\]/g) || []).length;
+  const openMath = (unclosedStr.match(/(?<!\\)\\\[/g) || []).length;
+  const closeMath = (unclosedStr.match(/(?<!\\)\\\]/g) || []).length;
   if (openMath > closeMath) {
     unclosedStr += '\n\\]';
   }
   assert.ok(unclosedStr.endsWith('\n\\]'), 'Must automatically close dangling display math');
+
+  // Verify LaTeX row-breaks with brackets like \\[4pt] are not falsely treated as unclosed display math
+  let multilineStr = '\\begin{cases}\n x - 2 = 0 \\\\[4pt]\n x - 3 = 0\n\\end{cases}';
+  const multilineOpen = (multilineStr.match(/(?<!\\)\\\[/g) || []).length;
+  const multilineClose = (multilineStr.match(/(?<!\\)\\\]/g) || []).length;
+  assert.strictEqual(multilineOpen, 0, 'LaTeX row-break \\[4pt] must not be counted as display math open');
+  assert.strictEqual(multilineClose, 0, 'LaTeX row-break \\[4pt] must not be counted as display math close');
   console.log('  ✔ [PASS] Test 4: Trailing backslash and unclosed display math delimiters handled cleanly.\n');
 
   // TEST 5: Fail-Closed Gate for UNKNOWN Verification Results

@@ -4499,9 +4499,9 @@ async function askPythos(userText) {
         let sanitizedReply = streamedText.trim();
         // Remove trailing unescaped backslashes or orphaned spacing backslashes at end of lines or blocks
         sanitizedReply = sanitizedReply.replace(/(?:\\;|\s)*\\+(?=\s*(?:\r?\n|$|\\\]|\$\$))/g, '');
-        // Auto-close unclosed display math delimiters to prevent KaTeX fracture
-        const openDisplayMath = (sanitizedReply.match(/\\\[/g) || []).length;
-        const closeDisplayMath = (sanitizedReply.match(/\\\]/g) || []).length;
+        // Auto-close unclosed display math delimiters to prevent KaTeX fracture (ignoring LaTeX row breaks like \\[4pt])
+        const openDisplayMath = (sanitizedReply.match(/(?<!\\)\\\[/g) || []).length;
+        const closeDisplayMath = (sanitizedReply.match(/(?<!\\)\\\]/g) || []).length;
         if (openDisplayMath > closeDisplayMath) {
           sanitizedReply += '\n\\]';
         }
