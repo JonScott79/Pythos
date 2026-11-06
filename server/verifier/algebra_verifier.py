@@ -218,23 +218,54 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
         return {"verified": False, "status": "UNKNOWN", "reason": "Missing expressions for equivalence check"}
 
     try:
-        e1 = sp.sympify(expr1_str)
-        e2 = sp.sympify(expr2_str)
+        def _norm(s):
+            s = _normalize_implicit_functions(str(s))
+            s = _re.sub(r'(\d)\s*([a-zA-Z])', r'\1*\2', s)
+            s = _re.sub(r'(\d)\s*\(', r'\1*(', s)
+            s = _re.sub(r'\)\s*\(', r')*(', s)
+            s = _re.sub(r'\)\s*([a-zA-Z])', r')*\1', s)
+            s = _re.sub(r'([a-zA-Z0-9])\s*\(', r'\1*(', s)
+            return s
+
+        e1 = sp.sympify(_norm(expr1_str))
+        e2 = sp.sympify(_norm(expr2_str))
+
+        # Check domain restrictions from denominators
+        domain_restrictions = set()
+        for raw_s in [expr1_str, expr2_str]:
+            try:
+                raw_expr = sp.sympify(_norm(raw_s), evaluate=False)
+                for atom in sp.preorder_traversal(raw_expr):
+                    if isinstance(atom, sp.Pow) and atom.exp.is_negative:
+                        denom_base = atom.base
+                        for symb in denom_base.free_symbols:
+                            zeros = sp.solve(denom_base, symb)
+                            for z in zeros:
+                                try:
+                                    domain_restrictions.add(float(z.evalf()))
+                                except Exception:
+                                    pass
+            except Exception:
+                pass
 
         diff = sp.simplify(sp.trigsimp(e1 - e2))
 
         if diff == 0:
+            details = f"Symbolic equivalence proven: {expr1_str} ≡ {expr2_str} (Difference simplifies to 0)."
+            if domain_restrictions:
+                details += f" Domain restrictions: {sorted(domain_restrictions)}."
             return {
                 "verified": True,
                 "status": "VERIFIED",
-                "details": f"Symbolic equivalence proven: {expr1_str} ≡ {expr2_str} (Difference simplifies to 0)."
+                "details": details,
+                "domain_restrictions": sorted(domain_restrictions)
             }
         else:
             return {
                 "verified": False,
                 "status": "NON_EQUIVALENT",
                 "error_type": "NON_EQUIVALENT_EXPRESSIONS",
-                "details": f"Expressions {expr1_str} and {expr2_str} are not algebraically equivalent."
+                "details": f"Expressions {expr1_str} and {expr2_str} are not algebraically equivalent (Difference simplifies to {diff})."
             }
     except Exception as e:
         return {"verified": False, "status": "UNKNOWN", "reason": str(e)}

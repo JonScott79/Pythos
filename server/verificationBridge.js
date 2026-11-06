@@ -69,10 +69,12 @@ function replaceLatexRadicalsAndFractions(str) {
   let res = str;
 
   // 1. Balanced-brace replacement for \frac{num}{den} -> ((num)/(den))
-  while (res.includes('\\frac{')) {
-    const idx = res.indexOf('\\frac{');
+  while (/\\+frac\{/.test(res)) {
+    const m = res.match(/\\+frac\{/);
+    const idx = m.index;
+    const matchLen = m[0].length;
     let depth = 0;
-    let numStart = idx + 6;
+    let numStart = idx + matchLen;
     let numEnd = -1;
     for (let i = numStart; i < res.length; i++) {
       if (res[i] === '{') depth++;
@@ -102,10 +104,12 @@ function replaceLatexRadicalsAndFractions(str) {
   }
 
   // 2. Balanced-brace replacement for \sqrt{inner} -> sqrt(inner) from innermost out
-  while (res.includes('\\sqrt{')) {
-    const lastIdx = res.lastIndexOf('\\sqrt{');
+  while (/\\+sqrt\{/.test(res)) {
+    const m = res.match(/\\+sqrt\{/);
+    const idx = m.index;
+    const matchLen = m[0].length;
     let depth = 0;
-    let start = lastIdx + 6;
+    let start = idx + matchLen;
     let end = -1;
     for (let i = start; i < res.length; i++) {
       if (res[i] === '{') depth++;
@@ -116,7 +120,7 @@ function replaceLatexRadicalsAndFractions(str) {
     }
     if (end === -1) break;
     const inner = res.slice(start, end);
-    res = res.slice(0, lastIdx) + 'sqrt(' + inner + ')' + res.slice(end + 1);
+    res = res.slice(0, idx) + 'sqrt(' + inner + ')' + res.slice(end + 1);
   }
 
   return res;
@@ -1188,6 +1192,104 @@ function extractClaims(text, userPrompt = '') {
           });
         }
       }
+    }
+  }
+
+  // 5f. Algebraic Equivalence & Factorization Claims (e.g. 2x^2 - 9x + 7 = (2x-7)(x-1), LCD multiplication steps)
+  const defRegex = /(?:^|[\n;])\s*(?:let\s+)?([D]|LCD)\s*=\s*([^\n;]+)/gi;
+  const algebraicDefinitions = {};
+  let defMatch;
+  while ((defMatch = defRegex.exec(text)) !== null) {
+    const varName = defMatch[1];
+    let defExpr = defMatch[2].trim().replace(/[.,;:]+$/, '');
+    if (/[a-zA-Z]/.test(defExpr) && !defExpr.includes('=')) {
+      algebraicDefinitions[varName] = defExpr;
+    }
+  }
+
+  const rawEquivBlocks = text
+    .replace(/\\begin\{aligned\}|\\end\{aligned\}|&/g, ' ')
+    .split(/\r?\n|\\\\|\\\]|\$\$/);
+
+  for (let block of rawEquivBlocks) {
+    let cleanBlock = block.replace(/\\\[|\$|\\text\{[^}]*\}/g, ' ').trim();
+    if (!cleanBlock || !cleanBlock.includes('=')) continue;
+    if (cleanBlock.includes('<') || cleanBlock.includes('>') || cleanBlock.includes('≈') || cleanBlock.includes('~')) continue;
+    if (/\b(?:d|dt|dx|dy)\b\s*=\s*/.test(cleanBlock)) continue;
+    if (/\\int|\\frac\{d\}\{d|\\lim\b/i.test(cleanBlock)) continue;
+
+    const parts = cleanBlock.split('=');
+    if (parts.length !== 2) continue;
+
+    let lhsRaw = parts[0].trim();
+    let rhsRaw = parts[1].trim();
+
+    // Strip leading conversational/prose prefixes from LHS
+    lhsRaw = lhsRaw.replace(/^(?:(?:notice|observe|note|we\s+(?:have|see|get|find)|factors?|factorizations?|yields?|gives?|since|because|that|so|then|therefore|thus|hence|here|first|second|third|term\s*\d*|rhs|lhs)\s+)+/i, '').trim();
+    // Strip trailing conversational/prose suffixes from RHS
+    rhsRaw = rhsRaw.replace(/[.,;:]+$/, '').trim();
+    rhsRaw = rhsRaw.replace(/\s+(?:factors?|over|the|integers?|polynomials?|which|is|are|valid|holds?|for|all|identity|identities|where)\b.*$/i, '').trim();
+    rhsRaw = rhsRaw.replace(/[.,;:]+$/, '').trim();
+
+    if (/^\s*[a-zA-Z]\s*$/.test(lhsRaw) || /^\s*[a-zA-Z]\s*$/.test(rhsRaw)) continue;
+    if (lhsRaw === '0' || rhsRaw === '0') continue;
+    if (!/[a-zA-Z]/.test(lhsRaw) && !/[a-zA-Z]/.test(rhsRaw)) continue;
+    if (/^[-+]?\d+(?:\.\d+)?$/.test(lhsRaw) || /^[-+]?\d+(?:\.\d+)?$/.test(rhsRaw)) continue;
+
+    for (const [k, v] of Object.entries(algebraicDefinitions)) {
+      const macroRegex = new RegExp('(?<![a-zA-Z])' + k + '(?![a-zA-Z])', 'g');
+      lhsRaw = lhsRaw.replace(macroRegex, '(' + v + ')');
+      rhsRaw = rhsRaw.replace(macroRegex, '(' + v + ')');
+    }
+
+    const normLhs = replaceLatexRadicalsAndFractions(lhsRaw)
+      .replace(/\\times|\\cdot/g, '*')
+      .replace(/(\d)\s*([a-zA-Z])/g, '$1*$2')
+      .replace(/(\d)\s*\(/g, '$1*(')
+      .replace(/\)\s*\(/g, ')*(')
+      .replace(/\)\s*([a-zA-Z])/g, ')*$1')
+      .replace(/([a-zA-Z0-9])\s*(\()/g, '$1*(')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const normRhs = replaceLatexRadicalsAndFractions(rhsRaw)
+      .replace(/\\times|\\cdot/g, '*')
+      .replace(/(\d)\s*([a-zA-Z])/g, '$1*$2')
+      .replace(/(\d)\s*\(/g, '$1*(')
+      .replace(/\)\s*\(/g, ')*(')
+      .replace(/\)\s*([a-zA-Z])/g, ')*$1')
+      .replace(/([a-zA-Z0-9])\s*(\()/g, '$1*(')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const vMatchLhs = normLhs.match(/\b([a-zA-Z])\b/);
+    const vMatchRhs = normRhs.match(/\b([a-zA-Z])\b/);
+    // Algebraic equivalence and factorizations must contain variables on BOTH sides
+    if (!vMatchLhs || !vMatchRhs) continue;
+
+    // Reject variable assignments / substitution definitions (e.g. let u = sqrt(2x+9))
+    if (/\b(?:let|set|assume|suppose)\s+[a-zA-Z]\s*=/i.test(cleanBlock)) continue;
+    // Single variable on one side cannot be symbolically equivalent to an expression in another variable
+    if (vMatchLhs[1] !== vMatchRhs[1] && (!normLhs.includes(vMatchRhs[1]) || !normRhs.includes(vMatchLhs[1]))) continue;
+
+    // Do not mistake the prompt's equation-to-solve for an algebraic identity
+    if (promptStr && promptStr.includes('=') && (cleanBlock.includes(promptStr.split('=')[0].trim()) || promptStr.includes(cleanBlock))) continue;
+
+    const vMatch = vMatchLhs;
+
+    const alreadyEquiv = claims.some(c => c.claim_type === 'symbolic_equivalence' && c.data?.expr1 === normLhs && c.data?.expr2 === normRhs);
+    if (!alreadyEquiv) {
+      claims.push({
+        domain: 'algebra',
+        claim_type: 'symbolic_equivalence',
+        raw_match: cleanBlock,
+        data: {
+          expr1: normLhs,
+          expr2: normRhs,
+          variable: vMatch[1],
+          userPrompt: promptStr
+        },
+        userPrompt: promptStr
+      });
     }
   }
 
