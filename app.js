@@ -3389,10 +3389,6 @@ function detectDeepThoughtLocale(text) {
   return null;
 }
 
-function isDeepThoughtQuestion(text) {
-  return detectDeepThoughtLocale(text) !== null;
-}
-
 function fakeThinkingDelay(ms) {
   const thinkEl = showThinking();
   return new Promise(resolve => {
