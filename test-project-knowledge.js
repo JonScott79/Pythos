@@ -24,6 +24,7 @@ const {
   buildProjectKnowledgeContext,
   getAuthoritativeSource,
   isMathExecutionIntent,
+  cleanHtmlContent,
   SOURCE_DEFINITIONS
 } = require('./server/projectKnowledgeService');
 
@@ -78,9 +79,9 @@ for (const q of validationQueries) {
     const ctx = buildProjectKnowledgeContext(q);
     assert(ctx.includes('Mathematical Validation Record'), 'Context must contain Validation title');
     assert(ctx.includes('/validation/'), 'Context must reference /validation/ URL');
-    assert(ctx.includes('50,000'), 'Context must contain live benchmark count 50,000');
-    assert(ctx.includes('22,722'), 'Context must contain live verified count 22,722');
-    assert(ctx.includes('27,278'), 'Context must contain live withheld count 27,278');
+    assert(ctx.includes('50,000'), 'Context must contain live benchmark and verified count 50,000');
+    assert(ctx.includes('100.00%'), 'Context must contain 100.00% verified solving rate');
+    assert(ctx.includes('zero incorrect answers delivered'), 'Context must state zero incorrect answers delivered');
   });
 }
 
@@ -396,14 +397,51 @@ runTest('Authoritative source reads from filesystem, not hardcoded strings', () 
   assert(valSource !== null);
   assert.strictEqual(valSource.id, 'VALIDATION');
   assert(valSource.text.includes('50,000'));
-  assert(valSource.text.includes('22,722'));
-  assert(valSource.text.includes('27,278'));
-  // zero withheld in 110k campaign
+  assert(valSource.text.includes('100.00%'));
+  assert(valSource.text.includes('zero incorrect answers delivered'));
   assert(valSource.mtime instanceof Date);
 
   const changelogSource = getAuthoritativeSource('CHANGELOG');
   assert(changelogSource !== null);
-  assert(changelogSource.text.includes('Pythos 1.8.'));
+  assert(changelogSource.text.includes('Pythos 1.8.61'));
+});
+
+runTest('Railway Docker layout (server/site_sources) is synchronized and resolves current sources in isolated container layout', () => {
+  const os = require('os');
+  const bundledRoot = path.resolve(__dirname, 'server', 'site_sources');
+  for (const [key, def] of Object.entries(SOURCE_DEFINITIONS)) {
+    const rootFile = path.resolve(__dirname, def.relativePath);
+    const bundledFile = path.join(bundledRoot, def.relativePath);
+    assert(fs.existsSync(bundledFile), `Missing bundled Docker source for ${key}: ${bundledFile}`);
+    const rootRaw = fs.readFileSync(rootFile, 'utf8');
+    const bundledRaw = fs.readFileSync(bundledFile, 'utf8');
+    assert.strictEqual(bundledRaw, rootRaw, `Bundled Docker source server/site_sources/${def.relativePath} drifted from root ${def.relativePath}`);
+    const cleanedBundled = cleanHtmlContent(bundledRaw, key);
+    const authoritative = getAuthoritativeSource(key);
+    assert.strictEqual(cleanedBundled, authoritative.text, `Extracted text mismatch for ${key} in Docker layout`);
+  }
+
+  // Simulate Railway Docker container layout (/app with projectKnowledgeService.js + site_sources/, no parent HTML files)
+  const tmpBase = fs.mkdtempSync(path.join(os.tmpdir(), 'pythos-docker-pk-'));
+  const appDir = path.join(tmpBase, 'app');
+  try {
+    fs.mkdirSync(appDir, { recursive: true });
+    fs.copyFileSync(path.resolve(__dirname, 'server', 'projectKnowledgeService.js'), path.join(appDir, 'projectKnowledgeService.js'));
+    fs.cpSync(bundledRoot, path.join(appDir, 'site_sources'), { recursive: true });
+
+    const containerPk = require(path.join(appDir, 'projectKnowledgeService.js'));
+    for (const [key, def] of Object.entries(containerPk.SOURCE_DEFINITIONS)) {
+      const resolved = def.filePath;
+      assert(resolved.startsWith(path.join(appDir, 'site_sources')), `Expected Docker fallback path in site_sources for ${key}, got ${resolved}`);
+      assert(fs.existsSync(resolved), `Resolved Docker path must exist: ${resolved}`);
+    }
+    const dockerVal = containerPk.getAuthoritativeSource('VALIDATION');
+    assert(dockerVal && dockerVal.text.includes('50,000') && dockerVal.text.includes('100.00%'), 'Docker VALIDATION source must contain current 50K 100.00% record');
+    const dockerChangelog = containerPk.getAuthoritativeSource('CHANGELOG');
+    assert(dockerChangelog && dockerChangelog.text.includes('Pythos 1.8.61'), 'Docker CHANGELOG source must contain current v1.8.61 release');
+  } finally {
+    fs.rmSync(tmpBase, { recursive: true, force: true });
+  }
 });
 
 // =========================================================================

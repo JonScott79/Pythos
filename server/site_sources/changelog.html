@@ -22,14 +22,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="assets/favicon.png">
-  <title>Pythos Release History &amp; Changelog | v1.8.55</title>
+  <title>Pythos Release History &amp; Changelog | v1.8.61</title>
   <meta name="description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://pythos.lanzar.me/changelog.html">
 
   <!-- OPEN GRAPH -->
-  <meta property="og:title" content="Pythos Release History &amp; Changelog | v1.8.55">
+  <meta property="og:title" content="Pythos Release History &amp; Changelog | v1.8.61">
   <meta property="og:description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta property="og:url" content="https://pythos.lanzar.me/changelog.html">
   <meta property="og:type" content="article">
@@ -41,7 +41,7 @@
 
   <!-- TWITTER CARD -->
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Pythos Release History &amp; Changelog | v1.8.55">
+  <meta name="twitter:title" content="Pythos Release History &amp; Changelog | v1.8.61">
   <meta name="twitter:description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="twitter:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
 
@@ -532,7 +532,7 @@
         <a href="nonprofit.html" class="nav-link">Mission &amp; Roadmap</a>
         <a href="license.html" class="nav-link">License</a>
         <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" class="nav-link">Facebook</a>
-        <a href="changelog.html#pythos-1-8-55" class="nav-link active" aria-current="page">v1.8.55</a>
+        <a href="changelog.html#pythos-1-8-61" class="nav-link active" aria-current="page">v1.8.61</a>
       </div>
     </div>
 
@@ -557,11 +557,189 @@
       <p>Authoritative release notes, verification engine milestones, and mathematical system updates.</p>
     </header>
 
-                                                                                    <!-- RELEASE v1.8.16 -->
-    <!-- RELEASE v1.8.29 -->
-        <!-- ==================== RELEASE 1.8.28 ==================== -->
-        <!-- ==================== RELEASE 1.8.29 ==================== -->
-    <!-- ==================== RELEASE 1.8.31 ==================== -->
+        <!-- ==================== RELEASE 1.8.61 ==================== -->
+        <article class="release-card" id="pythos-1-8-61">
+            <header class="release-header">
+                <div>
+                    <h2 class="release-version">Pythos 1.8.61</h2>
+                    <div class="release-meta">
+                        <time datetime="2026-11-06"><i class="far fa-calendar-alt"></i> November 6, 2026</time>
+                        <span><i class="fas fa-chart-line"></i> Graphing Continuity, LLM Image Anti-Hallucination &amp; CSP Hardening</span>
+                        <span><i class="fas fa-shield-alt"></i> 100% Deterministic Verification</span>
+                    </div>
+                </div>
+                <span class="release-badge">Production Release</span>
+            </header>
+            
+            <div class="release-body">
+                <p><strong>Pythos 1.8.61</strong> eliminates LLM image hallucinations during function plotting, introduces multi-turn graphing context recovery, expands Unicode superscript normalizers, hardens Content Security Policy (CSP) headers for mathjs CDN assets with client-side fallback compilation, and refines division formatting across the scientific calculator.</p>
+                
+                <div class="release-section">
+                    <h3>Engine Calibrations &amp; Plotting Integrity Highlights</h3>
+                    <ul class="release-list">
+                        <li><strong>LLM Image Hallucination Scrubbing &amp; Anti-Hallucination Guardrails:</strong> Identified and resolved an issue where the language model was hallucinating external image URLs (e.g., generating fake <code>https://i.imgur.com/...</code> links inside Markdown image tags) instead of invoking the native interactive plotting engine. Deployed a strict system prompt directive forbidding fake image generation, coupled with dual-layer server (<code>server/vizEngine/visualFidelity.js</code>) and client (<code>app.js</code>) regex scrubbers that intercept hallucinated image tags, extract the underlying function, and auto-mount native interactive Function Grapher canvases (<code>[GRAPH: ...]</code>).</li>
+                        <li><strong>Multi-Turn Graphing Intent Continuity:</strong> Fixed conversational amnesia where Pythos lost track of active graphing context across multi-turn exchanges. When the assistant asked the user to specify a function (e.g., <em>"Then I can plot the parabola for you"</em>) and the user responded with the formula (<code>y = (x + 3)² - 7</code>), the model mistakenly switched to root-finding instead of graphing. <code>server/deterministicRouter.js</code> now inspects conversation history and captures follow-up student corrections (e.g., <em>"were supposed to be graphing it"</em>, <em>"the graph didnt work try again"</em>) to guarantee seamless graphing continuity.</li>
+                        <li><strong>Unicode Superscript Math Normalization:</strong> Added comprehensive decoding for Unicode superscripts and mathematical exponents (<code>⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻</code> &rarr; <code>^0..^9</code>) across <code>deterministicRouter.js</code> and <code>app.js</code>, enabling natural inputs like <code>(x + 3)² - 7</code> to parse cleanly into Cartesian expressions.</li>
+                        <li><strong>Content Security Policy &amp; Resilient Fallback Plotter:</strong> Added <code>cdnjs.cloudflare.com</code> to <code>script-src</code>, <code>style-src</code>, and <code>connect-src</code> CSP directives across <code>server/server.js</code>, <code>staticServer.js</code>, and <code>netlify.toml</code>. Implemented a zero-failure client-side AST fallback evaluator (<code>getCompiledGraphExpr</code>) in <code>app.js</code> so Cartesian graphs render reliably even during network dropouts or CDN blockages.</li>
+                        <li><strong>Division Display &amp; KaTeX Formatting:</strong> Resolved an issue where calculator division queries remained trapped as unresolved fractions, providing both exact fractional representations and clean decimal values with hardened KaTeX rendering retries.</li>
+                    </ul>
+                </div>
+            </div>
+        </article>
+
+        <!-- ==================== RELEASE 1.8.60 ==================== -->
+        <article class="release-card" id="pythos-1-8-60">
+            <header class="release-header">
+                <div>
+                    <h2 class="release-version">Pythos 1.8.60</h2>
+                    <div class="release-meta">
+                        <time datetime="2026-11-06"><i class="far fa-calendar-alt"></i> November 6, 2026</time>
+                        <span><i class="fas fa-shield-alt"></i> Repeated-Factor LCD &amp; Symbolic Equivalence Engine</span>
+                        <span><i class="fas fa-check-double"></i> 100% Deterministic Factorization &amp; Equivalence Verification</span>
+                    </div>
+                </div>
+                <span class="release-badge">Production Release</span>
+            </header>
+            
+            <div class="release-body">
+                <p><strong>Pythos 1.8.60</strong> resolves repeated-factor LCD double-cancellation in rational equations, introduces end-to-end <code>symbolic_equivalence</code> claim extraction and SymPy difference verification, fixes multi-escaped LaTeX fraction AST normalization, doubles the model generation budget to 4,096 tokens to eliminate response truncation, and hardens chained equality verification on student challenge turns.</p>
+                
+                <div class="release-section">
+                    <h3>Engine Calibrations &amp; Verification Highlights</h3>
+                    <ul class="release-list">
+                        <li><strong>Repeated-Factor LCD Multiplicity Preservation:</strong> Resolved an algebraic double-cancellation defect where simplifying rational fractions with repeated-factor least common denominators (e.g., $D = (x-1)(x-2)(x-3)^2$) mistakenly dropped factor powers. Denominator and LCD factor multiplicities are now strictly preserved: $\text{Power in } N(x) + \text{Power in } L(x) - \text{Power in } D(x)$.</li>
+                        <li><strong>Intermediate Symbolic Equivalence Engine:</strong> Added Pattern 5f to <code>server/verificationBridge.js</code> to extract intermediate algebraic transformations, identities, factorizations, and LCD-multiplied expansions. Connected SymPy symbolic difference reduction <code>sp.simplify(sp.trigsimp(e1 - e2))</code> to reject non-equivalent algebra and track rational domain restrictions ($\mathbb{R} \setminus \{1, 2, 3\}$).</li>
+                        <li><strong>Balanced-Brace LaTeX AST Normalization:</strong> Patched <code>replaceLatexRadicalsAndFractions()</code> regex matching to cleanly consume all leading backslashes in multi-escaped LaTeX strings (<code>\\frac{...}</code>, <code>\\sqrt{...}</code>), eliminating syntax errors and rogue leading backslashes in SymPy parsing.</li>
+                        <li><strong>Deterministic Polynomial Factorization Rules:</strong> Enforced mandatory calculation of discriminant $\Delta = b^2 - 4ac$ prior to asserting polynomial irreducibility over integers (e.g., $2x^2 - 9x + 7 = (2x-7)(x-1)$ with $\Delta = 25$).</li>
+                        <li><strong>Response Token Budget Doubling &amp; Answer-First Principle:</strong> Doubled maximum generation output to 4,096 tokens across reasoning endpoints to prevent truncation, while enforcing answer-first delivery before extended pedagogical derivations.</li>
+                        <li><strong>Chained Equality &amp; Challenge Turn Reverification:</strong> Added automated extraction for chained equalities ($A = B = C$) and mandated objective re-verification on student challenges without false concessions.</li>
+                    </ul>
+                </div>
+            </div>
+        </article>
+
+<!-- ==================== RELEASE 1.8.59 ==================== -->
+        <article class="release-card" id="pythos-1-8-59">
+            <header class="release-header">
+                <div>
+                    <h2 class="release-version">Pythos 1.8.59</h2>
+                    <div class="release-meta">
+                        <time datetime="2026-11-05"><i class="far fa-calendar-alt"></i> November 5, 2026</time>
+                        <span><i class="fas fa-microchip"></i> 50K Calibration Campaign Publication</span>
+                        <span><i class="fas fa-check-double"></i> 100.00% Verified Solving Rate (50,000 / 50,000)</span>
+                    </div>
+                </div>
+                <span class="release-badge">Production Milestone</span>
+            </header>
+            
+            <div class="release-body">
+                <p><strong>Pythos 1.8.59</strong> publishes the official results of the <strong>Pythos 50K Calibration</strong> campaign—our comprehensive deterministic validation and system integrity benchmark. Across 50,000 independent mathematical and scientific problems, Pythos achieved a <strong>100.00% verified solving rate (50,000 / 50,000)</strong> with <strong>0 errors delivered (0.00% delivered error rate)</strong> in <strong>11.40 seconds</strong> total runtime.</p>
+                
+                <div class="release-section">
+                    <h3>Engine Calibrations &amp; Hardening Highlights</h3>
+                    <ul class="release-list">
+                        <li><strong>Kinematics Natural Phrasing Permutations:</strong> Added complete support in <code>server/deterministicRouter.js</code> for the acceleration &rarr; velocity &rarr; time natural phrasing permutation, converting 815 previously withheld word problems into 100% verified-correct solutions.</li>
+                        <li><strong>Cramer Matrix Determinant Guard:</strong> Guarded intermediate determinant step labels (<code>$D_x$</code>, <code>$D_y$</code>, <code>$D$</code>) from being misclassified as single-variable algebraic equations, allowing Math.js to verify systems of equations instantly (0.001 ms).</li>
+                        <li><strong>Equation Prefix Parsing Precision:</strong> Refined instructional prefix stripping in <code>server/verificationBridge.js</code> so leading variable tokens (e.g., the <code>x</code> in <code>Solve x^2 + 4x + 3 = 0</code>) are never inadvertently trimmed.</li>
+                        <li><strong>Single-Variable Invariant Enforcement:</strong> Enforced strict <code>varsInEq.size === 1</code> validation so non-variable statements are excluded from single-variable root extractors.</li>
+                        <li><strong>Zero Child Process Churn:</strong> Maintained zero orphan processes and minimal memory footprint (148.9 MB peak heap) across the entire 50,000-case execution.</li>
+                    </ul>
+                </div>
+            </div>
+        </article>
+
+    <!-- ==================== RELEASE 1.8.58 ==================== -->
+        <article class="release-card" id="pythos-1-8-58">
+            <header class="release-header">
+                <div>
+                    <h2 class="release-version">Pythos 1.8.58</h2>
+                    <div class="release-meta">
+                        <time datetime="2026-11-02"><i class="far fa-calendar-alt"></i> November 2, 2026</time>
+                        <span><i class="fas fa-shield-alt"></i> P0 Response Integrity &amp; Verification Hardening</span>
+                        <span><i class="fas fa-check-double"></i> Nested Radical AST Normalization &amp; Fail-Closed Delivery Gate</span>
+                    </div>
+                </div>
+                <span class="release-badge">Production Release</span>
+            </header>
+            
+            <div class="release-body">
+                <p><strong>Pythos 1.8.58</strong> hardens response completion integrity, resolves mid-LaTeX syntax interruptions, prevents unverified answers from silently failing open, and introduces recursive balanced-brace AST normalization for complex nested radical equations and fractions.</p>
+                
+                <div class="release-section">
+                    <h3>Key Improvements &amp; Mathematical Rigor</h3>
+                    <ul class="release-list">
+                        <li><strong>Recursive Balanced-Brace AST Normalization:</strong> Replaced flat regex parsing with balanced-brace extraction for nested radicals (<code>\sqrt{...}</code>) and fractions (<code>rac{...}{...}</code>), ensuring complex nested equations verify cleanly in SymPy and Math.js without brace corruption.</li>
+                        <li><strong>Fractional Solution Extraction:</strong> Extended algebraic root extractors to capture negative and positive fractional solutions (e.g., <code>-rac{81}{20}</code> and <code>-81/20</code> &rarr; <code>-4.05</code>) in both boxed results and inline assignments.</li>
+                        <li><strong>Fail-Closed Verification Gate:</strong> Addressed the silent fail-open bypass where crashed or unparseable verifier evaluations (<code>status: 'UNKNOWN'</code>) avoided withholding. If a query requires solving or calculation and zero claims are affirmatively proven, certification is withheld.</li>
+                        <li><strong>Unconditional Delivery Gate &amp; Truncation Propagation:</strong> Moved delivery gate completeness checks outside conditional error blocks, guaranteeing that responses reaching provider token limits or containing unclosed LaTeX display math trigger safe withholding or interruption warnings (<code>⚠️ Interrupted</code>).</li>
+                        <li><strong>LaTeX Fracture &amp; Trailing Backslash Sanitization:</strong> Automatically cleans orphaned trailing backslashes (<code>\;\</code>) and auto-closes dangling display math blocks before KaTeX compilation, eliminating split-block visual artifacts.</li>
+                        <li><strong>Verified Badge Truthfulness:</strong> Restricted the UI <code>✓ Verified</code> badge to messages with affirmative mathematical proof (<code>status: 'VERIFIED'</code>), displaying <code>Socratic Solution</code> or <code>Interrupted</code> otherwise.</li>
+                    </ul>
+                </div>
+            </div>
+        </article>
+
+    <!-- ==================== RELEASE 1.8.57 ==================== -->
+        <article class="release-card" id="pythos-1-8-57">
+            <header class="release-header">
+                <div>
+                    <h2 class="release-version">Pythos 1.8.57</h2>
+                    <div class="release-meta">
+                        <time datetime="2026-11-02"><i class="far fa-calendar-alt"></i> November 2, 2026</time>
+                        <span><i class="fas fa-tag"></i> Sim Lab Dynamic Scrolling &amp; Viewport Overhaul</span>
+                        <span><i class="fas fa-mobile-alt"></i> Zero Tool Cutoff, Side-by-Side Landscape Workbench &amp; Flex Height Fix</span>
+                    </div>
+                </div>
+                <span class="release-badge">Production Release</span>
+            </header>
+            
+            <div class="release-body">
+                <p><strong>Pythos 1.8.57</strong> resolves the mobile Sim Lab tools clipping defects, introducing smooth dynamic vertical scrolling, safe-area overscroll padding, proportional canvas constraints, and a dedicated side-by-side interactive workbench for landscape viewports.</p>
+                
+                <div class="release-section">
+                    <h3>Key Improvements &amp; Sim Lab Polish</h3>
+                    <ul class="release-list">
+                        <li><strong>Flexbox Height Inversion Fix:</strong> Replaced rigid <code>height: 100%</code> on <code>.sim-lab-mount-container</code> with flexible auto-sizing (<code>flex: 1 1 0%; min-height: 0;</code>), permanently eliminating the 52px bottom clipping defect caused by sibling navigation bars.</li>
+                        <li><strong>Safe-Area Bottom Clearance:</strong> Added <code>calc(80px + env(safe-area-inset-bottom, 24px))</code> overscroll padding to the simulation mount container, ensuring bottommost sliders, reset buttons, and prompt actions remain fully reachable above mobile home bars and browser navigation.</li>
+                        <li><strong>Proportional Sticky Canvas &amp; Compact Metric Tablets:</strong> Constrained mobile portrait canvas height to <code>clamp(130px, 24vh, 175px)</code> and reflowed metric tablets into a compact single-line grid, reclaiming over 70px of vertical space for parameter controls while keeping physical animations pinned in view.</li>
+                        <li><strong>Side-by-Side Landscape Interactive Workbench:</strong> On landscape phones, transformed the layout into a 2-column split (canvas fixed on left 52%, scrollable parameter controls panel on right 48%), allowing students to tweak variables while simultaneously watching animations in real time with zero vertical scrolling conflicts.</li>
+                        <li><strong>Dynamic Slider Focus &amp; Touch-Action:</strong> Configured <code>touch-action: pan-y</code> on range sliders and added automatic smooth-scroll alignment when touching or focusing sliders.</li>
+                    </ul>
+                </div>
+            </div>
+        </article>
+
+    <!-- ==================== RELEASE 1.8.56 ==================== -->
+        <article class="release-card" id="pythos-1-8-56">
+            <header class="release-header">
+                <div>
+                    <h2 class="release-version">Pythos 1.8.56</h2>
+                    <div class="release-meta">
+                        <time datetime="2026-11-01"><i class="far fa-calendar-alt"></i> November 1, 2026</time>
+                        <span><i class="fas fa-tag"></i> Mobile UX/UI &amp; Ergonomics Overhaul</span>
+                        <span><i class="fas fa-mobile-alt"></i> Sticky Sim Lab Stage, 100% Hit-Testable Toolbox, Pointer Dragging &amp; KaTeX Parity</span>
+                    </div>
+                </div>
+                <span class="release-badge">Production Release</span>
+            </header>
+            
+            <div class="release-body">
+                <p><strong>Pythos 1.8.56</strong> implements comprehensive fixes resulting from our cross-device mobile audit, eliminating UI clipping, synchronizing live KaTeX input overlays, adding sticky stages for physical simulations, and bringing full touchscreen drag support to all floating mathematical instruments.</p>
+                
+                <div class="release-section">
+                    <h3>Key Improvements &amp; Mobile Hardening</h3>
+                    <ul class="release-list">
+                        <li><strong>Toolbox Popover Menu Accessibility:</strong> Resolved horizontal clipping and stacking order defects on the secondary instruments popover (Grapher, Units, Matrix, Formulas, Scratchpad), boosting automated mobile hit-test accessibility from 0/6 to <strong>6/6 (100%)</strong> across all devices.</li>
+                        <li><strong>Input Area &amp; KaTeX Backdrop Parity:</strong> Synchronized <code>.user-input-backdrop</code> and <code>textarea#userInput</code> to strictly 16px on mobile viewports, permanently resolving font scale desynchronization and typing drift.</li>
+                        <li><strong>Sticky Sim Lab Simulation Stage:</strong> Added a sticky stage container to the Simulation Lab so the physical canvas and real-time metric tablets remain pinned in view while students scroll through multi-parameter physics sliders.</li>
+                        <li><strong>Unified PointerEvents Touch Dragging:</strong> Modernized modal window movement logic using Unified Pointer Events (<code>pointerdown</code>, <code>pointermove</code>, <code>setPointerCapture</code>) to enable smooth touch dragging of the Scientific Calculator, 2D Function Grapher, and Matrix tools on touchscreens.</li>
+                        <li><strong>WCAG 2.5.5 Touch Target Compliance:</strong> Expanded modal close buttons and calculator keypad keys to standard 44px minimum touch target dimensions.</li>
+                        <li><strong>Header Leakage &amp; Keyboard Handling:</strong> Fixed skip-navigation link offset to prevent blue visual artifacts in the header, and added <code>visualViewport</code> listeners for responsive virtual keyboard handling.</li>
+                    </ul>
+                </div>
+            </div>
+        </article>
+
     <!-- ==================== RELEASE 1.8.55 ==================== -->
         <article class="release-card" id="pythos-1-8-55">
             <header class="release-header">
@@ -754,7 +932,8 @@
                 <h3><i class="fas fa-chart-line text-primary"></i> Fixed & Enhanced</h3>
                 <ul>
                     <li><strong>Graphing Intent Routing & Component Selection:</strong> Fixed intent routing failure where graphing requests for trigonometric equations (e.g. <code>y = 7sin(x/4)</code>) were routed to the generic Pythagorean Unit Circle instrument (<code>model: 'trigonometry'</code>) instead of generating the Cartesian curve.</li>
-                    <li><strong>LaTeX Prose Filter Hardening:</strong> Stripped LaTeX formatting sequences (<code>ight</code>, <code>left</code>, <code>rac</code>, <code>sqrt</code>) prior to English prose filtering in <code>server/contextManager.js</code>, preventing equations containing LaTeX parentheses from being discarded from active session state.</li>
+                    <li><strong>LaTeX Prose Filter Hardening:</strong> Stripped LaTeX formatting sequences (<code>
+ight</code>, <code>left</code>, <code>rac</code>, <code>sqrt</code>) prior to English prose filtering in <code>server/contextManager.js</code>, preventing equations containing LaTeX parentheses from being discarded from active session state.</li>
                     <li><strong>Multi-Turn Referential Context Recovery:</strong> Upgraded <code>resolveReferentialContext</code> and pattern matching in <code>server/deterministicRouter.js</code> to recognize follow-up phrasing (<em>"graph it please"</em>, <em>"show me on a graph"</em>, <em>"how do i graph this???"</em>), extracting and normalizing active functions across prior dialogue turns.</li>
                     <li><strong>Pedagogical Graphing Instructions:</strong> Automated step-by-step guidance detailing amplitude ($|A|$), period ($P = rac{2pi}{B}$), and the five key points for one full cycle when students ask how to plot trigonometric functions.</li>
                     <li><strong>Prompt Instruction Alignment:</strong> Updated system prompts and visualization prompt directives in <code>server/server.js</code> to strictly distinguish between unit circle angle explorations ($	heta in [0, 360^circ]$) and Cartesian function curve plotting (<code>[GRAPH: expression]</code>).</li>
@@ -2463,7 +2642,7 @@
 
   <footer>
     <div>🏛️ Pythos — Free AI Mathematics &amp; Physics Education Initiative. Developed by LANZAR.</div>
-    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-8-52" style="color:var(--primary-color); text-decoration:none;">v1.8.52</a></div>
+    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-8-61" style="color:var(--primary-color); text-decoration:none;">v1.8.61</a></div>
   </footer>
 
   <script>

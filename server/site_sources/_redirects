@@ -1,3 +1,12 @@
-/license    /license.html    200!
-/license/   /license.html    200!
-/LICENSE    /license.html    200!
+/server/*         /404.html    404!
+/reports/*        /404.html    404!
+/app/*            /404.html    404!
+/etc/*            /404.html    404!
+/staticServer.js  /404.html    404!
+/dev-server.js    /404.html    404!
+/package.json     /404.html    404!
+/license          /license.html    200!
+/license/         /license.html    200!
+/LICENSE          /license.html    200!
+
+/*  /404.html  404
