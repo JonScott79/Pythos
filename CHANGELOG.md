@@ -1,3 +1,16 @@
+## Pythos 1.8.62
+**Release Date:** November 7, 2026
+
+### Codebase Integrity Audit, Railway Project Knowledge Synchronization & Precision-Aware Trigonometric Verification
+- **Railway Docker Project Knowledge Synchronization (`server/site_sources/`, `server/projectKnowledgeService.js`, `test-project-knowledge.js`):**
+  - Synchronized bundled `server/site_sources/` HTML and redirect mirrors (`changelog.html`, `validation/index.html`, `index.html`, `license.html`, `nonprofit.html`, `_redirects`) with authoritative root sources so Railway container deployments serve current release history and the 50K Calibration record (`50,000` verified correct, `100.00%`, zero wrong answers delivered).
+  - Added isolated `/app` Docker fallback verification coverage in `test-project-knowledge.js`.
+- **Negative-Angle Degree Claim Extraction & Precision-Aware Half-ULP Verification (`server/verificationBridge.js`, `test-safe-response-constructor.js`):**
+  - Fixed the arithmetic claim free-variable guard (`nonFunctionLetters`) in `server/verificationBridge.js` to recognize numeric degree units (`(?<=\d\s*)deg\b`) after degree-symbol normalization (`cot(-28.45°)` -> `cot(-28.45 deg)`), without relaxing rejection of unsupported free variables.
+  - Enforced precision-aware half-ULP tolerance (`0.5 * 10^-k` for `k >= 2` decimal places) on rounded trigonometric claims written with `=`, rejecting off-by-1-ULP and false values within `±0.005` while preserving strict exactness on ordinary decimal arithmetic.
+- **Repository Dead-Code & Stray Asset Cleanup (`server/`, `server/verifier/`, `app.js`, `assets/`):**
+  - Removed confirmed unused imports, dead legacy storage constants, unreferenced helper functions, and stray manual test images across backend Node modules, Python SymPy verifiers, and frontend scripts.
+
 ## Pythos 1.8.61
 **Release Date:** November 6, 2026
 
