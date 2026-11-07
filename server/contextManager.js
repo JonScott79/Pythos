@@ -17,7 +17,7 @@
 */
 
 const math = require('mathjs');
-const { classifyProblem, DOMAINS, extractAnswerFormattingRequirements, extractRightTriangleTarget } = require('./problemClassifier');
+const { classifyProblem, extractAnswerFormattingRequirements, extractRightTriangleTarget } = require('./problemClassifier');
 const { resolveReferentialContext } = require('./deterministicRouter');
 const { evaluateLinearEquationStep, evaluateEquationCandidate } = require('./studentWorkEvaluator');
 const mathjsVerifier = require('./mathjsVerifier');

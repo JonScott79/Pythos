@@ -15,7 +15,6 @@
 
 const { parseTrigExpression } = require('./trigExpressionParser');
 const { analyzeDeterministicIntent, buildDeterministicResponse } = require('./deterministicRouter');
-const { generateGeometryToken, generateAsciiRightTriangle } = require('./vizEngine/visualFidelity');
 
 /**
  * Attempts to construct a safe, certified mathematical response from trusted

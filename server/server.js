@@ -25,7 +25,6 @@ const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'pythos:latest';
 const OLLAMA_VISION_MODEL = process.env.OLLAMA_VISION_MODEL || 'qwen/qwen3.8-27b';
 const OLLAMA_API_KEY = process.env.OLLAMA_API_KEY ? process.env.OLLAMA_API_KEY.trim() : null;
 const providerPolicy = require('./providerPolicy');
-const GROQ_API_KEY = providerPolicy.getGroqApiKey();
 const projectKnowledgeService = require('./projectKnowledgeService');
 const lanzarIdService = require('./lanzarIdService');
 const PORT = process.env.PORT || 3006;
@@ -780,7 +779,7 @@ app.get('/health/ready', async (req, res) => {
 });
 
 const learningStore = require('./learningStore');
-const { runDeterministicVerification, extractClaims, auditInternalConsistency, verifyResponseClaims, extractCandidateAnswer, evaluateCandidateDelivery, synthesizeVerificationStepAudit } = require('./verificationBridge');
+const { verifyResponseClaims, extractCandidateAnswer, evaluateCandidateDelivery } = require('./verificationBridge');
 const {
   analyzeDeterministicIntent,
   extractPreflightDeterministicFacts,
@@ -794,7 +793,6 @@ const concurrencyLimiter = require('./concurrencyLimiter');
 const adminRoutes = require('./adminRoutes');
 const reportRoutes = require('./reportRoutes');
 const reportService = require('./reportService');
-const { normalizeWorksheetMath } = require('./ocrMathNormalizer');
 const memoryService = require('./memoryService');
 const memoryExtractor = require('./memoryExtractor');
 const firebaseAdmin = require('./firebaseAdmin');
@@ -804,11 +802,11 @@ const contextManager = require('./contextManager');
 const visionExtractor = require('./visionExtractor');
 const { classifyUpstreamError, sanitizeErrorDetail, extractRetrySeconds } = require('./errorHandler');
 const { classifyStudentIntent } = require('./studentIntentClassifier');
-const { generatePracticeProblem, validateProblemStructure } = require('./practiceProblemGenerator');
+const { generatePracticeProblem } = require('./practiceProblemGenerator');
 const { evaluateStudentWork, formatStudentWorkContext, stripModelScratchpad } = require('./studentWorkEvaluator');
 const { classifyLearnerState, formatLearnerStateContext, LEARNER_STATES } = require('./learnerState');
 
-const { enforceVisualFidelity, isVisualRequested } = require('./vizEngine/visualFidelity');
+const { enforceVisualFidelity } = require('./vizEngine/visualFidelity');
 const toolController = require('./toolController');
 const specialistAssist = require('./specialistAssist');
 const { getSafeWithholding, WITHHOLDING_REASONS } = require('./withholdingTaxonomy');

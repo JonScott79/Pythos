@@ -21,14 +21,13 @@ const mathjsVerifier = require('./mathjsVerifier');
 const {
   isVisualRequested,
   hasVisualPresent,
-  containsVisualClaim,
   extractRightTriangleParameters,
   generateAsciiRightTriangle,
   generateGeometryToken
 } = require('./vizEngine/visualFidelity');
-const { generatePracticeProblem, validateProblemStructure } = require('./practiceProblemGenerator');
+const { generatePracticeProblem } = require('./practiceProblemGenerator');
 const { evaluateStudentWork } = require('./studentWorkEvaluator');
-const { parseTrigExpression, verifyTrigTriangleModel } = require('./trigExpressionParser');
+const { verifyTrigTriangleModel } = require('./trigExpressionParser');
 
 /**
  * Strict Allowlist of permitted server tools

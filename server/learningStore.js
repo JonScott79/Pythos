@@ -12,12 +12,7 @@
     6. Authoritative Persistence: Backed by Firebase Admin Firestore; resilient to process restarts with local memory cache.
 */
 
-const fs = require('fs');
-const path = require('path');
 const { getAdminFirestore, isAdminSdkAvailable } = require('./firebaseAdmin');
-
-const DATA_DIR = path.join(__dirname, 'data');
-const LEGACY_STORAGE_FILE = path.join(DATA_DIR, 'verified_learning.json');
 
 // In-memory cache keyed strictly by student UID: Map<uid, { data: { version, records, conflicts }, cachedAt: number }>
 const _userStores = new Map();
