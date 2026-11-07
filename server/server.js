@@ -906,6 +906,7 @@ async function executeGroqVisionCall(provider, { messages, visionSystemPrompt, o
       },
       timeout: timeoutMs
     }, (gRes) => {
+      gRes.setEncoding('utf8');
       let gBody = '';
       gRes.on('data', chunk => gBody += chunk);
       gRes.on('end', () => {
@@ -1084,6 +1085,7 @@ async function executeGeminiVisionCall(provider, { messages, visionSystemPrompt,
       },
       timeout: timeoutMs
     }, (gRes) => {
+      gRes.setEncoding('utf8');
       let gBody = '';
       gRes.on('data', chunk => gBody += chunk);
       gRes.on('end', () => {
@@ -1290,6 +1292,7 @@ ${m.content.slice(PYTHOS_SYSTEM_PROMPT.length).trim()}`;
       },
       timeout: timeoutMs
     }, (gRes) => {
+      gRes.setEncoding('utf8');
       let gBody = '';
       gRes.on('data', chunk => gBody += chunk);
       gRes.on('end', () => {
@@ -1410,6 +1413,7 @@ async function executeGeminiTextCall(provider, { messages, options, timeoutMs = 
       },
       timeout: timeoutMs
     }, (gmRes) => {
+      gmRes.setEncoding('utf8');
       let gmBody = '';
       gmRes.on('data', chunk => gmBody += chunk);
       gmRes.on('end', () => {
@@ -1509,6 +1513,7 @@ function executeOllamaTextCall({ targetModel, ollamaMessages, effectiveOptions, 
       headers: ollamaHeaders,
       timeout: timeoutMs
     }, (resUpstream) => {
+      resUpstream.setEncoding('utf8');
       let fullText = '';
       let streamBuffer = '';
       let upstreamErrorBody = '';
@@ -1689,6 +1694,7 @@ async function executeRevisionCall(candidateResult, { revisionPrompt, effectiveO
         revRes.resume();
         return resolveRev('');
       }
+      revRes.setEncoding('utf8');
       let revText = '';
       let revBuffer = '';
 

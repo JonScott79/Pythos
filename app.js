@@ -1896,6 +1896,8 @@ function appendMessage(role, text, images = null, metadata = {}) {
 
   // Filter out any raw TikZ or raw SVG blocks if LLM accidentally emits them
   let sanitized = text
+    .replace(/([A-Za-z])\uFFFD+(s|t|re|ve|ll|d|m)\b/g, "$1'$2")
+    .replace(/\s+\uFFFD+\s+/g, " — ")
     .replace(/\\begin\{tikzpicture\}[\s\S]*?\\end\{tikzpicture\}/gi, "")
     .replace(/<svg\b[^>]*>[\s\S]*?<\/svg>/gi, "") // Enforce controlled visualizer by removing unauthorized raw SVG injections
     .replace(/!\[([^\]]*)\]\((?:https?:\/\/|www\.)[^\s)]+\)/gi, (match, altText) => {
@@ -4448,7 +4450,7 @@ async function askPythos(userText) {
           }
 
           if (ev.type === "token") {
-            streamedText += ev.content;
+            streamedText = (streamedText + ev.content).replace(/([A-Za-z])\uFFFD+(s|t|re|ve|ll|d|m)\b/g, "$1'$2");
             contentDiv.textContent = streamedText;
 
             // During streaming: ONLY follow tokens if the user has NOT scrolled away.

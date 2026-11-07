@@ -2481,8 +2481,10 @@ async function runDeterministicVerification(claim, userPrompt = '') {
         }
       }, 5000);
 
-      proc.stdout.on('data', (d) => { stdout += d.toString(); });
-      proc.stderr.on('data', (d) => { stderr += d.toString(); });
+      proc.stdout.setEncoding('utf8');
+      proc.stderr.setEncoding('utf8');
+      proc.stdout.on('data', (d) => { stdout += d; });
+      proc.stderr.on('data', (d) => { stderr += d; });
 
       proc.on('close', (code) => {
         if (settled) return;
@@ -2697,8 +2699,10 @@ async function runPythonVerifierBatch(claimsBatch) {
         }
       }, timeoutMs);
 
-      proc.stdout.on('data', (d) => { stdout += d.toString(); });
-      proc.stderr.on('data', (d) => { stderr += d.toString(); });
+      proc.stdout.setEncoding('utf8');
+      proc.stderr.setEncoding('utf8');
+      proc.stdout.on('data', (d) => { stdout += d; });
+      proc.stderr.on('data', (d) => { stderr += d; });
 
       proc.on('close', (code) => {
         if (settled) return;

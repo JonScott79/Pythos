@@ -75,8 +75,9 @@ function getDaemonProcess() {
     });
     daemonProc.unref();
     daemonBuffer = '';
+    daemonProc.stdout.setEncoding('utf8');
     daemonProc.stdout.on('data', (d) => {
-      daemonBuffer += d.toString('utf8');
+      daemonBuffer += d;
       let nlIndex;
       while ((nlIndex = daemonBuffer.indexOf('\n')) !== -1) {
         const line = daemonBuffer.slice(0, nlIndex).trim();
@@ -195,8 +196,10 @@ function runCalculusWorker(payload, timeoutMs = 8000) {
       });
     }, timeoutMs);
 
-    proc.stdout.on('data', (d) => { stdout += d.toString('utf8'); });
-    proc.stderr.on('data', (d) => { stderr += d.toString('utf8'); });
+    proc.stdout.setEncoding('utf8');
+    proc.stderr.setEncoding('utf8');
+    proc.stdout.on('data', (d) => { stdout += d; });
+    proc.stderr.on('data', (d) => { stderr += d; });
 
     proc.on('error', (err) => {
       clearTimeout(timer);
