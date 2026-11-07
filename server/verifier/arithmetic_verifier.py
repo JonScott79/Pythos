@@ -3,7 +3,6 @@ arithmetic_verifier.py - Deterministic exact arithmetic and numerical evaluation
 """
 
 import math
-from fractions import Fraction
 import sympy as sp
 
 from message_helper import user_message, log_internal

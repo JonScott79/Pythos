@@ -16,7 +16,7 @@ Core Invariant:
   Rank(ClaimStrength) <= Rank(EvidenceStrength)
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 from message_helper import user_message, log_internal
 
 EPISTEMIC_RANKS: Dict[str, int] = {

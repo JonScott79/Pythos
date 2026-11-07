@@ -2,8 +2,6 @@
 probability_verifier.py - Deterministic combinatorics and probability verifier for Pythos.
 """
 
-import math
-
 def calculate_birthday_probability(n: int, days: int = 365) -> float:
     """Calculates exact probability of at least one shared birthday among n people."""
     if n <= 1:

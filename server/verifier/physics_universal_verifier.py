@@ -3,8 +3,6 @@ physics_universal_verifier.py - Deterministic dimensional analysis, vector balan
 """
 
 import sympy as sp
-from sympy.physics.units import length, mass, time, current, temperature, force, energy, velocity, acceleration
-from sympy.physics.units.systems import SI
 
 def verify_dimensions(claim: dict) -> dict:
     """
