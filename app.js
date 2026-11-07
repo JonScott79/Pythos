@@ -875,6 +875,14 @@ function sanitizeGraphExpr(raw) {
     .replace(/^(?:the\s+function\s+|the\s+curve\s+|the\s+graph\s+|equation\s+|plot\s+|graph\s+)+/i, "")
     .trim();
 
+  // Convert Unicode superscripts: e.g. (x + 3)² -> (x + 3)^2
+  const SUPERSCRIPT_MAP = {
+    '⁰': '^0', '¹': '^1', '²': '^2', '³': '^3', '⁴': '^4',
+    '⁵': '^5', '⁶': '^6', '⁷': '^7', '⁸': '^8', '⁹': '^9',
+    '⁺': '+', '⁻': '-'
+  };
+  expr = expr.replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻]/g, ch => SUPERSCRIPT_MAP[ch] || ch);
+
   // Strip prefixes & LaTeX delimiters
   expr = expr
     .replace(/^f\(x\)\s*=\s*/i, "")
@@ -1890,6 +1898,21 @@ function appendMessage(role, text, images = null, metadata = {}) {
   let sanitized = text
     .replace(/\\begin\{tikzpicture\}[\s\S]*?\\end\{tikzpicture\}/gi, "")
     .replace(/<svg\b[^>]*>[\s\S]*?<\/svg>/gi, "") // Enforce controlled visualizer by removing unauthorized raw SVG injections
+    .replace(/!\[([^\]]*)\]\((?:https?:\/\/|www\.)[^\s)]+\)/gi, (match, altText) => {
+      const fnMatch = altText.match(/(?:(?:f\(x\)|y)\s*=\s*)([a-zA-Z0-9+\-*/^().\sπ_{}⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻]+)/i) ||
+                      altText.match(/([xX]\s*[\^+\-*/][a-zA-Z0-9+\-*/^().\sπ_{}⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻]+)/i);
+      if (fnMatch && !text.includes('[GRAPH:')) {
+        return '\n\n[GRAPH: ' + (fnMatch[1] || fnMatch[0]).trim() + ']\n\n';
+      }
+      return "";
+    })
+    .replace(/\[([^\]]*)\]\(https?:\/\/(?:i\.)?imgur\.com\/[^\s)]+\)/gi, (match, linkText) => {
+      const fnMatch = linkText.match(/(?:(?:f\(x\)|y)\s*=\s*)([a-zA-Z0-9+\-*/^().\sπ_{}⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻]+)/i);
+      if (fnMatch && !text.includes('[GRAPH:')) {
+        return '\n\n[GRAPH: ' + fnMatch[1].trim() + ']\n\n';
+      }
+      return "";
+    })
     .replace(/\\\\([()])/g, "\\$1")
     .replace(/\\\\\[(?!\s*-?\d+(?:\.\d+)?(?:pt|em|ex|cm|mm|in|px)\])/g, "\\[")
     .replace(/\\\\\]/g, "\\]"); // normalize double-escaped LaTeX delimiters while preserving row break spacing \\[4pt]

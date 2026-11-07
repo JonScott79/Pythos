@@ -317,6 +317,28 @@ function enforceVisualFidelity(finalContent, userText, conversationHistory = [],
     });
   }
 
+  // Scrub hallucinated Markdown image tags and external image links (e.g. ![...](https://i.imgur.com/...) or [Link](https://...png))
+  cleanedContent = cleanedContent.replace(/!\[([^\]]*)\]\((?:https?:\/\/|www\.)[^\s)]+\)/gi, '');
+  cleanedContent = cleanedContent.replace(/\[([^\]]*)\]\(https?:\/\/(?:i\.)?imgur\.com\/[^\s)]+\)/gi, '');
+
+  // If user requested a graph or assistant describes/shows a graph, ensure a [GRAPH: ...] token is present
+  const isGraphReq = /\b(?:graph|plot|curve|parabola)\b/i.test(userText) ||
+                     /\b(?:graph\s+of|plot\s+of|here\s+is\s+the\s+graph)\b/i.test(cleanedContent);
+  if (isGraphReq && !cleanedContent.includes('[GRAPH:')) {
+    const { resolveReferentialContext } = require('../deterministicRouter');
+    const funcMatch = cleanedContent.match(/(?:(?:f\(x\)|y)\s*=\s*)([a-zA-Z0-9+\-*/^().\sπ_{}⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻]+?)(?:[$,;\n\.]|\s+for\b|\s+where\b|\s+on\b|$)/i);
+    let graphExpr = null;
+    if (funcMatch) {
+      graphExpr = resolveReferentialContext(funcMatch[0], [{ role: 'assistant', content: funcMatch[0] }]);
+    }
+    if (!graphExpr) {
+      graphExpr = resolveReferentialContext(userText, conversationHistory);
+    }
+    if (graphExpr) {
+      cleanedContent = cleanedContent.trim() + '\n\n[GRAPH: ' + graphExpr + ']\n';
+    }
+  }
+
   const requested = isVisualRequested(userText);
   const claimed = containsVisualClaim(cleanedContent);
   const alreadyHasVisual = hasVisualPresent(cleanedContent);

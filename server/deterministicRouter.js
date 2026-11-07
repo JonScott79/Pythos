@@ -1024,6 +1024,13 @@ function normalizeGraphExpression(expr) {
 
   s = s.replace(/^(?:f\(x\)|g\(x\)|h\(x\)|y)\s*=\s*/i, '').trim();
 
+  const SUPERSCRIPT_MAP = {
+    '⁰': '^0', '¹': '^1', '²': '^2', '³': '^3', '⁴': '^4',
+    '⁵': '^5', '⁶': '^6', '⁷': '^7', '⁸': '^8', '⁹': '^9',
+    '⁺': '+', '⁻': '-'
+  };
+  s = s.replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻]/g, ch => SUPERSCRIPT_MAP[ch] || ch);
+
   s = s.replace(/\\left\(/g, '(')
        .replace(/\\right\)/g, ')')
        .replace(/\\cdot/g, '*')
@@ -1181,7 +1188,7 @@ function resolveReferentialContext(userText, conversationHistory = []) {
 
   function extractCandidateFunctions(content) {
     const candidates = [];
-    const funcMatches = content.matchAll(/(?:(?:f\(x\)|g\(x\)|h\(x\)|y)\s*=\s*)([\\a-zA-Z0-9+\-*/^().\sπ_{}]+?)(?:[$,;\n\.]|\s+for\b|\s+where\b|\s+on\b|$)/gi);
+    const funcMatches = content.matchAll(/(?:(?:f\(x\)|g\(x\)|h\(x\)|y)\s*=\s*)([\\a-zA-Z0-9+\-*/^().\sπ_{}⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻]+?)(?:[$,;\n\.]|\s+for\b|\s+where\b|\s+on\b|$)/gi);
     for (const match of funcMatches) {
       if (match[1]) candidates.push(match[1].trim());
     }
@@ -1582,14 +1589,29 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   const isExplicitGraphVerb = /^(?:(?:can\s+you\s+|could\s+you\s+)?(?:please\s+)?(?:graph|plot)|now\s+(?:graph|plot)|graph|plot)\b/i.test(clean);
   const isPluralDemonstrative = /\b(?:these|those)\b/i.test(clean);
 
-  const isGraphRetry = /^(?:try\s+again|retry|plot\s+again|graph\s+again|redraw)[.?!]*$/i.test(clean);
+  const isGraphComplaintOrCorrection = /\b(?:were|we're|we\s+are|you\s+were)\s+(?:supposed\s+to|meant\s+to)\s+(?:be\s+)?(?:graphing|plotting|drawing)\b/i.test(clean) ||
+                                       /\b(?:the\s+graph\s+didn'?t\s+work|graph\s+didn'?t\s+work|where\s+is\s+the\s+graph|i\s+(?:asked|wanted)\s+(?:you\s+)?to\s+(?:graph|plot))\b/i.test(clean);
+
+  const isGraphRetry = /^(?:try\s+again|retry|plot\s+again|graph\s+again|redraw)[.?!]*$/i.test(clean) ||
+                       /\b(?:graph\s+didn'?t\s+work|didn'?t\s+graph|failed\s+to\s+graph|try\s+again)\b/i.test(clean) ||
+                       isGraphComplaintOrCorrection;
+
+  // Check if assistant in the previous turn asked the user which function/parabola to graph
+  const recentTurns = (conversationHistory && Array.isArray(conversationHistory)) ? conversationHistory.slice(-2) : [];
+  const lastAssistantTurn = recentTurns.filter(t => t.role === 'assistant').pop();
+  const assistantAskedForGraph = Boolean(lastAssistantTurn && typeof lastAssistantTurn.content === 'string' &&
+    /\b(?:graph|plot)\b/i.test(lastAssistantTurn.content) &&
+    /\b(?:which\s+(?:one|function)|what\s+(?:one|function)|tell\s+me\s+which|let\s+me\s+know\s+the\s+(?:equation|form)|correct\s+form|then\s+i\s+can\s+(?:plot|graph)|which\s+parabola)\b/i.test(lastAssistantTurn.content));
+
   const isGraphQuery = !(hasGeometricShape && !hasExplicitEquation) && (
     /^(?:(?:can\s+you\s+|could\s+you\s+)?(?:please\s+)?(?:plot|graph|draw)|now\s+(?:plot|graph|draw))\b/i.test(clean) ||
     /^(?:plot|graph|draw)\b/i.test(clean) ||
+    isGraphComplaintOrCorrection ||
     /\b(?:show|display|see|view)\s+(?:me\s+)?(?:(?:it|this|that|the\s+function|the\s+curve)\s+)?(?:on\s+a\s+graph|in\s+a\s+graph|as\s+a\s+graph|on\s+the\s+graph)\b/i.test(clean) ||
     /\b(?:show|display)\s+(?:me\s+)?(?:the\s+)?(?:graph|plot)\s*(?:of\s+(?:this|it|that|the\s+function|the\s+curve))?\b/i.test(clean) ||
     /\b(?:how\s+(?:do|can)\s+(?:i|we|you)\s+|how\s+to\s+)(?:plot|graph|draw)\s+(?:this|it|that|the\s+function|the\s+curve)\b/i.test(clean) ||
-    (isGraphRetry && Boolean(resolveReferentialContext(clean, conversationHistory)))
+    (isGraphRetry && Boolean(resolveReferentialContext(clean, conversationHistory))) ||
+    (assistantAskedForGraph && /[xX]/.test(clean) && /(?:y\s*=|f\(x\)\s*=|\^|[⁰¹²³⁴⁵⁶⁷⁸⁹])/.test(clean))
   );
 
   if (isGraphQuery) {
@@ -1623,7 +1645,14 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
     let directExpr = null;
 
     const directMatch = clean.match(/^(?:(?:can\s+you\s+|could\s+you\s+)?(?:please\s+)?(?:plot|graph|draw)|now\s+(?:plot|graph|draw))\s+(.+)$/i) ||
-                        clean.match(/(?:(?:plot|graph|draw)\s+(?:the\s+function\s+|the\s+curve\s+|the\s+graph\s+|of\s+)?)(f\(x\)\s*=.*|y\s*=.*|[a-zA-Z0-9+\-*/^().\s\\π]+)$/i);
+                        clean.match(/(?:(?:plot|graph|draw)\s+(?:the\s+function\s+|the\s+curve\s+|the\s+graph\s+|of\s+)?)(f\(x\)\s*=.*|y\s*=.*|[a-zA-Z0-9+\-*/^().\s\\π⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻]+)$/i);
+    if (assistantAskedForGraph && !directMatch && /[xX]/.test(clean)) {
+      const cand = normalizeGraphExpression(clean);
+      if (cand && isConcreteGraphableExpression(cand) && looksLikeMathExpression(cand)) {
+        directExpr = cand;
+      }
+    }
+
     if (directMatch) {
       let candidate = directMatch[1].trim();
       candidate = candidate
@@ -1648,7 +1677,7 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
     // Only allow referential context lookup if user's prompt is genuinely referential
     // (e.g. "graph it please", "show me on a graph", "how do i graph this", "try again"),
     // NEVER when the user typed a new explicit equation/formula that failed to parse!
-    const isReferentialQuery = isGraphRetry ||
+    const isReferentialQuery = isGraphRetry || isGraphComplaintOrCorrection ||
       /^(?:(?:can\s+you\s+|could\s+you\s+)?(?:please\s+)?(?:plot|graph|draw)|now\s+(?:plot|graph|draw)|plot|graph|draw)\s+(?:it|this|that|the\s+function|the\s+curve|the\s+graph)(?:\s+(?:on\s+a\s+graph|on\s+the\s+graph|in\s+a\s+graph|as\s+a\s+graph))?(?:\s+please)?$/i.test(clean) ||
       /\b(?:show|display|see|view)\s+(?:me\s+)?(?:(?:it|this|that|the\s+function|the\s+curve)\s+)?(?:on\s+a\s+graph|in\s+a\s+graph|as\s+a\s+graph|on\s+the\s+graph)\b/i.test(clean) ||
       /\b(?:how\s+(?:do|can)\s+(?:i|we|you)\s+|how\s+to\s+)(?:plot|graph|draw)\s+(?:this|it|that|the\s+function|the\s+curve)\b/i.test(clean);
