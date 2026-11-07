@@ -1431,6 +1431,7 @@ function extractClaims(text, userPrompt = '') {
         // Constant arithmetic cannot contain free variables (e.g. x, y, theta)
         const nonFunctionLetters = expr
           .replace(/\b(?:log10|log|ln|sqrt|cbrt|sin|cos|tan|sec|csc|cot|exp|abs|pi)\b/gi, '')
+          .replace(/(?<=\d\s*)deg\b/gi, '')
           .replace(/[^a-zA-Z]/g, '');
         if (nonFunctionLetters.length > 0) continue;
 
@@ -1454,7 +1455,7 @@ function extractClaims(text, userPrompt = '') {
             data: {
               expression: expr,
               proposed_value: val,
-              is_approximate: match[0].includes('approx') || match[0].includes('≈') || match[0].includes('~'),
+              is_approximate: match[0].includes('approx') || match[0].includes('≈') || match[0].includes('~') || (/\b(?:sin|cos|tan|sec|csc|cot|log10|log|ln)\b/i.test(expr) && rawVal.includes('.')),
               tolerance: 0.005,
               is_percent: isPct,
               raw_val_str: rawVal

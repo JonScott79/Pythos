@@ -14,6 +14,7 @@ const path = require('path');
 
 const { constructSafeVerifiedResponse } = require('./server/safeResponseConstructor');
 const { extractClaims, checkPromptClaimFidelity } = require('./server/verificationBridge');
+const mathjsVerifier = require('./server/mathjsVerifier');
 
 console.log('====================================================');
 console.log('RUNNING SAFE RESPONSE CONSTRUCTOR & VERIFICATION SUITE');
@@ -204,6 +205,56 @@ runTest('Architectural Mandate: When candidate explanation is rejected, construc
   assert(rescued.content.includes('\\text{Adjacent} = 1.8456'), 'Rescued response must deliver verified adj');
   assert(rescued.content.includes('\\text{Hypotenuse} = \\sqrt{1^2 + 1.8456^2} \\approx 2.0991'), 'Rescued response must deliver verified hyp');
   assert(rescued.content.includes('\\boxed{'), 'Rescued response must deliver boxed verified calculation');
+});
+
+// 11. Regression: positive/negative degree & radian trig claim extraction + downstream verification
+runTest('Verification Bridge: positive/negative degree & radian trig extraction and downstream verification', () => {
+  // Negative degree angle extraction + verification
+  const negClaims = extractClaims('Inner result: cot(-28.45°) = -1.8456', 'evaluate cot(-28.45°)');
+  const negCot = negClaims.find(c => c.data?.expression === 'cot(-28.45 deg)');
+  assert(negCot, 'Must extract cot(-28.45 deg) claim');
+  const negVerify = mathjsVerifier.verify(negCot);
+  assert.strictEqual(negVerify.verified, true, 'cot(-28.45 deg) = -1.8456 must verify');
+  assert.strictEqual(negVerify.status, 'VERIFIED');
+
+  // Positive degree angle extraction + verification
+  const posClaims = extractClaims('We have cot(28.45°) = 1.8456, sin(30°) = 0.5', 'evaluate cot(28.45°) and sin(30°)');
+  const posCot = posClaims.find(c => c.data?.expression === 'cot(28.45 deg)');
+  const posSin = posClaims.find(c => c.data?.expression === 'sin(30 deg)');
+  assert(posCot, 'Must extract cot(28.45 deg) claim');
+  assert(posSin, 'Must extract sin(30 deg) claim');
+  assert.strictEqual(mathjsVerifier.verify(posCot).status, 'VERIFIED');
+  assert.strictEqual(mathjsVerifier.verify(posSin).status, 'VERIFIED');
+
+  // Radian trigonometric expression preservation
+  const radClaims = extractClaims('In radians, sin(0) = 0', 'evaluate sin(0)');
+  const radSin = radClaims.find(c => c.data?.expression === 'sin(0)');
+  assert(radSin, 'Must extract radian sin(0) claim without deg suffix');
+  assert.strictEqual(mathjsVerifier.verify(radSin).status, 'VERIFIED');
+
+  // Downstream verification rejects wrong sign / false degree trig value
+  const wrongClaims = extractClaims('Inner result: cot(-28.45°) = 1.8456', 'evaluate cot(-28.45°)');
+  const wrongCot = wrongClaims.find(c => c.data?.expression === 'cot(-28.45 deg)');
+  assert(wrongCot, 'Must extract wrong cot(-28.45 deg) claim for rejection');
+  const wrongVerify = mathjsVerifier.verify(wrongCot);
+  assert.strictEqual(wrongVerify.verified, false, 'Wrong sign for cot(-28.45 deg) must fail verification');
+  assert.strictEqual(wrongVerify.status, 'INCORRECT_RESULT');
+});
+
+// 12. Regression: free-variable guard still rejects unsupported identifiers and bare deg variables
+runTest('Verification Bridge: free-variable guard rejects unsupported identifiers and non-numeric deg tokens', () => {
+  const unsupportedSamples = [
+    'cot(x) = -1.8456',
+    'sin(theta) = 0.5',
+    'sin(theta deg) = 0.5',
+    'deg + 5 = 10',
+    'cot(-28.45°) + k = -1.8456'
+  ];
+  for (const sample of unsupportedSamples) {
+    const extracted = extractClaims(sample, sample);
+    const leaked = extracted.filter(c => c.claim_type === 'arithmetic' && /(?:x|theta|k|\bdeg\s*\+)/i.test(c.data?.expression || ''));
+    assert.strictEqual(leaked.length, 0, `Free-variable guard must reject unsupported identifier in "${sample}", got: ${JSON.stringify(leaked)}`);
+  }
 });
 
 console.log(`\n====================================================`);
