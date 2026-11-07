@@ -1911,7 +1911,7 @@ function appendMessage(role, text, images = null, metadata = {}) {
       // Standalone or chained equations with \frac (including nested radicals/text inside braces): e.g. \theta = \frac{15}{12} = \frac{5}{4} or \frac{x}{\sqrt{x^2+36}}
       /(?:^|[ \t])((?:(?:[-+]|\\[a-zA-Z]+|[a-zA-Z\u0370-\u03ff])\s*=\s*)?[-+]?\\frac\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}(?:\s*[-+*\/=]\s*(?:[-+]?\\frac\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}|(?:\\[a-zA-Z]+|[a-zA-Z0-9.\u0370-\u03ff()])+))*)/g,
       // Standalone linear division steps: e.g. 2x/2 = 8/2 or 3x/3 = 15/3
-      /(?:^|[ \t])([a-zA-Z0-9.\u0370-\u03ff]+\s*\/\s*\d+\s*=\s*[-+]?[a-zA-Z0-9.\u0370-\u03ff]+(?:\s*\/\s*\d+)?)/g,
+      /(?:^|[ \t])([a-zA-Z0-9.\u0370-\u03ff]+\s*[÷/]\s*[-+]?\d+(?:\.\d+)?\s*=\s*[-+]?[a-zA-Z0-9.\u0370-\u03ff]+(?:\s*[÷/]\s*[-+]?\d+(?:\.\d+)?)?)/g,
       // Standalone quadratic equations: y^2 - 10y + 41 = 0 or x^2 + 5x + 6 = 0
       /(?:^|[ \t])([a-zA-Z]\^2\s*[-+]\s*(?:\d*[a-zA-Z])\s*[-+]\s*\d+\s*=\s*0)/g,
       // Standalone \boxed{...} expressions
@@ -5627,6 +5627,41 @@ calcDegRadBtn.addEventListener("click", () => {
   calcDegRadBtn.textContent = isDegMode ? "DEG" : "RAD";
 });
 
+function cleanCalculatorHistory(raw) {
+  if (!raw) return "";
+  return String(raw).trim()
+    .replace(/\(\(([0-9.]+)\)\/\(([0-9.]+)\)\)/g, "$1 ÷ $2")
+    .replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, "$1 ÷ $2")
+    .replace(/\//g, " ÷ ");
+}
+
+function fallbackEvaluateMath(exprStr, isDeg) {
+  let s = String(exprStr)
+    .replace(/\bpi\b/gi, String(Math.PI))
+    .replace(/\be\b/gi, String(Math.E))
+    .replace(/\bsin\s*\(([^()]+)\)/gi, (_, x) => {
+      const v = fallbackEvaluateMath(x, isDeg);
+      return String(cleanFloat(Math.sin(isDeg ? v * Math.PI / 180 : v)));
+    })
+    .replace(/\bcos\s*\(([^()]+)\)/gi, (_, x) => {
+      const v = fallbackEvaluateMath(x, isDeg);
+      return String(cleanFloat(Math.cos(isDeg ? v * Math.PI / 180 : v)));
+    })
+    .replace(/\btan\s*\(([^()]+)\)/gi, (_, x) => {
+      const v = fallbackEvaluateMath(x, isDeg);
+      return String(cleanFloat(Math.tan(isDeg ? v * Math.PI / 180 : v)));
+    })
+    .replace(/\bsqrt\s*\(([^()]+)\)/gi, (_, x) => String(Math.sqrt(fallbackEvaluateMath(x, isDeg))))
+    .replace(/\bln\s*\(([^()]+)\)/gi, (_, x) => String(Math.log(fallbackEvaluateMath(x, isDeg))))
+    .replace(/\blog\s*\(([^()]+)\)/gi, (_, x) => String(Math.log10(fallbackEvaluateMath(x, isDeg))))
+    .replace(/\^/g, "**");
+
+  if (/^[-+*/%^.0-9()\s]+$/.test(s)) {
+    return Function('"use strict"; return (' + s + ')')();
+  }
+  throw new Error("Cannot evaluate expression");
+}
+
 function clearCalculator() {
   calcCurrentExpr = "";
   calcDisplay.value = "0";
@@ -5649,6 +5684,7 @@ function evaluateCalculator() {
       .replace(/\*\*/g, "^")
       .replace(/(\d+|\))\s*pow\s*(\d+|\()/gi, "$1^$2");
 
+    let evalRes;
     if (window.math) {
       const scope = {
         ln: (x) => window.math.log(x),
@@ -5662,12 +5698,19 @@ function evaluateCalculator() {
           return cleanFloat(Math.tan(x * Math.PI / 180));
         };
       }
-      const evalRes = window.math.evaluate(expr, scope);
-      const res = typeof evalRes === "number" ? cleanFloat(evalRes) : evalRes;
-      calcHistory.textContent = `${raw} =`;
-      calcDisplay.value = String(res);
-      calcCurrentExpr = String(res);
+      evalRes = window.math.evaluate(expr, scope);
+    } else {
+      evalRes = fallbackEvaluateMath(expr, isDegMode);
     }
+
+    if (evalRes && typeof evalRes === "object" && typeof evalRes.valueOf === "function") {
+      evalRes = evalRes.valueOf();
+    }
+    const numericRes = typeof evalRes === "number" ? evalRes : Number(evalRes);
+    const res = Number.isFinite(numericRes) ? cleanFloat(numericRes) : evalRes;
+    calcHistory.textContent = `${cleanCalculatorHistory(raw)} =`;
+    calcDisplay.value = String(res);
+    calcCurrentExpr = String(res);
   } catch (e) {
     calcDisplay.value = "Error";
   }
@@ -5687,7 +5730,7 @@ calcDisplay.addEventListener("keydown", (e) => {
 
 calcDisplay.addEventListener("input", () => {
   if (window.PythosMathInputEngine) {
-    window.PythosMathInputEngine.applyAutoFormatToInputElement(calcDisplay);
+    window.PythosMathInputEngine.applyAutoFormatToInputElement(calcDisplay, { disableFractions: true });
   }
   calcCurrentExpr = calcDisplay.value;
 });

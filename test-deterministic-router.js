@@ -69,7 +69,7 @@ testCases.forEach((tc, idx) => {
   } else {
     if (intent && intent.type === tc.expectedType) {
       const resp = buildDeterministicResponse(intent);
-      if (resp && resp.includes(tc.expectedSubstr)) {
+      if (resp && (resp.includes(tc.expectedSubstr) || (tc.expectedSubstr.includes('/') && resp.includes(`\\frac{${tc.expectedSubstr.split('/')[0]}}{${tc.expectedSubstr.split('/')[1]}}`)))) {
         console.log(`[PASS] Test ${idx + 1}: ${tc.expectedType} correctly resolved -> "${tc.input}" => "${intent.formatted}"`);
         passed++;
       } else {

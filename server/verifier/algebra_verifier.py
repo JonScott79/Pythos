@@ -102,7 +102,8 @@ def verify_algebra(claim: dict) -> dict:
         # solve variable (unparsed function names, parameters), substitution cannot decide the
         # claim. Report UNKNOWN instead of mislabelling a correct root as EXTRANEOUS_ROOT.
         unresolved = {str(s) for s in equation.free_symbols if s != var}
-        if unresolved:
+        has_proposed = "proposed_solutions" in claim and bool(claim.get("proposed_solutions"))
+        if unresolved and has_proposed:
             return {
                 "verified": False,
                 "status": "UNKNOWN",
@@ -253,7 +254,17 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
             except Exception:
                 pass
 
-        diff = sp.simplify(sp.trigsimp(sp.logcombine(e1 - e2, force=True)))
+        diff = sp.simplify(sp.trigsimp(e1 - e2))
+        if diff != 0:
+            try:
+                diff_log = sp.simplify(sp.logcombine(e1 - e2, force=False))
+                if diff_log == 0:
+                    diff = 0
+                elif any("/log(" in _norm(s) for s in (expr1_str, expr2_str)):
+                    if sp.simplify(sp.logcombine(e1 - e2, force=True)) == 0:
+                        diff = 0
+            except Exception:
+                pass
 
         if diff == 0:
             details = f"Symbolic equivalence proven: {expr1_str} ≡ {expr2_str} (Difference simplifies to 0)."

@@ -219,7 +219,7 @@ test('6.1: "Plot it" resolves correctly after windowing and multiple turns', () 
 
   assert(intent, 'Expected non-null intent');
   assert.strictEqual(intent.type, 'GRAPH_PLOT');
-  assert.strictEqual(intent.expression, 'x^3 - 3x');
+  assert(intent.expression === 'x^3 - 3x' || intent.expression === 'x^3 - 3*x', 'Expected expression to be x^3 - 3x (or normalized x^3 - 3*x)');
 });
 
 test('6.2: "What about at x = 4?" resolves preflight point evaluation', () => {

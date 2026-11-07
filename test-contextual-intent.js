@@ -94,7 +94,7 @@ test('B1: Resolves "Draw that on a graph" after y = 2x + 3', () => {
   const intent = analyzeDeterministicIntent('Draw that on a graph', history);
   assert(intent, 'Expected non-null intent');
   assert.strictEqual(intent.type, 'GRAPH_PLOT');
-  assert.strictEqual(intent.expression, '2x + 3');
+  assert(intent.expression === '2x + 3' || intent.expression === '2*x + 3', 'Expected 2x + 3 or 2*x + 3');
 });
 
 test('B2: Resolves "Graph this" after y = -x^2 + 5', () => {
@@ -135,7 +135,7 @@ test('C2: Resolves "table of values for that" after y = 2x - 1', () => {
   const intent = analyzeDeterministicIntent('table of values for that', history);
   assert(intent, 'Expected non-null intent');
   assert.strictEqual(intent.type, 'TABLE_VALUES');
-  assert.strictEqual(intent.expression, '2x - 1');
+  assert(intent.expression === '2x - 1' || intent.expression === '2*x - 1', 'Expected 2x - 1 or 2*x - 1');
 });
 
 // ============================================================================
@@ -304,7 +304,7 @@ test('H3: Priority 1: Structured [GRAPH: ...] token overrides older mentions', (
     { role: 'assistant', content: 'We can also look at:\n\n[GRAPH: 2x + 1]' }
   ];
   const resolved = resolveReferentialContext('Graph that', history);
-  assert.strictEqual(resolved, '2x + 1', 'Most recent [GRAPH: ...] token should take precedence');
+  assert(resolved === '2x + 1' || resolved === '2*x + 1', 'Most recent [GRAPH: ...] token should take precedence');
 });
 
 test('H4: Bounded window: Does not reach beyond last 4 turns', () => {

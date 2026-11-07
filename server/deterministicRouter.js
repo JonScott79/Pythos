@@ -1164,7 +1164,7 @@ function resolveReferentialContext(userText, conversationHistory = []) {
   }
 
   // Bounded window: Inspect the most recent 1-6 turns
-  const recentTurns = conversationHistory.slice(-6);
+  const recentTurns = conversationHistory.slice(-4);
 
   // 1. First priority: Check for concrete existing [GRAPH: <expr>] tokens
   for (let i = recentTurns.length - 1; i >= 0; i--) {
@@ -1649,7 +1649,7 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
     // (e.g. "graph it please", "show me on a graph", "how do i graph this", "try again"),
     // NEVER when the user typed a new explicit equation/formula that failed to parse!
     const isReferentialQuery = isGraphRetry ||
-      /^(?:(?:can\s+you\s+|could\s+you\s+)?(?:please\s+)?(?:plot|graph|draw)|now\s+(?:plot|graph|draw)|plot|graph|draw)\s+(?:it|this|that|the\s+function|the\s+curve|the\s+graph)(?:\s+please)?$/i.test(clean) ||
+      /^(?:(?:can\s+you\s+|could\s+you\s+)?(?:please\s+)?(?:plot|graph|draw)|now\s+(?:plot|graph|draw)|plot|graph|draw)\s+(?:it|this|that|the\s+function|the\s+curve|the\s+graph)(?:\s+(?:on\s+a\s+graph|on\s+the\s+graph|in\s+a\s+graph|as\s+a\s+graph))?(?:\s+please)?$/i.test(clean) ||
       /\b(?:show|display|see|view)\s+(?:me\s+)?(?:(?:it|this|that|the\s+function|the\s+curve)\s+)?(?:on\s+a\s+graph|in\s+a\s+graph|as\s+a\s+graph|on\s+the\s+graph)\b/i.test(clean) ||
       /\b(?:how\s+(?:do|can)\s+(?:i|we|you)\s+|how\s+to\s+)(?:plot|graph|draw)\s+(?:this|it|that|the\s+function|the\s+curve)\b/i.test(clean);
 
@@ -1663,7 +1663,7 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
       };
     }
 
-    if (isExplicitGraphVerb && !hasGeometricShape && !isPluralDemonstrative) {
+    if (isExplicitGraphVerb && !isReferentialQuery && !hasGeometricShape && !isPluralDemonstrative) {
       // Explicit graphing intent with no active function in conversation
       return {
         type: 'GRAPH_CLARIFICATION',
@@ -2891,13 +2891,19 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
           val = Math.round(val * 1e12) / 1e12;
         }
 
-        // Calculate exact fraction representation if division (excluding irrational pi expressions)
+        // Calculate exact fraction representation if division (excluding irrational pi expressions and explicit decimal inputs)
         let exactFrac = null;
-        if (!/\b(?:pi|π)\b/i.test(expr) && (expr.includes('/') || (val % 1 !== 0))) {
+        let isTerminating = false;
+        const hasExplicitDecimals = /\d+\.\d+/.test(expr);
+        if (!hasExplicitDecimals && !/\b(?:pi|π)\b/i.test(expr) && (expr.includes('/') || (val % 1 !== 0))) {
           try {
             const frac = math.fraction(val);
             if (frac && frac.d !== 1 && frac.d !== 1n && frac.d <= 1000000) {
               exactFrac = math.format(frac);
+              let tempD = Number(frac.d);
+              while (tempD % 2 === 0) tempD /= 2;
+              while (tempD % 5 === 0) tempD /= 5;
+              isTerminating = (tempD === 1);
             }
           } catch (_) {}
         }
@@ -2911,6 +2917,7 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
           value: val,
           formattedValue: String(val % 1 === 0 ? val : parseFloat(val.toFixed(6))),
           exactFraction: exactFrac,
+          isTerminating,
           percentage: pctStr
         });
       }
@@ -2932,8 +2939,14 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
     let displayFmt = item.formattedValue;
     if (wantsPercentages) {
       displayFmt = item.percentage;
+    } else if (wantsOnly) {
+      displayFmt = item.formattedValue;
     } else if (item.exactFraction && item.exactFraction !== item.formattedValue) {
-      displayFmt = `${item.exactFraction} \\approx ${item.formattedValue}`;
+      if (item.isTerminating) {
+        displayFmt = `${item.exactFraction} = ${item.formattedValue}`;
+      } else {
+        displayFmt = `${item.exactFraction} \\approx ${item.formattedValue}`;
+      }
     }
 
     return {
@@ -2955,6 +2968,16 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
     wantsOnly,
     wantsOnePerLine
   };
+}
+
+/**
+ * Helper to format arithmetic expressions cleanly into LaTeX for KaTeX display.
+ */
+function formatArithmeticForLatex(str) {
+  if (!str || typeof str !== 'string') return '';
+  return str
+    .replace(/÷/g, '\\div ')
+    .replace(/(\b\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?\b)/g, (m, a, b) => '\\frac{' + a + '}{' + b + '}');
 }
 
 /**
@@ -3347,7 +3370,9 @@ If you ever want a tool that isn't here yet, just hit the **🚩 Report** button
     if (intent.wantsOnly) {
       return intent.formatted;
     }
-    return `✅ Here is the exact calculation:\n\n$$\n${intent.expression} = ${intent.formatted}\n$$\n\nIs there another step or concept you'd like to explore with this problem?`;
+    const mathExpr = formatArithmeticForLatex(intent.expression);
+    const mathFmt = formatArithmeticForLatex(intent.formatted);
+    return `✅ Here is the exact calculation:\n\n$\n${mathExpr} = ${mathFmt}\n$\n\nIs there another step or concept you'd like to explore with this problem?`;
   }
 
   if (intent.type === 'BATCH_ARITHMETIC') {

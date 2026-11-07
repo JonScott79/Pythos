@@ -106,12 +106,15 @@
       for (let j = 0; j < den.length; j++) d += REVERSE_SUBSCRIPT_MAP[den[j]] || den[j];
       return "\\frac{" + n + "}{" + d + "}";
     });
+    // Convert division symbol ÷ to \div
+    expr = expr.replace(/÷/g, "\\div ");
+
     for (let i = 0; i < 3; i++) {
       expr = expr
         .replace(/\(([^()]+)\)\s*\/\s*\(([^()]+)\)/g, "\\frac{$1}{$2}")
-        .replace(/\(([^()]+)\)\s*\/\s*([a-zA-Z0-9]+(?:[⁰¹²³⁴⁵⁶⁷⁸⁹]+)?)/g, "\\frac{$1}{$2}")
-        .replace(/(\b[a-zA-Z0-9]+)\s*\/\s*\(([^()]+)\)/g, "\\frac{$1}{$2}")
-        .replace(/(\b[a-zA-Z0-9]+)\s*\/\s*([a-zA-Z0-9]+(?:[⁰¹²³⁴⁵⁶⁷⁸⁹]+)?\b)/g, "\\frac{$1}{$2}");
+        .replace(/\(([^()]+)\)\s*\/\s*([-+]?[a-zA-Z0-9.]+(?:[⁰¹²³⁴⁵⁶⁷⁸⁹]+)?)/g, "\\frac{$1}{$2}")
+        .replace(/(^|[^a-zA-Z0-9.)\]])([-+]?[a-zA-Z0-9.]+(?:[⁰¹²³⁴⁵⁶⁷⁸⁹]+)?)\s*\/\s*\(([^()]+)\)/g, "$1\\frac{$2}{$3}")
+        .replace(/(^|[^a-zA-Z0-9.)\]])([-+]?[a-zA-Z0-9.]+(?:[⁰¹²³⁴⁵⁶⁷⁸⁹]+)?)\s*\/\s*([-+]?[a-zA-Z0-9.]+(?:[⁰¹²³⁴⁵⁶⁷⁸⁹]+)?)(?=$|[^a-zA-Z0-9.([⁰¹²³⁴⁵⁶⁷⁸⁹])/g, "$1\\frac{$2}{$3}");
     }
 
     // 4. Convert exponents: x^2 or x^(n+1) or x^ or Unicode superscripts (e.g. 5⁶, x²)
@@ -458,8 +461,13 @@
       })
       .replace(/\\pi\b/g, "pi")
       .replace(/\\theta\b/g, "theta")
-      .replace(/\\sqrt\{([^}]+)\}/g, "sqrt($1)")
-      .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, "(($1)/($2))");
+      .replace(/\\div\b/g, "/")
+      .replace(/\\(?:times|cdot)\b/g, "*")
+      .replace(/\\sqrt\{([^}]+)\}/g, "sqrt($1)");
+
+    for (let i = 0; i < 4; i++) {
+      s = s.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, "(($1)/($2))");
+    }
 
     return s;
   }
@@ -498,9 +506,12 @@
       })
       .replace(/(?:sqrt|\\sqrt)\(/g, "√(")
       .replace(/(?:cbrt|\\cbrt)\(/g, "∛(")
-      .replace(/\bsqrt(\d+)([\s+\-*\/^)=,;?:!|]|$)/g, "√($1)$2")
-      // In-bar fraction auto-formatting: 5/4 -> ⁵⁄₄, 1/2 -> ½, 5/6 -> ⅚ (ignoring dates with multiple slashes)
-      .replace(/(^|[^0-9/])(\d+)\/(\d+)(?!\/)(?=[\s+\-*=(),;?:!|]|$|[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻ⁿˣ]+)/g, function (match, prefix, num, den) {
+      .replace(/\bsqrt(\d+)([\s+\-*\/^)=,;?:!|]|$)/g, "√($1)$2");
+
+    // In-bar fraction auto-formatting: 5/4 -> ⁵⁄₄, 1/2 -> ½, 5/6 -> ⅚
+    // Guarded against decimal numbers (e.g. 3.14/2, 10/2.5) and disabled when options.disableFractions is true
+    if (!options || !options.disableFractions) {
+      s = s.replace(/(^|[^0-9/.])(\d+)\/(\d+)(?!\/|\.)(?=[\s+\-*=(),;?:!|]|$|[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻ⁿˣ]+)/g, function (match, prefix, num, den) {
         const key = num + "/" + den;
         if (VULGAR_FRACTIONS[key]) return prefix + VULGAR_FRACTIONS[key];
         let superNum = "";
@@ -509,6 +520,7 @@
         for (let j = 0; j < den.length; j++) subDen += SUBSCRIPT_MAP[den[j]] || den[j];
         return prefix + superNum + "⁄" + subDen;
       });
+    }
 
     for (let i = 0; i < WORD_RULES.length; i++) {
       const name = WORD_RULES[i].name;
