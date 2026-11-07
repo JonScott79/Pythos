@@ -1670,6 +1670,14 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
         promptMessage: 'Which function would you like me to graph? (e.g., $y = 7\\sin(x/4)$ or $f(x) = x^2 - 4$)'
       };
     }
+
+    if (/^(?:(?:can\s+you\s+)?(?:please\s+)?graph\s+it)(?:\s+please)?$/i.test(clean) && (!conversationHistory || !Array.isArray(conversationHistory) || conversationHistory.length === 0)) {
+      // Explicit graphing intent with no active function in conversation
+      return {
+        type: 'GRAPH_CLARIFICATION',
+        promptMessage: 'Which function would you like me to graph? (e.g., $y = 7\\sin(x/4)$ or $f(x) = x^2 - 4$)'
+      };
+    }
   }
 
   // Referential angle visualization requests (ONLY for pure angles in standard position, NOT functions):

@@ -371,7 +371,7 @@ function renderInputPreview() {
   if (!input) return;
   const raw = input.value;
 
-  const engine = window.PythosMathInputEngine;
+  const engine = (typeof window !== "undefined" && window.PythosMathInputEngine) ? window.PythosMathInputEngine : ((typeof global !== "undefined" && global.window && global.window.PythosMathInputEngine) ? global.window.PythosMathInputEngine : null);
   if (!engine || !raw.trim()) {
     if (preview) preview.style.display = "none";
     currentPreviewLatex = "";
@@ -864,7 +864,7 @@ if (typeof window !== "undefined") {
 // Helper: robust expression compiler supporting LaTeX and implicit multiplication
 function sanitizeGraphExpr(raw) {
   if (!raw || typeof raw !== "string") return "";
-  const engine = window.PythosMathInputEngine;
+  const engine = (typeof window !== "undefined" && window.PythosMathInputEngine) ? window.PythosMathInputEngine : ((typeof global !== "undefined" && global.window && global.window.PythosMathInputEngine) ? global.window.PythosMathInputEngine : null);
   let expr = engine ? engine.normalizeMathInputForParser(raw.trim()) : raw.trim();
 
   // Strip conversational wrappers & referential prefixes:
@@ -915,6 +915,64 @@ function sanitizeGraphExpr(raw) {
     .replace(/([x])\s*([a-zA-Z(])/g, "$1*$2");
 
   return expr;
+}
+
+function getCompiledGraphExpr(exprString) {
+  if (!exprString || typeof exprString !== "string") return null;
+  const cleanExpr = sanitizeGraphExpr(exprString);
+  if (!cleanExpr) return null;
+
+  if (window.math && typeof window.math.compile === "function") {
+    try {
+      const compiled = window.math.compile(cleanExpr);
+      return { compiled, cleanExpr };
+    } catch (err) {
+      console.warn("[GRAPH] Math.js compile error, falling back:", err.message);
+    }
+  }
+
+  // Safe fallback evaluator for single-variable Cartesian functions in x
+  try {
+    let s = cleanExpr
+      .replace(/\bpi\b/gi, "Math.PI")
+      .replace(/\be\b/gi, "Math.E")
+      .replace(/\bsin\b/gi, "Math.sin")
+      .replace(/\bcos\b/gi, "Math.cos")
+      .replace(/\btan\b/gi, "Math.tan")
+      .replace(/\bsqrt\b/gi, "Math.sqrt")
+      .replace(/\bcbrt\b/gi, "Math.cbrt")
+      .replace(/\babs\b/gi, "Math.abs")
+      .replace(/\bln\b/gi, "Math.log")
+      .replace(/\blog10\b/gi, "Math.log10")
+      .replace(/\blog\b/gi, "Math.log10")
+      .replace(/\bexp\b/gi, "Math.exp");
+
+    for (let i = 0; i < 5; i++) {
+      s = s.replace(/([a-zA-Z0-9.]+|\([^()]+\))\s*\^\s*([-+]?[a-zA-Z0-9.]+|\([^()]+\))/g, "Math.pow($1, $2)");
+    }
+    s = s.replace(/\^/g, "**");
+
+    const checkIdent = s
+      .replace(/Math\.(?:PI|E|sin|cos|tan|sqrt|cbrt|abs|log|log10|exp|pow)/g, "")
+      .replace(/\bx\b/g, "");
+    if (/[a-zA-Z_$]/.test(checkIdent)) {
+      return null;
+    }
+
+    const fn = new Function("x", '"use strict"; return (' + s + ');');
+    const testVal = fn(1);
+    if (typeof testVal !== "number") return null;
+
+    return {
+      compiled: {
+        evaluate: (scope) => fn(scope && typeof scope.x === "number" ? scope.x : 0)
+      },
+      cleanExpr
+    };
+  } catch (err) {
+    console.warn("[GRAPH] Fallback compile error:", err.message);
+    return null;
+  }
 }
 
 function renderInlineGraph(canvas, exprString) {
@@ -1034,11 +1092,11 @@ function renderInlineGraph(canvas, exprString) {
     return true;
   }
 
-  if (!window.math) return false;
+  const parsed = getCompiledGraphExpr(exprString);
+  if (!parsed) return false;
 
   try {
-    const cleanExpr = sanitizeGraphExpr(exprString);
-    const compiled = window.math.compile(cleanExpr);
+    const { compiled, cleanExpr } = parsed;
 
     // Unified adaptive viewport & scaling across renderers
     const viewport = computeGraphViewport(compiled, cleanExpr);
@@ -5910,11 +5968,11 @@ function drawGraph(exprString) {
     return;
   }
 
-  if (!window.math) return;
+  const parsed = getCompiledGraphExpr(exprString);
+  if (!parsed) return;
 
   try {
-    const cleanExpr = sanitizeGraphExpr(exprString);
-    const compiled = window.math.compile(cleanExpr);
+    const { compiled, cleanExpr } = parsed;
 
     // Unified adaptive viewport & scaling across renderers
     const viewport = computeGraphViewport(compiled, cleanExpr);
