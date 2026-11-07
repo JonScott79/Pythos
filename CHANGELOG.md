@@ -1,3 +1,40 @@
+## Pythos 1.8.61
+**Release Date:** November 6, 2026
+
+### Multi-Turn Graphing Intent Continuity, LLM Image Anti-Hallucination Guardrails & CSP Hardening
+- **LLM Image Hallucination Scrubbing & Anti-Hallucination Guardrails (`server/server.js`, `server/vizEngine/visualFidelity.js`, `app.js`):**
+  - **Identified Failure:** Language model was hallucinating external image links (e.g. generating markdown image tags with fake `https://i.imgur.com/...` URLs) instead of invoking the native interactive Function Grapher canvas.
+  - **Anti-Hallucination Prompt Directive:** Added strict system prompt directive forbidding fake image generation and requiring native visual engine tokens.
+  - **Dual-Layer Defensive Scrubbers:** Deployed dual-layer regex scrubbers across server and client that strip hallucinated image markdown tags, extract mathematical functions, and auto-mount native interactive Function Grapher visual tokens (`[GRAPH: ...]`).
+- **Multi-Turn Graphing Intent Continuity (`server/deterministicRouter.js`):**
+  - Resolved conversational context loss during multi-turn graphing dialogues. When the assistant prompts for a specific parabola and the student responds with the formula (e.g., `y = (x + 3)² - 7`), Pythos maintains graphing intent rather than reverting to root-finding equation solving.
+  - Added detection for follow-up correction intents (*"were supposed to be graphing it"*, *"the graph didnt work try again"*, *"where is the graph"*) to recover previous expressions and route directly to the visual engine.
+- **Unicode Superscript & Mathematical Exponent Normalization (`server/deterministicRouter.js`, `app.js`):**
+  - Added robust conversion of Unicode superscripts (`⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻` $\to$ `^0..^9`) so expressions like `(x + 3)² - 7` parse cleanly into Cartesian function representations.
+- **Content Security Policy Allowlisting & Offline Fallback Evaluator (`server/server.js`, `staticServer.js`, `netlify.toml`, `app.js`):**
+  - Allowlisted `cdnjs.cloudflare.com` in `script-src`, `style-src`, and `connect-src` CSP directives to prevent blocking of mathjs CDN assets.
+  - Implemented a zero-failure client-side AST fallback evaluator (`getCompiledGraphExpr`) in `app.js` guaranteeing Cartesian graphing functionality regardless of CDN availability or network status.
+- **Scientific Calculator Division Formatting & KaTeX Retries (`server/deterministicRouter.js`, `app.js`):**
+  - Formatted division calculations to display exact values alongside clean decimals, eliminating unresolved fraction outputs.
+  - Strengthened KaTeX rendering retry pipeline against late script hydration.
+
+## Pythos 1.8.60
+**Release Date:** November 6, 2026
+
+### Repeated-Factor LCD Multiplicity Preservation & Intermediate Symbolic Equivalence Engine
+- **Repeated-Factor LCD Multiplicity Preservation (`server/verificationBridge.js`):**
+  - Resolved an algebraic double-cancellation defect where multiplying rational equations by LCDs containing repeated factors dropped factor multiplicity. Multiplicity calculation strictly enforced: $\text{Power in } N(x) + \text{Power in } L(x) - \text{Power in } D(x)$.
+- **Intermediate Symbolic Equivalence Engine (`server/verificationBridge.js`):**
+  - Added Pattern 5f to extract intermediate algebraic transformations, identities, and LCD-multiplied expansions for SymPy difference verification (`sp.simplify(sp.trigsimp(e1 - e2))`).
+  - Strict domain restriction tracking ($\mathbb{R} \setminus \{1, 2, 3\}$) to catch domain changes across rational transformations.
+- **Balanced-Brace LaTeX AST Normalization (`server/verificationBridge.js`):**
+  - Normalized multi-escaped LaTeX strings (`\\frac{...}`, `\\sqrt{...}`) to eliminate syntax errors and rogue leading backslashes in SymPy parsing.
+- **Deterministic Polynomial Factorization Rules (`server/server.js`):**
+  - Enforced discriminant calculation $\Delta = b^2 - 4ac$ prior to asserting polynomial irreducibility over integers.
+- **Response Token Budget Doubling & Answer-First Principle (`server/server.js`):**
+  - Doubled maximum generation output budget to 4,096 tokens across reasoning endpoints to prevent truncation.
+
+
 ## Pythos 1.8.55
 **Release Date:** November 1, 2026
 

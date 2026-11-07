@@ -22,14 +22,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="assets/favicon.png">
-  <title>Pythos Release History &amp; Changelog | v1.8.60</title>
+  <title>Pythos Release History &amp; Changelog | v1.8.61</title>
   <meta name="description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://pythos.lanzar.me/changelog.html">
 
   <!-- OPEN GRAPH -->
-  <meta property="og:title" content="Pythos Release History &amp; Changelog | v1.8.60">
+  <meta property="og:title" content="Pythos Release History &amp; Changelog | v1.8.61">
   <meta property="og:description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta property="og:url" content="https://pythos.lanzar.me/changelog.html">
   <meta property="og:type" content="article">
@@ -41,7 +41,7 @@
 
   <!-- TWITTER CARD -->
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Pythos Release History &amp; Changelog | v1.8.60">
+  <meta name="twitter:title" content="Pythos Release History &amp; Changelog | v1.8.61">
   <meta name="twitter:description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="twitter:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
 
@@ -532,7 +532,7 @@
         <a href="nonprofit.html" class="nav-link">Mission &amp; Roadmap</a>
         <a href="license.html" class="nav-link">License</a>
         <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" class="nav-link">Facebook</a>
-        <a href="changelog.html#pythos-1-8-60" class="nav-link active" aria-current="page">v1.8.60</a>
+        <a href="changelog.html#pythos-1-8-61" class="nav-link active" aria-current="page">v1.8.61</a>
       </div>
     </div>
 
@@ -556,6 +556,36 @@
       <h1>Pythos Changelog</h1>
       <p>Authoritative release notes, verification engine milestones, and mathematical system updates.</p>
     </header>
+
+        <!-- ==================== RELEASE 1.8.61 ==================== -->
+        <article class="release-card" id="pythos-1-8-61">
+            <header class="release-header">
+                <div>
+                    <h2 class="release-version">Pythos 1.8.61</h2>
+                    <div class="release-meta">
+                        <time datetime="2026-11-06"><i class="far fa-calendar-alt"></i> November 6, 2026</time>
+                        <span><i class="fas fa-chart-line"></i> Graphing Continuity, LLM Image Anti-Hallucination &amp; CSP Hardening</span>
+                        <span><i class="fas fa-shield-alt"></i> 100% Deterministic Verification</span>
+                    </div>
+                </div>
+                <span class="release-badge">Production Release</span>
+            </header>
+            
+            <div class="release-body">
+                <p><strong>Pythos 1.8.61</strong> eliminates LLM image hallucinations during function plotting, introduces multi-turn graphing context recovery, expands Unicode superscript normalizers, hardens Content Security Policy (CSP) headers for mathjs CDN assets with client-side fallback compilation, and refines division formatting across the scientific calculator.</p>
+                
+                <div class="release-section">
+                    <h3>Engine Calibrations &amp; Plotting Integrity Highlights</h3>
+                    <ul class="release-list">
+                        <li><strong>LLM Image Hallucination Scrubbing &amp; Anti-Hallucination Guardrails:</strong> Identified and resolved an issue where the language model was hallucinating external image URLs (e.g., generating fake <code>https://i.imgur.com/...</code> links inside Markdown image tags) instead of invoking the native interactive plotting engine. Deployed a strict system prompt directive forbidding fake image generation, coupled with dual-layer server (<code>server/vizEngine/visualFidelity.js</code>) and client (<code>app.js</code>) regex scrubbers that intercept hallucinated image tags, extract the underlying function, and auto-mount native interactive Function Grapher canvases (<code>[GRAPH: ...]</code>).</li>
+                        <li><strong>Multi-Turn Graphing Intent Continuity:</strong> Fixed conversational amnesia where Pythos lost track of active graphing context across multi-turn exchanges. When the assistant asked the user to specify a function (e.g., <em>"Then I can plot the parabola for you"</em>) and the user responded with the formula (<code>y = (x + 3)² - 7</code>), the model mistakenly switched to root-finding instead of graphing. <code>server/deterministicRouter.js</code> now inspects conversation history and captures follow-up student corrections (e.g., <em>"were supposed to be graphing it"</em>, <em>"the graph didnt work try again"</em>) to guarantee seamless graphing continuity.</li>
+                        <li><strong>Unicode Superscript Math Normalization:</strong> Added comprehensive decoding for Unicode superscripts and mathematical exponents (<code>⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻</code> &rarr; <code>^0..^9</code>) across <code>deterministicRouter.js</code> and <code>app.js</code>, enabling natural inputs like <code>(x + 3)² - 7</code> to parse cleanly into Cartesian expressions.</li>
+                        <li><strong>Content Security Policy &amp; Resilient Fallback Plotter:</strong> Added <code>cdnjs.cloudflare.com</code> to <code>script-src</code>, <code>style-src</code>, and <code>connect-src</code> CSP directives across <code>server/server.js</code>, <code>staticServer.js</code>, and <code>netlify.toml</code>. Implemented a zero-failure client-side AST fallback evaluator (<code>getCompiledGraphExpr</code>) in <code>app.js</code> so Cartesian graphs render reliably even during network dropouts or CDN blockages.</li>
+                        <li><strong>Division Display &amp; KaTeX Formatting:</strong> Resolved an issue where calculator division queries remained trapped as unresolved fractions, providing both exact fractional representations and clean decimal values with hardened KaTeX rendering retries.</li>
+                    </ul>
+                </div>
+            </div>
+        </article>
 
         <!-- ==================== RELEASE 1.8.60 ==================== -->
         <article class="release-card" id="pythos-1-8-60">
@@ -2612,7 +2642,7 @@ ight</code>, <code>left</code>, <code>rac</code>, <code>sqrt</code>) prior to E
 
   <footer>
     <div>🏛️ Pythos — Free AI Mathematics &amp; Physics Education Initiative. Developed by LANZAR.</div>
-    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-8-60" style="color:var(--primary-color); text-decoration:none;">v1.8.60</a></div>
+    <div style="margin-top: 4px; opacity: 0.75;">Pythos &copy; 2026 LANZAR. All rights reserved. &bull; <a href="subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="license.html" style="color:var(--primary-color); text-decoration:none;">License</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="changelog.html#pythos-1-8-61" style="color:var(--primary-color); text-decoration:none;">v1.8.61</a></div>
   </footer>
 
   <script>
