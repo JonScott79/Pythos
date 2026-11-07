@@ -1448,6 +1448,12 @@ function extractClaims(text, userPrompt = '') {
         const rawMatch = `${expr} = ${rawVal}${isPct ? '%' : ''}`;
 
         if (!claims.some(c => c.data?.expression === expr && Math.abs(c.data.proposed_value - val) < 1e-4)) {
+          const explicitApprox = match[0].includes('approx') || match[0].includes('≈') || match[0].includes('~');
+          const rawDecMatch = !isPct && rawVal.match(/\.(\d+)$/);
+          const decPlaces = rawDecMatch ? rawDecMatch[1].length : 0;
+          const isRoundedTranscendental = !explicitApprox && decPlaces >= 2 && /\b(?:sin|cos|tan|sec|csc|cot)\b/i.test(expr);
+          const claimTolerance = isRoundedTranscendental ? (0.5 * Math.pow(10, -decPlaces)) : 0.005;
+
           claims.push({
             domain: 'arithmetic',
             claim_type: 'arithmetic',
@@ -1455,8 +1461,8 @@ function extractClaims(text, userPrompt = '') {
             data: {
               expression: expr,
               proposed_value: val,
-              is_approximate: match[0].includes('approx') || match[0].includes('≈') || match[0].includes('~') || (/\b(?:sin|cos|tan|sec|csc|cot|log10|log|ln)\b/i.test(expr) && rawVal.includes('.')),
-              tolerance: 0.005,
+              is_approximate: explicitApprox || isRoundedTranscendental,
+              tolerance: claimTolerance,
               is_percent: isPct,
               raw_val_str: rawVal
             }

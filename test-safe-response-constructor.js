@@ -257,6 +257,79 @@ runTest('Verification Bridge: free-variable guard rejects unsupported identifier
   }
 });
 
+// 13. Regression: precision-aware half-ULP tolerance & +/-0.005 approximation boundary checks
+runTest('Verification Bridge: precision-aware half-ULP rejects wrong results inside +/-0.005 and enforces exact boundaries', () => {
+  // 4-d.p. cot(-28.45°) = -1.8456 has half-ULP tolerance 0.00005 (5e-5)
+  const [exact4dp] = extractClaims('cot(-28.45°) = -1.8456', 'evaluate cot(-28.45°)');
+  assert.strictEqual(exact4dp.data.tolerance, 0.00005);
+  assert.strictEqual(mathjsVerifier.verify(exact4dp).status, 'VERIFIED');
+
+  // Off by 1 ULP in 4th decimal place (-1.8455 and -1.8457) must be rejected despite being within 0.00011 < 0.005
+  const [offLow4dp] = extractClaims('cot(-28.45°) = -1.8455', 'evaluate cot(-28.45°)');
+  const [offHigh4dp] = extractClaims('cot(-28.45°) = -1.8457', 'evaluate cot(-28.45°)');
+  assert.strictEqual(mathjsVerifier.verify(offLow4dp).status, 'INCORRECT_RESULT');
+  assert.strictEqual(mathjsVerifier.verify(offHigh4dp).status, 'INCORRECT_RESULT');
+
+  // Incorrect results that fall well inside +/-0.005 (e.g. -1.842 for cot(-28.45°), 0.504 for sin(30°)) must be rejected
+  const [wrongInside005Cot] = extractClaims('cot(-28.45°) = -1.842', 'evaluate cot(-28.45°)');
+  const [wrongInside005Sin] = extractClaims('sin(30°) = 0.504', 'evaluate sin(30°)');
+  assert.strictEqual(mathjsVerifier.verify(wrongInside005Cot).status, 'INCORRECT_RESULT');
+  assert.strictEqual(mathjsVerifier.verify(wrongInside005Sin).status, 'INCORRECT_RESULT');
+
+  // Explicit approximation (≈) boundary check immediately inside (diff = 0.00491 <= 0.005) and outside (diff = 0.00511 > 0.005)
+  const [approxInside] = extractClaims('cot(-28.45°) ≈ -1.8407', 'evaluate cot(-28.45°)');
+  const [approxOutside] = extractClaims('cot(-28.45°) ≈ -1.8405', 'evaluate cot(-28.45°)');
+  assert.strictEqual(approxInside.data.tolerance, 0.005);
+  assert.strictEqual(mathjsVerifier.verify(approxInside).status, 'VERIFIED');
+  assert.strictEqual(mathjsVerifier.verify(approxOutside).status, 'INCORRECT_RESULT');
+
+  // Representative trig functions across positive/negative degrees and radians
+  const repSamples = [
+    ['cos(-60°) = 0.5', 'evaluate cos(-60°)', 'VERIFIED'],
+    ['tan(45°) = 1', 'evaluate tan(45°)', 'VERIFIED'],
+    ['sec(60°) = 2', 'evaluate sec(60°)', 'VERIFIED'],
+    ['csc(-30°) = -2', 'evaluate csc(-30°)', 'VERIFIED'],
+    ['cos(0) = 1', 'evaluate cos(0)', 'VERIFIED'],
+    ['cos(-60°) = 0.502', 'evaluate cos(-60°)', 'INCORRECT_RESULT']
+  ];
+  for (const [text, prompt, expectedStatus] of repSamples) {
+    const [c] = extractClaims(text, prompt);
+    assert(c, `Expected claim for ${text}`);
+    assert.strictEqual(mathjsVerifier.verify(c).status, expectedStatus, `Unexpected status for ${text}`);
+  }
+});
+
+// 14. Regression: ordinary decimal arithmetic remains strict exact and UNKNOWN/domain errors never become VERIFIED
+runTest('Verification Bridge: ordinary decimal arithmetic requires exact equality and fail-closed states remain intact', () => {
+  const [exactDec] = extractClaims('1.25 + 2.5 = 3.75', '1.25 + 2.5');
+  assert.strictEqual(exactDec.data.is_approximate, false, 'Ordinary decimal arithmetic must not be marked approximate');
+  assert.strictEqual(mathjsVerifier.verify(exactDec).status, 'VERIFIED');
+
+  // Ordinary decimal arithmetic off by 0.0001 (well within 0.005) must be rejected
+  const [inexactDec] = extractClaims('1.25 + 2.5 = 3.7501', '1.25 + 2.5');
+  assert.strictEqual(inexactDec.data.is_approximate, false);
+  const inexactRes = mathjsVerifier.verify(inexactDec);
+  assert.strictEqual(inexactRes.verified, false);
+  assert.strictEqual(inexactRes.status, 'INCORRECT_RESULT');
+
+  // Fail-closed UNKNOWN / domain / range violations never become VERIFIED even if is_approximate is true
+  const unknownRes = mathjsVerifier.verify({ domain: 'arithmetic', data: { expression: 'unknownFunc(28.45)', proposed_value: 1.5, is_approximate: true, tolerance: 0.005 } });
+  assert.strictEqual(unknownRes.verified, false);
+  assert.strictEqual(unknownRes.status, 'UNKNOWN');
+
+  const domainRes = mathjsVerifier.verify({ domain: 'arithmetic', data: { expression: 'sqrt(-5)', proposed_value: 0, is_approximate: true, tolerance: 0.005 } });
+  assert.strictEqual(domainRes.verified, false);
+  assert.strictEqual(domainRes.status, 'MATHEMATICAL_UNDEFINED');
+
+  const divZeroRes = mathjsVerifier.verify({ domain: 'arithmetic', data: { expression: '1 / 0', proposed_value: 0, is_approximate: true, tolerance: 0.005 } });
+  assert.strictEqual(divZeroRes.verified, false);
+  assert.strictEqual(divZeroRes.status, 'DIVISION_BY_ZERO');
+
+  const rangeRes = mathjsVerifier.verify({ domain: 'arithmetic', data: { expression: 'sin(30 deg)', proposed_value: 1.5, is_approximate: true, tolerance: 0.005 } });
+  assert.strictEqual(rangeRes.verified, false);
+  assert.strictEqual(rangeRes.status, 'RANGE_ERROR');
+});
+
 console.log(`\n====================================================`);
 console.log(`TEST RESULTS: ${passed}/${total} PASSED`);
 console.log(`====================================================`);
