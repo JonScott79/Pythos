@@ -20,7 +20,7 @@
 const assert = require('assert');
 const path = require('path');
 
-const SERVER_DIR = 'C:/Projects/lanzar/pythos/server';
+const SERVER_DIR = path.join(__dirname, 'server');
 const {
   extractClaims,
   extractCandidateAnswer,

@@ -53,7 +53,7 @@ function verifyDeterministicProposition(expr) {
   }
 
   // Pre-check for division by zero or indeterminate forms
-  if (/\/\s*0+(?:\.0*)?(?!\d)/.test(lhs) || /\/\s*0+(?:\.0*)?(?!\d)/.test(rhs) ||
+  if (/\/\s*[+-]?(?:0+(?:\.0*)?|\.0+)(?![0-9.])/.test(lhs) || /\/\s*[+-]?(?:0+(?:\.0*)?|\.0+)(?![0-9.])/.test(rhs) ||
       /\b0\^0\b/.test(lhs) || /\b0\^0\b/.test(rhs)) {
     return { isProposition: false, isVerified: false, isApproximate: false, details: 'Division by zero or indeterminate form' };
   }

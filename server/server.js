@@ -1050,7 +1050,7 @@ async function executeGroqVisionCall(provider, { messages, visionSystemPrompt, o
       },
       timeout: timeoutMs
     }, (gRes) => {
-      gRes.setEncoding('utf8');
+      if (typeof gRes.setEncoding === 'function') gRes.setEncoding('utf8');
       const gDecoder = new StringDecoder('utf8');
       let gBody = '';
       gRes.on('data', chunk => gBody += (typeof chunk === 'string' ? chunk : gDecoder.write(chunk)));
@@ -1231,7 +1231,7 @@ async function executeGeminiVisionCall(provider, { messages, visionSystemPrompt,
       },
       timeout: timeoutMs
     }, (gRes) => {
-      gRes.setEncoding('utf8');
+      if (typeof gRes.setEncoding === 'function') gRes.setEncoding('utf8');
       const gDecoder = new StringDecoder('utf8');
       let gBody = '';
       gRes.on('data', chunk => gBody += (typeof chunk === 'string' ? chunk : gDecoder.write(chunk)));
@@ -1440,7 +1440,7 @@ ${m.content.slice(PYTHOS_SYSTEM_PROMPT.length).trim()}`;
       },
       timeout: timeoutMs
     }, (gRes) => {
-      gRes.setEncoding('utf8');
+      if (typeof gRes.setEncoding === 'function') gRes.setEncoding('utf8');
       const gDecoder = new StringDecoder('utf8');
       let gBody = '';
       gRes.on('data', chunk => gBody += (typeof chunk === 'string' ? chunk : gDecoder.write(chunk)));
@@ -1563,7 +1563,7 @@ async function executeGeminiTextCall(provider, { messages, options, timeoutMs = 
       },
       timeout: timeoutMs
     }, (gmRes) => {
-      gmRes.setEncoding('utf8');
+      if (typeof gmRes.setEncoding === 'function') gmRes.setEncoding('utf8');
       const gmDecoder = new StringDecoder('utf8');
       let gmBody = '';
       gmRes.on('data', chunk => gmBody += (typeof chunk === 'string' ? chunk : gmDecoder.write(chunk)));
@@ -1665,7 +1665,7 @@ function executeOllamaTextCall({ targetModel, ollamaMessages, effectiveOptions, 
       headers: ollamaHeaders,
       timeout: timeoutMs
     }, (resUpstream) => {
-      resUpstream.setEncoding('utf8');
+      if (typeof resUpstream.setEncoding === 'function') resUpstream.setEncoding('utf8');
       const upstreamDecoder = new StringDecoder('utf8');
       const errDecoder = new StringDecoder('utf8');
       let fullText = '';
@@ -1854,7 +1854,7 @@ async function executeRevisionCall(candidateResult, { revisionPrompt, effectiveO
         revRes.resume();
         return resolveRev('');
       }
-      revRes.setEncoding('utf8');
+      if (typeof revRes.setEncoding === 'function') revRes.setEncoding('utf8');
       const revDecoder = new StringDecoder('utf8');
       let revText = '';
       let revBuffer = '';
@@ -2057,7 +2057,7 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
       const directResponse = buildDeterministicResponse(deterministicIntent);
       if (directResponse) {
         // Deterministic solution is a CANDIDATE, never an unverified delivery!
-        const candidateAnswer = extractCandidateAnswer(directResponse);
+        const candidateAnswer = extractCandidateAnswer(directResponse) || (deterministicIntent.solution !== undefined ? String(deterministicIntent.solution) : (deterministicIntent.result !== undefined ? String(deterministicIntent.result) : null));
         let effectiveVerificationPrompt = (lastUserMsg ? lastUserMsg.content : '');
         try {
           if (contextManager.buildEffectivePrompt && Array.isArray(messages)) {
@@ -3122,7 +3122,14 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
     // CRITICAL-02: Enforce auditPromptClaimFidelity and primary-claim verification on the main LLM delivery path.
     // Neither intermediate arithmetic alone nor UNKNOWN primary claims may pass as verified.
     const isGuidedTutoringPrompt = Boolean(
-      studentIntent && (studentIntent.type === 'CONCEPTUAL_QUESTION' || studentIntent.type === 'PRACTICE_REQUEST')
+      studentIntent && (
+        studentIntent.intent === 'EXPLANATION_REQUEST' ||
+        studentIntent.intent === 'PRACTICE_REQUEST' ||
+        studentIntent.intent === 'REFRAME_REQUEST' ||
+        studentIntent.intent === 'CONFUSION' ||
+        studentIntent.type === 'CONCEPTUAL_QUESTION' ||
+        studentIntent.type === 'PRACTICE_REQUEST'
+      )
     ) || (!finalContent.includes('\\boxed') && /\?\s*$/.test(finalContent.trim()) && claims.length === 0);
 
     const promptFidelity = isGuidedTutoringPrompt
@@ -3615,35 +3622,15 @@ async function studentAuthMiddleware(req, res, next) {
     return res.status(401).json({ error: 'unauthorized', message: 'Authentication required for memory management.' });
   }
 
-  const rawToken = authHeader.slice(7).trim();
-
-  // Support LANZAR ID OIDC-compatible signed session tokens alongside Firebase tokens
-  if (rawToken.startsWith('lanzar.')) {
-    const claims = lanzarIdService.verifyLanzarToken(rawToken);
-    if (!claims || !claims.uid || !memoryService.isValidUid(claims.uid)) {
-      return res.status(401).json({ error: 'unauthorized', message: 'Invalid or expired LANZAR ID token.' });
-    }
-    req.studentUid = claims.uid;
-    req.authProvider = 'lanzar_id';
-    req.studentClaims = claims;
-    return next();
+  const authUser = await verifyAuthenticatedRequestUser(req);
+  if (!authUser || !authUser.uid || !memoryService.isValidUid(authUser.uid)) {
+    return res.status(401).json({ error: 'unauthorized', message: 'Invalid or missing authentication token.' });
   }
 
-  if (!firebaseAdmin.isAdminSdkAvailable()) {
-    return res.status(503).json({ error: 'auth_unavailable', message: 'Authentication service currently unavailable.' });
-  }
-
-  try {
-    const decoded = await firebaseAdmin.verifyIdToken(rawToken);
-    if (!decoded || !decoded.uid || !memoryService.isValidUid(decoded.uid)) {
-      return res.status(401).json({ error: 'unauthorized', message: 'Invalid or forged authentication token.' });
-    }
-    // Derive identity EXCLUSIVELY from the cryptographically verified Firebase token
-    req.studentUid = decoded.uid;
-    next();
-  } catch (err) {
-    return res.status(401).json({ error: 'unauthorized', message: err.message });
-  }
+  req.studentUid = authUser.uid;
+  req.authProvider = authUser.provider;
+  req.studentClaims = authUser.claims;
+  return next();
 }
 
 // GET /api/memory: List all memory items and compiled profile for student

@@ -252,7 +252,7 @@ function validateProblemStructure(problem) {
 
   // 3. Undefined operations check
   // Division by zero
-  if (/\/\s*0(?:\.0*)?(?!\d)/.test(expression) || /\\frac\{[^}]*\}\{0\}/.test(expression)) {
+  if (/\/\s*[+-]?(?:0+(?:\.0*)?|\.0+)(?![0-9.])/.test(expression) || /\\frac\{[^}]*\}\{0\}/.test(expression)) {
     return { valid: false, reason: 'Problem contains an illegal division by zero.' };
   }
   // Undefined trig points

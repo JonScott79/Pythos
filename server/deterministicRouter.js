@@ -2206,8 +2206,8 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   }
 
   // 2b. Direct Division by Zero Detection (e.g. "Calculate 25 / 0")
-  if (/\b\d+(?:\.\d+)?\s*\/\s*0(?:\.0*)?(?!\d)/.test(clean)) {
-    const exprMatch = clean.match(/([-+]?\d+(?:\.\d+)?\s*\/\s*0(?:\.0*)?)/);
+  if (/\b\d+(?:\.\d+)?\s*\/\s*[+-]?(?:0+(?:\.0*)?|\.0+)(?![0-9.])/.test(clean)) {
+    const exprMatch = clean.match(/([-+]?\d+(?:\.\d+)?\s*\/\s*[+-]?(?:0+(?:\.0*)?|\.0+)(?![0-9.]))/);
     const exprStr = exprMatch ? exprMatch[1] : 'x / 0';
     return {
       type: 'ARITHMETIC_UNDEFINED',

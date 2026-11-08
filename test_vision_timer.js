@@ -88,7 +88,7 @@ vm.createContext(sandbox);
 
 // Extract the Vision Capacity Timer section from app.js
 const normalizedAppJs = appJs.replace(/\r\n/g, '\n');
-const startMarker = '// ============================================================\n// VISION CAPACITY TIMER (IMAGE BUTTON COOLDOWN)';
+const startMarker = '// VISION CAPACITY TIMER (IMAGE BUTTON COOLDOWN)';
 const endMarker = '/**\n * Inspects binary magic bytes';
 const startIndex = normalizedAppJs.indexOf(startMarker);
 const endIndex = normalizedAppJs.indexOf(endMarker);

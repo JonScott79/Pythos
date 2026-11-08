@@ -214,7 +214,7 @@ function extractCandidateAnswer(text) {
  */
 function evaluateCandidateDelivery({ candidateAnswer, verifications = [], contradictions = [], claims = [], prompt = '' }) {
   // Reject division by zero in prompt (fail-closed)
-  if (/\/\s*0+(?:\.0*)?(?!\d)/.test(prompt) || /\b(?:divide\s+by\s+zero|division\s+by\s+zero)\b/i.test(prompt)) {
+  if (/\/\s*[+-]?(?:0+(?:\.0*)?|\.0+)(?![0-9.])/.test(prompt) || /\b(?:divide\s+by\s+zero|division\s+by\s+zero)\b/i.test(prompt)) {
     return {
       status: 'UNDEFINED_OPERATION',
       delivered: false,
@@ -1310,7 +1310,16 @@ function extractClaims(text, userPrompt = '') {
   }
 
   // 6. Comprehensive Arithmetic, Fraction, Percentage & Intermediate Step Extraction
-  const lines = text.split(/\r?\n/);
+  const rawLines = text.split(/\r?\n/);
+  const lines = [];
+  for (const rawLine of rawLines) {
+    const trimmed = rawLine.trim();
+    if (lines.length > 0 && /^(?:=|\\approx|\\thickapprox|≈|~)\s+/.test(trimmed)) {
+      lines[lines.length - 1] += ' ' + trimmed;
+    } else {
+      lines.push(rawLine);
+    }
+  }
   for (const rawLine of lines) {
     // VISUAL AMBIGUITY GATE: Do not extract mathematical claims from uncertain visual readings
     if (/\b(?:visual(?:ly)?\s+ambigu(?:ous|ity)|uncertain(?:ty)?|could be read as|unclear whether|appears ambiguous|cannot confidently distinguish|not completely clear)\b/i.test(rawLine)) {
@@ -1410,10 +1419,21 @@ function extractClaims(text, userPrompt = '') {
       if (isPct) val = val / 100.0;
 
       const beforeEq = line.slice(0, eqIndex);
-      const segments = beforeEq.split(/(?:\\approx|\\thickapprox|≈|~|=)/);
+      let clauseBefore = beforeEq;
+      const lastSentenceMatch = [...beforeEq.matchAll(/[.?!]\s+(?=[A-Za-z])/g)].pop();
+      if (lastSentenceMatch && lastSentenceMatch.index !== undefined) {
+        clauseBefore = beforeEq.slice(lastSentenceMatch.index + lastSentenceMatch[0].length);
+      }
+      const segments = clauseBefore.split(/(?:\\approx|\\thickapprox|≈|~|=)/);
       const candidateExprs = [];
 
       for (let sIdx = 0; sIdx < segments.length; sIdx++) {
+        // If this is an earlier segment in a chained equality, ensure intermediate segments are pure math
+        if (sIdx < segments.length - 1) {
+          const intermediateSegments = segments.slice(sIdx + 1);
+          const hasProse = intermediateSegments.some(seg => /[a-zA-Z]{2,}/.test(seg.replace(/\b(?:sin|cos|tan|sec|csc|cot|log|ln|sqrt|cbrt|exp|abs|pi|deg)\b/gi, '')));
+          if (hasProse) continue;
+        }
         const seg = segments[sIdx];
         const suffixMatch = seg.match(/(?:^|[=:,;]|\b(?:is|as|to|of|because|gives|gives\s+us|equals?|we\s+have|so|then|that|therefore|thus|hence|calculate|calculating|compute|computing|find|yields?|get|got)\s+|[a-zA-Z\\]+\s*=)\s*((?:[-+]?[\s0-9.()+\-*/^]+|\bpi\b|\bsqrt\([^\)]+\)|\b(?:log10|log|ln)\s*\([^\)]+\)|\b(?:sin|cos|tan|sec|csc|cot)\s*\([^\)]+\))+)$/i);
         const rawExpr = suffixMatch ? suffixMatch[1].trim() : seg.trim();

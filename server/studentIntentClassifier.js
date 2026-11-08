@@ -190,8 +190,8 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
   // -------------------------------------------------------------
   // 4. CONTINUATION Intent
   // -------------------------------------------------------------
-  const isContinuation = /^(?:ok(?:ay)?,?\s+)?(?:what\s+(?:comes\s+next|is\s+next|next)|next\s+step|where\s+do\s+we\s+go\s+from\s+here|what\s+now|how\s+do\s+we\s+continue|continue|keep\s+going|go\s+on|next)[.?!]*$/i.test(lower) ||
-                         (hasActiveProblem && /^(?:yes|yeah|yep|yup|that'?s\s+what\s+i\s+got|so\s+then\.{0,3}|and\s+then\.{0,3})[.?!]*$/i.test(lower));
+  const isContinuation = /^(?:ok(?:ay)?,?\s+)?(?:what\s+(?:comes\s+next|is\s+next|next)|next\s+step|where\s+do\s+we\s+go\s+from\s+here|what\s+now|what\s+(?:do|should)\s+i\s+do(?:\s+now)?|how\s+do\s+i\s+start|how\s+do\s+we\s+continue|continue|keep\s+going|go\s+on|next)[.?!]*$/i.test(lower) ||
+                         (hasActiveProblem && /^(?:yes|yeah|yep|yup|that'?s\s+what\s+i\s+got|so\s+then\.{0,3}|and\s+then\.{0,3}|o+h+h*)[.?!]*$/i.test(lower));
   if (isContinuation) {
     signals.push('continuation_query');
     return { intent: INTENTS.CONTINUATION, confidence: 'high', signals };
@@ -352,7 +352,7 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
   // -------------------------------------------------------------
   // 9. PROPOSED_ANSWER Intent
   // -------------------------------------------------------------
-  const ansPrefixMatch = clean.match(/^(?:i\s+think\s+(?:the\s+answer\s+is|it\'s|it\s+is)?|the\s+answer\s+is|is\s+the\s+answer|is\s+it|it\'s|it\s+is|answer\s*[:=]|final\s+answer\s*[:=]|got|i\s+got|my\s+answer\s+is)\s*(.+)$/i);
+  const ansPrefixMatch = clean.match(/^(?:i\s+think\s+(?:the\s+answer\s+is|it\'s|it\s+is)?|the\s+answer\s+is|is\s+the\s+answer|is\s+it|it\'s|it\s+is|answer\s*[:=]|final\s+answer\s*[:=]|got|i\s+got|my\s+answer\s+is|(?:my\s+(?:teacher|calculator|friend|book|textbook)|someone)\s+(?:said|says|tells\s+me|told\s+me)\s+(?:that\s+)?(?:the\s+answer\s+is|it\'s|it\s+is)?)\s*(.+)$/i);
   if (ansPrefixMatch) {
     signals.push('answer_prefix_marker');
     const expr = ansPrefixMatch[1].replace(/[?.,!]$/, '').trim();
@@ -427,7 +427,8 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
   // -------------------------------------------------------------
   // 10. EXPLANATION_REQUEST Intent
   // -------------------------------------------------------------
-  const isExplanation = /^(?:why(?:\s+is\s+that)?\??|why\s+did\s+you\s+do\s+that\??|how\s+did\s+you\s+get\s+that\??|can\s+you\s+explain(?:\s+that|\s+why|\s+how)?(?:\s+again)?\??|explain\s+how|what\s+does\s+that\s+mean\??|where\s+did\s+(?:that|\d+|the)\s+come\s+from\??)$/i.test(lower) ||
+  const isExplanation = /^(?:why(?:\s+is\s+that)?\??|why\s+did\s+you\s+do\s+that\??|how\s+did\s+you\s+get\s+that\??|can\s+you\s+explain(?:\s+that|\s+why|\s+how)?(?:\s+again)?\??|what\s+does\s+that\s+mean\??|where\s+did\s+(?:that|\d+|the)\s+come\s+from\??)$/i.test(lower) ||
+                        /^(?:can\s+you\s+)?explain(?:\s+step[-\s]by[-\s]step)?(?:\s+(?:how|why|what|the|this|that|to\s+me))?\b/i.test(lower) ||
                         /^(?:why|how)\s+(?:is|did|does|can|would|are|was|were|come|so|to)\b/i.test(lower) ||
                         /^(?:what(?:'s|\s+is)\s+(?:the\s+)?(?:answer|solution|result)|can\s+you\s+(?:give|tell)\s+me\s+the\s+answer|show\s+me\s+the\s+(?:answer|solution))\b/i.test(lower);
   if (isExplanation) {
@@ -438,7 +439,7 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
   // -------------------------------------------------------------
   // 11. REFERENTIAL Intent
   // -------------------------------------------------------------
-  const isReferential = /^(?:what\s+about\s+(?:the\s+)?(?:other\s+one|first\s+one|second\s+one|last\s+one)|can\s+we\s+do\s+the\s+other\s+one|go\s+back\s+to\s+the\s+first\s+one)\b/i.test(lower);
+  const isReferential = /^(?:what\s+about\s+(?:the\s+)?(?:other\s+(?:one|root|solution|answer)|first\s+one|second\s+one|last\s+one)|can\s+we\s+do\s+the\s+other\s+one|go\s+back\s+to\s+the\s+first\s+one|(?:no,?\s+)?(?:i\s+meant\s+)?the\s+other\s+(?:one|root|solution|answer))\b/i.test(lower);
   if (isReferential) {
     signals.push('referential_query');
     return { intent: INTENTS.REFERENTIAL, confidence: 'high', signals };
