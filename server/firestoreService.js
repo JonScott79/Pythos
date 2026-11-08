@@ -438,6 +438,24 @@ async function saveLanzarAccount(account) {
 }
 
 /**
+ * Deletes a LANZAR ID account by UID from pythos/app/lanzar_id_accounts/{uid}.
+ * Used for compensating rollback when a multi-step registration fails mid-flight.
+ *
+ * @param {string} uid
+ * @returns {Promise<boolean>}
+ */
+async function deleteLanzarAccount(uid) {
+  if (_testFirestoreAdapter?.deleteLanzarAccount) {
+    return await _testFirestoreAdapter.deleteLanzarAccount(uid);
+  }
+  const col = lanzarAccountsRef();
+  if (!col || !uid) return false;
+
+  await col.doc(uid).delete();
+  return true;
+}
+
+/**
  * Retrieves a LANZAR ID account by UID from pythos/app/lanzar_id_accounts/{uid}.
  *
  * @param {string} uid
@@ -570,6 +588,7 @@ module.exports = {
   isFirestoreActive,
   setFirestoreAdapterForTesting,
   saveLanzarAccount,
+  deleteLanzarAccount,
   getLanzarAccountByUid,
   getLanzarAccountByEmail,
   saveMailingListConsent,

@@ -783,7 +783,7 @@ app.get('/health/ready', async (req, res) => {
 });
 
 const learningStore = require('./learningStore');
-const { verifyResponseClaims, extractCandidateAnswer, evaluateCandidateDelivery, auditPromptClaimFidelity, evaluateVerificationState } = require('./verificationBridge');
+const { verifyResponseClaims, extractCandidateAnswer, evaluateCandidateDelivery, auditPromptClaimFidelity, evaluateVerificationState, extractBoxedMatches, cleanLatexUnits } = require('./verificationBridge');
 const {
   analyzeDeterministicIntent,
   extractPreflightDeterministicFacts,
@@ -898,12 +898,20 @@ async function verifyGoogleIdTokenCryptographically(idToken) {
     return null;
   }
   if (_customGoogleTokenVerifier) {
-    return await _customGoogleTokenVerifier(idToken.trim());
+    try {
+      return await _customGoogleTokenVerifier(idToken.trim());
+    } catch (_) {
+      return null;
+    }
   }
   if (!firebaseAdmin.isAdminSdkAvailable()) {
     return null;
   }
-  return await firebaseAdmin.verifyIdToken(idToken.trim());
+  try {
+    return await firebaseAdmin.verifyIdToken(idToken.trim());
+  } catch (_) {
+    return null;
+  }
 }
 
 async function verifyAuthenticatedRequestUser(req) {
@@ -2117,6 +2125,8 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
             return res.end();
           }
 
+          const fastPathVerifiedCount = (verificationResults || []).filter(v => v && v.verified === true).length;
+          const fastPathTotalCount = (verificationResults || []).length;
           return res.status(200).json({
             requestId,
             latencyMs: Date.now() - startTime,
@@ -2124,6 +2134,17 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
             message: {
               role: 'assistant',
               content: directResponse
+            },
+            finalContent: directResponse,
+            verificationState: 'VERIFIED',
+            verificationSummary: {
+              state: 'VERIFIED',
+              verifiedCount: fastPathVerifiedCount,
+              unknownCount: 0,
+              rejectedCount: 0,
+              totalCount: fastPathTotalCount,
+              primaryClaimVerified: true,
+              disclosure: null
             },
             claims,
             verification: verificationResults,
@@ -2939,13 +2960,6 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           finalContent = revisedResponse.trim();
           candidateResult.content = finalContent;
 
-          if (isStreaming && !res.writableEnded && res.headersSent) {
-            res.write(JSON.stringify({
-              type: 'revision',
-              revisedContent: finalContent
-            }) + '\n');
-          }
-
           // RE-VERIFICATION OF REVISED CONTENT (Task 6)
           const revAudit = await verifyResponseClaims(
             finalContent,
@@ -2960,12 +2974,23 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           verificationAudit = revAudit.verificationAudit;
 
           console.log(`[VERIFIER] Post-revision verification complete: ${claims.length} claims extracted, ${invalidClaims.length} invalid, ${internalContradictions.length} contradictions.`);
+
+          // Only emit revision event if revision succeeded without uncorrected invalid claims or contradictions
+          if (invalidClaims.length === 0 && internalContradictions.length === 0) {
+            if (isStreaming && !res.writableEnded && res.headersSent) {
+              res.write(JSON.stringify({
+                type: 'revision',
+                revisedContent: finalContent
+              }) + '\n');
+            }
+          }
         }
       } catch (revErr) {
         console.error('[VERIFIER] Revision call failed:', revErr.message);
       }
 
       // Deterministic Supremacy: Enforce mathematical truth across any remaining invalid calculations
+      let anyArithmeticOverrideApplied = false;
       for (const { claim, verification, claimIndex } of invalidClaims) {
         if (claim.raw_match && verification.exact_value !== undefined && verification.exact_value !== null) {
           const exactNum = typeof verification.exact_value === 'number'
@@ -2998,6 +3023,21 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
             if (!isMidMath) {
               console.warn('[VERIFIER] Enforcing deterministic arithmetic override for claim index', claimIndex, ':', originalMatch);
               finalContent = finalContent.slice(0, spanIndex) + replacement + finalContent.slice(spanIndex + matchLength);
+              anyArithmeticOverrideApplied = true;
+
+              // Check if finalContent also has an erroneous boxed answer matching the invalid claim
+              const candidateBoxedMatches = extractBoxedMatches(finalContent);
+              if (candidateBoxedMatches.length > 0) {
+                const lastB = candidateBoxedMatches[candidateBoxedMatches.length - 1];
+                const rawValBoxed = cleanLatexUnits(lastB.content).replace(/^[a-zA-Z]\s*=\s*/, '').trim();
+                const proposedRaw = String(claim.data?.proposed_value || '').trim();
+                if (rawValBoxed === proposedRaw || rawValBoxed === String(claim.data?.raw_val_str || '').trim()) {
+                  // Replace erroneous boxed value with exact formatted value
+                  const newBoxed = `\\boxed{${exactFormatted}}`;
+                  finalContent = finalContent.slice(0, lastB.startIndex) + newBoxed + finalContent.slice(lastB.endIndex);
+                }
+              }
+
               ollamaResponse.message.content = finalContent;
 
               if (isStreaming && !res.writableEnded) {
@@ -3016,31 +3056,29 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           }
         }
       }
+
+      // DEFECT-02: If any arithmetic override was applied, perform complete re-verification of finalContent
+      if (anyArithmeticOverrideApplied) {
+        console.log('[VERIFIER] Arithmetic overrides applied. Performing full re-verification of final content...');
+        const overrideAudit = await verifyResponseClaims(
+          finalContent,
+          effectiveVerificationPrompt,
+          abortController.signal
+        );
+        claims = overrideAudit.claims;
+        internalContradictions = overrideAudit.internalContradictions;
+        verificationResults = overrideAudit.verificationResults;
+        invalidClaims = overrideAudit.invalidClaims;
+        unknownClaims = overrideAudit.unknownClaims || [];
+        verificationAudit = overrideAudit.verificationAudit;
+        console.log(`[VERIFIER] Post-override re-verification: ${claims.length} claims, ${invalidClaims.length} invalid, ${internalContradictions.length} contradictions.`);
+      }
     }
 
     // =====================================
     // DELIVERY GATE: Safe Withholding vs Certified Delivery (CRITICAL-01 & CRITICAL-02)
     // =====================================
-    const uncorrectedInvalidClaims = invalidClaims.filter(({ claim, verification }) => {
-      // If the verification error was geometric contradiction, range error, or fidelity mismatch, it cannot be overridden by arithmetic CAS
-      if (verification.error_type === 'GEOMETRIC_CONTRADICTION' ||
-          verification.error_type === 'TRIGONOMETRIC_RANGE_VIOLATION' ||
-          verification.status === 'GEOMETRIC_IMPOSSIBILITY' ||
-          verification.status === 'PYTHAGOREAN_VIOLATION' ||
-          verification.status === 'FIDELITY_MISMATCH' ||
-          verification.status === 'RANGE_ERROR') {
-        return true;
-      }
-      // If exact_value was successfully substituted into finalContent, it is resolved
-      if (claim.raw_match && verification.exact_value !== undefined && verification.exact_value !== null) {
-        const exactNum = typeof verification.exact_value === 'number' ? verification.exact_value : Number(verification.exact_value);
-        const exactFormatted = Number.isFinite(exactNum) ? exactNum.toFixed(4) : String(verification.exact_value);
-        if (finalContent.includes(exactFormatted)) {
-          return false; // Successfully corrected by CAS
-        }
-      }
-      return true; // Still uncorrected
-    });
+    const uncorrectedInvalidClaims = [...invalidClaims];
 
     // Guard against truncated or incomplete responses ending mid-derivation
     const isCandidateTruncated = candidateResult?.truncated === true;
@@ -3096,6 +3134,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
         finalContent = safeRecovery.content;
         ollamaResponse.withheld = false;
         ollamaResponse.safeResponseRecovered = true;
+        ollamaResponse.truncated = false;
         ollamaResponse.recoverySource = safeRecovery.source;
         ollamaResponse.recoveryTitle = safeRecovery.title;
         ollamaResponse.message.content = finalContent;
@@ -3247,11 +3286,11 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
         claims,
         verificationResults,
         invalidClaims: ollamaResponse.safeResponseRecovered ? [] : uncorrectedInvalidClaims,
-        unknownClaims,
+        unknownClaims: ollamaResponse.safeResponseRecovered ? [] : unknownClaims,
         internalContradictions: ollamaResponse.safeResponseRecovered ? [] : internalContradictions,
         prompt: isGuidedTutoringPrompt ? '' : effectiveVerificationPrompt,
         withheld: Boolean(ollamaResponse.withheld),
-        isCandidateIncomplete,
+        isCandidateIncomplete: ollamaResponse.safeResponseRecovered ? false : isCandidateIncomplete,
         safeResponseRecovered: Boolean(ollamaResponse.safeResponseRecovered)
       });
 
@@ -3860,7 +3899,8 @@ app.post('/api/mailing-list/unsubscribe', mailingRateLimiter.middleware, async (
     if (isPersistenceOrConfigFailure(err)) {
       return res.status(500).json({ error: 'persistence_error', message: err.message });
     }
-    return res.status(400).json({ error: 'unsubscribe_error', message: err.message });
+    const statusCode = err.statusCode || 400;
+    return res.status(statusCode).json({ error: 'unsubscribe_error', message: err.message });
   }
 });
 

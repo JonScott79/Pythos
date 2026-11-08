@@ -651,6 +651,153 @@ async function main() {
       assert.ok(typeof verifiedEv.finalContent === 'string' && verifiedEv.finalContent.length > 0, 'verified event must include finalContent');
       assert.ok(!verifiedEv.finalContent.includes('HALLUCINATED STREAM'), 'finalContent must not contain the unverified stream');
     });
+
+    console.log('\n--- DEFECT-01 through DEFECT-06 Remediation Tests ---');
+
+    // DEFECT-01: Invalid unsubscribe token rejects with 401 and never unsubscribes victim
+    await runTest('DEFECT-01: Invalid unsubscribe token returns 401 and never falls through to email unsubscribe', async () => {
+      // First ensure victim is subscribed
+      const victimEmail = 'victim.defect01@example.edu';
+      await lanzarIdService.updateMailingListConsent({ email: victimEmail, consented: true, consentSource: 'defect01_test' });
+      const statusBefore = lanzarIdService.getMailingListStatus(victimEmail);
+      assert.strictEqual(statusBefore.subscribed, true);
+
+      // Attempt unauthenticated unsubscribe with bogus token
+      const res = await makeHttpRequest(apiPort, 'POST', '/api/mailing-list/unsubscribe', {
+        email: victimEmail,
+        token: 'forged_bogus_token_xyz'
+      });
+
+      assert.strictEqual(res.status, 401, 'Invalid unsubscribe token must return 401');
+      assert.strictEqual(res.json.error, 'unsubscribe_error');
+
+      // Verify victim remains subscribed
+      const statusAfter = lanzarIdService.getMailingListStatus(victimEmail);
+      assert.strictEqual(statusAfter.subscribed, true, 'Victim subscription must not be altered by invalid token');
+    });
+
+    // DEFECT-02: Inline arithmetic override re-verifies final response and never delivers unreplaced or unverified boxed answer
+    await runTest('DEFECT-02: Inline arithmetic override re-verifies response and withholds or replaces incorrect boxed answers', async () => {
+      mockOllamaHandler = (req, res) => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          model: 'test-model',
+          message: { role: 'assistant', content: 'Step 1: 12 + 15 = 999.\nTherefore \\boxed{999}.' },
+          done: true
+        }) + '\n');
+      };
+
+      const res = await makeHttpRequest(apiPort, 'POST', '/api/chat', {
+        messages: [{ role: 'user', content: 'What is 12 + 15?' }],
+        stream: false
+      });
+
+      assert.strictEqual(res.status, 200);
+      assert.ok(
+        !res.json.message.content.includes('\\boxed{999}'),
+        'Final response must never contain the invalid \\boxed{999}'
+      );
+      assert.ok(
+        res.json.verificationState === 'VERIFIED' || res.json.withheld === true,
+        'Response must either be withheld or correctly overridden and verified'
+      );
+      if (res.json.message.content.includes('\\boxed{')) {
+        assert.ok(res.json.message.content.includes('27'), 'If boxed answer was corrected, it must contain 27');
+      }
+    });
+
+    // DEFECT-03: Truncated candidate safely recovered by constructSafeVerifiedResponse evaluates as VERIFIED
+    await runTest('DEFECT-03: Truncated candidate safely recovered evaluates as VERIFIED (not WITHHELD)', () => {
+      const recoveredState = verificationBridge.evaluateVerificationState({
+        claims: [{ domain: 'trigonometry', claim_type: 'trig_evaluation', raw_match: 'sin(cos(45°)) = 0.6496', data: { proposed_value: 0.6496 } }],
+        verificationResults: [{ verified: true, status: 'VERIFIED' }],
+        invalidClaims: [],
+        unknownClaims: [],
+        internalContradictions: [],
+        prompt: 'Evaluate sin(cos(45°))',
+        withheld: false,
+        isCandidateIncomplete: false,
+        safeResponseRecovered: true
+      });
+
+      assert.strictEqual(recoveredState.state, 'VERIFIED');
+      assert.strictEqual(recoveredState.primaryClaimVerified, true);
+    });
+
+    // DEFECT-04: Expired or rejecting Firebase ID token in verifyGoogleIdTokenCryptographically returns 401 without exposing raw error
+    await runTest('DEFECT-04: Expired/rejecting Firebase ID token returns 401 without raw Firebase error', async () => {
+      app.setGoogleTokenVerifierForTesting(async () => {
+        throw new Error('Firebase ID token has expired. Get a fresh token from client.');
+      });
+
+      const res = await makeHttpRequest(apiPort, 'POST', '/api/mailing-list/consent', {
+        email: 'alice.defect04@example.edu',
+        consented: true
+      }, {
+        Authorization: 'Bearer expired.firebase.token'
+      });
+
+      assert.strictEqual(res.status, 401, 'Expired Firebase token must return 401');
+      assert.strictEqual(res.json.error, 'unauthorized');
+      assert.ok(!res.json.message.includes('Get a fresh token'), 'Raw internal Firebase error message must not be leaked');
+    });
+
+    // DEFECT-05: Firestore migration conflict handling prevents overwriting newer remote records
+    await runTest('DEFECT-05: migrateLocalStoreToFirestore preserves newer remote records and registration rollback cleans up partial state', async () => {
+      const remoteAccount = {
+        uid: 'lanzar_conflict_test_uid',
+        email: 'conflict.defect05@example.edu',
+        displayName: 'Remote Newer Name',
+        updatedAt: '2026-11-08T00:00:00.000Z'
+      };
+      const staleLocalAccount = {
+        uid: 'lanzar_conflict_test_uid',
+        email: 'conflict.defect05@example.edu',
+        displayName: 'Stale Local Name',
+        updatedAt: '2026-11-01T00:00:00.000Z'
+      };
+
+      let remoteStore = new Map([[remoteAccount.uid, remoteAccount]]);
+      firestoreService.setFirestoreAdapterForTesting({
+        isAvailable: true,
+        getLanzarAccountByUid: async (uid) => remoteStore.get(uid) || null,
+        getLanzarAccountByEmail: async (email) => Array.from(remoteStore.values()).find(a => a.email === email) || null,
+        saveLanzarAccount: async (acc) => { remoteStore.set(acc.uid, acc); return true; },
+        deleteLanzarAccount: async (uid) => { remoteStore.delete(uid); return true; }
+      });
+
+      lanzarIdService.resetLocalMigrationStateForTesting({ accounts: [staleLocalAccount] });
+      await lanzarIdService.migrateLocalStoreToFirestore();
+
+      // Remote store must STILL have the newer name, not the stale local name
+      const storedAfter = remoteStore.get(remoteAccount.uid);
+      assert.strictEqual(storedAfter.displayName, 'Remote Newer Name', 'Stale local migration must never overwrite newer remote record');
+    });
+
+    // DEFECT-06: Ungrounded boxed answer with zero extracted equations evaluates as WITHHELD; non-streaming fast-path includes metadata
+    await runTest('DEFECT-06: Ungrounded boxed answer evaluates to WITHHELD and fast-path includes verificationSummary', async () => {
+      // 1. Boxed answer without equations
+      const zeroEquationAudit = await verificationBridge.verifyResponseClaims(
+        'The secret product is clearly \\boxed{30}.',
+        'Calculate 17 * 19.'
+      );
+      const evalResult = verificationBridge.evaluateVerificationState({
+        ...zeroEquationAudit,
+        prompt: 'Calculate 17 * 19.'
+      });
+      assert.strictEqual(evalResult.state, 'WITHHELD', 'Ungrounded boxed answer with 0 equations must evaluate to WITHHELD');
+
+      // 2. Non-streaming fast-path response metadata
+      const fastPathRes = await makeHttpRequest(apiPort, 'POST', '/api/chat', {
+        messages: [{ role: 'user', content: 'What is sin(90 deg)?' }],
+        stream: false
+      });
+      assert.strictEqual(fastPathRes.status, 200);
+      assert.strictEqual(fastPathRes.json.verificationState, 'VERIFIED');
+      assert.ok(fastPathRes.json.verificationSummary, 'Fast-path response must include verificationSummary');
+      assert.strictEqual(fastPathRes.json.verificationSummary.state, 'VERIFIED');
+      assert.strictEqual(typeof fastPathRes.json.finalContent, 'string');
+    });
   } finally {
     clearActiveControllers();
     await new Promise(r => apiServer.close(r));

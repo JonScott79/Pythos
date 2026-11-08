@@ -124,9 +124,25 @@ function ensureStoreLoaded() {
 
 ensureStoreLoaded();
 
+function parseRecordTimestampMs(record) {
+  if (!record || typeof record !== 'object') return 0;
+  const raw = record.updatedAt || record.lastLoginAt || record.unsubscribedAt || record.consentTimestamp || record.createdAt;
+  if (!raw) return 0;
+  const parsed = Date.parse(String(raw));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function isLocalRecordStrictlyNewer(localRec, remoteRec) {
+  if (!remoteRec) return true;
+  const localMs = parseRecordTimestampMs(localRec);
+  const remoteMs = parseRecordTimestampMs(remoteRec);
+  return localMs > remoteMs;
+}
+
 /**
  * Migrates any pre-existing local account and mailing-list consent records to Firestore
- * when Firestore is active, ensuring zero data loss during upgrade.
+ * when Firestore is active, ensuring zero data loss during upgrade while never overwriting
+ * newer cloud records with stale local data (DEFECT-05).
  */
 async function migrateLocalStoreToFirestore() {
   if (_localMigrationAttempted || !firestoreService.isFirestoreActive()) {
@@ -134,11 +150,26 @@ async function migrateLocalStoreToFirestore() {
   }
   _localMigrationAttempted = true;
   try {
-    for (const acc of accountsByUid.values()) {
-      await firestoreService.saveLanzarAccount(acc);
+    for (const acc of Array.from(accountsByUid.values())) {
+      const remoteAcc =
+        (acc.uid ? await firestoreService.getLanzarAccountByUid(acc.uid) : null) ||
+        (acc.email ? await firestoreService.getLanzarAccountByEmail(acc.email) : null);
+      if (isLocalRecordStrictlyNewer(acc, remoteAcc)) {
+        await firestoreService.saveLanzarAccount(acc);
+      } else if (remoteAcc && remoteAcc.uid && remoteAcc.email) {
+        accountsByUid.set(remoteAcc.uid, remoteAcc);
+        accountsByEmail.set(remoteAcc.email.toLowerCase(), remoteAcc);
+      }
     }
-    for (const consent of mailingListByEmail.values()) {
-      await firestoreService.saveMailingListConsent(consent);
+    for (const consent of Array.from(mailingListByEmail.values())) {
+      const remoteConsent = consent.email
+        ? await firestoreService.getMailingListConsentByEmail(consent.email)
+        : null;
+      if (isLocalRecordStrictlyNewer(consent, remoteConsent)) {
+        await firestoreService.saveMailingListConsent(consent);
+      } else if (remoteConsent && remoteConsent.email) {
+        mailingListByEmail.set(remoteConsent.email.toLowerCase(), remoteConsent);
+      }
     }
   } catch (err) {
     _localMigrationAttempted = false;
@@ -393,11 +424,26 @@ async function updateMailingListConsent({ email, consented, consentSource = 'pyt
 }
 
 async function unsubscribeMailingList({ email, token }) {
-  if (token && typeof token === 'string') {
+  const hasSuppliedToken = token !== undefined && token !== null && String(token).length > 0;
+  if (hasSuppliedToken) {
+    const trimmedToken = typeof token === 'string' ? token.trim() : '';
+    const normalizedEmailFilter = typeof email === 'string' && email.trim() ? email.trim().toLowerCase() : null;
+
+    if (!trimmedToken) {
+      const invalidErr = new Error('Invalid or expired unsubscribe token.');
+      invalidErr.statusCode = 401;
+      throw invalidErr;
+    }
+
     if (firestoreService.isFirestoreActive()) {
-      const remoteEntry = await firestoreService.getMailingListConsentByToken(token);
+      const remoteEntry = await firestoreService.getMailingListConsentByToken(trimmedToken);
       if (remoteEntry && remoteEntry.email) {
         const key = remoteEntry.email.toLowerCase();
+        if (normalizedEmailFilter && normalizedEmailFilter !== key) {
+          const mismatchErr = new Error('Invalid or expired unsubscribe token.');
+          mismatchErr.statusCode = 401;
+          throw mismatchErr;
+        }
         remoteEntry.subscribed = false;
         remoteEntry.unsubscribedAt = new Date().toISOString();
         remoteEntry.updatedAt = remoteEntry.unsubscribedAt;
@@ -407,7 +453,12 @@ async function unsubscribeMailingList({ email, token }) {
       }
     }
     for (const [key, entry] of mailingListByEmail.entries()) {
-      if (entry.unsubscribeToken === token) {
+      if (entry.unsubscribeToken === trimmedToken) {
+        if (normalizedEmailFilter && normalizedEmailFilter !== key) {
+          const mismatchErr = new Error('Invalid or expired unsubscribe token.');
+          mismatchErr.statusCode = 401;
+          throw mismatchErr;
+        }
         const prev = { ...entry };
         entry.subscribed = false;
         entry.unsubscribedAt = new Date().toISOString();
@@ -422,6 +473,11 @@ async function unsubscribeMailingList({ email, token }) {
         return { status: 'unsubscribed', email: entry.email };
       }
     }
+
+    // DEFECT-01: Never fall through to email-based unsubscribe when a supplied token is invalid
+    const invalidTokenErr = new Error('Invalid or expired unsubscribe token.');
+    invalidTokenErr.statusCode = 401;
+    throw invalidTokenErr;
   }
 
   if (email && isValidEmail(email)) {
@@ -489,14 +545,17 @@ async function authenticateOrRegisterLanzarId({
       providers: linkedGoogleUid ? ['lanzar_id', 'google'] : ['lanzar_id'],
       linkedGoogleUid: linkedGoogleUid || null,
       createdAt: nowIso,
-      lastLoginAt: nowIso
+      lastLoginAt: nowIso,
+      updatedAt: nowIso
     };
 
     accountsByEmail.set(normalizedEmail, account);
     accountsByUid.set(uid, account);
 
+    let accountPersisted = false;
     try {
       await persistAccount(account);
+      accountPersisted = true;
       if (mailingListOptIn === true) {
         await updateMailingListConsent({
           email: normalizedEmail,
@@ -508,6 +567,18 @@ async function authenticateOrRegisterLanzarId({
     } catch (err) {
       accountsByEmail.delete(normalizedEmail);
       accountsByUid.delete(uid);
+      if (accountPersisted) {
+        // DEFECT-05: Roll back the persisted account from Firestore & local mirror so
+        // partial registration failure never leaves orphaned account state without consent
+        try {
+          if (firestoreService.isFirestoreActive() && firestoreService.deleteLanzarAccount) {
+            await firestoreService.deleteLanzarAccount(uid);
+          }
+        } catch (_) {}
+        try {
+          await writeLocalMirror();
+        } catch (_) {}
+      }
       throw err;
     }
   } else {
@@ -519,7 +590,9 @@ async function authenticateOrRegisterLanzarId({
       throw new Error('Invalid email or password.');
     }
     const prevAccount = { ...account, providers: Array.isArray(account.providers) ? [...account.providers] : ['lanzar_id'] };
-    account.lastLoginAt = new Date().toISOString();
+    const nowIso = new Date().toISOString();
+    account.lastLoginAt = nowIso;
+    account.updatedAt = nowIso;
     if (linkedGoogleUid && !account.linkedGoogleUid) {
       account.linkedGoogleUid = linkedGoogleUid;
       if (!account.providers.includes('google')) account.providers.push('google');
@@ -537,6 +610,9 @@ async function authenticateOrRegisterLanzarId({
     } catch (err) {
       accountsByEmail.set(normalizedEmail, prevAccount);
       accountsByUid.set(account.uid, prevAccount);
+      try {
+        await persistAccount(prevAccount);
+      } catch (_) {}
       throw err;
     }
   }
@@ -609,6 +685,21 @@ function getOidcDiscoveryDocument() {
   };
 }
 
+function resetLocalMigrationStateForTesting({ accounts = [], consents = [] } = {}) {
+  _localMigrationAttempted = false;
+  for (const acc of accounts) {
+    if (acc && acc.uid && acc.email) {
+      accountsByUid.set(acc.uid, acc);
+      accountsByEmail.set(acc.email.toLowerCase(), acc);
+    }
+  }
+  for (const c of consents) {
+    if (c && c.email) {
+      mailingListByEmail.set(c.email.toLowerCase(), c);
+    }
+  }
+}
+
 module.exports = {
   DATA_DIR,
   ACCOUNTS_FILE,
@@ -627,6 +718,7 @@ module.exports = {
   linkGoogleAccountToLanzarId,
   getOidcDiscoveryDocument,
   migrateLocalStoreToFirestore,
+  resetLocalMigrationStateForTesting,
   setWriteFailureForTesting,
   getMailingListStatus: (email) => mailingListByEmail.get(String(email || '').trim().toLowerCase()) || null
 };

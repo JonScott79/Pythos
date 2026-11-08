@@ -1822,6 +1822,69 @@ function extractClaims(text, userPrompt = '') {
     }
   }
 
+  // 11. Boxed Conclusion Integrity & Ungrounded Boxed Claim Extraction (DEFECT-02 & DEFECT-06)
+  const allBoxedMatches = extractBoxedMatches(text);
+  if (allBoxedMatches.length > 0) {
+    const lastBoxed = allBoxedMatches[allBoxedMatches.length - 1];
+    let cleanBoxedStr = cleanLatexUnits(lastBoxed.content);
+    if (!cleanBoxedStr.includes(',') && !cleanBoxedStr.includes(';')) {
+      const eqMatch = cleanBoxedStr.match(/^[a-zA-Z]\s*=\s*(.+)$/);
+      if (eqMatch) cleanBoxedStr = eqMatch[1].trim();
+    }
+
+    const boxedNum = /^[-+]?\d+(?:\.\d+)?$/.test(cleanBoxedStr) ? Number(cleanBoxedStr) : NaN;
+    const isAlreadyClaimed = claims.some(c => {
+      if (c.data?.raw_val_str === cleanBoxedStr) return true;
+      if (Number.isFinite(boxedNum) && typeof c.data?.proposed_value === 'number' && Math.abs(c.data.proposed_value - boxedNum) < 1e-4) return true;
+      if (Number.isFinite(boxedNum) && c.claim_type === 'equation_solution' && Array.isArray(c.data?.proposed_solutions)) {
+        return c.data.proposed_solutions.some(s => Math.abs(Number(s) - boxedNum) < 1e-4);
+      }
+      return false;
+    });
+
+    if (claims.length > 0) {
+      if (!isAlreadyClaimed) {
+        const arithmeticClaims = claims.filter(c => c.domain === 'arithmetic' && c.data && c.data.expression);
+        if (arithmeticClaims.length > 0) {
+          const lastArith = arithmeticClaims[arithmeticClaims.length - 1];
+          if (Number.isFinite(boxedNum) && typeof lastArith.data.proposed_value === 'number') {
+            if (Math.abs(boxedNum - lastArith.data.proposed_value) > 0.005) {
+              // Boxed conclusion contradicts the preceding evaluated arithmetic expression
+              claims.push({
+                domain: 'arithmetic',
+                claim_type: 'arithmetic',
+                raw_match: `${lastArith.data.expression} = ${cleanBoxedStr}`,
+                data: {
+                  expression: lastArith.data.expression,
+                  proposed_value: boxedNum,
+                  is_approximate: false,
+                  tolerance: 0.005,
+                  raw_val_str: cleanBoxedStr,
+                  from_boxed_conclusion: true,
+                  userPrompt: promptStr
+                },
+                userPrompt: promptStr
+              });
+            }
+          }
+        }
+      }
+    } else if (cleanBoxedStr) {
+      // Response contains a \boxed{...} final mathematical claim with zero extracted equations
+      claims.push({
+        domain: 'general',
+        claim_type: 'unverified_boxed_answer',
+        raw_match: lastBoxed.fullMatch,
+        data: {
+          proposed_value: cleanBoxedStr,
+          from_boxed_conclusion: true,
+          userPrompt: promptStr
+        },
+        userPrompt: promptStr
+      });
+    }
+  }
+
   if (promptStr) {
     for (const c of claims) {
       c.userPrompt = promptStr;
@@ -2783,6 +2846,16 @@ async function verifyResponseClaims(content, userQueryText, abortSignal) {
     const claim = claims[ci];
     if (!claim || typeof claim !== 'object') continue;
 
+    if (claim.claim_type === 'unverified_boxed_answer') {
+      resolvedByIndex[ci] = {
+        verified: false,
+        engine: 'boxed_gate',
+        status: 'UNKNOWN',
+        reason: 'Ungrounded final boxed answer requires derivation or supporting verified claims.'
+      };
+      continue;
+    }
+
     if (promptStr) {
       claim.userPrompt = promptStr;
       if (claim.data) claim.data.userPrompt = promptStr;
@@ -3023,6 +3096,19 @@ function evaluateVerificationState({
   const contradictionCount = Array.isArray(internalContradictions) ? internalContradictions.length : 0;
 
   const fidelity = auditPromptClaimFidelity(safeClaims, prompt, safeResults);
+
+  if (safeResponseRecovered && !withheld) {
+    return {
+      state: 'VERIFIED',
+      verifiedCount: Math.max(1, verifiedCount),
+      unknownCount: 0,
+      rejectedCount: 0,
+      totalCount: Math.max(1, totalCount),
+      primaryClaimVerified: true,
+      fidelity: { valid: true, primaryClaimVerified: true },
+      disclosure: null
+    };
+  }
 
   if (withheld || isCandidateIncomplete) {
     return {

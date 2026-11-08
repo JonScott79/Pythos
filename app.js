@@ -4630,6 +4630,14 @@ async function askPythos(userText) {
             if (ev.verificationSummary) metaVerificationSummary = ev.verificationSummary;
             if (typeof ev.finalContent === "string" && ev.finalContent.trim()) {
               streamedText = ev.finalContent;
+            } else if (ev.withheld) {
+              const reasonKey = ev.withholdingReason || "CLAIM_NOT_VERIFIED";
+              const fallbackCfg = (typeof CLIENT_WITHHOLDING_EXPLANATIONS !== "undefined" && CLIENT_WITHHOLDING_EXPLANATIONS[reasonKey])
+                ? CLIENT_WITHHOLDING_EXPLANATIONS[reasonKey]
+                : CLIENT_WITHHOLDING_EXPLANATIONS.CLAIM_NOT_VERIFIED;
+              const headline = (ev.withholdingDetails && ev.withholdingDetails.headline) || fallbackCfg.headline;
+              const explanation = ev.withholdingExplanation || (ev.withholdingDetails && ev.withholdingDetails.explanation) || fallbackCfg.explanation;
+              streamedText = `**${headline}**\n\n${explanation}`;
             }
           }
         } catch (_) {}
