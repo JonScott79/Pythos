@@ -603,8 +603,8 @@ async function deleteUserChats(uid) {
   if (_testFirestoreAdapter?.deleteUserChats) {
     return await _testFirestoreAdapter.deleteUserChats(uid);
   }
-  const db = getFirestoreInstance();
-  if (!db || !uid) return false;
+  const db = _testFirestoreAdapter?.db || getAdminFirestore();
+  if (!db || !uid) return true;
 
   const chatsCol = db.collection('users').doc(uid).collection('pythos_chats');
   const snap = await chatsCol.get();
