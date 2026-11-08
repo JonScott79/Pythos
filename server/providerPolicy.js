@@ -98,7 +98,7 @@ function getProviderRegistry() {
     {
       name: 'groq-text',
       capability: 'text',
-      model: process.env.GROQ_TEXT_MODEL || 'openai/gpt-oss-20b',
+      model: process.env.GROQ_TEXT_MODEL || 'llama-3.3-70b-versatile',
       freeEligible: true, // Groq free tier zero API cost
       enabled: () => process.env.GROQ_TEXT_ENABLED !== 'false',
       isConfigured: () => {
