@@ -3,6 +3,7 @@
 
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
 const concurrencyLimiter = require('./concurrencyLimiter');
 const firebaseAdmin = require('./firebaseAdmin');
 
@@ -25,10 +26,28 @@ const firebaseAdmin = require('./firebaseAdmin');
 //
 // If neither method is available in production: 403 Forbidden.
 // In development/test without any key: open access (existing behaviour preserved).
+// Timing-safe comparison of secret keys to eliminate timing side-channel attacks (MEDIUM-01)
+function timingSafeKeyCompare(provided, expected) {
+  if (typeof provided !== 'string' || typeof expected !== 'string') return false;
+  const p = provided.trim();
+  const e = expected.trim();
+  if (!p || !e) return false;
+  const bufP = Buffer.from(p, 'utf8');
+  const bufE = Buffer.from(e, 'utf8');
+  if (bufP.length !== bufE.length) {
+    // Constant-time execution to prevent length timing side-channels
+    crypto.timingSafeEqual(bufE, bufE);
+    return false;
+  }
+  return crypto.timingSafeEqual(bufP, bufE);
+}
+
 async function adminAuth(req, res, next) {
-  const authHeader = req.headers['authorization'];
-  const customHeader = req.headers['x-admin-key'];
-  const bearerToken = authHeader && authHeader.startsWith('Bearer ')
+  const rawAuthHeader = req.headers['authorization'];
+  const authHeader = Array.isArray(rawAuthHeader) ? rawAuthHeader[0] : rawAuthHeader;
+  const rawCustomHeader = req.headers['x-admin-key'];
+  const customHeader = (Array.isArray(rawCustomHeader) ? rawCustomHeader[0] : rawCustomHeader) || null;
+  const bearerToken = (typeof authHeader === 'string' && authHeader.startsWith('Bearer '))
     ? authHeader.slice(7).trim()
     : null;
 
@@ -61,10 +80,13 @@ async function adminAuth(req, res, next) {
   }
 
   // ── Path 2: Static ADMIN_API_KEY (server-to-server / CLI) ─────────────────
-  const adminKey = process.env.ADMIN_API_KEY;
-  if (adminKey) {
-    const bearer = bearerToken;
-    if (bearer === adminKey || customHeader === adminKey) {
+  const adminKey = (typeof process.env.ADMIN_API_KEY === 'string')
+    ? process.env.ADMIN_API_KEY.trim()
+    : '';
+
+  if (adminKey.length > 0) {
+    const isAuthorized = timingSafeKeyCompare(bearerToken, adminKey) || timingSafeKeyCompare(customHeader, adminKey);
+    if (isAuthorized) {
       return next();
     }
     return res.status(401).json({
@@ -73,15 +95,17 @@ async function adminAuth(req, res, next) {
     });
   }
 
-  // ── Path 3: Production lockout ─────────────────────────────────────────────
-  if (process.env.NODE_ENV === 'production') {
+  // ── Path 3: Production & Non-Test Fail-Closed Lockout ───────────────────────
+  // Fail closed in production, staging, development, or any unauthenticated live deployment.
+  const isTestBypass = process.env.NODE_ENV === 'test' || process.env.ALLOW_UNAUTHENTICATED_ADMIN_IN_TEST === 'true';
+  if (!isTestBypass) {
     return res.status(403).json({
       error: 'forbidden',
       message: 'Admin endpoints require FIREBASE_SERVICE_ACCOUNT_JSON or ADMIN_API_KEY in production.'
     });
   }
 
-  // Development / test mode: open access (existing behaviour preserved)
+  // Test mode without credentials: open access strictly for offline unit test harnesses
   next();
 }
 
