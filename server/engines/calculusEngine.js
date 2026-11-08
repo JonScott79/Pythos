@@ -18,6 +18,7 @@
 
 const { spawn } = require('child_process');
 const path = require('path');
+const { StringDecoder } = require('string_decoder');
 const fs = require('fs');
 
 let cachedPythonBin = null;
@@ -198,8 +199,10 @@ function runCalculusWorker(payload, timeoutMs = 8000) {
 
     proc.stdout.setEncoding('utf8');
     proc.stderr.setEncoding('utf8');
-    proc.stdout.on('data', (d) => { stdout += d; });
-    proc.stderr.on('data', (d) => { stderr += d; });
+    const stdoutDecoder = new StringDecoder('utf8');
+    const stderrDecoder = new StringDecoder('utf8');
+    proc.stdout.on('data', (d) => { stdout += (typeof d === 'string' ? d : stdoutDecoder.write(d)); });
+    proc.stderr.on('data', (d) => { stderr += (typeof d === 'string' ? d : stderrDecoder.write(d)); });
 
     proc.on('error', (err) => {
       clearTimeout(timer);
@@ -212,6 +215,8 @@ function runCalculusWorker(payload, timeoutMs = 8000) {
     proc.on('close', (code) => {
       clearTimeout(timer);
       if (timedOut) return;
+      stdout += stdoutDecoder.end();
+      stderr += stderrDecoder.end();
 
       if (code !== 0 && !stdout.trim()) {
         return resolve({

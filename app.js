@@ -4463,7 +4463,10 @@ async function askPythos(userText) {
         }
         if (userStoppedGeneration) break;
         const { value, done } = readResult;
-        if (done) break;
+        if (done) {
+          lineBuffer += decoder.decode();
+          break;
+        }
 
         lineBuffer += decoder.decode(value, { stream: true });
         const lines = lineBuffer.split("\n");
@@ -4613,7 +4616,9 @@ async function askPythos(userText) {
       if (lineBuffer.trim()) {
         try {
           const ev = JSON.parse(lineBuffer.trim());
-          if (ev.type === "token") streamedText += ev.content;
+          if (ev.type === "token") {
+            streamedText = (streamedText + ev.content).replace(/([A-Za-z])\uFFFD+(s|t|re|ve|ll|d|m)\b/g, "$1'$2");
+          }
           if (ev.type === "revision" && ev.revisedContent) {
             streamedText = ev.revisedContent;
           }
@@ -4668,7 +4673,9 @@ async function askPythos(userText) {
           await saveChatState(userText, finalReply);
         }
       } else {
-        let sanitizedReply = streamedText.trim();
+        let sanitizedReply = streamedText.trim()
+          .replace(/([A-Za-z])\uFFFD+(s|t|re|ve|ll|d|m)\b/g, "$1'$2")
+          .replace(/\s+\uFFFD+\s+/g, " — ");
         // Remove trailing unescaped backslashes or orphaned spacing backslashes at end of lines or blocks
         sanitizedReply = sanitizedReply.replace(/(?:\\;|\s)*\\+(?=\s*(?:\r?\n|$|\\\]|\$\$))/g, '');
         // Auto-close unclosed display math delimiters to prevent KaTeX fracture (ignoring LaTeX row breaks like \\[4pt])

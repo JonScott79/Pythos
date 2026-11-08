@@ -14,6 +14,7 @@ require('dotenv').config();
 const path = require('path');
 const express = require('express');
 const cors = require('cors');
+const { StringDecoder } = require('string_decoder');
 
 // =====================================
 // Configuration & Environment
@@ -1046,9 +1047,11 @@ async function executeGroqVisionCall(provider, { messages, visionSystemPrompt, o
       timeout: timeoutMs
     }, (gRes) => {
       gRes.setEncoding('utf8');
+      const gDecoder = new StringDecoder('utf8');
       let gBody = '';
-      gRes.on('data', chunk => gBody += chunk);
+      gRes.on('data', chunk => gBody += (typeof chunk === 'string' ? chunk : gDecoder.write(chunk)));
       gRes.on('end', () => {
+        gBody += gDecoder.end();
         if (gRes.statusCode === 429) {
           const err = new Error(`RATE_LIMIT: ${gBody}`);
           err.statusCode = 429;
@@ -1225,9 +1228,11 @@ async function executeGeminiVisionCall(provider, { messages, visionSystemPrompt,
       timeout: timeoutMs
     }, (gRes) => {
       gRes.setEncoding('utf8');
+      const gDecoder = new StringDecoder('utf8');
       let gBody = '';
-      gRes.on('data', chunk => gBody += chunk);
+      gRes.on('data', chunk => gBody += (typeof chunk === 'string' ? chunk : gDecoder.write(chunk)));
       gRes.on('end', () => {
+        gBody += gDecoder.end();
         if (gRes.statusCode === 429) {
           const err = new Error(`RATE_LIMIT: ${gBody}`);
           err.statusCode = 429;
@@ -1432,9 +1437,11 @@ ${m.content.slice(PYTHOS_SYSTEM_PROMPT.length).trim()}`;
       timeout: timeoutMs
     }, (gRes) => {
       gRes.setEncoding('utf8');
+      const gDecoder = new StringDecoder('utf8');
       let gBody = '';
-      gRes.on('data', chunk => gBody += chunk);
+      gRes.on('data', chunk => gBody += (typeof chunk === 'string' ? chunk : gDecoder.write(chunk)));
       gRes.on('end', () => {
+        gBody += gDecoder.end();
         if (gRes.statusCode === 429) {
           const err = new Error(`RATE_LIMIT: ${gBody}`);
           err.statusCode = 429;
@@ -1553,9 +1560,11 @@ async function executeGeminiTextCall(provider, { messages, options, timeoutMs = 
       timeout: timeoutMs
     }, (gmRes) => {
       gmRes.setEncoding('utf8');
+      const gmDecoder = new StringDecoder('utf8');
       let gmBody = '';
-      gmRes.on('data', chunk => gmBody += chunk);
+      gmRes.on('data', chunk => gmBody += (typeof chunk === 'string' ? chunk : gmDecoder.write(chunk)));
       gmRes.on('end', () => {
+        gmBody += gmDecoder.end();
         if (gmRes.statusCode === 429) {
           const err = new Error(`RATE_LIMIT: ${gmBody}`);
           err.statusCode = 429;
@@ -1653,13 +1662,15 @@ function executeOllamaTextCall({ targetModel, ollamaMessages, effectiveOptions, 
       timeout: timeoutMs
     }, (resUpstream) => {
       resUpstream.setEncoding('utf8');
+      const upstreamDecoder = new StringDecoder('utf8');
+      const errDecoder = new StringDecoder('utf8');
       let fullText = '';
       let streamBuffer = '';
       let upstreamErrorBody = '';
 
       resUpstream.on('data', (chunk) => {
         if (resUpstream.statusCode >= 400) {
-          upstreamErrorBody += chunk.toString();
+          upstreamErrorBody += typeof chunk === 'string' ? chunk : errDecoder.write(chunk);
           return;
         }
 
@@ -1670,7 +1681,8 @@ function executeOllamaTextCall({ targetModel, ollamaMessages, effectiveOptions, 
           res.setHeader('Cache-Control', 'no-cache, no-transform');
         }
 
-        streamBuffer += chunk.toString();
+        const chunkText = typeof chunk === 'string' ? chunk : upstreamDecoder.write(chunk);
+        streamBuffer += chunkText;
         const lines = streamBuffer.split('\n');
         streamBuffer = lines.pop();
 
@@ -1694,12 +1706,17 @@ function executeOllamaTextCall({ targetModel, ollamaMessages, effectiveOptions, 
 
       resUpstream.on('end', () => {
         if (resUpstream.statusCode >= 400) {
+          upstreamErrorBody += errDecoder.end();
           console.error(`[PYTHOS API] Upstream Ollama error: status=${resUpstream.statusCode}, model=${targetModel}, body=${sanitizeErrorDetail(upstreamErrorBody || streamBuffer || fullText)}`);
           const upErr = new Error(`Upstream provider returned status ${resUpstream.statusCode}: ${upstreamErrorBody || streamBuffer || fullText || 'No error details'}`);
           upErr.statusCode = resUpstream.statusCode;
           upErr.status = resUpstream.statusCode;
           upErr.body = upstreamErrorBody || streamBuffer || fullText;
           return reject(upErr);
+        }
+        const remaining = upstreamDecoder.end();
+        if (remaining) {
+          streamBuffer += remaining;
         }
         if (streamBuffer && streamBuffer.trim()) {
           try {
@@ -1834,11 +1851,13 @@ async function executeRevisionCall(candidateResult, { revisionPrompt, effectiveO
         return resolveRev('');
       }
       revRes.setEncoding('utf8');
+      const revDecoder = new StringDecoder('utf8');
       let revText = '';
       let revBuffer = '';
 
       revRes.on('data', (chunk) => {
-        revBuffer += chunk.toString();
+        const chunkText = typeof chunk === 'string' ? chunk : revDecoder.write(chunk);
+        revBuffer += chunkText;
         const lines = revBuffer.split('\n');
         revBuffer = lines.pop();
 
@@ -1852,6 +1871,10 @@ async function executeRevisionCall(candidateResult, { revisionPrompt, effectiveO
         }
       });
       revRes.on('end', () => {
+        const remaining = revDecoder.end();
+        if (remaining) {
+          revBuffer += remaining;
+        }
         if (revBuffer && revBuffer.trim()) {
           try {
             const d = JSON.parse(revBuffer.trim());

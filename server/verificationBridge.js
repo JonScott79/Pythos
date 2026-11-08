@@ -8,6 +8,7 @@
 
 const child_process = require('child_process');
 const path = require('path');
+const { StringDecoder } = require('string_decoder');
 const math = require('mathjs');
 const mathjsVerifier = require('./mathjsVerifier');
 
@@ -2491,7 +2492,10 @@ async function runDeterministicVerification(claim, userPrompt = '') {
     return new Promise((resolve) => {
       const pythonBin = getPythonExecutable();
       const pythonScript = path.join(__dirname, 'verifier', 'verifier.py');
-      const proc = child_process.spawn(pythonBin, [pythonScript], { stdio: ['pipe', 'pipe', 'pipe'] });
+      const proc = child_process.spawn(pythonBin, [pythonScript], {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+      });
 
       let stdout = '';
       let stderr = '';
@@ -2553,14 +2557,18 @@ async function runDeterministicVerification(claim, userPrompt = '') {
 
       proc.stdout.setEncoding('utf8');
       proc.stderr.setEncoding('utf8');
-      proc.stdout.on('data', (d) => { stdout += d; });
-      proc.stderr.on('data', (d) => { stderr += d; });
+      const stdoutDecoder = new StringDecoder('utf8');
+      const stderrDecoder = new StringDecoder('utf8');
+      proc.stdout.on('data', (d) => { stdout += (typeof d === 'string' ? d : stdoutDecoder.write(d)); });
+      proc.stderr.on('data', (d) => { stderr += (typeof d === 'string' ? d : stderrDecoder.write(d)); });
 
       proc.on('close', (code) => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
         cleanupProcess(false);
+        stdout += stdoutDecoder.end();
+        stderr += stderrDecoder.end();
 
         if (code === 0 && stdout.trim()) {
           try {
@@ -2737,7 +2745,10 @@ async function runPythonVerifierBatch(claimsBatch) {
     return new Promise((resolve) => {
       const pythonBin = getPythonExecutable();
       const pythonScript = path.join(__dirname, 'verifier', 'verifier.py');
-      const proc = child_process.spawn(pythonBin, [pythonScript], { stdio: ['pipe', 'pipe', 'pipe'] });
+      const proc = child_process.spawn(pythonBin, [pythonScript], {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+      });
 
       let stdout = '';
       let stderr = '';
@@ -2771,14 +2782,18 @@ async function runPythonVerifierBatch(claimsBatch) {
 
       proc.stdout.setEncoding('utf8');
       proc.stderr.setEncoding('utf8');
-      proc.stdout.on('data', (d) => { stdout += d; });
-      proc.stderr.on('data', (d) => { stderr += d; });
+      const stdoutDecoder = new StringDecoder('utf8');
+      const stderrDecoder = new StringDecoder('utf8');
+      proc.stdout.on('data', (d) => { stdout += (typeof d === 'string' ? d : stdoutDecoder.write(d)); });
+      proc.stderr.on('data', (d) => { stderr += (typeof d === 'string' ? d : stderrDecoder.write(d)); });
 
       proc.on('close', (code) => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
         cleanupProcess(false);
+        stdout += stdoutDecoder.end();
+        stderr += stderrDecoder.end();
 
         if (code === 0 && stdout.trim()) {
           try {
