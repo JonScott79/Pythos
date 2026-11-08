@@ -1393,9 +1393,9 @@ async function executeGroqTextCall(provider, { messages, options, timeoutMs = 20
     throw err;
   }
 
-  let targetModel = provider.model || process.env.GROQ_TEXT_MODEL || 'llama-3.1-8b-instant';
-  if (targetModel.includes('llama-3.3-70b') || targetModel.includes('gpt-oss') || targetModel.includes('mixtral')) {
-    targetModel = 'llama-3.1-8b-instant';
+  let targetModel = provider.model || process.env.GROQ_TEXT_MODEL || 'openai/gpt-oss-120b';
+  if (targetModel.includes('llama-3.3-70b') || targetModel.includes('llama-3.1-8b') || targetModel.includes('prompt-guard')) {
+    targetModel = 'openai/gpt-oss-120b';
   }
 
   // Helper to discover active available models from Groq API
@@ -1410,21 +1410,23 @@ async function executeGroqTextCall(provider, { messages, options, timeoutMs = 20
         console.log('[GROQ DISCOVERY] Available models for this key:', ids.join(', '));
         // Prefer common chat models in priority order
         const preferred = [
+          'openai/gpt-oss-120b',
+          'openai/gpt-oss-20b',
+          'qwen/qwen3.8-27b',
+          'allam-2-7b',
           'llama-3.1-8b-instant',
-          'llama3-8b-8192',
-          'llama-3.2-1b-preview',
-          'llama-3.2-3b-preview',
-          'llama-3.2-11b-vision-preview',
-          'llama-3.3-70b-versatile',
-          'llama-3.3-70b-specdec',
-          'gemma2-9b-it',
-          'mixtral-8x7b-32768'
+          'llama3-8b-8192'
         ];
         for (const pref of preferred) {
           if (ids.includes(pref)) return pref;
         }
-        // Fallback to any non-whisper model
-        const chatCandidate = ids.find(id => !id.includes('whisper') && !id.includes('distil'));
+        // Fallback to any reasoning/chat model, excluding guards and audio
+        const chatCandidate = ids.find(id => 
+          !id.includes('whisper') && 
+          !id.includes('guard') && 
+          !id.includes('distil') && 
+          !id.includes('orpheus')
+        );
         if (chatCandidate) return chatCandidate;
       }
     } catch (discErr) {

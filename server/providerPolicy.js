@@ -99,9 +99,9 @@ function getProviderRegistry() {
       name: 'groq-text',
       capability: 'text',
       model: (() => {
-        const raw = process.env.GROQ_TEXT_MODEL || 'llama-3.1-8b-instant';
-        if (raw.includes('llama-3.3-70b') || raw.includes('gpt-oss') || raw.includes('mixtral')) {
-          return 'llama-3.1-8b-instant';
+        const raw = process.env.GROQ_TEXT_MODEL || 'openai/gpt-oss-120b';
+        if (raw.includes('llama-3.3-70b') || raw.includes('llama-3.1-8b')) {
+          return 'openai/gpt-oss-120b';
         }
         return raw;
       })(),
