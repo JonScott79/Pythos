@@ -1393,7 +1393,10 @@ async function executeGroqTextCall(provider, { messages, options, timeoutMs = 20
     throw err;
   }
 
-  const targetModel = provider.model || process.env.GROQ_TEXT_MODEL || 'llama-3.1-8b-instant';
+  let targetModel = provider.model || process.env.GROQ_TEXT_MODEL || 'llama-3.1-8b-instant';
+  if (targetModel.includes('llama-3.3-70b') || targetModel.includes('gpt-oss') || targetModel.includes('mixtral')) {
+    targetModel = 'llama-3.1-8b-instant';
+  }
   const textMessages = messages.map(m => {
     if (m.images && m.images.length > 0) {
       const { images, ...rest } = m;
@@ -1457,6 +1460,7 @@ ${m.content.slice(PYTHOS_SYSTEM_PROMPT.length).trim()}`;
           return rejectGroq(err);
         }
         if (gRes.statusCode >= 400) {
+          console.error(`[GROQ API ERROR] Model: ${targetModel}, Status: ${gRes.statusCode}, Body: ${gBody}`);
           const err = new Error(`Groq Text returned ${gRes.statusCode}: ${gBody}`);
           err.statusCode = gRes.statusCode;
           err.status = gRes.statusCode;
@@ -2735,11 +2739,15 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           break;
         }
 
-        if (primaryFailureError) {
-          if (backupFailureError && (backupFailureError.statusCode === 429 || backupFailureError.code === 'RATE_LIMIT' || backupFailureError.code === 'UPSTREAM_RATE_LIMITED')) {
-            throw backupFailureError;
+        if (primaryFailureError || backupFailureError) {
+          // If we have an actionable rate limit, auth, or model error, prioritize surfacing it over connection refused
+          const meaningfulError = [backupFailureError, primaryFailureError].find(
+            e => e && e.code !== 'ECONNREFUSED' && !((e.message || '').includes('ECONNREFUSED'))
+          );
+          if (meaningfulError) {
+            throw meaningfulError;
           }
-          throw primaryFailureError;
+          throw (primaryFailureError || backupFailureError);
         }
 
         const isCostBlocked = textSelection.reason === 'COST_GUARDRAIL_BLOCKED';
@@ -2759,7 +2767,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
       }
 
       triedTextProviders.add(selectedProvider.name);
-      const isPrimary = (selectedProvider.name === 'ollama-text');
+      const isPrimary = (triedTextProviders.size === 1);
 
       try {
         if (selectedProvider.name === 'ollama-text') {
@@ -2870,9 +2878,12 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           }
         } else {
           backupFailureError = callErr;
-          console.error(`[BACKUP BRAIN] Backup provider '${selectedProvider.name}' also failed:`, callErr.message);
-          const retrySec = callErr.retryAfter || 60;
-          providerPolicy.recordRateLimit(selectedProvider.name, retrySec);
+          console.error(`[BACKUP BRAIN] Backup provider '${selectedProvider.name}' failed:`, callErr.message);
+          const isRateLimit = callErr.statusCode === 429 || (callErr.message && /rate_limit|rate limit|quota/i.test(callErr.message));
+          if (isRateLimit) {
+            const retrySec = callErr.retryAfter || 60;
+            providerPolicy.recordRateLimit(selectedProvider.name, retrySec);
+          }
         }
       }
     }
