@@ -13,6 +13,7 @@
 */
 
 const { getAdminFirestore, isAdminSdkAvailable } = require('./firebaseAdmin');
+const { validateLearningDocument } = require('./firestoreSchemaValidator');
 
 // In-memory cache keyed strictly by student UID: Map<uid, { data: { version, records, conflicts }, cachedAt: number }>
 const _userStores = new Map();
@@ -232,6 +233,37 @@ async function storeVerifiedCorrection(uid, candidate) {
     };
   }
 
+  if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+    return {
+      success: false,
+      status: 'invalid_candidate',
+      reason: 'Candidate payload must be a non-null object.'
+    };
+  }
+
+  const ALLOWED_CANDIDATE_FIELDS = new Set([
+    'topic',
+    'problem_type',
+    'original_error',
+    'failure_mode',
+    'corrected_result',
+    'explanation',
+    'verification_method',
+    'confidence',
+    'verification_expression',
+    'expected_value'
+  ]);
+
+  for (const k of Object.keys(candidate)) {
+    if (!ALLOWED_CANDIDATE_FIELDS.has(k)) {
+      return {
+        success: false,
+        status: 'schema_validation_failed',
+        reason: `Unexpected field "${k}" is not permitted in candidate payload.`
+      };
+    }
+  }
+
   const data = await loadData(uid);
   const conflict = detectConflict(data, candidate);
 
@@ -246,8 +278,20 @@ async function storeVerifiedCorrection(uid, candidate) {
       status: 'pending_review',
       reason: `Conflict between existing result ("${conflict.existingRecord.corrected_result}") and candidate result ("${candidate.corrected_result}")`
     };
+    const conflictValidation = validateLearningDocument(conflictEntry, {
+      path: `users/${uid}/pythos_learning/${conflictEntry.id}`,
+      uid
+    });
+    if (!conflictValidation.valid) {
+      return {
+        success: false,
+        status: 'schema_validation_failed',
+        reason: conflictValidation.errors.join('; ')
+      };
+    }
+
     data.conflicts.push(conflictEntry);
-    await saveData(uid, data);
+  await saveData(uid, data);
 
     if (isAdminSdkAvailable()) {
       try {
@@ -305,6 +349,18 @@ async function storeVerifiedCorrection(uid, candidate) {
       created_at: new Date().toISOString()
     };
     data.records.push(record);
+  }
+
+  const recordValidation = validateLearningDocument(record, {
+    path: `users/${uid}/pythos_learning/${record.id}`,
+    uid
+  });
+  if (!recordValidation.valid) {
+    return {
+      success: false,
+      status: 'schema_validation_failed',
+      reason: recordValidation.errors.join('; ')
+    };
   }
 
   await saveData(uid, data);

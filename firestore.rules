@@ -44,9 +44,29 @@ service cloud.firestore {
         (request.auth.uid == userId || isAdmin());
       allow write: if isAdmin();
       
-      // Pythos AI Chat History — owned by the authenticated user
+      // Validates schema and fields for client writes to pythos_chats (LOW-01)
+      function isValidChatDoc() {
+        let data = request.resource.data;
+        let allowedFields = ['title', 'timestamp', 'updatedAt', 'messages', 'isTest', 'testArtifact'];
+        return data.keys().hasOnly(allowedFields) &&
+          data.title is string &&
+          data.title.size() > 0 &&
+          data.title.size() <= 300 &&
+          data.messages is list &&
+          data.messages.size() <= 500 &&
+          (!('updatedAt' in data) || data.updatedAt is timestamp || data.updatedAt is string) &&
+          (!('timestamp' in data) || data.timestamp is timestamp || data.timestamp is string) &&
+          (!('isTest' in data) || data.isTest is bool) &&
+          (!('testArtifact' in data) || data.testArtifact is bool);
+      }
+
+      // Pythos AI Chat History — owned by authenticated user with strict schema validation
       match /pythos_chats/{chatId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+        allow delete: if request.auth != null && request.auth.uid == userId;
+        allow create, update: if request.auth != null &&
+          request.auth.uid == userId &&
+          isValidChatDoc();
       }
 
       // Pythos Student Personal Memory — owned by authenticated student
@@ -146,6 +166,11 @@ service cloud.firestore {
     //  Server (Firebase Admin SDK) bypasses these rules entirely for writes.
     //  These rules govern what browser clients can do directly.
     // ============================================================
+    // Explicitly deny client access to top-level learning_data
+    match /learning_data/{document=**} {
+      allow read, write: if false;
+    }
+
     match /pythos/{anchor} {
       // Anchor document: readable by admins, writable server-side only.
       allow read: if isAdmin();
