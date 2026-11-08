@@ -6,7 +6,6 @@
     Responsibilities
 
     - Google Analytics loading and event tracking
-    - Microsoft Clarity loading and event tracking
     - Event routing and category normalization
     - Privacy filtering
 */
@@ -20,7 +19,6 @@
     if (window.Analytics) return;
 
     const GA_MEASUREMENT_ID = 'G-JFV7CSM9G9';
-    const CLARITY_PROJECT_ID = 'ynbuaomkmw';
 
     // Initialize Data Layer for GA
     window.dataLayer = window.dataLayer || [];
@@ -34,11 +32,6 @@
         send_page_view: true
     });
 
-    // Initialize Clarity stub queue so early events are buffered before script load
-    window.clarity = window.clarity || function() {
-        (window.clarity.q = window.clarity.q || []).push(arguments);
-    };
-
     let scriptsInjected = false;
     function injectAnalyticsScripts() {
         if (scriptsInjected) return;
@@ -49,13 +42,6 @@
         gaScript.async = true;
         gaScript.src = `https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`;
         document.head.appendChild(gaScript);
-
-        // Dynamically load Microsoft Clarity script
-        (function(c,l,a,r,i,t,y){
-            c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
-            t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
-            y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
-        })(window, document, "clarity", "script", CLARITY_PROJECT_ID);
     }
 
     if (document.readyState === 'complete') {
@@ -72,7 +58,7 @@
 
     window.Analytics = {
         /**
-         * Track custom events to GA and Clarity
+         * Track custom events to GA
          * @param {string} category - Event category (e.g., "Navigation", "Interaction", "Math")
          * @param {string} action - Event action description
          * @param {Object} [data] - Optional metadata (filtered for privacy)
@@ -87,11 +73,6 @@
                     event_category: category,
                     ...filteredData
                 });
-            }
-
-            // Route to Microsoft Clarity
-            if (typeof window.clarity === 'function') {
-                window.clarity('event', `${category}_${action}`);
             }
         }
     };

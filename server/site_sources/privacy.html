@@ -211,9 +211,9 @@
     </section>
 
     <section class="card">
-      <h2>5. Telemetry &amp; Strict Clarity Masking</h2>
+      <h2>5. Telemetry &amp; Session Privacy</h2>
       <p>
-        To diagnose layout bugs across screen sizes, Pythos uses Microsoft Clarity with strict privacy masking (`data-clarity-mask="true"`) applied to all student input fields (`#userInput`), conversation logs (`#output`), uploaded image strips (`#pendingImagesStrip`), sidebar chat history (`#chatHistoryList`), personal memory modals (`#pythosMemoryModal`), and floating tool windows. Your problem text and homework content are masked from analytics inspection.
+        Pythos respects student confidentiality and does not use Microsoft Clarity, third-party session recording, keystroke logging, or advertising trackers. Strict privacy masking attributes (<code>data-clarity-mask="true"</code>) are defensively retained across student input fields (<code>#userInput</code>), conversation logs (<code>#output</code>), uploaded problem images (<code>#pendingImagesStrip</code>), sidebar chat history (<code>#chatHistoryList</code>), and personal memory records (<code>#pythosMemoryModal</code>). No personal student homework content is shared with analytics services.
       </p>
     </section>
   </main>
