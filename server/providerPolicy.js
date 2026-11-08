@@ -122,11 +122,11 @@ function getProviderRegistry() {
     }
   ];
 
-  if (primaryText === 'groq-text') {
-    const groqIdx = textProviders.findIndex(p => p.name === 'groq-text');
-    if (groqIdx > 0) {
-      const [groqProv] = textProviders.splice(groqIdx, 1);
-      textProviders.unshift(groqProv);
+  if (primaryText) {
+    const primaryIdx = textProviders.findIndex(p => p.name === primaryText);
+    if (primaryIdx > 0) {
+      const [prov] = textProviders.splice(primaryIdx, 1);
+      textProviders.unshift(prov);
     }
   }
 

@@ -750,34 +750,22 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Readiness probe (Phase 1.4 Sanitized): Returns readiness status without exposing internal model lists or binary paths
+const { checkReadiness } = require('./readinessCheck');
+
+// Readiness probe (MEDIUM-03 Sanitized): Returns structured provider-aware readiness without exposing credentials or internal paths
 app.get('/health/ready', async (req, res) => {
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-    const checkRes = await fetch(`${OLLAMA_HOST}/api/tags`, {
-      method: 'GET',
-      headers: getOllamaHeaders(),
-      signal: controller.signal
-    });
-    clearTimeout(timeout);
-
-    if (checkRes.ok) {
-      return res.status(200).json({
-        status: 'ready',
-        service: 'pythos-api',
-        timestamp: new Date().toISOString()
-      });
-    }
-    return res.status(503).json({
-      status: 'degraded',
-      service: 'pythos-api',
-      timestamp: new Date().toISOString()
-    });
+    const report = await checkReadiness();
+    const httpStatus = report.status === 'ready' ? 200 : 503;
+    return res.status(httpStatus).json(report);
   } catch (err) {
     return res.status(503).json({
       status: 'degraded',
       service: 'pythos-api',
+      checks: {
+        llm: { status: 'degraded', provider: 'unknown' },
+        cas: { status: 'degraded', engine: 'sympy' }
+      },
       timestamp: new Date().toISOString()
     });
   }
