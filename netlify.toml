@@ -10,11 +10,23 @@
 # Context-specific environment overrides for isolated staging builds
 [context.phase3_final_production_validation.environment]
   PYTHOS_ENV = "staging"
-  STAGING_API_URL = "https://pythos-staging.up.railway.app"
+  STAGING_API_URL = "https://pythos-production-c45f.up.railway.app"
+  STAGING_FIREBASE_API_KEY = "AIzaSyA42wl_R3CHq0ZqEW5R381E-kul96mnM30"
+  STAGING_FIREBASE_AUTH_DOMAIN = "pythos-staging.firebaseapp.com"
+  STAGING_FIREBASE_PROJECT_ID = "pythos-staging"
+  STAGING_FIREBASE_STORAGE_BUCKET = "pythos-staging.firebasestorage.app"
+  STAGING_FIREBASE_MESSAGING_SENDER_ID = "558482358646"
+  STAGING_FIREBASE_APP_ID = "1:558482358646:web:b38ea061abc3ef7158fa57"
 
 [context.staging.environment]
   PYTHOS_ENV = "staging"
-  STAGING_API_URL = "https://pythos-staging.up.railway.app"
+  STAGING_API_URL = "https://pythos-production-c45f.up.railway.app"
+  STAGING_FIREBASE_API_KEY = "AIzaSyA42wl_R3CHq0ZqEW5R381E-kul96mnM30"
+  STAGING_FIREBASE_AUTH_DOMAIN = "pythos-staging.firebaseapp.com"
+  STAGING_FIREBASE_PROJECT_ID = "pythos-staging"
+  STAGING_FIREBASE_STORAGE_BUCKET = "pythos-staging.firebasestorage.app"
+  STAGING_FIREBASE_MESSAGING_SENDER_ID = "558482358646"
+  STAGING_FIREBASE_APP_ID = "1:558482358646:web:b38ea061abc3ef7158fa57"
 
 [[headers]]
   for = "/*"

@@ -27,7 +27,7 @@ const PERMITTED_PUBLIC_FILES = [
 ];
 
 if (fs.existsSync(DIST)) {
-  fs.rmSync(DIST, { recursive: true, force: true });
+  fs.rmSync(DIST, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 }
 fs.mkdirSync(DIST, { recursive: true });
 
@@ -41,7 +41,7 @@ for (const dirName of PERMITTED_PUBLIC_DIRS) {
 for (const fileName of PERMITTED_PUBLIC_FILES) {
   const srcFile = path.join(ROOT, fileName);
   if (fs.existsSync(srcFile)) {
-    fs.cpSync(srcFile, path.join(DIST, fileName));
+    fs.copyFileSync(srcFile, path.join(DIST, fileName));
   }
 }
 
