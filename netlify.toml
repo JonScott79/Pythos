@@ -3,8 +3,8 @@
   publish = "dist"
 
 [build.environment]
-  SECRETS_SCAN_ENABLED = "false"
-  SECRETS_SCAN_SMART_DETECTION_ENABLED = "false"
+  SECRETS_SCAN_ENABLED = "true"
+  SECRETS_SCAN_SMART_DETECTION_ENABLED = "true"
   SECRETS_SCAN_SMART_DETECTION_OMIT_VALUES = "AIzaSyCm11MJPwYKk2ckDIrTOGLNHdyFkdCOM2k"
 
 [[headers]]
