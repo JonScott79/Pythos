@@ -77,7 +77,12 @@ function getAiEnabled() {
  * - isConfigured: function returning whether credentials/host are present
  */
 function getProviderRegistry() {
-  const primaryText = process.env.PRIMARY_TEXT_PROVIDER || (process.env.RAILWAY_ENVIRONMENT ? 'groq-text' : null);
+  let rawPrimary = process.env.PRIMARY_TEXT_PROVIDER || '';
+  if (rawPrimary === 'groq') rawPrimary = 'groq-text';
+  if (rawPrimary === 'gemini') rawPrimary = 'gemini-text';
+  if (rawPrimary === 'ollama') rawPrimary = 'ollama-text';
+  const isRailway = Boolean(process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_ENVIRONMENT_NAME || process.env.RAILWAY_SERVICE_NAME || process.env.RAILWAY_PROJECT_NAME);
+  const primaryText = rawPrimary || (isRailway || getGroqApiKey() ? 'groq-text' : null);
 
   const textProviders = [
     {
