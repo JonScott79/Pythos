@@ -1397,6 +1397,41 @@ async function executeGroqTextCall(provider, { messages, options, timeoutMs = 20
   if (targetModel.includes('llama-3.3-70b') || targetModel.includes('gpt-oss') || targetModel.includes('mixtral')) {
     targetModel = 'llama-3.1-8b-instant';
   }
+
+  // Helper to discover active available models from Groq API
+  async function discoverAvailableGroqModel(apiKey) {
+    try {
+      const res = await fetch('https://api.groq.com/openai/v1/models', {
+        headers: { 'Authorization': `Bearer ${apiKey}` }
+      });
+      if (res.ok) {
+        const body = await res.json();
+        const ids = (body.data || []).map(m => m.id);
+        console.log('[GROQ DISCOVERY] Available models for this key:', ids.join(', '));
+        // Prefer common chat models in priority order
+        const preferred = [
+          'llama-3.1-8b-instant',
+          'llama3-8b-8192',
+          'llama-3.2-1b-preview',
+          'llama-3.2-3b-preview',
+          'llama-3.2-11b-vision-preview',
+          'llama-3.3-70b-versatile',
+          'llama-3.3-70b-specdec',
+          'gemma2-9b-it',
+          'mixtral-8x7b-32768'
+        ];
+        for (const pref of preferred) {
+          if (ids.includes(pref)) return pref;
+        }
+        // Fallback to any non-whisper model
+        const chatCandidate = ids.find(id => !id.includes('whisper') && !id.includes('distil'));
+        if (chatCandidate) return chatCandidate;
+      }
+    } catch (discErr) {
+      console.warn('[GROQ DISCOVERY] Failed to query /models:', discErr.message);
+    }
+    return null;
+  }
   const textMessages = messages.map(m => {
     if (m.images && m.images.length > 0) {
       const { images, ...rest } = m;
@@ -1426,7 +1461,7 @@ ${m.content.slice(PYTHOS_SYSTEM_PROMPT.length).trim()}`;
   if (isReasoningModel) {
     payloadObj.reasoning_effort = 'low';
   }
-  const groqPayload = JSON.stringify(payloadObj);
+  let groqPayload = JSON.stringify(payloadObj);
 
   const groqHttps = require('https');
   const executeCall = () => new Promise((resolveGroq, rejectGroq) => {
@@ -1509,7 +1544,22 @@ ${m.content.slice(PYTHOS_SYSTEM_PROMPT.length).trim()}`;
     groqReq.end();
   });
 
-  return await executeCall();
+  try {
+    return await executeCall();
+  } catch (firstErr) {
+    if (firstErr.statusCode === 404 || (firstErr.message && firstErr.message.includes('model_not_found'))) {
+      console.warn(`[GROQ RETRY] Model '${targetModel}' returned 404 model_not_found. Auto-discovering accessible model...`);
+      const discovered = await discoverAvailableGroqModel(groqApiKey);
+      if (discovered && discovered !== targetModel) {
+        console.log(`[GROQ RETRY] Retrying inference call with discovered accessible model '${discovered}'...`);
+        targetModel = discovered;
+        payloadObj.model = discovered;
+        groqPayload = JSON.stringify(payloadObj);
+        return await executeCall();
+      }
+    }
+    throw firstErr;
+  }
 }
 
 /**

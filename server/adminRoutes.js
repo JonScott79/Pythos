@@ -110,6 +110,24 @@ async function adminAuth(req, res, next) {
 router.use(adminAuth);
 
 // GET /admin/status: Protected administrative diagnostic telemetry (Phase 1.4)
+
+// GET /admin/groq-models: Discover exact models available to the active Groq key
+router.get('/groq-models', async (req, res) => {
+  const providerPolicy = require('./providerPolicy');
+  const key = providerPolicy.getGroqApiKey();
+  if (!key) return res.status(400).json({ error: 'No Groq API key configured' });
+  try {
+    const groqRes = await fetch('https://api.groq.com/openai/v1/models', {
+      headers: { 'Authorization': `Bearer ${key}` }
+    });
+    const data = await groqRes.json();
+    const modelIds = (data.data || []).map(m => m.id);
+    return res.json({ status: groqRes.status, count: modelIds.length, modelIds });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/status', (req, res) => {
   const providerPolicy = require('./providerPolicy');
   const { getCasTelemetry } = require('./verificationBridge');
