@@ -7,6 +7,15 @@
   SECRETS_SCAN_SMART_DETECTION_ENABLED = "true"
   SECRETS_SCAN_SMART_DETECTION_OMIT_VALUES = "AIzaSyCm11MJPwYKk2ckDIrTOGLNHdyFkdCOM2k"
 
+# Context-specific environment overrides for isolated staging builds
+[context.phase3_final_production_validation.environment]
+  PYTHOS_ENV = "staging"
+  STAGING_API_URL = "https://pythos-staging.up.railway.app"
+
+[context.staging.environment]
+  PYTHOS_ENV = "staging"
+  STAGING_API_URL = "https://pythos-staging.up.railway.app"
+
 [[headers]]
   for = "/*"
   [headers.values]
