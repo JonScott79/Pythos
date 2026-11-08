@@ -50,31 +50,123 @@ for (const fileName of PERMITTED_PUBLIC_FILES) {
 // ==============================================================================
 // When building in staging context (e.g. Netlify branch deploy for
 // phase3_final_production_validation), rewire client API endpoints and Firebase
-// configuration to the dedicated staging services. Production endpoints are
-// never referenced in staging builds.
+// configuration to the dedicated staging services. Production endpoints and
+// credentials must NEVER be referenced in staging builds.
 if (process.env.PYTHOS_ENV === 'staging') {
   const stagingApiUrl = process.env.STAGING_API_URL || 'https://pythos-staging.up.railway.app';
-  const stagingFirebaseProjectId = process.env.STAGING_FIREBASE_PROJECT_ID || 'pythos-staging';
 
-  // 1. Rewrite dist/app.js API endpoint and Firebase config
+  // 1. Resolve and validate staging Firebase configuration
+  const REQUIRED_FIREBASE_KEYS = [
+    'apiKey',
+    'authDomain',
+    'projectId',
+    'storageBucket',
+    'messagingSenderId',
+    'appId'
+  ];
+
+  const PROD_FIREBASE_VALUES = {
+    apiKey: 'AIzaSyCm11MJPwYKk2ckDIrTOGLNHdyFkdCOM2k',
+    authDomain: 'lanzar-95ae3.firebaseapp.com',
+    projectId: 'lanzar-95ae3',
+    storageBucket: 'lanzar-95ae3.firebasestorage.app',
+    messagingSenderId: '61309916889',
+    appId: '1:61309916889:web:a6bce4cb213af2a52250c8'
+  };
+
+  let stagingConfig = null;
+  if (process.env.STAGING_FIREBASE_CONFIG) {
+    try {
+      const raw = process.env.STAGING_FIREBASE_CONFIG.trim();
+      if (raw.startsWith('{')) {
+        stagingConfig = JSON.parse(raw);
+      } else if (fs.existsSync(raw)) {
+        stagingConfig = JSON.parse(fs.readFileSync(raw, 'utf8'));
+      } else {
+        throw new Error(`STAGING_FIREBASE_CONFIG file not found: ${raw}`);
+      }
+    } catch (err) {
+      throw new Error(`[stage-public] Failed to parse STAGING_FIREBASE_CONFIG: ${err.message}`);
+    }
+  } else {
+    // Collect from discrete environment variables
+    stagingConfig = {
+      apiKey: process.env.STAGING_FIREBASE_API_KEY,
+      authDomain: process.env.STAGING_FIREBASE_AUTH_DOMAIN,
+      projectId: process.env.STAGING_FIREBASE_PROJECT_ID,
+      storageBucket: process.env.STAGING_FIREBASE_STORAGE_BUCKET,
+      messagingSenderId: process.env.STAGING_FIREBASE_MESSAGING_SENDER_ID,
+      appId: process.env.STAGING_FIREBASE_APP_ID
+    };
+  }
+
+  // Strict validation: every single key must be present and non-empty
+  const missingKeys = [];
+  const prodCollisions = [];
+
+  for (const key of REQUIRED_FIREBASE_KEYS) {
+    const val = stagingConfig ? stagingConfig[key] : undefined;
+    if (!val || typeof val !== 'string' || !val.trim()) {
+      missingKeys.push(key);
+    } else {
+      const trimmed = val.trim();
+      if (trimmed === PROD_FIREBASE_VALUES[key] || trimmed.includes('lanzar-95ae3')) {
+        prodCollisions.push(`${key} matches production value`);
+      }
+    }
+  }
+
+  if (missingKeys.length > 0) {
+    throw new Error(
+      `[stage-public] STAGING BUILD ABORTED: Incomplete staging Firebase configuration.\n` +
+      `Missing required keys: ${missingKeys.join(', ')}.\n` +
+      `When PYTHOS_ENV=staging is active, complete staging Firebase Web App configuration must be provided via STAGING_FIREBASE_CONFIG (JSON) or STAGING_FIREBASE_* environment variables.`
+    );
+  }
+
+  if (prodCollisions.length > 0) {
+    throw new Error(
+      `[stage-public] STAGING BUILD ABORTED: Staging configuration contains production credentials/identifiers!\n` +
+      `Collisions: ${prodCollisions.join(', ')}.\n` +
+      `Staging builds must never fall back to or reference production Firebase credentials.`
+    );
+  }
+
+  // Regex to find the firebaseConfig object in client code
+  const firebaseConfigRegex = /const\s+firebaseConfig\s*=\s*\{[\s\S]*?\};/;
+
+  // 2. Rewrite dist/app.js API endpoint and Firebase config
   const distAppJsPath = path.join(DIST, 'app.js');
   if (fs.existsSync(distAppJsPath)) {
     let appContent = fs.readFileSync(distAppJsPath, 'utf8');
+
+    // Replace comment mentioning production project
+    appContent = appContent.replace(/\/\/\s*\(Shared with LANZAR Auth Hub & Threadline:\s*lanzar-95ae3\)/g, `// (Dedicated Isolated Staging Firebase Project: ${stagingConfig.projectId})`);
+
+    // Replace firebaseConfig object
+    const formattedAppConfig = `const firebaseConfig = ${JSON.stringify(stagingConfig, null, 2)};`;
+    appContent = appContent.replace(firebaseConfigRegex, formattedAppConfig);
+
+    // Replace production API endpoints
     appContent = appContent.replace(/https:\/\/pythos-api\.lanzar\.me/g, stagingApiUrl);
-    appContent = appContent.replace(/lanzar-95ae3/g, stagingFirebaseProjectId);
+
     fs.writeFileSync(distAppJsPath, appContent, 'utf8');
   }
 
-  // 2. Rewrite dist/admin/index.html API endpoint and Firebase config
+  // 3. Rewrite dist/admin/index.html API endpoint and Firebase config
   const distAdminPath = path.join(DIST, 'admin', 'index.html');
   if (fs.existsSync(distAdminPath)) {
     let adminContent = fs.readFileSync(distAdminPath, 'utf8');
+
+    const formattedAdminConfig = `const firebaseConfig = ${JSON.stringify(stagingConfig, null, 4).split('\n').map((l, i) => i === 0 ? l : '    ' + l).join('\n')};`;
+    adminContent = adminContent.replace(firebaseConfigRegex, formattedAdminConfig);
+
     adminContent = adminContent.replace(/https:\/\/pythos-api\.lanzar\.me/g, stagingApiUrl);
-    adminContent = adminContent.replace(/lanzar-95ae3/g, stagingFirebaseProjectId);
+
     fs.writeFileSync(distAdminPath, adminContent, 'utf8');
   }
 
-  // 3. Generate dist/_headers with staging-isolated CSP
+  // 4. Generate dist/_headers with staging-isolated CSP
   const stagingCsp = [
     "default-src 'self'",
     "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com https://www.gstatic.com https://apis.google.com",
@@ -100,7 +192,38 @@ if (process.env.PYTHOS_ENV === 'staging') {
 
   fs.writeFileSync(path.join(DIST, '_headers'), headersContent, 'utf8');
 
-  console.log(`[stage-public] STAGING ISOLATION ACTIVE: API=${stagingApiUrl}, Firebase=${stagingFirebaseProjectId}`);
+  // 5. Exhaustive post-transform integrity scan of all staged artifacts
+  const PROD_IDENTIFIERS = [
+    'lanzar-95ae3',
+    PROD_FIREBASE_VALUES.apiKey,
+    'pythos-api.lanzar.me'
+  ];
+
+  function verifyNoProductionArtifacts(dir) {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        verifyNoProductionArtifacts(fullPath);
+      } else if (entry.isFile()) {
+        const ext = path.extname(entry.name).toLowerCase();
+        if (['.html', '.js', '.json', '.webmanifest', '.txt', '.xml', ''].includes(ext) || entry.name === '_headers' || entry.name === '_redirects') {
+          const content = fs.readFileSync(fullPath, 'utf8');
+          for (const identifier of PROD_IDENTIFIERS) {
+            if (content.includes(identifier)) {
+              throw new Error(
+                `[stage-public] CRITICAL AIR-GAP BREACH: Staged artifact "${path.relative(DIST, fullPath)}" contains production identifier "${identifier}"!`
+              );
+            }
+          }
+        }
+      }
+    }
+  }
+
+  verifyNoProductionArtifacts(DIST);
+
+  console.log(`[stage-public] STAGING ISOLATION ACTIVE & VERIFIED: API=${stagingApiUrl}, Firebase=${stagingConfig.projectId}`);
 }
 
 console.log(`[stage-public] Staged clean public build in ${DIST}`);
