@@ -2926,7 +2926,7 @@ function updateActiveSidebarChat(chatId) {
 }
 
 async function loadSidebarChats() {
-  if (!currentUser) return;
+  if (!currentUser || currentUser.isLanzarId || !db) return;
   const listEl = document.getElementById("chatHistoryList");
   listEl.innerHTML = "<em>Loading past sessions...</em>";
 
@@ -3134,6 +3134,7 @@ function showPythosConfirm(message = "Are you sure you wish to delete this chat 
 
 // ----- Delete -----
 async function deleteChat(chatId) {
+  if (!currentUser || currentUser.isLanzarId || !db) return;
   const confirmed = await showPythosConfirm("Are you sure you wish to delete this discussion from the archives?");
   if (!confirmed) return;
   try {
@@ -3152,7 +3153,7 @@ async function deleteChat(chatId) {
 }
 
 async function loadChat(chatId) {
-  if (!currentUser) return;
+  if (!currentUser || currentUser.isLanzarId || !db) return;
   currentChatId = chatId;
   
   output.innerHTML = "";
@@ -3206,43 +3207,47 @@ document.getElementById("newChatBtn").addEventListener("click", () => {
 });
 
 async function saveChatState(userMessage, botReply) {
-  if (!currentUser) return; // Only save if logged in
+  if (!currentUser || currentUser.isLanzarId || !db) return; // Client Firestore only available for Firebase Auth users
 
-  const chatsRef = collection(db, `users/${currentUser.uid}/pythos_chats`);
-  
-  // Sanitize messages so raw base64 image strings never bloat Firestore documents over 1MB limit
-  const sanitizedMessages = messages.map(m => {
-    if (!m) return m;
-    const clean = { ...m };
-    if (clean.images && Array.isArray(clean.images)) {
-      // Retain only metadata / thumbnail flag instead of huge multi-megabyte base64
-      clean.images = clean.images.map(img => {
-        if (typeof img === "string" && img.length > 500) {
-          return "[IMAGE_ATTACHED]";
-        }
-        return img;
+  try {
+    const chatsRef = collection(db, `users/${currentUser.uid}/pythos_chats`);
+    
+    // Sanitize messages so raw base64 image strings never bloat Firestore documents over 1MB limit
+    const sanitizedMessages = messages.map(m => {
+      if (!m) return m;
+      const clean = { ...m };
+      if (clean.images && Array.isArray(clean.images)) {
+        // Retain only metadata / thumbnail flag instead of huge multi-megabyte base64
+        clean.images = clean.images.map(img => {
+          if (typeof img === "string" && img.length > 500) {
+            return "[IMAGE_ATTACHED]";
+          }
+          return img;
+        });
+      }
+      return clean;
+    });
+
+    if (!currentChatId) {
+      // Generate a title based on the first user message
+      const title = userMessage.length > 30 ? userMessage.substring(0, 30) + "..." : userMessage;
+      const newDoc = await addDoc(chatsRef, {
+        title: title,
+        timestamp: serverTimestamp(),
+        messages: sanitizedMessages
+      });
+      currentChatId = newDoc.id;
+      loadSidebarChats(); // Refresh sidebar to show new chat
+    } else {
+      // Update existing chat
+      const docRef = doc(db, `users/${currentUser.uid}/pythos_chats`, currentChatId);
+      await updateDoc(docRef, {
+        messages: sanitizedMessages,
+        timestamp: serverTimestamp() // bump to top
       });
     }
-    return clean;
-  });
-
-  if (!currentChatId) {
-    // Generate a title based on the first user message
-    const title = userMessage.length > 30 ? userMessage.substring(0, 30) + "..." : userMessage;
-    const newDoc = await addDoc(chatsRef, {
-      title: title,
-      timestamp: serverTimestamp(),
-      messages: sanitizedMessages
-    });
-    currentChatId = newDoc.id;
-    loadSidebarChats(); // Refresh sidebar to show new chat
-  } else {
-    // Update existing chat
-    const docRef = doc(db, `users/${currentUser.uid}/pythos_chats`, currentChatId);
-    await updateDoc(docRef, {
-      messages: sanitizedMessages,
-      timestamp: serverTimestamp() // bump to top
-    });
+  } catch (err) {
+    console.warn("Non-fatal: Failed to persist chat session to Firestore:", err);
   }
 }
 
