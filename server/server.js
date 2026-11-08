@@ -1393,7 +1393,7 @@ async function executeGroqTextCall(provider, { messages, options, timeoutMs = 20
     throw err;
   }
 
-  const targetModel = provider.model || process.env.GROQ_TEXT_MODEL || 'llama-3.3-70b-versatile';
+  const targetModel = provider.model || process.env.GROQ_TEXT_MODEL || 'llama-3.1-8b-instant';
   const textMessages = messages.map(m => {
     if (m.images && m.images.length > 0) {
       const { images, ...rest } = m;
