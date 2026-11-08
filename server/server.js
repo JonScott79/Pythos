@@ -3949,27 +3949,26 @@ if (process.env.NODE_ENV !== 'test') {
   });
 }
 
-// Graceful shutdown handling
-process.on('SIGTERM', () => {
-  console.log('[PYTHOS BACKEND] SIGTERM received. Shutting down gracefully...');
+// Graceful shutdown handling (MEDIUM-04 Process & Worker Cleanup)
+function gracefulShutdown(signal) {
+  console.log(`[PYTHOS BACKEND] ${signal} received. Shutting down gracefully...`);
   clearActiveControllers();
+  try {
+    const { closeCalculusDaemon } = require('./engines/calculusEngine');
+    closeCalculusDaemon();
+  } catch (_) {}
   if (server) {
     server.close(() => {
-      console.log('[PYTHOS BACKEND] Process terminated.');
+      console.log('[PYTHOS BACKEND] Server closed. Process terminated.');
       process.exit(0);
     });
+  } else {
+    process.exit(0);
   }
-});
+}
 
-process.on('SIGINT', () => {
-  console.log('[PYTHOS BACKEND] SIGINT received. Shutting down gracefully...');
-  clearActiveControllers();
-  if (server) {
-    server.close(() => {
-      process.exit(0);
-    });
-  }
-});
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 module.exports = {
   app,
