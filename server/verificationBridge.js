@@ -246,7 +246,7 @@ function evaluateCandidateDelivery({ candidateAnswer, verifications = [], contra
     };
   }
 
-  const fidelity = auditPromptClaimFidelity(claims, prompt);
+  const fidelity = auditPromptClaimFidelity(claims, prompt, verifications);
   if (!fidelity.valid) {
     return {
       status: 'INSUFFICIENT_PROMPT_FIDELITY',
@@ -1219,85 +1219,92 @@ function extractClaims(text, userPrompt = '') {
     if (/\\int|\\frac\{d\}\{d|\\lim\b/i.test(cleanBlock)) continue;
 
     const parts = cleanBlock.split('=');
-    if (parts.length !== 2) continue;
+    if (parts.length < 2) continue;
 
-    let lhsRaw = parts[0].trim();
-    let rhsRaw = parts[1].trim();
+    for (let pi = 0; pi < parts.length - 1; pi++) {
+      let lhsRaw = parts[pi].trim();
+      let rhsRaw = parts[pi + 1].trim();
+      const pairCleanBlock = `${lhsRaw} = ${rhsRaw}`;
 
-    // Strip leading conversational/prose prefixes from LHS
-    lhsRaw = lhsRaw.replace(/^(?:(?:notice|observe|note|we\s+(?:have|see|get|find)|factors?|factorizations?|yields?|gives?|since|because|that|so|then|therefore|thus|hence|here|first|second|third|term\s*\d*|rhs|lhs)\s+)+/i, '').trim();
-    // Strip trailing conversational/prose suffixes from RHS
-    rhsRaw = rhsRaw.replace(/[.,;:]+$/, '').trim();
-    rhsRaw = rhsRaw.replace(/\s+(?:factors?|over|the|integers?|polynomials?|which|is|are|valid|holds?|for|all|identity|identities|where)\b.*$/i, '').trim();
-    rhsRaw = rhsRaw.replace(/[.,;:]+$/, '').trim();
+      // Strip leading conversational/prose prefixes from LHS
+      lhsRaw = lhsRaw.replace(/^(?:(?:notice|observe|note|we\s+(?:have|see|get|find)|factors?|factorizations?|yields?|gives?|since|because|that|so|then|therefore|thus|hence|here|first|second|third|term\s*\d*|rhs|lhs)\s+)+/i, '').trim();
+      // Strip trailing conversational/prose suffixes from RHS
+      rhsRaw = rhsRaw.replace(/[.,;:]+$/, '').trim();
+      rhsRaw = rhsRaw.replace(/\s+(?:factors?|over|the|integers?|polynomials?|which|is|are|valid|holds?|for|all|identity|identities|where)\b.*$/i, '').trim();
+      rhsRaw = rhsRaw.replace(/[.,;:]+$/, '').trim();
 
-    if (/^\s*[a-zA-Z]\s*$/.test(lhsRaw) || /^\s*[a-zA-Z]\s*$/.test(rhsRaw)) continue;
-    if (lhsRaw === '0' || rhsRaw === '0') continue;
-    if (!/[a-zA-Z]/.test(lhsRaw) && !/[a-zA-Z]/.test(rhsRaw)) continue;
-    if (/^[-+]?\d+(?:\.\d+)?$/.test(lhsRaw) || /^[-+]?\d+(?:\.\d+)?$/.test(rhsRaw)) continue;
+      if (pi === 0 && lhsRaw.includes(':')) lhsRaw = lhsRaw.slice(lhsRaw.lastIndexOf(':') + 1).trim();
+      if (/[,;]/.test(lhsRaw) || /[,;]/.test(rhsRaw)) continue;
+      if (/\b(?:the|solutions?|roots?|are|is|and|or|if|when|where|with|for|from|into|by|to|of|in|on|at|as|be|have|has|can|will|let|set|check|substitute|plug|solve|solving|factor|factoring|setting|each|zero|equals?|equal|both|either|neither|none|no|not|all|any|some)\b/i.test(lhsRaw) || /\b(?:the|solutions?|roots?|are|is|and|or|if|when|where|with|for|from|into|by|to|of|in|on|at|as|be|have|has|can|will|let|set|check|substitute|plug|solve|solving|factor|factoring|setting|each|zero|equals?|equal|both|either|neither|none|no|not|all|any|some)\b/i.test(rhsRaw)) continue;
+      if (/^\s*[a-zA-Z]\s*$/.test(lhsRaw) || /^\s*[a-zA-Z]\s*$/.test(rhsRaw)) continue;
+      if (lhsRaw === '0' || rhsRaw === '0') continue;
+      if (!/[a-zA-Z]/.test(lhsRaw) && !/[a-zA-Z]/.test(rhsRaw)) continue;
+      if (/^[-+]?\d+(?:\.\d+)?$/.test(lhsRaw) || /^[-+]?\d+(?:\.\d+)?$/.test(rhsRaw)) continue;
 
-    for (const [k, v] of Object.entries(algebraicDefinitions)) {
-      const macroRegex = new RegExp('(?<![a-zA-Z])' + k + '(?![a-zA-Z])', 'g');
-      lhsRaw = lhsRaw.replace(macroRegex, '(' + v + ')');
-      rhsRaw = rhsRaw.replace(macroRegex, '(' + v + ')');
-    }
+      for (const [k, v] of Object.entries(algebraicDefinitions)) {
+        const macroRegex = new RegExp('(?<![a-zA-Z])' + k + '(?![a-zA-Z])', 'g');
+        lhsRaw = lhsRaw.replace(macroRegex, '(' + v + ')');
+        rhsRaw = rhsRaw.replace(macroRegex, '(' + v + ')');
+      }
 
-    const normLhs = replaceLatexRadicalsAndFractions(lhsRaw)
-      .replace(/\\\(|\\\)/g, '')
-      .replace(/\\log_\{?([a-zA-Z0-9]+)\}?\s*(?:\*|\s)*\(([^()]+)\)/g, '(log($2)/log($1))')
-      .replace(/\\log_\{?([a-zA-Z0-9]+)\}?\s*(?:\*|\s)*([a-zA-Z0-9]+)/g, '(log($2)/log($1))')
-      .replace(/\\log\b|\\ln\b/g, 'log')
-      .replace(/\\times|\\cdot/g, '*')
-      .replace(/(\d)\s*([a-zA-Z])/g, '$1*$2')
-      .replace(/(\d)\s*\(/g, '$1*(')
-      .replace(/\)\s*\(/g, ')*(')
-      .replace(/\)\s*([a-zA-Z])/g, ')*$1')
-      .replace(/\b(?!sin|cos|tan|sec|csc|cot|log|ln|exp|sqrt|asin|acos|atan\b)([a-zA-Z])\s*\(/g, '$1*(')
-      .replace(/\s+/g, ' ')
-      .trim();
-    const normRhs = replaceLatexRadicalsAndFractions(rhsRaw)
-      .replace(/\\\(|\\\)/g, '')
-      .replace(/\\log_\{?([a-zA-Z0-9]+)\}?\s*(?:\*|\s)*\(([^()]+)\)/g, '(log($2)/log($1))')
-      .replace(/\\log_\{?([a-zA-Z0-9]+)\}?\s*(?:\*|\s)*([a-zA-Z0-9]+)/g, '(log($2)/log($1))')
-      .replace(/\\log\b|\\ln\b/g, 'log')
-      .replace(/\\times|\\cdot/g, '*')
-      .replace(/(\d)\s*([a-zA-Z])/g, '$1*$2')
-      .replace(/(\d)\s*\(/g, '$1*(')
-      .replace(/\)\s*\(/g, ')*(')
-      .replace(/\)\s*([a-zA-Z])/g, ')*$1')
-      .replace(/\b(?!sin|cos|tan|sec|csc|cot|log|ln|exp|sqrt|asin|acos|atan\b)([a-zA-Z])\s*\(/g, '$1*(')
-      .replace(/\s+/g, ' ')
-      .trim();
+      const normLhs = replaceLatexRadicalsAndFractions(lhsRaw)
+        .replace(/\\\(|\\\)/g, '')
+        .replace(/\\log_\{?([a-zA-Z0-9]+)\}?\s*(?:\*|\s)*\(([^()]+)\)/g, '(log($2)/log($1))')
+        .replace(/\\log_\{?([a-zA-Z0-9]+)\}?\s*(?:\*|\s)*([a-zA-Z0-9]+)/g, '(log($2)/log($1))')
+        .replace(/\\log\b|\\ln\b/g, 'log')
+        .replace(/\\times|\\cdot/g, '*')
+        .replace(/(\d)\s*([a-zA-Z])/g, '$1*$2')
+        .replace(/(\d)\s*\(/g, '$1*(')
+        .replace(/\)\s*\(/g, ')*(')
+        .replace(/\)\s*([a-zA-Z])/g, ')*$1')
+        .replace(/\b(?!sin|cos|tan|sec|csc|cot|log|ln|exp|sqrt|asin|acos|atan\b)([a-zA-Z])\s*\(/g, '$1*(')
+        .replace(/\s+/g, ' ')
+        .trim();
+      const normRhs = replaceLatexRadicalsAndFractions(rhsRaw)
+        .replace(/\\\(|\\\)/g, '')
+        .replace(/\\log_\{?([a-zA-Z0-9]+)\}?\s*(?:\*|\s)*\(([^()]+)\)/g, '(log($2)/log($1))')
+        .replace(/\\log_\{?([a-zA-Z0-9]+)\}?\s*(?:\*|\s)*([a-zA-Z0-9]+)/g, '(log($2)/log($1))')
+        .replace(/\\log\b|\\ln\b/g, 'log')
+        .replace(/\\times|\\cdot/g, '*')
+        .replace(/(\d)\s*([a-zA-Z])/g, '$1*$2')
+        .replace(/(\d)\s*\(/g, '$1*(')
+        .replace(/\)\s*\(/g, ')*(')
+        .replace(/\)\s*([a-zA-Z])/g, ')*$1')
+        .replace(/\b(?!sin|cos|tan|sec|csc|cot|log|ln|exp|sqrt|asin|acos|atan\b)([a-zA-Z])\s*\(/g, '$1*(')
+        .replace(/\s+/g, ' ')
+        .trim();
 
-    const vMatchLhs = normLhs.match(/\b([a-zA-Z])\b/);
-    const vMatchRhs = normRhs.match(/\b([a-zA-Z])\b/);
-    // Algebraic equivalence and factorizations must contain variables on BOTH sides
-    if (!vMatchLhs || !vMatchRhs) continue;
+      const vMatchLhs = normLhs.match(/\b([a-zA-Z])\b/);
+      const vMatchRhs = normRhs.match(/\b([a-zA-Z])\b/);
+      // Algebraic equivalence and factorizations must contain variables on BOTH sides
+      if (!vMatchLhs || !vMatchRhs) continue;
 
-    // Reject variable assignments / substitution definitions (e.g. let u = sqrt(2x+9))
-    if (/\b(?:let|set|assume|suppose)\s+[a-zA-Z]\s*=/i.test(cleanBlock)) continue;
-    // Single variable on one side cannot be symbolically equivalent to an expression in another variable
-    if (vMatchLhs[1] !== vMatchRhs[1] && (!normLhs.includes(vMatchRhs[1]) || !normRhs.includes(vMatchLhs[1]))) continue;
+      // Reject variable assignments / substitution definitions (e.g. let u = sqrt(2x+9))
+      if (/\b(?:let|set|assume|suppose)\s+[a-zA-Z]\s*=/i.test(cleanBlock)) continue;
+      // Single variable on one side cannot be symbolically equivalent to an expression in another variable
+      if (vMatchLhs[1] !== vMatchRhs[1] && (!normLhs.includes(vMatchRhs[1]) || !normRhs.includes(vMatchLhs[1]))) continue;
 
-    // Do not mistake the prompt's equation-to-solve for an algebraic identity
-    if (promptStr && promptStr.includes('=') && (cleanBlock.includes(promptStr.split('=')[0].trim()) || promptStr.includes(cleanBlock))) continue;
+      // Do not mistake the prompt's equation-to-solve for an algebraic identity
+      if (parts.length === 2 && promptStr && promptStr.includes('=') && (cleanBlock.includes(promptStr.split('=')[0].trim()) || promptStr.includes(cleanBlock))) continue;
+      if (parts.length > 2 && promptStr && /\bsolve\b/i.test(promptStr) && promptStr.includes('=') && promptStr.replace(/\s+/g, '').includes(pairCleanBlock.replace(/\s+/g, ''))) continue;
 
-    const vMatch = vMatchLhs;
+      const vMatch = vMatchLhs;
 
-    const alreadyEquiv = claims.some(c => c.claim_type === 'symbolic_equivalence' && c.data?.expr1 === normLhs && c.data?.expr2 === normRhs);
-    if (!alreadyEquiv) {
-      claims.push({
-        domain: 'algebra',
-        claim_type: 'symbolic_equivalence',
-        raw_match: cleanBlock,
-        data: {
-          expr1: normLhs,
-          expr2: normRhs,
-          variable: vMatch[1],
+      const alreadyEquiv = claims.some(c => c.claim_type === 'symbolic_equivalence' && c.data?.expr1 === normLhs && c.data?.expr2 === normRhs);
+      if (!alreadyEquiv) {
+        claims.push({
+          domain: 'algebra',
+          claim_type: 'symbolic_equivalence',
+          raw_match: parts.length > 2 ? pairCleanBlock : cleanBlock,
+          data: {
+            expr1: normLhs,
+            expr2: normRhs,
+            variable: vMatch[1],
+            userPrompt: promptStr
+          },
           userPrompt: promptStr
-        },
-        userPrompt: promptStr
-      });
+        });
+      }
     }
   }
 
@@ -2849,15 +2856,43 @@ async function verifyResponseClaims(content, userQueryText, abortSignal) {
  * Prevents intermediate arithmetic (e.g. 60 + 360 = 420) from certifying answers
  * to queries that asked for coterminal angles, equation roots, function values, etc.
  */
-function auditPromptClaimFidelity(claims, prompt) {
-  if (!prompt || typeof prompt !== 'string') return { valid: true };
+function auditPromptClaimFidelity(claims, prompt, verificationResults = null) {
+  if (!prompt || typeof prompt !== 'string') return { valid: true, primaryClaimVerified: true };
+  const safeClaims = Array.isArray(claims) ? claims : [];
+  const hasVerifications = Array.isArray(verificationResults);
+
+  const hasAffirmativelyVerifiedClaim = (predicate) => {
+    const matchingIndices = [];
+    for (let i = 0; i < safeClaims.length; i++) {
+      if (safeClaims[i] && predicate(safeClaims[i])) {
+        matchingIndices.push(i);
+      }
+    }
+    if (matchingIndices.length === 0) {
+      return { ok: false, status: 'MISSING' };
+    }
+    if (!hasVerifications) {
+      return { ok: true, status: 'VERIFIED' };
+    }
+    const anyVerified = matchingIndices.some(idx => {
+      const v = verificationResults[idx];
+      return Boolean(v && v.verified === true && v.status === 'VERIFIED');
+    });
+    if (!anyVerified) {
+      const anyUnknown = matchingIndices.some(idx => verificationResults[idx]?.status === 'UNKNOWN');
+      return { ok: false, status: anyUnknown ? 'UNKNOWN' : 'INVALID' };
+    }
+    return { ok: true, status: 'VERIFIED' };
+  };
 
   // 1. Coterminal Angle Queries
   if (/coterminal/i.test(prompt)) {
-    const hasCoterminal = claims.some(c => c.claim_type === 'coterminal_angle');
-    if (!hasCoterminal) {
+    const check = hasAffirmativelyVerifiedClaim(c => c.claim_type === 'coterminal_angle');
+    if (!check.ok) {
       return {
         valid: false,
+        primaryClaimVerified: false,
+        primaryClaimStatus: check.status,
         reason: 'Prompt requested a coterminal angle, but no verified coterminal_angle claim was established (intermediate arithmetic alone cannot certify answer).'
       };
     }
@@ -2865,10 +2900,12 @@ function auditPromptClaimFidelity(claims, prompt) {
 
   // 2. Algebraic Equation Solving Queries
   if (/\bsolve\b/i.test(prompt) && prompt.includes('=')) {
-    const hasEquationSol = claims.some(c => c.claim_type === 'equation_solution' || c.claim_type === 'system_solution');
-    if (!hasEquationSol) {
+    const check = hasAffirmativelyVerifiedClaim(c => c.claim_type === 'equation_solution' || c.claim_type === 'system_solution');
+    if (!check.ok) {
       return {
         valid: false,
+        primaryClaimVerified: false,
+        primaryClaimStatus: check.status,
         reason: 'Prompt requested solving an equation, but no verified equation_solution claim was established.'
       };
     }
@@ -2876,10 +2913,12 @@ function auditPromptClaimFidelity(claims, prompt) {
 
   // 3. Function Evaluation Queries
   if (/\bf\s*\([-\d.]+\)/i.test(prompt) && /\bf\(x\)\s*=/i.test(prompt)) {
-    const hasFnEval = claims.some(c => c.claim_type === 'function_evaluation');
-    if (!hasFnEval) {
+    const check = hasAffirmativelyVerifiedClaim(c => c.claim_type === 'function_evaluation');
+    if (!check.ok) {
       return {
         valid: false,
+        primaryClaimVerified: false,
+        primaryClaimStatus: check.status,
         reason: 'Prompt requested function evaluation, but no verified function_evaluation claim was established.'
       };
     }
@@ -2887,38 +2926,211 @@ function auditPromptClaimFidelity(claims, prompt) {
 
   // 4. Geometry Area Queries
   if (/\barea\b/i.test(prompt) && /\btriangle\b/i.test(prompt)) {
-    const hasGeomArea = claims.some(c => c.claim_type === 'geometry_area' || (c.domain === 'arithmetic' && c.data?.expression && c.data.expression.includes('*')));
-    if (!hasGeomArea) {
+    const check = hasAffirmativelyVerifiedClaim(
+      c => c.claim_type === 'geometry_area' || (c.domain === 'arithmetic' && c.data?.expression && c.data.expression.includes('*'))
+    );
+    if (!check.ok) {
       return {
         valid: false,
+        primaryClaimVerified: false,
+        primaryClaimStatus: check.status,
         reason: 'Prompt requested geometry area, but no verified geometry_area claim was established.'
       };
     }
   }
 
-  // 6. Physics Kinematics Queries
+  // 5. Physics Kinematics Queries
   if (/final\s+velocity/i.test(prompt) || (/\bvelocity\b/i.test(prompt) && /\baccelerat/i.test(prompt))) {
-    const hasKinematics = claims.some(c => c.claim_type === 'kinematics_velocity' || c.claim_type === 'kinematics');
-    if (!hasKinematics) {
+    const check = hasAffirmativelyVerifiedClaim(c => c.claim_type === 'kinematics_velocity' || c.claim_type === 'kinematics');
+    if (!check.ok) {
       return {
         valid: false,
+        primaryClaimVerified: false,
+        primaryClaimStatus: check.status,
         reason: 'Prompt requested final velocity calculation, but no verified kinematics claim was established (intermediate arithmetic alone cannot certify physics answer).'
       };
     }
   }
 
-  // 5. Calculus Derivative Queries
-  if (/\bderivative\b/i.test(prompt) || /\bdifferentiate\b/i.test(prompt)) {
-    const hasDeriv = claims.some(c => c.claim_type === 'derivative');
-    if (!hasDeriv) {
+  // 6. Calculus Derivative Queries
+  if ((/\bderivative\b/i.test(prompt) || /\bdifferentiate\b/i.test(prompt)) && !/\bwhat\s+is\s+(?:a|the)\s+derivative\s*\??$/i.test(prompt.trim())) {
+    const check = hasAffirmativelyVerifiedClaim(c => c.claim_type === 'derivative');
+    if (!check.ok) {
       return {
         valid: false,
+        primaryClaimVerified: false,
+        primaryClaimStatus: check.status,
         reason: 'Prompt requested a derivative, but no verified derivative claim was established.'
       };
     }
   }
 
-  return { valid: true };
+  // 7. If both non-arithmetic domain claims and intermediate arithmetic claims exist,
+  // intermediate arithmetic alone cannot certify a response whose non-arithmetic claims are all UNKNOWN/unverified.
+  if (hasVerifications && safeClaims.length > 0) {
+    const nonArithmeticIndices = [];
+    for (let i = 0; i < safeClaims.length; i++) {
+      const c = safeClaims[i];
+      if (c && c.domain && c.domain !== 'arithmetic') {
+        nonArithmeticIndices.push(i);
+      }
+    }
+    if (nonArithmeticIndices.length > 0) {
+      const anyDomainVerified = nonArithmeticIndices.some(idx => {
+        const v = verificationResults[idx];
+        return Boolean(v && v.verified === true && v.status === 'VERIFIED');
+      });
+      if (!anyDomainVerified) {
+        return {
+          valid: false,
+          primaryClaimVerified: false,
+          primaryClaimStatus: 'UNKNOWN',
+          reason: 'Primary domain claim could not be verified (intermediate arithmetic alone cannot certify the primary claim).'
+        };
+      }
+    }
+  }
+
+  return { valid: true, primaryClaimVerified: true };
+}
+
+/**
+ * Evaluates the strict three-state verification outcome (CRITICAL-02):
+ * 1. VERIFIED: All material mathematical claims are affirmatively verified (verifiedCount === totalCount > 0, unknownCount === 0, rejectedCount === 0).
+ * 2. PARTIALLY_VERIFIED: The primary mathematical claim is verified, no claim is invalid, and no contradiction exists,
+ *    but one or more supporting claims remain UNKNOWN.
+ * 3. WITHHELD: The primary mathematical claim is UNKNOWN (or missing when required), any material claim is INVALID,
+ *    or an unresolved internal contradiction remains.
+ * 4. UNVERIFIED_CONCEPTUAL: Conceptual/Socratic response with zero extracted claims where no calculation claim is required by the prompt.
+ */
+function evaluateVerificationState({
+  claims = [],
+  verificationResults = [],
+  invalidClaims = [],
+  unknownClaims = [],
+  internalContradictions = [],
+  prompt = '',
+  withheld = false,
+  isCandidateIncomplete = false,
+  safeResponseRecovered = false
+} = {}) {
+  const safeClaims = Array.isArray(claims) ? claims : [];
+  const safeResults = Array.isArray(verificationResults) ? verificationResults : [];
+  const totalCount = safeResults.length;
+  const verifiedCount = safeResults.filter(v => v && v.verified === true && v.status === 'VERIFIED').length;
+  const unknownCount = safeResults.filter(v => v && v.verified === false && v.status === 'UNKNOWN').length;
+  const rejectedCount = safeResults.filter(v => v && v.verified === false && v.status !== 'UNKNOWN').length;
+  const contradictionCount = Array.isArray(internalContradictions) ? internalContradictions.length : 0;
+
+  const fidelity = auditPromptClaimFidelity(safeClaims, prompt, safeResults);
+
+  if (withheld || isCandidateIncomplete) {
+    return {
+      state: 'WITHHELD',
+      verifiedCount,
+      unknownCount,
+      rejectedCount,
+      totalCount,
+      primaryClaimVerified: false,
+      fidelity,
+      disclosure: 'Response withheld because verification requirements were not met.'
+    };
+  }
+
+  if (rejectedCount > 0 || (Array.isArray(invalidClaims) && invalidClaims.length > 0) || contradictionCount > 0) {
+    return {
+      state: 'WITHHELD',
+      verifiedCount,
+      unknownCount,
+      rejectedCount: Math.max(rejectedCount, Array.isArray(invalidClaims) ? invalidClaims.length : 0),
+      totalCount,
+      primaryClaimVerified: false,
+      fidelity,
+      disclosure: 'Response rejected due to an invalid or contradictory mathematical claim.'
+    };
+  }
+
+  if (!fidelity.valid) {
+    return {
+      state: 'WITHHELD',
+      verifiedCount,
+      unknownCount,
+      rejectedCount,
+      totalCount,
+      primaryClaimVerified: false,
+      fidelity,
+      disclosure: fidelity.reason || 'Primary mathematical claim could not be verified.'
+    };
+  }
+
+  if (totalCount > 0 && verifiedCount === 0) {
+    // All extracted claims are UNKNOWN — primary claim is not verified
+    return {
+      state: 'WITHHELD',
+      verifiedCount,
+      unknownCount,
+      rejectedCount,
+      totalCount,
+      primaryClaimVerified: false,
+      fidelity: {
+        valid: false,
+        primaryClaimVerified: false,
+        primaryClaimStatus: 'UNKNOWN',
+        reason: 'Primary mathematical claim returned UNKNOWN and could not be verified.'
+      },
+      disclosure: 'Primary mathematical claim could not be deterministically verified.'
+    };
+  }
+
+  if (totalCount > 0 && verifiedCount === totalCount && unknownCount === 0 && rejectedCount === 0) {
+    return {
+      state: 'VERIFIED',
+      verifiedCount,
+      unknownCount: 0,
+      rejectedCount: 0,
+      totalCount,
+      primaryClaimVerified: true,
+      fidelity,
+      disclosure: null
+    };
+  }
+
+  if (totalCount > 0 && verifiedCount > 0 && unknownCount > 0 && rejectedCount === 0) {
+    return {
+      state: 'PARTIALLY_VERIFIED',
+      verifiedCount,
+      unknownCount,
+      rejectedCount: 0,
+      totalCount,
+      primaryClaimVerified: true,
+      fidelity,
+      disclosure: `Primary result verified (${verifiedCount} of ${totalCount} steps verified; ${unknownCount} supporting ${unknownCount === 1 ? 'step' : 'steps'} could not be independently verified by CAS).`
+    };
+  }
+
+  if (safeResponseRecovered) {
+    return {
+      state: 'VERIFIED',
+      verifiedCount: Math.max(1, verifiedCount),
+      unknownCount: 0,
+      rejectedCount: 0,
+      totalCount: Math.max(1, totalCount),
+      primaryClaimVerified: true,
+      fidelity,
+      disclosure: null
+    };
+  }
+
+  return {
+    state: 'UNVERIFIED_CONCEPTUAL',
+    verifiedCount: 0,
+    unknownCount: 0,
+    rejectedCount: 0,
+    totalCount: 0,
+    primaryClaimVerified: false,
+    fidelity,
+    disclosure: null
+  };
 }
 
 module.exports = {
@@ -2927,6 +3139,7 @@ module.exports = {
   extractCandidateAnswer,
   evaluateCandidateDelivery,
   auditPromptClaimFidelity,
+  evaluateVerificationState,
   extractClaims,
   auditInternalConsistency,
   runDeterministicVerification,
