@@ -651,6 +651,22 @@ app.use((err, req, res, next) => {
   next(err);
 });
 
+// MEDIUM-05: Operational Telemetry & Latency Tracking Middleware
+const telemetryService = require('./telemetryService');
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.once('finish', () => {
+    const durationMs = Date.now() - start;
+    telemetryService.recordRequest({
+      method: req.method,
+      path: req.baseUrl || req.path,
+      statusCode: res.statusCode,
+      durationMs
+    });
+  });
+  next();
+});
+
 // Phase 0.1: Explicitly block access to container filesystem, application source, reports, and config files
 const fs = require('fs');
 const BLOCKED_STATIC_PREFIXES = [

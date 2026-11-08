@@ -153,11 +153,13 @@ router.get('/clear-queue', (req, res) => {
   });
 });
 
-// Diagnostics & metrics
+// Diagnostics & metrics (MEDIUM-05 Enhanced Observability)
 router.get('/metrics', (req, res) => {
   const server = require('./server');
+  const telemetryService = require('./telemetryService');
   const memory = process.memoryUsage();
   const activeCount = server.getActiveControllers ? server.getActiveControllers().size : 0;
+  const summary = telemetryService.getMetricsSummary();
 
   res.status(200).json({
     status: 'ok',
@@ -172,7 +174,25 @@ router.get('/metrics', (req, res) => {
       heapTotal: Math.round(memory.heapTotal / 1024),
       heapUsed: Math.round(memory.heapUsed / 1024),
       external: Math.round(memory.external / 1024)
-    }
+    },
+    operationalMetrics: summary.metrics,
+    alerts: summary.alerts,
+    telemetryBuffer: summary.buffer
+  });
+});
+
+// GET /admin/telemetry: Bounded rolling event log buffer
+router.get('/telemetry', (req, res) => {
+  const telemetryService = require('./telemetryService');
+  const limit = req.query.limit ? parseInt(req.query.limit, 10) : 50;
+  const level = req.query.level || null;
+  const eventType = req.query.eventType || null;
+
+  const events = telemetryService.getRecentEvents({ limit, level, eventType });
+  res.status(200).json({
+    status: 'ok',
+    count: events.length,
+    events
   });
 });
 
