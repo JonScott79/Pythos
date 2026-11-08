@@ -557,7 +557,36 @@
       <p>Authoritative release notes, verification engine milestones, and mathematical system updates.</p>
     </header>
 
-        <!-- ==================== RELEASE 1.8.62 ==================== -->
+                <!-- ==================== RELEASE 1.8.63 ==================== -->
+        <article class="release-card" id="pythos-1-8-63">
+            <header class="release-header">
+                <div>
+                    <h2 class="release-version">Pythos 1.8.63</h2>
+                    <div class="release-meta">
+                        <time datetime="2026-11-08"><i class="far fa-calendar-alt"></i> November 8, 2026</time>
+                        <span><i class="fas fa-check-double"></i> Security Hardening, 3-State Verification, Student Privacy &amp; Staging CI/CD</span>
+                        <span><i class="fas fa-shield-alt"></i> 100% Deterministic Verification</span>
+                    </div>
+                </div>
+                <span class="release-badge">Production Release</span>
+            </header>
+            
+            <div class="release-body">
+                <p><strong>Pythos 1.8.63</strong> completes Phase 1&ndash;3 production stabilization: critical security hardening (constant-time API authentication, embedded secret elimination, fail-closed auth), 3-state deterministic mathematical verification gate (VERIFIED, PARTIALLY_VERIFIED, WITHHELD), student privacy protection and multi-store account erasure (GDPR/COPPA compliant), resilient SymPy IPC process pooling, and isolated staging CI/CD validation.</p>
+                
+                <div class="release-section">
+                    <h3>Production Hardening &amp; Verification Highlights</h3>
+                    <ul class="release-list">
+                        <li><strong>Cryptographic Security &amp; Identity Hardening:</strong> Fully eliminated embedded credentials from source code; hardened admin endpoints with SHA-256 constant-time comparison against timing side-channel attacks; enforced fail-closed persistent secrets in production.</li>
+                        <li><strong>3-State Deterministic Verification Gate:</strong> Deployed strict 3-state delivery gate (<code>VERIFIED</code>, <code>PARTIALLY_VERIFIED</code>, <code>WITHHELD</code>) with pairwise symbolic chain verification and prompt-claim fidelity audits, guaranteeing ungrounded arithmetic is never certified.</li>
+                        <li><strong>Student Privacy &amp; Multi-Store Account Erasure:</strong> Implemented comprehensive GDPR/COPPA erasure endpoints purging Firestore profiles, personal memories, learning records, and browser storage while eliminating third-party tracking scripts.</li>
+                        <li><strong>Resilient Inference &amp; Dynamic Discovery:</strong> Hardened Python SymPy IPC with multi-worker process pooling, isolated timeouts, and automated worker crash recovery alongside runtime Groq model auto-discovery.</li>
+                    </ul>
+                </div>
+            </div>
+        </article>
+
+<!-- ==================== RELEASE 1.8.62 ==================== -->
         <article class="release-card" id="pythos-1-8-62">
             <header class="release-header">
                 <div>

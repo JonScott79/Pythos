@@ -1,3 +1,25 @@
+## Pythos 1.8.63
+**Release Date:** November 8, 2026
+
+### Phase 1–3 Production Release: Critical Security Hardening, 3-State Mathematical Verification Engine, Student Privacy & Multi-Store Account Erasure, and Isolated Staging CI/CD
+- **Cryptographic Security & Identity Hardening (`server/adminRoutes.js`, `server/lanzarIdService.js`, `server/providerPolicy.js`):**
+  - **Embedded Credential Elimination:** Completely removed hardcoded Groq API keys and development fallbacks; runtime fails closed on missing secrets.
+  - **Constant-Time Comparison:** Hardened admin API authentication (`timingSafeKeyCompare`) with SHA-256 fixed-digest constant-time equality checks against timing side-channel attacks.
+  - **Production Fail-Closed Auth:** Eliminated predictable PID-derived ephemeral secrets in `lanzarIdService.js`, enforcing a persistent `LANZAR_ID_SECRET` in production environments.
+- **3-State Deterministic Mathematical Verification & Delivery Gate (`server/verificationBridge.js`, `server/server.js`, `app.js`):**
+  - **Strict 3-State Verdicts:** Enforced distinct `VERIFIED`, `PARTIALLY_VERIFIED`, and `WITHHELD` delivery outcomes; ungrounded intermediate arithmetic no longer masquerades as certified truth.
+  - **Pairwise Symbolic Equality Chains:** Decomposed multi-equality derivations (`A = B = C`) into adjacent symbolic checks (`A == B` and `B == C`) to eliminate multi-step equivalence drift.
+  - **Prompt-Claim Fidelity:** Audited candidate answers directly against user prompts to block mismatched calculations from passing verification.
+- **Student Privacy, COPPA Compliance & Multi-Store Account Erasure (`server/accountErasureService.js`, `server/server.js`, `privacy.html`):**
+  - **Permanent Multi-Store Erasure:** Implemented comprehensive account erasure (`DELETE /api/account` and `POST /api/account/delete`) purging accounts, mailing-list consents, learning records, personal memories, and chat sessions across Firestore, local caches, and browser storage.
+  - **Session Recording Elimination:** Purged Microsoft Clarity scripts, tracking pixels, and third-party recording infrastructure from all HTML and JS bundles.
+  - **Transparent Disclosures:** Published updated privacy policy detailing data lifecycle, strict COPPA protections, and non-destructive unsubscribe handling.
+- **Resilient Inference Infrastructure & Process Lifecycle (`server/engines/calculusEngine.js`, `server/readinessCheck.js`, `server/server.js`):**
+  - **Calculus Daemon Pool:** Hardened Python SymPy IPC with multi-worker process pooling, isolated timeouts, and automated worker crash recovery.
+  - **Multibyte UTF-8 Streaming:** Prevented mid-character Unicode chunk fragmentation using stateful `StringDecoder` (backend) and `TextDecoder` (frontend).
+  - **Provider-Aware Readiness Probe:** Upgraded `GET /health/ready` to evaluate active model readiness and SymPy CAS availability without false dependencies on local Ollama daemons.
+  - **Dynamic Groq Model Auto-Discovery:** Implemented runtime introspection (`/admin/groq-models`) and automatic fallback to `openai/gpt-oss-120b` or accessible chat models, filtering out safety classifiers.
+
 ## Pythos 1.8.62
 **Release Date:** November 7, 2026
 

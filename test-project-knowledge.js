@@ -403,7 +403,7 @@ runTest('Authoritative source reads from filesystem, not hardcoded strings', () 
 
   const changelogSource = getAuthoritativeSource('CHANGELOG');
   assert(changelogSource !== null);
-  assert(changelogSource.text.includes('Pythos 1.8.62'));
+  assert(changelogSource.text.includes('Pythos 1.8.63'));
 });
 
 runTest('Railway Docker layout (server/site_sources) is synchronized and resolves current sources in isolated container layout', () => {
@@ -438,7 +438,7 @@ runTest('Railway Docker layout (server/site_sources) is synchronized and resolve
     const dockerVal = containerPk.getAuthoritativeSource('VALIDATION');
     assert(dockerVal && dockerVal.text.includes('50,000') && dockerVal.text.includes('100.00%'), 'Docker VALIDATION source must contain current 50K 100.00% record');
     const dockerChangelog = containerPk.getAuthoritativeSource('CHANGELOG');
-    assert(dockerChangelog && dockerChangelog.text.includes('Pythos 1.8.62'), 'Docker CHANGELOG source must contain current v1.8.62 release');
+    assert(dockerChangelog && dockerChangelog.text.includes('Pythos 1.8.63'), 'Docker CHANGELOG source must contain current v1.8.62 release');
   } finally {
     fs.rmSync(tmpBase, { recursive: true, force: true });
   }

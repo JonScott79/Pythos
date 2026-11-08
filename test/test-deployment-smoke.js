@@ -118,7 +118,7 @@ async function runSmokeTests() {
   await test('GET /health returns HTTP 200 with uptime and version (Local)', async () => {
     const app = express();
     app.get('/health', (req, res) => {
-      res.status(200).json({ status: 'ok', uptime: process.uptime(), version: '1.8.62' });
+      res.status(200).json({ status: 'ok', uptime: process.uptime(), version: '1.8.63' });
     });
 
     const res = await request(app, { path: '/health' });
