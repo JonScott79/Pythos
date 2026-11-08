@@ -10,17 +10,38 @@ const router = express.Router();
 const reportService = require('./reportService');
 const firebaseAdmin = require('./firebaseAdmin');
 
-// ── Per-IP Sliding-Window Rate Limiter (Phase 1.3) ──────────────────────────
+// ── Per-IP Sliding-Window Rate Limiter (Phase 1.3 / HIGH-03) ────────────────
 let rateLimitMax = parseInt(process.env.REPORT_RATE_LIMIT_MAX, 10) || 10;
 let rateLimitWindowMs = parseInt(process.env.REPORT_RATE_LIMIT_WINDOW_MS, 10) || (15 * 60 * 1000);
 const ipSubmissionBuckets = new Map();
 
+function normalizeIp(ip) {
+  if (typeof ip !== 'string') return 'unknown';
+  const trimmed = ip.trim();
+  if (!trimmed) return 'unknown';
+  return trimmed.startsWith('::ffff:') ? trimmed.slice(7) : trimmed;
+}
+
+/**
+ * Resolves the client IP safely behind Railway's single-hop reverse proxy (`trust proxy: 1`).
+ * Never trusts spoofed leftmost X-Forwarded-For headers; relies on Express `req.ip`
+ * (which evaluates the trusted rightmost proxy hop when `trust proxy` is enabled).
+ */
 function getClientIp(req) {
-  const forwarded = req.headers['x-forwarded-for'];
-  if (typeof forwarded === 'string' && forwarded.trim().length > 0) {
-    return forwarded.split(',')[0].trim();
+  if (req.app && req.app.get('trust proxy')) {
+    if (typeof req.ip === 'string' && req.ip.trim().length > 0) {
+      return normalizeIp(req.ip);
+    }
   }
-  return req.ip || req.socket?.remoteAddress || 'unknown';
+  const forwarded = req.headers?.['x-forwarded-for'];
+  if (typeof forwarded === 'string' && forwarded.trim().length > 0) {
+    const parts = forwarded.split(',').map(p => p.trim()).filter(Boolean);
+    if (parts.length > 0) {
+      // Select the rightmost hop appended by the single trusted edge proxy, never parts[0]
+      return normalizeIp(parts[parts.length - 1]);
+    }
+  }
+  return normalizeIp(req.ip || req.socket?.remoteAddress || 'unknown');
 }
 
 function checkReportRateLimit(ip) {
@@ -203,6 +224,7 @@ router.post('/', async (req, res) => {
   }
 });
 
+router.getClientIp = getClientIp;
 router.resetReportRateLimits = resetReportRateLimits;
 router.setReportRateLimit = setReportRateLimit;
 

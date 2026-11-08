@@ -161,6 +161,21 @@ service cloud.firestore {
 
       // ── Config / Feature Flags ─────────────────────────────────
       // Admin read/write only. No browser client should write config.
+      // ── LANZAR ID Accounts ─────────────────────────────────────
+      // Managed exclusively by the Pythos server via Firebase Admin SDK.
+      // Contains password hashes/salts; direct browser access is denied.
+      match /lanzar_id_accounts/{uid} {
+        allow read: if isAdmin();
+        allow write: if false;
+      }
+
+      // ── Mailing List Consents ──────────────────────────────────
+      // Managed exclusively by the Pythos server via Firebase Admin SDK.
+      match /mailing_list_consents/{consentId} {
+        allow read: if isAdmin();
+        allow write: if false;
+      }
+
       match /config/{key} {
         allow read, write: if isAdmin();
       }

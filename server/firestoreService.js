@@ -10,8 +10,12 @@
           └── app                      ← single anchor document (Pythos app identity)
                 ├── bug_reports/       ← student-submitted & auto-flagged reports
                 │     └── {reportId}
-                └── config/            ← feature flags & admin settings
-                      └── {key}
+                ├── config/            ← feature flags & admin settings
+                │     └── {key}
+                ├── lanzar_id_accounts/ ← authoritative LANZAR ID account records
+                │     └── {uid}
+                └── mailing_list_consents/ ← authoritative mailing-list consent records
+                      └── {emailHash}
 
     This keeps Pythos data cleanly isolated from Threadline, Auth Hub, and any
     future LANZAR applications sharing the same Firebase project — visible as a
@@ -21,19 +25,35 @@
     - Admin SDK only. All writes bypass Security Rules via the service account.
       Security Rules enforce read/write restrictions for browser clients.
     - Additive & non-destructive. Flat-file reports are preserved in dual-write
-      mode. Firestore is the source of truth for the admin console (Phase 3D).
-    - Graceful degradation. If FIREBASE_SERVICE_ACCOUNT_JSON is not configured,
-      all Firestore operations are no-ops. The flat-file system continues working.
+      mode. Firestore is the source of truth for the admin console (Phase 3D)
+      and the authoritative persistent store for LANZAR ID accounts and consents.
+    - Graceful degradation. If FIREBASE_SERVICE_ACCOUNT_JSON is not configured
+      in local/test environments, local fallback is used where explicitly allowed.
 */
 
+const crypto = require('crypto');
 const { getAdminFirestore, isAdminSdkAvailable } = require('./firebaseAdmin');
 const packageJson = require('./package.json');
 
 // ── Namespace Constants ────────────────────────────────────────────────────────
-const PYTHOS_COLLECTION   = 'pythos';
-const PYTHOS_ANCHOR_DOC   = 'app';
-const BUG_REPORTS_SUBCOL  = 'bug_reports';
-const CONFIG_SUBCOL       = 'config';
+const PYTHOS_COLLECTION         = 'pythos';
+const PYTHOS_ANCHOR_DOC         = 'app';
+const BUG_REPORTS_SUBCOL        = 'bug_reports';
+const CONFIG_SUBCOL             = 'config';
+const LANZAR_ACCOUNTS_SUBCOL    = 'lanzar_id_accounts';
+const MAILING_CONSENTS_SUBCOL   = 'mailing_list_consents';
+
+// Optional test adapter for deterministic Firestore persistence & failure tests
+let _testFirestoreAdapter = null;
+
+function setFirestoreAdapterForTesting(adapter) {
+  _testFirestoreAdapter = adapter || null;
+}
+
+function isFirestoreActive() {
+  if (_testFirestoreAdapter) return Boolean(_testFirestoreAdapter.isAvailable !== false);
+  return isAdminSdkAvailable();
+}
 
 // ── Namespace Helpers ──────────────────────────────────────────────────────────
 
@@ -41,7 +61,7 @@ const CONFIG_SUBCOL       = 'config';
  * Returns the anchor document reference: pythos/app
  */
 function anchorRef() {
-  const db = getAdminFirestore();
+  const db = _testFirestoreAdapter?.db || getAdminFirestore();
   return db ? db.collection(PYTHOS_COLLECTION).doc(PYTHOS_ANCHOR_DOC) : null;
 }
 
@@ -59,6 +79,27 @@ function bugReportsRef() {
 function configRef() {
   const anchor = anchorRef();
   return anchor ? anchor.collection(CONFIG_SUBCOL) : null;
+}
+
+/**
+ * Returns the lanzar_id_accounts subcollection reference: pythos/app/lanzar_id_accounts
+ */
+function lanzarAccountsRef() {
+  const anchor = anchorRef();
+  return anchor ? anchor.collection(LANZAR_ACCOUNTS_SUBCOL) : null;
+}
+
+/**
+ * Returns the mailing_list_consents subcollection reference: pythos/app/mailing_list_consents
+ */
+function mailingConsentsRef() {
+  const anchor = anchorRef();
+  return anchor ? anchor.collection(MAILING_CONSENTS_SUBCOL) : null;
+}
+
+function emailConsentDocId(email) {
+  const normalized = String(email || '').trim().toLowerCase();
+  return 'consent_' + crypto.createHash('sha256').update(normalized).digest('hex').slice(0, 32);
 }
 
 /**
@@ -85,9 +126,8 @@ function serverTimestamp() {
  * Called once at server startup. Safe to call multiple times (merge: true).
  */
 async function ensurePythosNamespace() {
-  if (!isAdminSdkAvailable()) return;
+  if (!isFirestoreActive()) return;
 
-  const db = getAdminFirestore();
   const anchor = anchorRef();
   if (!anchor) return;
 
@@ -373,6 +413,151 @@ async function deleteBugReport(reportId) {
   }
 }
 
+// ── LANZAR ID Accounts & Mailing List Consents (Authoritative Persistence) ───
+
+/**
+ * Saves or updates a LANZAR ID account in pythos/app/lanzar_id_accounts/{uid}.
+ * Throws an error on failure when Firestore is active so callers fail closed.
+ *
+ * @param {Object} account
+ * @returns {Promise<boolean>}
+ */
+async function saveLanzarAccount(account) {
+  if (_testFirestoreAdapter?.saveLanzarAccount) {
+    return await _testFirestoreAdapter.saveLanzarAccount(account);
+  }
+  const col = lanzarAccountsRef();
+  if (!col || !account || !account.uid) return false;
+
+  await col.doc(account.uid).set({
+    ...account,
+    email: String(account.email || '').trim().toLowerCase(),
+    updatedAt: account.updatedAt || new Date().toISOString()
+  }, { merge: true });
+  return true;
+}
+
+/**
+ * Retrieves a LANZAR ID account by UID from pythos/app/lanzar_id_accounts/{uid}.
+ *
+ * @param {string} uid
+ * @returns {Promise<Object|null>}
+ */
+async function getLanzarAccountByUid(uid) {
+  if (_testFirestoreAdapter?.getLanzarAccountByUid) {
+    return await _testFirestoreAdapter.getLanzarAccountByUid(uid);
+  }
+  const col = lanzarAccountsRef();
+  if (!col || !uid) return null;
+
+  const snap = await col.doc(uid).get();
+  return snap.exists ? snap.data() : null;
+}
+
+/**
+ * Retrieves a LANZAR ID account by email from pythos/app/lanzar_id_accounts.
+ * Checks deterministic UID first, then falls back to an email query.
+ *
+ * @param {string} email
+ * @returns {Promise<Object|null>}
+ */
+async function getLanzarAccountByEmail(email) {
+  const normalized = String(email || '').trim().toLowerCase();
+  if (!normalized) return null;
+
+  if (_testFirestoreAdapter?.getLanzarAccountByEmail) {
+    return await _testFirestoreAdapter.getLanzarAccountByEmail(normalized);
+  }
+  const col = lanzarAccountsRef();
+  if (!col) return null;
+
+  const deterministicUid = 'lanzar_' + crypto.createHash('sha256').update(normalized).digest('hex').slice(0, 20);
+  const directSnap = await col.doc(deterministicUid).get();
+  if (directSnap.exists) {
+    return directSnap.data();
+  }
+
+  const querySnap = await col.where('email', '==', normalized).limit(1).get();
+  if (!querySnap.empty) {
+    let found = null;
+    querySnap.forEach(doc => {
+      if (!found) found = doc.data();
+    });
+    return found;
+  }
+  return null;
+}
+
+/**
+ * Saves or updates a mailing-list consent record in pythos/app/mailing_list_consents/{docId}.
+ * Throws an error on failure when Firestore is active so callers fail closed.
+ *
+ * @param {Object} record
+ * @returns {Promise<boolean>}
+ */
+async function saveMailingListConsent(record) {
+  if (_testFirestoreAdapter?.saveMailingListConsent) {
+    return await _testFirestoreAdapter.saveMailingListConsent(record);
+  }
+  const col = mailingConsentsRef();
+  if (!col || !record || !record.email) return false;
+
+  const docId = emailConsentDocId(record.email);
+  await col.doc(docId).set({
+    ...record,
+    email: String(record.email).trim().toLowerCase(),
+    updatedAt: record.updatedAt || new Date().toISOString()
+  }, { merge: true });
+  return true;
+}
+
+/**
+ * Retrieves a mailing-list consent record by email from pythos/app/mailing_list_consents.
+ *
+ * @param {string} email
+ * @returns {Promise<Object|null>}
+ */
+async function getMailingListConsentByEmail(email) {
+  const normalized = String(email || '').trim().toLowerCase();
+  if (!normalized) return null;
+
+  if (_testFirestoreAdapter?.getMailingListConsentByEmail) {
+    return await _testFirestoreAdapter.getMailingListConsentByEmail(normalized);
+  }
+  const col = mailingConsentsRef();
+  if (!col) return null;
+
+  const docId = emailConsentDocId(normalized);
+  const snap = await col.doc(docId).get();
+  return snap.exists ? snap.data() : null;
+}
+
+/**
+ * Finds a mailing-list consent record by unsubscribeToken.
+ *
+ * @param {string} token
+ * @returns {Promise<Object|null>}
+ */
+async function getMailingListConsentByToken(token) {
+  if (!token || typeof token !== 'string') return null;
+
+  if (_testFirestoreAdapter?.getMailingListConsentByToken) {
+    return await _testFirestoreAdapter.getMailingListConsentByToken(token);
+  }
+  const col = mailingConsentsRef();
+  if (!col) return null;
+
+  const snap = await col.where('unsubscribeToken', '==', token).limit(1).get();
+  if (!snap.empty) {
+    let found = null;
+    snap.forEach(doc => {
+      if (!found) found = doc.data();
+    });
+    return found;
+  }
+  return null;
+}
+
 module.exports = {
   ensurePythosNamespace,
   saveBugReport,
@@ -381,6 +566,13 @@ module.exports = {
   updateBugReportReview,
   deleteBugReport,
   getConfig,
-  setConfig
+  setConfig,
+  isFirestoreActive,
+  setFirestoreAdapterForTesting,
+  saveLanzarAccount,
+  getLanzarAccountByUid,
+  getLanzarAccountByEmail,
+  saveMailingListConsent,
+  getMailingListConsentByEmail,
+  getMailingListConsentByToken
 };
-

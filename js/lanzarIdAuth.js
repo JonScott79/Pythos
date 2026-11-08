@@ -6,7 +6,7 @@
  * Provides:
  * - Portable provider interface for LANZAR ID across LANZAR applications
  * - Token storage, verification, and session hydration
- * - Account linking with Google / Firebase accounts
+ * - Account linking with Google / Firebase accounts via verified ID token
  * - Explicit, unchecked-by-default mailing-list consent and one-click unsubscribe
  */
 
@@ -66,20 +66,23 @@ export class LanzarIdAuthProvider {
     }
   }
 
-  async signInOrRegister({ email, password, displayName = '', mode = 'login', mailingListOptIn = false, linkedGoogleUid = null }) {
+  async signInOrRegister({ email, password, displayName = '', mode = 'login', mailingListOptIn = false, googleIdToken = null }) {
+    const payload = {
+      email,
+      password,
+      displayName,
+      mode,
+      // Never opt in unless explicitly checked by user
+      mailingListOptIn: mailingListOptIn === true,
+      consentSource: 'pythos_lanzar_id_modal'
+    };
+    if (googleIdToken) {
+      payload.googleIdToken = googleIdToken;
+    }
     const res = await fetch(`${this.apiBaseUrl}/api/auth/lanzar/session`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email,
-        password,
-        displayName,
-        mode,
-        // Never opt in unless explicitly checked by user
-        mailingListOptIn: mailingListOptIn === true,
-        consentSource: 'pythos_lanzar_id_modal',
-        linkedGoogleUid
-      })
+      body: JSON.stringify(payload)
     });
     const data = await res.json();
     if (!res.ok || data.error) {
@@ -89,11 +92,54 @@ export class LanzarIdAuthProvider {
     return data;
   }
 
-  async unsubscribeMailingList(email) {
+  async linkGoogleAccount({ googleIdToken }) {
+    const token = this.getStoredToken();
+    if (!token) {
+      throw new Error('Must be signed in to LANZAR ID before linking a Google account.');
+    }
+    const res = await fetch(`${this.apiBaseUrl}/api/auth/lanzar/link-google`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ googleIdToken })
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      throw new Error(data.message || 'Account linking failed.');
+    }
+    return data;
+  }
+
+  async updateMailingListConsent({ email, consented, consentSource = 'pythos_lanzar_id_modal', authToken = null }) {
+    const token = authToken || this.getStoredToken();
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    const res = await fetch(`${this.apiBaseUrl}/api/mailing-list/consent`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ email, consented: consented === true, consentSource })
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      throw new Error(data.message || 'Consent update failed.');
+    }
+    return data;
+  }
+
+  async unsubscribeMailingList(email, unsubscribeToken = null) {
+    const token = this.getStoredToken();
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
     const res = await fetch(`${this.apiBaseUrl}/api/mailing-list/unsubscribe`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email })
+      headers,
+      body: JSON.stringify({ email, token: unsubscribeToken || undefined })
     });
     const data = await res.json();
     if (!res.ok || data.error) {
