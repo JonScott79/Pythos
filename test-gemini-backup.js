@@ -54,6 +54,8 @@ async function runAsyncTest(name, fn) {
 
 // ── PART 1: PROVIDER REGISTRY & ORDERING TESTS ─────────────────────────────
 console.log('--- PART 1: Provider Registry, Ordering & Guardrail Tests ---');
+const savedGlobalGroqKey = process.env.GROQ_API_KEY;
+process.env.GROQ_API_KEY = process.env.GROQ_API_KEY || 'gsk_mock_test_key_for_gemini_backup_suite';
 
 runTest('1. Primary vision provider is groq-qwen-vision and backup is gemini-vision', () => {
   const registry = providerPolicy.getProviderRegistry();
@@ -347,13 +349,25 @@ runTest('9d. Cooldown expiry and server restart / cold start recovery behavior',
 });
 
 // ── PART 2: CREDENTIAL SANITIZATION & ERROR TAXONOMY ───────────────────────
+if (savedGlobalGroqKey !== undefined) process.env.GROQ_API_KEY = savedGlobalGroqKey;
+else delete process.env.GROQ_API_KEY;
 console.log('\n--- PART 2: Credential Redaction & Error Taxonomy Tests ---');
 
 runTest('10. Centralized credential resolution: providerPolicy exports getGroqApiKey and getGeminiApiKey', () => {
   assert.strictEqual(typeof providerPolicy.getGroqApiKey, 'function');
   assert.strictEqual(typeof providerPolicy.getGeminiApiKey, 'function');
-  assert.strictEqual(typeof providerPolicy.GROQ_EMBEDDED_KEY, 'string');
-  assert(providerPolicy.getGroqApiKey().startsWith('gsk_'), 'Default Groq key must start with gsk_');
+  assert.strictEqual(providerPolicy.GROQ_EMBEDDED_KEY, undefined, 'GROQ_EMBEDDED_KEY must be removed');
+
+  const savedKey = process.env.GROQ_API_KEY;
+  try {
+    delete process.env.GROQ_API_KEY;
+    assert.strictEqual(providerPolicy.getGroqApiKey(), null, 'getGroqApiKey must return null when env is unset');
+
+    process.env.GROQ_API_KEY = 'gsk_test_mock_env_key';
+    assert.strictEqual(providerPolicy.getGroqApiKey(), 'gsk_test_mock_env_key', 'getGroqApiKey must return env key when set');
+  } finally {
+    if (savedKey !== undefined) process.env.GROQ_API_KEY = savedKey; else delete process.env.GROQ_API_KEY;
+  }
 });
 
 runTest('11. Security sanitization: Gemini AIzaSy keys and x-goog-api-key headers are redacted', () => {
@@ -384,6 +398,8 @@ console.log('\n--- PART 3: Production Routing & Fallback Integration Tests ---')
 const validJpegBase64 = '/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=';
 
 async function runRoutingTests() {
+  const savedRoutingGroqKey = process.env.GROQ_API_KEY;
+  process.env.GROQ_API_KEY = 'gsk_mock_test_key_for_vision_routing';
   process.env.NODE_ENV = 'test';
   process.env.GEMINI_FREE_TIER = 'true';
   process.env.GEMINI_API_KEY = 'AIzaSyMockKeyForTesting1234567890123';
@@ -418,6 +434,7 @@ async function runRoutingTests() {
             end: () => {
               const resMock = {
                 statusCode: 200,
+                setEncoding: () => {},
                 headers: {},
                 on: (event, handler) => {
                   if (event === 'data') {
@@ -477,6 +494,7 @@ async function runRoutingTests() {
               // Groq returns 429 with extended wait
               const resMock = {
                 statusCode: 429,
+                setEncoding: () => {},
                 headers: { 'retry-after': '30' },
                 on: (event, handler) => {
                   if (event === 'data') {
@@ -501,6 +519,7 @@ async function runRoutingTests() {
               // Gemini returns 200 success
               const resMock = {
                 statusCode: 200,
+                setEncoding: () => {},
                 headers: {},
                 on: (event, handler) => {
                   if (event === 'data') {
@@ -563,6 +582,7 @@ async function runRoutingTests() {
               // Groq returns 503 Service Unavailable
               const resMock = {
                 statusCode: 503,
+                setEncoding: () => {},
                 headers: {},
                 on: (event, handler) => {
                   if (event === 'data') handler('Upstream server error');
@@ -582,6 +602,7 @@ async function runRoutingTests() {
             end: () => {
               const resMock = {
                 statusCode: 200,
+                setEncoding: () => {},
                 headers: {},
                 on: (event, handler) => {
                   if (event === 'data') {
@@ -648,6 +669,7 @@ async function runRoutingTests() {
           end: () => {
             const resMock = {
               statusCode: 429,
+                setEncoding: () => {},
               headers: { 'retry-after': '75' },
               on: (event, handler) => {
                 if (event === 'data') {
@@ -698,6 +720,7 @@ async function runRoutingTests() {
             end: () => {
               const resMock = {
                 statusCode: 429,
+                setEncoding: () => {},
                 headers: { 'retry-after': '60' },
                 on: (event, handler) => {
                   if (event === 'data') handler('Rate limit');
@@ -755,6 +778,7 @@ async function runRoutingTests() {
               // Force Groq unavailable
               const resMock = {
                 statusCode: 503,
+                setEncoding: () => {},
                 headers: {},
                 on: (event, handler) => {
                   if (event === 'data') handler(JSON.stringify({ error: { message: 'Service Unavailable' } }));
@@ -783,6 +807,7 @@ async function runRoutingTests() {
 
               const resMock = {
                 statusCode: 200,
+                setEncoding: () => {},
                 headers: {},
                 on: (event, handler) => {
                   if (event === 'data') {
@@ -870,6 +895,7 @@ async function runRoutingTests() {
             end: () => {
               const resMock = {
                 statusCode: 429,
+                setEncoding: () => {},
                 headers: { 'retry-after': '60' },
                 on: (event, handler) => {
                   if (event === 'data') handler('Rate limit');
@@ -910,15 +936,16 @@ async function runRoutingTests() {
     // Restore original https.request
     https.request = origRequest;
 
+    if (savedRoutingGroqKey !== undefined) process.env.GROQ_API_KEY = savedRoutingGroqKey; else delete process.env.GROQ_API_KEY;
     // ── PART 4: REAL-PROVIDER TRAFFIC AUDIT & PROBES ───────────────────────────
     console.log('\n--- PART 4: Real-Provider Network Probes ---');
 
     // Test 20: Real Groq Provider Live Network Probe (NO MOCKS when GROQ_API_KEY is configured)
     await runAsyncTest('20. Real-provider live network probe: Groq API responds with live model catalog (UNMOCKED)', async () => {
       const groqKey = providerPolicy.getGroqApiKey();
-      assert(groqKey && groqKey.startsWith('gsk_'), 'Groq key must be present');
+      assert(groqKey === null || groqKey.startsWith('gsk_'), 'Groq key must be null or start with gsk_');
 
-      if (process.env.GROQ_API_KEY && !groqKey.includes('test_placeholder')) {
+      if (process.env.GROQ_API_KEY && !groqKey.includes('test_placeholder') && !groqKey.includes('mock_')) {
         const response = await new Promise((resolve, reject) => {
           const req = https.request('https://api.groq.com/openai/v1/models', {
             method: 'GET',
@@ -944,8 +971,8 @@ async function runRoutingTests() {
         const parsed = JSON.parse(response.body);
         assert(Array.isArray(parsed.data), 'Groq response must contain models data array');
       } else {
-        console.log('    [AUDIT] process.env.GROQ_API_KEY is unset; verified non-secret test placeholder is active (no live key baked in source).');
-        assert.strictEqual(groqKey, providerPolicy.GROQ_EMBEDDED_KEY);
+        console.log('    [AUDIT] process.env.GROQ_API_KEY is unset; verified getGroqApiKey returns null (no embedded fallback).');
+        assert.strictEqual(groqKey, null);
       }
     });
 
@@ -982,6 +1009,8 @@ async function runRoutingTests() {
     });
 
   } finally {
+    if (savedRoutingGroqKey !== undefined) process.env.GROQ_API_KEY = savedRoutingGroqKey;
+    else delete process.env.GROQ_API_KEY;
     await new Promise((resolve) => server.close(resolve));
     const { server: defaultServer } = require('./server/server');
     if (defaultServer && typeof defaultServer.close === 'function' && defaultServer.listening) {

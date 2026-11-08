@@ -379,16 +379,22 @@ runTest('Default production provider catalog is properly structured and safe', (
 
 // ── REGRESSION TESTS: $0 Provider Wall Fix (v1.7.0) ──────────────────────────
 
-// 15. REGRESSION: isConfigured() with embedded fallback key must return true
-runTest('REGRESSION: groq-qwen-vision isConfigured() returns true with embedded fallback key (no env var)', () => {
+// 15. REGRESSION: isConfigured() requires GROQ_API_KEY env var (no embedded fallback key)
+runTest('REGRESSION: groq-qwen-vision isConfigured() requires GROQ_API_KEY env var (no embedded fallback)', () => {
   const origKey = process.env.GROQ_API_KEY;
-  delete process.env.GROQ_API_KEY;
+  try {
+    delete process.env.GROQ_API_KEY;
+    const registryWithoutKey = providerPolicy.getProviderRegistry();
+    const groqWithoutKey = registryWithoutKey.find(p => p.name === 'groq-qwen-vision');
+    assert.strictEqual(groqWithoutKey.isConfigured(), false, 'Groq must be unconfigured when GROQ_API_KEY is unset');
 
-  const registry = providerPolicy.getProviderRegistry();
-  const groq = registry.find(p => p.name === 'groq-qwen-vision');
-  assert.strictEqual(groq.isConfigured(), true, 'Groq must be configured via embedded fallback key when env var is unset');
-
-  if (origKey !== undefined) process.env.GROQ_API_KEY = origKey;
+    process.env.GROQ_API_KEY = 'gsk_mock_test_key_for_guardrail_testing';
+    const registryWithKey = providerPolicy.getProviderRegistry();
+    const groqWithKey = registryWithKey.find(p => p.name === 'groq-qwen-vision');
+    assert.strictEqual(groqWithKey.isConfigured(), true, 'Groq must be configured when GROQ_API_KEY is supplied in env');
+  } finally {
+    if (origKey !== undefined) process.env.GROQ_API_KEY = origKey; else delete process.env.GROQ_API_KEY;
+  }
 });
 
 // 16. REGRESSION: A provider having paid plans does NOT make it ineligible if freeEligible=true
@@ -436,16 +442,22 @@ runTest('REGRESSION: Truly unconfigured provider (isConfigured=false) is rejecte
 });
 
 // 18. REGRESSION: Full production registry selects groq-qwen-vision for vision in free_only
-runTest('REGRESSION: Production registry selects groq-qwen-vision for vision capability in free_only', () => {
-  providerPolicy.clearRateLimits();
+runTest('REGRESSION: Production registry selects groq-qwen-vision for vision capability in free_only when configured', () => {
+  const origKey = process.env.GROQ_API_KEY;
+  process.env.GROQ_API_KEY = 'gsk_mock_test_key_for_guardrail_testing';
+  try {
+    providerPolicy.clearRateLimits();
 
-  const selection = providerPolicy.selectProvider(
-    { capability: 'vision', budgetMode: 'free_only', aiEnabled: true }
-  );
+    const selection = providerPolicy.selectProvider(
+      { capability: 'vision', budgetMode: 'free_only', aiEnabled: true }
+    );
 
-  assert.notStrictEqual(selection.provider, null, 'Vision provider must be selected from production registry');
-  assert.strictEqual(selection.provider.name, 'groq-qwen-vision');
-  assert.strictEqual(selection.reason, 'SELECTED');
+    assert.notStrictEqual(selection.provider, null, 'Vision provider must be selected from production registry');
+    assert.strictEqual(selection.provider.name, 'groq-qwen-vision');
+    assert.strictEqual(selection.reason, 'SELECTED');
+  } finally {
+    if (origKey !== undefined) process.env.GROQ_API_KEY = origKey; else delete process.env.GROQ_API_KEY;
+  }
 });
 
 // 19. REGRESSION: Production registry selects ollama-text for text capability in free_only
