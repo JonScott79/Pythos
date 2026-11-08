@@ -791,5 +791,6 @@ module.exports = {
   setWriteFailureForTesting,
   getMailingListStatus: (email) => mailingListByEmail.get(String(email || '').trim().toLowerCase()) || null,
   eraseAccount,
-  eraseMailingConsent
+  eraseMailingConsent,
+  loadAccountByUid
 };

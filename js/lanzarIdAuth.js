@@ -153,9 +153,77 @@ export class LanzarIdAuthProvider {
     return data;
   }
 
-  signOut() {
+  async eraseAccount() {
+    const token = this.getStoredToken();
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    let res;
+    try {
+      res = await fetch(`${this.apiBaseUrl}/api/account`, {
+        method: 'DELETE',
+        headers
+      });
+    } catch (_) {
+      res = await fetch(`${this.apiBaseUrl}/api/account/delete`, {
+        method: 'POST',
+        headers
+      });
+    }
+    const data = await res.json();
+    clearPythosClientStorage({ preserveTheme: false });
+    this.saveSession(null, null);
+    return data;
+  }
+
+  signOut({ preserveTheme = true } = {}) {
+    clearPythosClientStorage({ preserveTheme });
     this.saveSession(null, null);
   }
+}
+
+/**
+ * Removes only Pythos-owned localStorage keys while strictly preserving unrelated keys.
+ * Never calls localStorage.clear().
+ *
+ * @param {Object} [options]
+ * @param {boolean} [options.preserveTheme=false] - Whether to keep pythos_theme
+ * @param {Storage} [options.storage] - Storage interface (defaults to window.localStorage)
+ * @returns {Array<string>} List of removed keys
+ */
+export function clearPythosClientStorage({ preserveTheme = false, storage = (typeof localStorage !== 'undefined' ? localStorage : null) } = {}) {
+  if (!storage) return [];
+  const removedKeys = [];
+  try {
+    const keysToRemove = [];
+    const len = typeof storage.length === 'number' ? storage.length : 0;
+    const allKeys = new Set();
+    for (let i = 0; i < len; i++) {
+      const k = storage.key(i);
+      if (k) allKeys.add(k);
+    }
+    Object.keys(storage).forEach(k => allKeys.add(k));
+
+    for (const key of allKeys) {
+      if (/^(pythos[_-]|lanzar[_-])/i.test(key)) {
+        if (preserveTheme && /^(pythos[_-]theme)$/i.test(key)) {
+          continue;
+        }
+        keysToRemove.push(key);
+      }
+    }
+
+    for (const key of keysToRemove) {
+      storage.removeItem(key);
+      removedKeys.push(key);
+    }
+  } catch (_) {}
+  return removedKeys;
+}
+
+if (typeof window !== 'undefined') {
+  window.clearPythosClientStorage = clearPythosClientStorage;
 }
 
 export default LanzarIdAuthProvider;

@@ -44,6 +44,17 @@ async function eraseStudentAccount(uid, email = null) {
     return report;
   }
 
+  // Resolve student email before account deletion if not explicitly provided
+  let targetEmail = email ? String(email).trim().toLowerCase() : null;
+  if (!targetEmail && lanzarIdService) {
+    try {
+      const existing = await lanzarIdService.loadAccountByUid(uid);
+      if (existing && existing.email) {
+        targetEmail = String(existing.email).trim().toLowerCase();
+      }
+    } catch (_) {}
+  }
+
   // 1. Learning Store Deletion (in-memory & Firestore)
   try {
     if (learningStore) {
@@ -80,14 +91,12 @@ async function eraseStudentAccount(uid, email = null) {
 
   // 4. Mailing List Consent Deletion
   try {
-    if (email) {
-      await lanzarIdService.eraseMailingConsent(email);
-      report.components.mailingConsent = true;
-    } else {
-      // Look up account to see if email can be determined
-      const acc = await lanzarIdService.authenticateOrRegisterLanzarId ? null : null;
-      report.components.mailingConsent = true;
+    if (targetEmail) {
+      await lanzarIdService.eraseMailingConsent(targetEmail);
     }
+    // If targetEmail is null because account was already deleted in a prior partial run,
+    // consent is already either erased or non-existent, so mark true idempotently.
+    report.components.mailingConsent = true;
   } catch (err) {
     report.errors.push(`Mailing list consent erasure failed: ${err.message}`);
   }
