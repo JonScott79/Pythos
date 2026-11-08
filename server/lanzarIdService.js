@@ -700,6 +700,75 @@ function resetLocalMigrationStateForTesting({ accounts = [], consents = [] } = {
   }
 }
 
+/**
+ * Erases a LANZAR ID account and associated data from memory, disk, and Firestore.
+ *
+ * @param {string} uid
+ * @returns {Promise<boolean>}
+ */
+async function eraseAccount(uid) {
+  const account = await loadAccountByUid(uid);
+  const email = account ? account.email : null;
+
+  if (email) {
+    accountsByEmail.delete(email.toLowerCase());
+  }
+  accountsByUid.delete(uid);
+
+  if (firestoreService.isFirestoreActive() && firestoreService.deleteLanzarAccount) {
+    try {
+      await firestoreService.deleteLanzarAccount(uid);
+    } catch (err) {
+      console.warn(`[LANZAR ID] Failed to delete account ${uid} from Firestore:`, err.message);
+      throw err;
+    }
+  }
+
+  try {
+    const list = Array.from(accountsByUid.values());
+    fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(list, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('[LANZAR ID] Failed to persist accounts file after deletion:', err.message);
+  }
+
+  if (email) {
+    await eraseMailingConsent(email);
+  }
+
+  return true;
+}
+
+/**
+ * Erases a mailing list consent record from memory, disk, and Firestore.
+ *
+ * @param {string} email
+ * @returns {Promise<boolean>}
+ */
+async function eraseMailingConsent(email) {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (!normalizedEmail) return true;
+
+  mailingListByEmail.delete(normalizedEmail);
+
+  if (firestoreService.isFirestoreActive() && firestoreService.deleteMailingListConsent) {
+    try {
+      await firestoreService.deleteMailingListConsent(normalizedEmail);
+    } catch (err) {
+      console.warn(`[MAILING LIST] Failed to delete consent for ${normalizedEmail} from Firestore:`, err.message);
+      throw err;
+    }
+  }
+
+  try {
+    const list = Array.from(mailingListByEmail.values());
+    fs.writeFileSync(MAILING_LIST_FILE, JSON.stringify(list, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('[MAILING LIST] Failed to persist mailing list file after erasure:', err.message);
+  }
+
+  return true;
+}
+
 module.exports = {
   DATA_DIR,
   ACCOUNTS_FILE,
@@ -720,5 +789,7 @@ module.exports = {
   migrateLocalStoreToFirestore,
   resetLocalMigrationStateForTesting,
   setWriteFailureForTesting,
-  getMailingListStatus: (email) => mailingListByEmail.get(String(email || '').trim().toLowerCase()) || null
+  getMailingListStatus: (email) => mailingListByEmail.get(String(email || '').trim().toLowerCase()) || null,
+  eraseAccount,
+  eraseMailingConsent
 };

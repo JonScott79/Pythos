@@ -216,6 +216,61 @@
         To diagnose layout bugs across screen sizes, Pythos uses Microsoft Clarity with strict privacy masking (`data-clarity-mask="true"`) applied to all student input fields (`#userInput`), conversation logs (`#output`), uploaded image strips (`#pendingImagesStrip`), sidebar chat history (`#chatHistoryList`), personal memory modals (`#pythosMemoryModal`), and floating tool windows. Your problem text and homework content are masked from analytics inspection.
       </p>
     </section>
+
+    <section class="card">
+      <h2>6. Third-Party Model &amp; Inference Providers (Groq &amp; Google Gemini)</h2>
+      <p>
+        Depending on application configuration and active budget routing, Pythos utilizes high-performance third-party model inference providers to assist in mathematical tutoring and OCR problem transcription:
+      </p>
+      <ul>
+        <li><strong>Groq Inc. (Hosted LPU Inference):</strong> Used for high-speed mathematical reasoning and derivation generation via OpenAI-compatible endpoints. Only mathematical query prompts and immediate dialogue context are transmitted.</li>
+        <li><strong>Google LLC (Google Gemini API):</strong> Used for multimodal problem diagram transcription and fallback reasoning. Only homework problem text and uploaded diagram images are transmitted.</li>
+        <li><strong>Local / Self-Hosted Inference (Ollama):</strong> When deployed in local or self-hosted mode with Ollama, all inference runs entirely on the host infrastructure with <strong>zero third-party model data transfer</strong>.</li>
+      </ul>
+      <p>
+        Third-party model providers never receive student account passwords, cryptographic keys, email addresses, or payment information.
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>7. Children's Privacy &amp; COPPA Disclosure</h2>
+      <p>
+        Pythos is committed to protecting the privacy of minors and educational learners. In accordance with the Children's Online Privacy Protection Act (COPPA):
+      </p>
+      <ul>
+        <li><strong>No Mandatory Personal Information:</strong> Children under 13 can use all core tutoring instruments, calculators, and simulations completely anonymously without providing an email address, full name, phone number, or date of birth.</li>
+        <li><strong>Zero Commercial Profiling &amp; No Ads:</strong> Pythos contains zero advertisements, zero third-party behavioral ad trackers, and never sells or monetizes student data.</li>
+        <li><strong>Parental Rights:</strong> Parents and legal guardians have the right to inspect, review, or permanently delete any personal information or account records associated with their child by contacting our team or using our automated erasure tools.</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>8. Complete Account Erasure &amp; The Right to Be Forgotten</h2>
+      <p>
+        Students may permanently and irreversibly erase their account and all associated data at any time:
+      </p>
+      <ul>
+        <li><strong>Automated Self-Service Erasure:</strong> Authenticated requests to <code>DELETE /api/account</code> (or <code>POST /api/account/delete</code>) permanently wipe all account credentials, authentication profiles, personal memories, learning history records, and cloud chat archives.</li>
+        <li><strong>Comprehensive Scope:</strong> Deletion covers <code>lanzar_id_accounts</code>, <code>pythos_memory</code>, <code>pythos_chats</code>, learning mastery metrics, and mailing list consent records.</li>
+        <li><strong>Partial Failure Resilience:</strong> The erasure service tracks component-level deletion outcomes and safely permits idempotent retries if network or cloud storage errors occur mid-flight.</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>9. Privacy Contact Information &amp; Legal Review Notice</h2>
+      <p>
+        For privacy inquiries, data subject requests, or account assistance, please contact the maintainer directly using our verified channel:
+      </p>
+      <p>
+        <strong>Educational Initiative:</strong> LANZAR / Pythos AI<br>
+        <strong>Lead Maintainer:</strong> Jon Scott<br>
+        <strong>Privacy Contact:</strong> <a href="mailto:contact@lanzar.me">contact@lanzar.me</a><br>
+        <strong>Website:</strong> <a href="https://lanzar.me" target="_blank" rel="noopener">https://lanzar.me</a>
+      </p>
+      <p style="font-size: 0.85rem; color: var(--text-muted); font-style: italic; border-top: 1px solid var(--border-color); padding-top: 10px; margin-top: 16px;">
+        Notice: This privacy policy describes the actual technical and operational data practices of Pythos. Regulatory statements and jurisdictional compliance disclosures remain subject to formal legal counsel review.
+      </p>
+    </section>
   </main>
 
   <footer role="contentinfo">

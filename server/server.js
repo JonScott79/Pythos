@@ -3703,6 +3703,42 @@ app.post('/api/memory/clear', studentAuthMiddleware, async (req, res) => {
 });
 
 // =====================================
+// Student Account Erasure Routes (MEDIUM-06)
+// =====================================
+const accountErasureService = require('./accountErasureService');
+
+async function handleAccountErasure(req, res) {
+  try {
+    const studentUid = req.studentUid;
+    const studentEmail = req.studentClaims?.email || null;
+    const result = await accountErasureService.eraseStudentAccount(studentUid, studentEmail);
+
+    if (result.success) {
+      return res.status(200).json({
+        status: 'ok',
+        message: 'Account and all associated records permanently erased.',
+        erasure: result
+      });
+    }
+
+    return res.status(207).json({
+      status: 'partial_failure',
+      error: 'partial_erasure_failure',
+      message: 'Some records could not be deleted. Retry is safe.',
+      erasure: result
+    });
+  } catch (err) {
+    return res.status(500).json({
+      error: 'account_erasure_error',
+      message: err.message
+    });
+  }
+}
+
+app.delete('/api/account', studentAuthMiddleware, handleAccountErasure);
+app.post('/api/account/delete', studentAuthMiddleware, handleAccountErasure);
+
+// =====================================
 // Verified Mistake Learning Routes
 // =====================================
 app.get('/api/learning/history', studentAuthMiddleware, async (req, res) => {

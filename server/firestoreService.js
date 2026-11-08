@@ -576,6 +576,51 @@ async function getMailingListConsentByToken(token) {
   return null;
 }
 
+/**
+ * Deletes a mailing-list consent record by email from pythos/app/mailing_list_consents.
+ *
+ * @param {string} email
+ * @returns {Promise<boolean>}
+ */
+async function deleteMailingListConsent(email) {
+  if (_testFirestoreAdapter?.deleteMailingListConsent) {
+    return await _testFirestoreAdapter.deleteMailingListConsent(email);
+  }
+  const col = mailingConsentsRef();
+  if (!col || !email) return false;
+  const docId = emailConsentDocId(email);
+  await col.doc(docId).delete();
+  return true;
+}
+
+/**
+ * Permanently deletes all chat history sessions and user root document for a given UID.
+ *
+ * @param {string} uid
+ * @returns {Promise<boolean>}
+ */
+async function deleteUserChats(uid) {
+  if (_testFirestoreAdapter?.deleteUserChats) {
+    return await _testFirestoreAdapter.deleteUserChats(uid);
+  }
+  const db = getFirestoreInstance();
+  if (!db || !uid) return false;
+
+  const chatsCol = db.collection('users').doc(uid).collection('pythos_chats');
+  const snap = await chatsCol.get();
+  if (!snap.empty) {
+    const batch = db.batch();
+    snap.forEach(d => batch.delete(d.ref));
+    await batch.commit();
+  }
+
+  try {
+    await db.collection('users').doc(uid).delete();
+  } catch (_) {}
+
+  return true;
+}
+
 module.exports = {
   ensurePythosNamespace,
   saveBugReport,
@@ -593,5 +638,7 @@ module.exports = {
   getLanzarAccountByEmail,
   saveMailingListConsent,
   getMailingListConsentByEmail,
-  getMailingListConsentByToken
+  getMailingListConsentByToken,
+  deleteMailingListConsent,
+  deleteUserChats
 };
