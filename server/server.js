@@ -567,7 +567,7 @@ function isOriginAllowed(origin) {
   if (ALLOWED_ORIGINS.includes(origin) || extraOrigins.includes(origin)) {
     return true;
   }
-  if (/^https:\/\/[a-z0-9-]+--pythos-lanzar\.netlify\.app$/i.test(origin)) {
+  if (/^https:\/\/[a-z0-9-]+--(pythos-lanzar|pythos-tutor)\.netlify\.app$/i.test(origin)) {
     return true;
   }
   if (/^https:\/\/([a-z0-9-]+\.)?lanzar\.me$/i.test(origin)) {
