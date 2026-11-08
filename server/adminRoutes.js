@@ -32,14 +32,12 @@ function timingSafeKeyCompare(provided, expected) {
   const p = provided.trim();
   const e = expected.trim();
   if (!p || !e) return false;
-  const bufP = Buffer.from(p, 'utf8');
-  const bufE = Buffer.from(e, 'utf8');
-  if (bufP.length !== bufE.length) {
-    // Constant-time execution to prevent length timing side-channels
-    crypto.timingSafeEqual(bufE, bufE);
-    return false;
-  }
-  return crypto.timingSafeEqual(bufP, bufE);
+  // Compute SHA-256 digests to yield fixed 32-byte buffers regardless of input length.
+  // This ensures timingSafeEqual always operates on buffers of identical length (32 bytes),
+  // eliminating both content and length-based timing side-channel attacks without early length branching.
+  const hashP = crypto.createHash('sha256').update(p, 'utf8').digest();
+  const hashE = crypto.createHash('sha256').update(e, 'utf8').digest();
+  return crypto.timingSafeEqual(hashP, hashE);
 }
 
 async function adminAuth(req, res, next) {
