@@ -2454,8 +2454,7 @@ function appendMessage(role, text, images = null, metadata = {}) {
   }
 
   // Safe Withholding Secondary Control: "Why do I need more information?"
-  const allStepsCertified = Array.isArray(metadata.verificationAudit) && metadata.verificationAudit.length > 0 && metadata.verificationAudit.every(s => s.verdict === "VERIFIED");
-  const isWithheld = (metadata.withheld && !allStepsCertified) || (role === "assistant" && typeof text === "string" && text.includes("I need a little more information to solve this problem"));
+  const isWithheld = Boolean(metadata.withheld) || metadata.verificationState === "WITHHELD" || (role === "assistant" && typeof text === "string" && text.includes("I need a little more information to solve this problem"));
   if (role === "assistant" && isWithheld) {
     const detailsEl = document.createElement("details");
     detailsEl.className = "pythos-withholding-details";
@@ -2598,18 +2597,43 @@ function appendMessage(role, text, images = null, metadata = {}) {
     actionRow.appendChild(thumbsDownBtn);
   }
 
-  // Verified Derivation Step Audit Button – subtle action button matching Report and Copy (bottom-left)
+  // Verified Derivation Step Audit Button – reports actual verified, unknown, and rejected counts (CRITICAL-02)
   if (role === "assistant" && Array.isArray(metadata.verificationAudit) && metadata.verificationAudit.length > 0) {
     const auditSteps = metadata.verificationAudit;
     const verifiedCount = auditSteps.filter(s => s.verdict === "VERIFIED").length;
+    const unknownCount = auditSteps.filter(s => s.verdict === "UNKNOWN").length;
+    const rejectedCount = auditSteps.filter(s => s.verdict !== "VERIFIED" && s.verdict !== "UNKNOWN").length;
     const totalCount = auditSteps.length;
-    const stepLabel = totalCount === 1 ? "1 step" : `${totalCount} steps`;
+
+    const isFullyVerified = !isWithheld && totalCount > 0 && verifiedCount === totalCount && unknownCount === 0 && rejectedCount === 0 && metadata.verificationState !== "PARTIALLY_VERIFIED" && metadata.verificationState !== "WITHHELD";
+    const isPartiallyVerified = !isWithheld && !isFullyVerified && verifiedCount > 0 && unknownCount > 0 && rejectedCount === 0 && metadata.verificationState !== "WITHHELD";
 
     const auditBtn = document.createElement("button");
     auditBtn.className = "msg-audit-btn";
-    auditBtn.title = "Inspect verified derivation audit steps";
-    auditBtn.setAttribute("aria-label", "Inspect verified derivation audit steps");
-    auditBtn.innerHTML = `🛡️ <span>Verified (${stepLabel})</span>`;
+    auditBtn.title = "Inspect derivation verification audit steps";
+    auditBtn.setAttribute("aria-label", "Inspect derivation verification audit steps");
+
+    if (isFullyVerified) {
+      const stepLabel = totalCount === 1 ? "1 step" : `${totalCount} steps`;
+      auditBtn.innerHTML = `🛡️ <span>Verified (${stepLabel})</span>`;
+    } else if (isPartiallyVerified) {
+      auditBtn.style.color = "#b45309";
+      auditBtn.style.borderColor = "rgba(217, 119, 6, 0.35)";
+      auditBtn.style.background = "rgba(245, 158, 11, 0.08)";
+      auditBtn.innerHTML = `⚠️ <span>Partially Verified (${verifiedCount} verified, ${unknownCount} unknown)</span>`;
+
+      const disclosureEl = document.createElement("div");
+      disclosureEl.className = "pythos-partial-verification-disclosure";
+      disclosureEl.style.cssText = "margin-top:8px; padding:6px 10px; border-radius:6px; font-size:0.76rem; color:#b45309; background:rgba(245,158,11,0.08); border:1px solid rgba(217,119,6,0.28);";
+      const disclosureText = metadata.verificationSummary?.disclosure ||
+        `Primary result verified (${verifiedCount} of ${totalCount} steps verified; ${unknownCount} supporting ${unknownCount === 1 ? "step" : "steps"} could not be independently verified by CAS).`;
+      disclosureEl.textContent = disclosureText;
+      contentDiv.appendChild(disclosureEl);
+    } else {
+      auditBtn.style.color = "#b45309";
+      auditBtn.style.borderColor = "rgba(217, 119, 6, 0.35)";
+      auditBtn.innerHTML = `⚠️ <span>Verification Audit (${verifiedCount} verified, ${unknownCount} unknown, ${rejectedCount} rejected)</span>`;
+    }
 
     // Audit Panel (rendered below actionRow, toggled on click)
     const auditPanel = document.createElement("div");
@@ -2619,7 +2643,8 @@ function appendMessage(role, text, images = null, metadata = {}) {
     let stepsHtml = "";
     auditSteps.forEach(step => {
       const isStepOk = step.verdict === "VERIFIED";
-      const icon = isStepOk ? "✅" : "❌";
+      const isStepUnknown = step.verdict === "UNKNOWN";
+      const icon = isStepOk ? "✅" : (isStepUnknown ? "⚠️" : "❌");
       const engineLabel = escapeHtml(step.verificationMethod || step.engine || "verified");
       const expr = escapeHtml(step.expressionEvaluated || step.rawClaim || "");
       const expected = step.checkedState && step.checkedState.expected !== null && step.checkedState.expected !== undefined ? escapeHtml(String(step.checkedState.expected)) : "";
@@ -2640,12 +2665,15 @@ function appendMessage(role, text, images = null, metadata = {}) {
         + `<div class="pythos-audit-step-meta">${metaHtml}</div>`;
 
       if (step.rejectionRationale) {
-        stepInner += `<div style="font-size:0.75rem; color:#dc2626; margin-top:2px;">${escapeHtml(step.rejectionRationale)}</div>`;
+        const rationaleColor = isStepUnknown ? "#b45309" : "#dc2626";
+        stepInner += `<div style="font-size:0.75rem; color:${rationaleColor}; margin-top:2px;">${escapeHtml(step.rejectionRationale)}</div>`;
       }
       stepsHtml += `<div class="pythos-audit-step">${stepInner}</div>`;
     });
 
-    auditPanel.innerHTML = `<div style="font-size:0.75rem; font-weight:600; color:#15803d; margin-bottom:6px; display:flex; align-items:center; gap:5px;"><span>🛡️ Verified Derivation Audit</span><span style="font-size:0.7rem; color:var(--text-muted); font-weight:normal;">(${verifiedCount}/${totalCount} certified)</span></div><div class="pythos-audit-body">${stepsHtml}</div>`;
+    const headerColor = isFullyVerified ? "#15803d" : "#b45309";
+    const headerTitle = isFullyVerified ? "🛡️ Verified Derivation Audit" : (isPartiallyVerified ? "⚠️ Partially Verified Derivation Audit" : "⚠️ Derivation Verification Audit");
+    auditPanel.innerHTML = `<div style="font-size:0.75rem; font-weight:600; color:${headerColor}; margin-bottom:6px; display:flex; align-items:center; gap:5px;"><span>${headerTitle}</span><span style="font-size:0.7rem; color:var(--text-muted); font-weight:normal;">(${verifiedCount} verified, ${unknownCount} unknown, ${rejectedCount} rejected of ${totalCount})</span></div><div class="pythos-audit-body">${stepsHtml}</div>`;
 
     auditBtn.addEventListener("click", () => {
       const isVisible = auditPanel.style.display !== "none";
@@ -2653,7 +2681,7 @@ function appendMessage(role, text, images = null, metadata = {}) {
       auditBtn.classList.toggle("active", !isVisible);
     });
 
-    // Place Verified button on the left of actionRow
+    // Place Audit button on the left of actionRow
     actionRow.insertBefore(auditBtn, actionRow.firstChild);
     div.appendChild(auditPanel);
   }
@@ -4415,6 +4443,8 @@ async function askPythos(userText) {
       let metaWithholdingReason = null;
       let metaWithholdingExplanation = null;
       let metaWithholdingDetails = null;
+      let metaVerificationState = null;
+      let metaVerificationSummary = null;
 
       let isStreamDone = false;
       let isStreamError = false;
@@ -4470,8 +4500,13 @@ async function askPythos(userText) {
           } else if (ev.type === "revision" && ev.revisedContent) {
             streamedText = ev.revisedContent;
             contentDiv.textContent = streamedText;
-            statusBadge.style.color = "#059669";
-            statusBadge.innerHTML = `<span style="color:#059669; font-weight:600;">✓ Solution revised & verified</span>`;
+            if (ev.withheld) {
+              statusBadge.style.color = "#d97706";
+              statusBadge.innerHTML = `<span style="color:#d97706; font-weight:500;">Clarification Needed</span>`;
+            } else {
+              statusBadge.style.color = "#059669";
+              statusBadge.innerHTML = `<span style="color:#059669; font-weight:600;">✓ Solution revised & verified</span>`;
+            }
           } else if (ev.type === "correction") {
             // Span-anchored correction: apply replacement safely if span matches
             if (typeof ev.startIndex === "number" && typeof ev.endIndex === "number" && ev.startIndex >= 0 && ev.endIndex <= streamedText.length) {
@@ -4499,13 +4534,50 @@ async function askPythos(userText) {
             if (ev.withholdingReason) metaWithholdingReason = ev.withholdingReason;
             if (ev.withholdingExplanation) metaWithholdingExplanation = ev.withholdingExplanation;
             if (ev.withholdingDetails) metaWithholdingDetails = ev.withholdingDetails;
-            const hasAffirmativeVerification = Array.isArray(ev.verification) && ev.verification.some(v => v && v.verified === true && v.status === 'VERIFIED');
-            if (ev.withheld) {
+            if (ev.verificationSummary) metaVerificationSummary = ev.verificationSummary;
+
+            // CRITICAL-01: Replace streamedText and visible DOM content when withheld, recovered, or finalContent differs
+            if (typeof ev.finalContent === "string" && ev.finalContent.trim()) {
+              streamedText = ev.finalContent;
+              contentDiv.textContent = streamedText;
+            } else if (ev.withheld) {
+              const reasonKey = ev.withholdingReason || "CLAIM_NOT_VERIFIED";
+              const fallbackCfg = (typeof CLIENT_WITHHOLDING_EXPLANATIONS !== "undefined" && CLIENT_WITHHOLDING_EXPLANATIONS[reasonKey])
+                ? CLIENT_WITHHOLDING_EXPLANATIONS[reasonKey]
+                : CLIENT_WITHHOLDING_EXPLANATIONS.CLAIM_NOT_VERIFIED;
+              const headline = (ev.withholdingDetails && ev.withholdingDetails.headline) || fallbackCfg.headline;
+              const explanation = ev.withholdingExplanation || (ev.withholdingDetails && ev.withholdingDetails.explanation) || fallbackCfg.explanation;
+              streamedText = `**${headline}**\n\n${explanation}`;
+              contentDiv.textContent = streamedText;
+            }
+
+            // CRITICAL-02: Strict 3-state verification evaluation (no .some() promotion of UNKNOWN or partial verification)
+            const verList = Array.isArray(ev.verification) ? ev.verification : [];
+            const totalClaimsCount = verList.length;
+            const verifiedClaimsCount = verList.filter(v => v && v.verified === true && v.status === "VERIFIED").length;
+            const unknownClaimsCount = verList.filter(v => v && v.verified === false && v.status === "UNKNOWN").length;
+            const rejectedClaimsCount = verList.filter(v => v && v.verified === false && v.status !== "UNKNOWN").length;
+
+            const resolvedState = ev.verificationState || (
+              (ev.withheld || rejectedClaimsCount > 0 || (totalClaimsCount > 0 && verifiedClaimsCount === 0))
+                ? "WITHHELD"
+                : (totalClaimsCount > 0 && verifiedClaimsCount === totalClaimsCount && unknownClaimsCount === 0)
+                  ? "VERIFIED"
+                  : (totalClaimsCount > 0 && verifiedClaimsCount > 0 && unknownClaimsCount > 0 && rejectedClaimsCount === 0)
+                    ? "PARTIALLY_VERIFIED"
+                    : (ev.safeResponseRecovered ? "VERIFIED" : "UNVERIFIED_CONCEPTUAL")
+            );
+            metaVerificationState = resolvedState;
+
+            if (ev.withheld || resolvedState === "WITHHELD") {
               statusBadge.style.color = "#d97706";
               statusBadge.innerHTML = `<span style="color:#d97706; font-weight:500;">Clarification Needed</span>`;
-            } else if (hasAffirmativeVerification && !isTruncated) {
+            } else if (resolvedState === "VERIFIED" && !isTruncated) {
               statusBadge.style.color = "#16a34a";
               statusBadge.innerHTML = `<span style="color:#16a34a; font-weight:500;">✓ Verified</span>`;
+            } else if (resolvedState === "PARTIALLY_VERIFIED" && !isTruncated) {
+              statusBadge.style.color = "#d97706";
+              statusBadge.innerHTML = `<span style="color:#d97706; font-weight:500;" title="Primary claim verified; ${unknownClaimsCount} supporting ${unknownClaimsCount === 1 ? 'step' : 'steps'} could not be independently verified by CAS">🛡️ Partially Verified (${verifiedClaimsCount}/${totalClaimsCount} steps)</span>`;
             } else if (isTruncated) {
               statusBadge.style.color = "#d97706";
               statusBadge.innerHTML = `<span style="color:#d97706; font-weight:500;">⚠️ Interrupted</span>`;
@@ -4542,11 +4614,23 @@ async function askPythos(userText) {
         try {
           const ev = JSON.parse(lineBuffer.trim());
           if (ev.type === "token") streamedText += ev.content;
+          if (ev.type === "revision" && ev.revisedContent) {
+            streamedText = ev.revisedContent;
+          }
           if (ev.type === "verified") {
             if (ev.claims) metaClaims = ev.claims;
             if (ev.verification) metaVerification = ev.verification;
             if (ev.verificationAudit) metaVerificationAudit = ev.verificationAudit;
             if (ev.model) metaModel = ev.model;
+            if (ev.withheld) metaWithheld = true;
+            if (ev.withholdingReason) metaWithholdingReason = ev.withholdingReason;
+            if (ev.withholdingExplanation) metaWithholdingExplanation = ev.withholdingExplanation;
+            if (ev.withholdingDetails) metaWithholdingDetails = ev.withholdingDetails;
+            if (ev.verificationState) metaVerificationState = ev.verificationState;
+            if (ev.verificationSummary) metaVerificationSummary = ev.verificationSummary;
+            if (typeof ev.finalContent === "string" && ev.finalContent.trim()) {
+              streamedText = ev.finalContent;
+            }
           }
         } catch (_) {}
       }
@@ -4608,7 +4692,9 @@ async function askPythos(userText) {
           withheld: metaWithheld,
           withholdingReason: metaWithholdingReason,
           withholdingExplanation: metaWithholdingExplanation,
-          withholdingDetails: metaWithholdingDetails
+          withholdingDetails: metaWithholdingDetails,
+          verificationState: metaVerificationState,
+          verificationSummary: metaVerificationSummary
         });
 
         // If user was reading scrolled up during streaming, preserve their exact reading position
@@ -4662,7 +4748,9 @@ async function askPythos(userText) {
           withheld: data.withheld || false,
           withholdingReason: data.withholdingReason || null,
           withholdingExplanation: data.withholdingExplanation || null,
-          withholdingDetails: data.withholdingDetails || null
+          withholdingDetails: data.withholdingDetails || null,
+          verificationState: data.verificationState || null,
+          verificationSummary: data.verificationSummary || null
         });
 
         // Save to Firebase

@@ -577,6 +577,10 @@ function isOriginAllowed(origin) {
 
 const app = express();
 
+// HIGH-03: Trust Railway's single-hop edge reverse proxy so req.ip resolves the real client IP
+// rather than spoofed leftmost X-Forwarded-For values.
+app.set('trust proxy', 1);
+
 // Phase 0.3: Disable Express server fingerprinting header
 app.disable('x-powered-by');
 
@@ -779,7 +783,7 @@ app.get('/health/ready', async (req, res) => {
 });
 
 const learningStore = require('./learningStore');
-const { verifyResponseClaims, extractCandidateAnswer, evaluateCandidateDelivery } = require('./verificationBridge');
+const { verifyResponseClaims, extractCandidateAnswer, evaluateCandidateDelivery, auditPromptClaimFidelity, evaluateVerificationState } = require('./verificationBridge');
 const {
   analyzeDeterministicIntent,
   extractPreflightDeterministicFacts,
@@ -816,6 +820,133 @@ const { constructSafeVerifiedResponse } = require('./safeResponseConstructor');
 app.use('/admin', adminRoutes);
 // Mount Report Routes (Priority 1 & 6)
 app.use('/api/report', reportRoutes);
+
+// =====================================
+// Per-IP Sliding-Window Rate Limiters & Auth Verification Helpers (HIGH-03 & HIGH-04)
+// =====================================
+function createSlidingWindowLimiter(defaultMax, defaultWindowMs, errorMsg) {
+  let maxRequests = defaultMax;
+  let windowMs = defaultWindowMs;
+  const buckets = new Map();
+
+  function check(ip) {
+    const now = Date.now();
+    const cutoff = now - windowMs;
+    let timestamps = buckets.get(ip) || [];
+    timestamps = timestamps.filter(ts => ts > cutoff);
+    if (timestamps.length >= maxRequests) {
+      buckets.set(ip, timestamps);
+      const retryAfter = Math.max(1, Math.ceil((timestamps[0] + windowMs - now) / 1000));
+      return { allowed: false, retryAfter };
+    }
+    timestamps.push(now);
+    buckets.set(ip, timestamps);
+    return { allowed: true, retryAfter: 0 };
+  }
+
+  function middleware(req, res, next) {
+    const ip = reportRoutes.getClientIp ? reportRoutes.getClientIp(req) : (req.ip || req.socket?.remoteAddress || 'unknown');
+    const result = check(ip);
+    if (!result.allowed) {
+      res.setHeader('Retry-After', String(result.retryAfter));
+      return res.status(429).json({
+        error: 'rate_limit_exceeded',
+        message: errorMsg,
+        retryAfter: result.retryAfter
+      });
+    }
+    next();
+  }
+
+  function reset() {
+    buckets.clear();
+  }
+
+  function configure(newMax, newWindowMs) {
+    if (Number.isFinite(newMax) && newMax > 0) maxRequests = Math.floor(newMax);
+    if (Number.isFinite(newWindowMs) && newWindowMs > 0) windowMs = Math.floor(newWindowMs);
+  }
+
+  return { check, middleware, reset, configure };
+}
+
+const chatRateLimiter = createSlidingWindowLimiter(
+  parseInt(process.env.CHAT_RATE_LIMIT_MAX, 10) || 120,
+  parseInt(process.env.CHAT_RATE_LIMIT_WINDOW_MS, 10) || (60 * 1000),
+  'Too many chat requests from this address. Please wait a moment and try again.'
+);
+
+const authRateLimiter = createSlidingWindowLimiter(
+  parseInt(process.env.AUTH_RATE_LIMIT_MAX, 10) || 20,
+  parseInt(process.env.AUTH_RATE_LIMIT_WINDOW_MS, 10) || (15 * 60 * 1000),
+  'Too many authentication attempts from this address. Please try again later.'
+);
+
+const mailingRateLimiter = createSlidingWindowLimiter(
+  parseInt(process.env.MAILING_RATE_LIMIT_MAX, 10) || 15,
+  parseInt(process.env.MAILING_RATE_LIMIT_WINDOW_MS, 10) || (15 * 60 * 1000),
+  'Too many mailing-list requests from this address. Please try again later.'
+);
+
+let _customGoogleTokenVerifier = null;
+function setGoogleTokenVerifierForTesting(fn) {
+  _customGoogleTokenVerifier = typeof fn === 'function' ? fn : null;
+}
+
+async function verifyGoogleIdTokenCryptographically(idToken) {
+  if (!idToken || typeof idToken !== 'string' || !idToken.trim()) {
+    return null;
+  }
+  if (_customGoogleTokenVerifier) {
+    return await _customGoogleTokenVerifier(idToken.trim());
+  }
+  if (!firebaseAdmin.isAdminSdkAvailable()) {
+    return null;
+  }
+  return await firebaseAdmin.verifyIdToken(idToken.trim());
+}
+
+async function verifyAuthenticatedRequestUser(req) {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || typeof authHeader !== 'string' || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+  const token = authHeader.slice(7).trim();
+  if (!token) return null;
+
+  if (token.startsWith('lanzar.')) {
+    const claims = lanzarIdService.verifyLanzarToken(token);
+    if (!claims || !claims.uid) return null;
+    return {
+      uid: claims.uid,
+      email: claims.email ? String(claims.email).trim().toLowerCase() : null,
+      provider: 'lanzar_id',
+      claims
+    };
+  }
+
+  const decoded = await verifyGoogleIdTokenCryptographically(token);
+  if (!decoded || !decoded.uid) return null;
+  return {
+    uid: decoded.uid,
+    email: decoded.email ? String(decoded.email).trim().toLowerCase() : null,
+    provider: 'firebase',
+    claims: decoded
+  };
+}
+
+function resetAllRateLimits() {
+  chatRateLimiter.reset();
+  authRateLimiter.reset();
+  mailingRateLimiter.reset();
+  if (reportRoutes.resetReportRateLimits) reportRoutes.resetReportRateLimits();
+}
+
+app.chatRateLimiter = chatRateLimiter;
+app.authRateLimiter = authRateLimiter;
+app.mailingRateLimiter = mailingRateLimiter;
+app.resetAllRateLimits = resetAllRateLimits;
+app.setGoogleTokenVerifierForTesting = setGoogleTokenVerifierForTesting;
 
 // =====================================
 // Vision Provider Drivers (Primary: Groq, Backup: Gemini)
@@ -1752,7 +1883,7 @@ async function executeRevisionCall(candidateResult, { revisionPrompt, effectiveO
 // =====================================
 // Public Chat / Inference Route
 // =====================================
-app.post('/api/chat', async (req, res) => {
+app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
   const startTime = Date.now();
   const requestId = (typeof req.headers['x-request-id'] === 'string' && req.headers['x-request-id'].trim())
     ? req.headers['x-request-id'].trim().slice(0, 64)
@@ -1963,6 +2094,17 @@ app.post('/api/chat', async (req, res) => {
               type: 'verified',
               requestId,
               latencyMs: Date.now() - startTime,
+              finalContent: directResponse,
+              verificationState: 'VERIFIED',
+              verificationSummary: {
+                state: 'VERIFIED',
+                verifiedCount: (verificationResults || []).filter(v => v && v.verified === true).length,
+                unknownCount: 0,
+                rejectedCount: 0,
+                totalCount: (verificationResults || []).length,
+                primaryClaimVerified: true,
+                disclosure: null
+              },
               claims,
               verification: verificationResults,
               verificationAudit,
@@ -2751,7 +2893,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
     } catch (ctxErr) {
       console.warn('[CONTEXT] buildEffectivePrompt failed in post-verification:', ctxErr.message);
     }
-    let { claims, internalContradictions, verificationResults, invalidClaims, verificationAudit } = await verifyResponseClaims(
+    let { claims, internalContradictions, verificationResults, invalidClaims, unknownClaims, verificationAudit } = await verifyResponseClaims(
       finalContent,
       effectiveVerificationPrompt,
       abortController.signal
@@ -2814,6 +2956,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           internalContradictions = revAudit.internalContradictions;
           verificationResults = revAudit.verificationResults;
           invalidClaims = revAudit.invalidClaims;
+          unknownClaims = revAudit.unknownClaims || [];
           verificationAudit = revAudit.verificationAudit;
 
           console.log(`[VERIFIER] Post-revision verification complete: ${claims.length} claims extracted, ${invalidClaims.length} invalid, ${internalContradictions.length} contradictions.`);
@@ -2876,136 +3019,170 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
     }
 
     // =====================================
-    // DELIVERY GATE: Safe Withholding vs Certified Delivery
-      // =====================================
-      const uncorrectedInvalidClaims = invalidClaims.filter(({ claim, verification }) => {
-        // If the verification error was geometric contradiction, range error, or fidelity mismatch, it cannot be overridden by arithmetic CAS
-        if (verification.error_type === 'GEOMETRIC_CONTRADICTION' ||
-            verification.error_type === 'TRIGONOMETRIC_RANGE_VIOLATION' ||
-            verification.status === 'GEOMETRIC_IMPOSSIBILITY' ||
-            verification.status === 'PYTHAGOREAN_VIOLATION' ||
-            verification.status === 'FIDELITY_MISMATCH' ||
-            verification.status === 'RANGE_ERROR') {
-          return true;
+    // DELIVERY GATE: Safe Withholding vs Certified Delivery (CRITICAL-01 & CRITICAL-02)
+    // =====================================
+    const uncorrectedInvalidClaims = invalidClaims.filter(({ claim, verification }) => {
+      // If the verification error was geometric contradiction, range error, or fidelity mismatch, it cannot be overridden by arithmetic CAS
+      if (verification.error_type === 'GEOMETRIC_CONTRADICTION' ||
+          verification.error_type === 'TRIGONOMETRIC_RANGE_VIOLATION' ||
+          verification.status === 'GEOMETRIC_IMPOSSIBILITY' ||
+          verification.status === 'PYTHAGOREAN_VIOLATION' ||
+          verification.status === 'FIDELITY_MISMATCH' ||
+          verification.status === 'RANGE_ERROR') {
+        return true;
+      }
+      // If exact_value was successfully substituted into finalContent, it is resolved
+      if (claim.raw_match && verification.exact_value !== undefined && verification.exact_value !== null) {
+        const exactNum = typeof verification.exact_value === 'number' ? verification.exact_value : Number(verification.exact_value);
+        const exactFormatted = Number.isFinite(exactNum) ? exactNum.toFixed(4) : String(verification.exact_value);
+        if (finalContent.includes(exactFormatted)) {
+          return false; // Successfully corrected by CAS
         }
-        // If exact_value was successfully substituted into finalContent, it is resolved
-        if (claim.raw_match && verification.exact_value !== undefined && verification.exact_value !== null) {
-          const exactNum = typeof verification.exact_value === 'number' ? verification.exact_value : Number(verification.exact_value);
-          const exactFormatted = Number.isFinite(exactNum) ? exactNum.toFixed(4) : String(verification.exact_value);
-          if (finalContent.includes(exactFormatted)) {
-            return false; // Successfully corrected by CAS
-          }
-        }
-        return true; // Still uncorrected
-      });
+      }
+      return true; // Still uncorrected
+    });
 
-      // Guard against truncated or incomplete responses ending mid-derivation
-      const isCandidateTruncated = candidateResult?.truncated === true;
-      const endsWithIncompleteHeader = /(?:##\s*Final\s*answer|\*\*Final\s*Answer\*\*|###\s*Answer|###\s*Final\s*Result)[:\s]*$/i.test(finalContent.trim());
-      const displayMathOpen = (finalContent.match(/(?<!\\)\\\[/g) || []).length;
-      const displayMathClose = (finalContent.match(/(?<!\\)\\\]/g) || []).length;
-      const hasUnclosedDisplayMath = displayMathOpen > displayMathClose;
-      const isCandidateIncomplete = isCandidateTruncated || endsWithIncompleteHeader || hasUnclosedDisplayMath;
+    // Guard against truncated or incomplete responses ending mid-derivation
+    const isCandidateTruncated = candidateResult?.truncated === true;
+    const endsWithIncompleteHeader = /(?:##\s*Final\s*answer|\*\*Final\s*Answer\*\*|###\s*Answer|###\s*Final\s*Result)[:\s]*$/i.test(finalContent.trim());
+    const displayMathOpen = (finalContent.match(/(?<!\\)\\\[/g) || []).length;
+    const displayMathClose = (finalContent.match(/(?<!\\)\\\]/g) || []).length;
+    const hasUnclosedDisplayMath = displayMathOpen > displayMathClose;
+    const isCandidateIncomplete = isCandidateTruncated || endsWithIncompleteHeader || hasUnclosedDisplayMath;
 
-      if (isCandidateIncomplete) {
-        console.warn(`[DELIVERY GATE] Candidate is truncated or incomplete (truncated=${isCandidateTruncated}, endsWithIncompleteHeader=${endsWithIncompleteHeader}, unclosedMath=${hasUnclosedDisplayMath}). Enforcing safe withholding...`);
+    if (isCandidateIncomplete) {
+      console.warn(`[DELIVERY GATE] Candidate is truncated or incomplete (truncated=${isCandidateTruncated}, endsWithIncompleteHeader=${endsWithIncompleteHeader}, unclosedMath=${hasUnclosedDisplayMath}). Enforcing safe withholding...`);
+    }
+
+    // CRITICAL-02: Enforce auditPromptClaimFidelity and primary-claim verification on the main LLM delivery path.
+    // Neither intermediate arithmetic alone nor UNKNOWN primary claims may pass as verified.
+    const isGuidedTutoringPrompt = Boolean(
+      studentIntent && (studentIntent.type === 'CONCEPTUAL_QUESTION' || studentIntent.type === 'PRACTICE_REQUEST')
+    ) || (!finalContent.includes('\\boxed') && /\?\s*$/.test(finalContent.trim()) && claims.length === 0);
+
+    const promptFidelity = isGuidedTutoringPrompt
+      ? { valid: true, primaryClaimVerified: true }
+      : auditPromptClaimFidelity(claims, effectiveVerificationPrompt, verificationResults);
+
+    const verifiedClaimCount = (verificationResults || []).filter(v => v && v.verified === true && v.status === 'VERIFIED').length;
+    const unknownClaimCount = (verificationResults || []).filter(v => v && v.verified === false && v.status === 'UNKNOWN').length;
+    const allExtractedClaimsUnknown = claims.length > 0 && verifiedClaimCount === 0 && unknownClaimCount > 0;
+
+    const hasUnresolvableFailure =
+      uncorrectedInvalidClaims.length > 0 ||
+      internalContradictions.length > 0 ||
+      isCandidateIncomplete ||
+      !promptFidelity.valid ||
+      allExtractedClaimsUnknown;
+
+    if (hasUnresolvableFailure) {
+      console.warn(`[DELIVERY GATE] Candidate failed verification gate (invalid=${uncorrectedInvalidClaims.length}, contradictions=${internalContradictions.length}, fidelity=${promptFidelity.valid}, allUnknown=${allExtractedClaimsUnknown}). Enforcing safe withholding gate...`);
+
+      let safeRecovery = null;
+      try {
+        safeRecovery = constructSafeVerifiedResponse({
+          userPrompt: lastUserMsg?.content || '',
+          preflightToolResult,
+          activeProblemState,
+          messages: req.body.messages,
+          verificationResults: uncorrectedInvalidClaims
+        });
+      } catch (recoverErr) {
+        console.error('[DELIVERY GATE] Error constructing safe verified response:', recoverErr.message);
       }
 
-      const hasUnresolvableFailure = uncorrectedInvalidClaims.length > 0 || internalContradictions.length > 0 || isCandidateIncomplete;
+      if (safeRecovery && safeRecovery.content && typeof safeRecovery.content === 'string') {
+        console.log(`[DELIVERY GATE] Conversational candidate rejected, but safe verified response successfully constructed from ${safeRecovery.source} (${safeRecovery.title}). Delivering verified mathematical truth!`);
+        finalContent = safeRecovery.content;
+        ollamaResponse.withheld = false;
+        ollamaResponse.safeResponseRecovered = true;
+        ollamaResponse.recoverySource = safeRecovery.source;
+        ollamaResponse.recoveryTitle = safeRecovery.title;
+        ollamaResponse.message.content = finalContent;
 
-      if (hasUnresolvableFailure) {
-        console.warn(`[DELIVERY GATE] Candidate contains ${uncorrectedInvalidClaims.length} uncorrected errors and ${internalContradictions.length} contradictions. Enforcing safe withholding gate...`);
-
-        // ARCHITECTURAL MANDATE:
-        // Never withhold verified mathematical truth merely because the conversational explanation failed verification.
-        // If Pythos possesses a trusted, independently verified solution, the delivery system must attempt to construct
-        // a safe response from that solution rather than discarding it.
-        // The LLM may explain verified mathematics, but it must never be the only mechanism capable of presenting verified mathematics to the student.
-        let safeRecovery = null;
+        // Re-verify the recovered safe response so claims & verificationResults reflect the delivered content
         try {
-          safeRecovery = constructSafeVerifiedResponse({
-            userPrompt: lastUserMsg?.content || '',
-            preflightToolResult,
-            activeProblemState,
-            messages: req.body.messages,
-            verificationResults: uncorrectedInvalidClaims
-          });
-        } catch (recoverErr) {
-          console.error('[DELIVERY GATE] Error constructing safe verified response:', recoverErr.message);
+          const recoveredAudit = await verifyResponseClaims(
+            finalContent,
+            effectiveVerificationPrompt,
+            abortController.signal
+          );
+          claims = recoveredAudit.claims;
+          internalContradictions = recoveredAudit.internalContradictions;
+          verificationResults = recoveredAudit.verificationResults;
+          invalidClaims = recoveredAudit.invalidClaims;
+          unknownClaims = recoveredAudit.unknownClaims || [];
+          verificationAudit = recoveredAudit.verificationAudit;
+        } catch (_) {}
+      } else {
+        // No trusted verified solution exists -> Enforce fail-closed safe withholding to protect the student
+        const failureAudit = [];
+        uncorrectedInvalidClaims.forEach(({ verification }) => {
+          failureAudit.push(verification.details || verification.error_type || verification.status);
+        });
+        internalContradictions.forEach(ic => {
+          failureAudit.push(ic.details);
+        });
+        if (!promptFidelity.valid && promptFidelity.reason) {
+          failureAudit.push(promptFidelity.reason);
+        }
+        if (allExtractedClaimsUnknown) {
+          failureAudit.push('Primary mathematical claim returned UNKNOWN and could not be verified.');
         }
 
-        if (safeRecovery && safeRecovery.content && typeof safeRecovery.content === 'string') {
-          console.log(`[DELIVERY GATE] Conversational candidate rejected, but safe verified response successfully constructed from ${safeRecovery.source} (${safeRecovery.title}). Delivering verified mathematical truth!`);
-          finalContent = safeRecovery.content;
-          ollamaResponse.withheld = false;
-          ollamaResponse.safeResponseRecovered = true;
-          ollamaResponse.recoverySource = safeRecovery.source;
-          ollamaResponse.recoveryTitle = safeRecovery.title;
-          ollamaResponse.message.content = finalContent;
+        // Determine structured reason code from context & failures
+        let resolvedReason = WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED;
+        const hasImages = candidateResult?.hasImages || (req.body.messages && req.body.messages.some(m => m.images && m.images.length > 0)) || (req.body.image);
+        const auditText = failureAudit.join(' ').toLowerCase();
+
+        if (hasImages) {
+          resolvedReason = WITHHOLDING_REASONS.IMAGE_UNVERIFIABLE;
+        } else if (auditText.includes('division by zero') || auditText.includes('mathematically undefined') || auditText.includes('domain violation')) {
+          resolvedReason = WITHHOLDING_REASONS.UNDEFINED_EXPRESSION;
+        } else if (auditText.includes('missing') || auditText.includes('insufficient') || auditText.includes('undefined variable') || auditText.includes('not enough info')) {
+          resolvedReason = WITHHOLDING_REASONS.MISSING_INFORMATION;
+        } else if (auditText.includes('ambiguous') || auditText.includes('multiple interpretation')) {
+          resolvedReason = WITHHOLDING_REASONS.AMBIGUOUS_PROBLEM;
+        } else if ((!promptFidelity.valid && promptFidelity.primaryClaimStatus !== 'UNKNOWN') || auditText.includes('fidelity') || auditText.includes('mismatch') || auditText.includes('different equation')) {
+          resolvedReason = WITHHOLDING_REASONS.PROMPT_CLAIM_MISMATCH;
         } else {
-          // No trusted verified solution exists (e.g. genuinely ambiguous, missing problem information, uncomputable)
-          // -> Enforce fail-closed safe withholding to protect the student from unverified guesses.
-          const failureAudit = [];
-          uncorrectedInvalidClaims.forEach(({ verification }) => {
-            failureAudit.push(verification.details || verification.error_type || verification.status);
-          });
-          internalContradictions.forEach(ic => {
-            failureAudit.push(ic.details);
-          });
-
-          // Determine structured reason code from context & failures
-          let resolvedReason = WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED;
-          const hasImages = candidateResult?.hasImages || (req.body.messages && req.body.messages.some(m => m.images && m.images.length > 0)) || (req.body.image);
-          const auditText = failureAudit.join(' ').toLowerCase();
-
-          if (hasImages) {
-            resolvedReason = WITHHOLDING_REASONS.IMAGE_UNVERIFIABLE;
-          } else if (auditText.includes('division by zero') || auditText.includes('mathematically undefined') || auditText.includes('domain violation')) {
-            resolvedReason = WITHHOLDING_REASONS.UNDEFINED_EXPRESSION;
-          } else if (auditText.includes('missing') || auditText.includes('insufficient') || auditText.includes('undefined variable') || auditText.includes('not enough info')) {
-            resolvedReason = WITHHOLDING_REASONS.MISSING_INFORMATION;
-          } else if (auditText.includes('ambiguous') || auditText.includes('multiple interpretation')) {
-            resolvedReason = WITHHOLDING_REASONS.AMBIGUOUS_PROBLEM;
-          } else if (auditText.includes('fidelity') || auditText.includes('mismatch') || auditText.includes('different equation')) {
-            resolvedReason = WITHHOLDING_REASONS.PROMPT_CLAIM_MISMATCH;
-          } else {
-            resolvedReason = WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED;
-          }
-
-          const safeWithholding = getSafeWithholding(resolvedReason);
-
-          finalContent = safeWithholding.formattedContent;
-          ollamaResponse.withheld = true;
-          ollamaResponse.withholdingReason = resolvedReason;
-          ollamaResponse.withholdingExplanation = safeWithholding.explanation;
-          ollamaResponse.withholdingDetails = {
-            headline: safeWithholding.headline,
-            explanation: safeWithholding.explanation,
-            cause: safeWithholding.cause,
-            help: safeWithholding.help,
-            nextStep: safeWithholding.nextStep
-          };
-          ollamaResponse.message.content = finalContent;
-          ollamaResponse.withholdingReasons = failureAudit; // Preserved internally for auditing
+          resolvedReason = WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED;
         }
-      }
 
-      // Automatic System Error Flagging (Priority 1)
-      if (invalidClaims.length > 0 || internalContradictions.length > 0) {
-        try {
-          reportService.createReport({
-            question: lastUserMsg?.content || '',
-            response: finalContent,
-            claims,
-            verification: invalidClaims.map(ic => ic.verification),
-            model: targetModel,
-            description: 'System-detected mathematical contradiction / verification failure after revision',
-            source: 'system_auto_flag',
-            metadata: {
-              invalidClaimsCount: invalidClaims.length,
-              internalContradictionsCount: internalContradictions.length
-            }
-          });
+        const safeWithholding = getSafeWithholding(resolvedReason);
+
+        finalContent = safeWithholding.formattedContent;
+        ollamaResponse.withheld = true;
+        ollamaResponse.withholdingReason = resolvedReason;
+        ollamaResponse.withholdingExplanation = safeWithholding.explanation;
+        ollamaResponse.withholdingDetails = {
+          headline: safeWithholding.headline,
+          explanation: safeWithholding.explanation,
+          cause: safeWithholding.cause,
+          help: safeWithholding.help,
+          nextStep: safeWithholding.nextStep
+        };
+        ollamaResponse.message.content = finalContent;
+        ollamaResponse.withholdingReasons = failureAudit; // Preserved internally for auditing
+      }
+    }
+
+    // Automatic System Error Flagging (Priority 1)
+    if (invalidClaims.length > 0 || internalContradictions.length > 0) {
+      try {
+        reportService.createReport({
+          question: lastUserMsg?.content || '',
+          response: finalContent,
+          claims,
+          verification: invalidClaims.map(ic => ic.verification),
+          model: targetModel,
+          description: 'System-detected mathematical contradiction / verification failure after revision',
+          source: 'system_auto_flag',
+          metadata: {
+            invalidClaimsCount: invalidClaims.length,
+            internalContradictionsCount: internalContradictions.length
+          }
+        });
         console.log('[REPORT SERVICE] Auto-flagged suspicious interaction for human review.');
       } catch (flagErr) {
         console.error('[REPORT SERVICE] Failed to auto-flag report:', flagErr.message);
@@ -3013,7 +3190,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
     }
 
     // Enforce pedagogical consistency for contextual validation and continuation
-    if (studentEvaluation && studentEvaluation.preferredResponse) {
+    if (studentEvaluation && studentEvaluation.preferredResponse && !ollamaResponse.withheld) {
       if (studentEvaluation.status === 'STEP_VERIFIED_INCORRECT') {
         if (/\b(?:yes|that's right|you're right|correct|is right)\b/i.test(finalContent.slice(0, 80))) {
           console.warn('[VERIFIER] Model mistakenly affirmed incorrect proposed step. Enforcing deterministic correction...');
@@ -3033,29 +3210,26 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
       }
     }
 
-    // If preflight tool produced a graph component, ensure it is mounted
-    if (preflightToolResult && preflightToolResult.tool === toolController.TOOL_ALLOWLIST.RENDER_FUNCTION_GRAPH && preflightToolResult.success) {
+    // If preflight tool produced a graph component, ensure it is mounted (unless withheld)
+    if (!ollamaResponse.withheld && preflightToolResult && preflightToolResult.tool === toolController.TOOL_ALLOWLIST.RENDER_FUNCTION_GRAPH && preflightToolResult.success) {
       if (!finalContent.includes('[GRAPH:') && preflightToolResult.formattedComponent) {
         finalContent = finalContent.trim() + '\n\n' + preflightToolResult.formattedComponent;
       }
     }
-    // If preflight tool produced a geometry triangle component, ensure it is mounted
-    if (preflightToolResult && preflightToolResult.tool === toolController.TOOL_ALLOWLIST.RENDER_GEOMETRY_TRIANGLE && preflightToolResult.success) {
+    // If preflight tool produced a geometry triangle component, ensure it is mounted (unless withheld)
+    if (!ollamaResponse.withheld && preflightToolResult && preflightToolResult.tool === toolController.TOOL_ALLOWLIST.RENDER_GEOMETRY_TRIANGLE && preflightToolResult.success) {
       if (!finalContent.includes('[GEOMETRY:') && preflightToolResult.formattedComponent) {
         finalContent = finalContent.trim() + '\n\n' + preflightToolResult.formattedComponent;
       }
     }
 
     // Visual Instruction Fidelity Enforcement
-    // Ensures that requested sketches/diagrams are actually provided, never hallucinated,
-    // and that text-only queries remain clean without unsolicited visuals.
-    // Unwrap any code-fenced visualization tokens before final delivery
-    if (finalContent) {
+    if (finalContent && !ollamaResponse.withheld) {
       finalContent = finalContent.replace(/```(?:[a-zA-Z0-9_-]*\n)?\s*(\[(?:GEOMETRY|GRAPH|NUMBER_LINE|CHART|VIZ):[\s\S]*?\])\s*```/gi, '\n$1\n');
       finalContent = finalContent.replace(/`(\[(?:GEOMETRY|GRAPH|NUMBER_LINE|CHART|VIZ):[^`]+\])`/gi, '\n$1\n');
+      finalContent = stripModelScratchpad(finalContent);
+      finalContent = enforceVisualFidelity(finalContent, lastUserMsg?.content || '', messages, activeProblemState);
     }
-    finalContent = stripModelScratchpad(finalContent);
-    finalContent = enforceVisualFidelity(finalContent, lastUserMsg?.content || '', messages, activeProblemState);
     if (finalContent && ollamaResponse && ollamaResponse.message) {
       ollamaResponse.message.content = finalContent;
     }
@@ -3069,6 +3243,28 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
         ? require('crypto').createHash('sha256').update(studentUid).digest('hex').slice(0, 12)
         : 'guest';
 
+      const verificationEvaluation = evaluateVerificationState({
+        claims,
+        verificationResults,
+        invalidClaims: ollamaResponse.safeResponseRecovered ? [] : uncorrectedInvalidClaims,
+        unknownClaims,
+        internalContradictions: ollamaResponse.safeResponseRecovered ? [] : internalContradictions,
+        prompt: isGuidedTutoringPrompt ? '' : effectiveVerificationPrompt,
+        withheld: Boolean(ollamaResponse.withheld),
+        isCandidateIncomplete,
+        safeResponseRecovered: Boolean(ollamaResponse.safeResponseRecovered)
+      });
+
+      const verificationSummary = {
+        state: verificationEvaluation.state,
+        verifiedCount: verificationEvaluation.verifiedCount,
+        unknownCount: verificationEvaluation.unknownCount,
+        rejectedCount: verificationEvaluation.rejectedCount,
+        totalCount: verificationEvaluation.totalCount,
+        primaryClaimVerified: verificationEvaluation.primaryClaimVerified,
+        disclosure: verificationEvaluation.disclosure
+      };
+
       // Attach non-intrusive verification & diagnostic metadata
       ollamaResponse.requestId = requestId;
       ollamaResponse.latencyMs = latencyMs;
@@ -3076,6 +3272,9 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
       ollamaResponse.claims = claims || [];
       ollamaResponse.verification = verificationResults;
       ollamaResponse.verificationAudit = verificationAudit || [];
+      ollamaResponse.verificationState = verificationEvaluation.state;
+      ollamaResponse.verificationSummary = verificationSummary;
+      ollamaResponse.finalContent = finalContent;
       if (classification) {
         ollamaResponse.classification = {
           domain: classification.problemDomain,
@@ -3086,8 +3285,8 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
         ollamaResponse.intent = studentIntent.type;
       }
 
-      // Asynchronously trigger background personal memory extraction (non-blocking)
-      if (studentUid && lastUserMsg?.content && finalContent) {
+      // Asynchronously trigger background personal memory extraction (non-blocking, only for non-withheld responses)
+      if (studentUid && lastUserMsg?.content && finalContent && !ollamaResponse.withheld) {
         setImmediate(() => {
           memoryExtractor.processInteractionAsync(studentUid, lastUserMsg.content, finalContent, req.body.chatId || null)
             .catch(err => console.warn('[MEMORY EXTRACTOR] Error in post-response extraction:', err.message));
@@ -3100,12 +3299,24 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           res.setHeader('Transfer-Encoding', 'chunked');
           res.setHeader('Cache-Control', 'no-cache, no-transform');
           res.write(JSON.stringify({ type: 'token', content: finalContent }) + '\n');
+        } else if (ollamaResponse.withheld || ollamaResponse.safeResponseRecovered) {
+          // CRITICAL-01: Dual-compatible NDJSON protocol — emit explicit revision event
+          // when streamed tokens are withheld or replaced by a safe verified recovery.
+          res.write(JSON.stringify({
+            type: 'revision',
+            revisedContent: finalContent,
+            withheld: Boolean(ollamaResponse.withheld),
+            safeResponseRecovered: Boolean(ollamaResponse.safeResponseRecovered)
+          }) + '\n');
         }
         res.write(JSON.stringify({
           type: 'verified',
           requestId,
           latencyMs,
           privacySafeUid,
+          finalContent,
+          verificationState: verificationEvaluation.state,
+          verificationSummary,
           domain: classification?.problemDomain || null,
           subtype: classification?.problemSubtype || null,
           intent: studentIntent?.intent || studentIntent?.type || null,
@@ -3451,15 +3662,54 @@ app.post('/api/learning/record', studentAuthMiddleware, async (req, res) => {
 });
 
 // =====================================
-// LANZAR ID Ecosystem Authentication & Consent Routes (Phase 4.3 & 4.4)
+// LANZAR ID Ecosystem Authentication & Consent Routes (Phase 4.3 & 4.4 — Hardened in v1.8.62)
 // =====================================
+function isPersistenceOrConfigFailure(err) {
+  const msg = String(err?.message || '');
+  return (
+    msg.includes('Failed to persist') ||
+    msg.includes('Persistent storage write failed') ||
+    msg.includes('Authoritative Firestore persistence') ||
+    msg.includes('LANZAR_ID_SECRET is not configured') ||
+    msg.includes('EACCES') ||
+    msg.includes('EROFS') ||
+    msg.includes('ENOSPC')
+  );
+}
+
 app.get('/api/auth/lanzar/.well-known/openid-configuration', (req, res) => {
   return res.status(200).json(lanzarIdService.getOidcDiscoveryDocument());
 });
 
-app.post('/api/auth/lanzar/session', async (req, res) => {
+app.post('/api/auth/lanzar/session', authRateLimiter.middleware, async (req, res) => {
   try {
-    const { email, password, displayName, mode, mailingListOptIn, consentSource, linkedGoogleUid } = req.body || {};
+    const { email, password, displayName, mode, mailingListOptIn, consentSource, linkedGoogleUid, googleIdToken } = req.body || {};
+
+    // HIGH-04: Reject raw unverified linkedGoogleUid; require cryptographic verification via googleIdToken
+    let verifiedGoogleUid = null;
+    if (linkedGoogleUid && !googleIdToken) {
+      return res.status(401).json({
+        error: 'unauthorized',
+        message: 'A cryptographically verified googleIdToken is required to link a Google account.'
+      });
+    }
+    if (googleIdToken) {
+      const googleClaims = await verifyGoogleIdTokenCryptographically(googleIdToken);
+      if (!googleClaims || !googleClaims.uid) {
+        return res.status(401).json({
+          error: 'unauthorized',
+          message: 'Invalid or unverifiable Google ID token.'
+        });
+      }
+      if (linkedGoogleUid && linkedGoogleUid !== googleClaims.uid) {
+        return res.status(403).json({
+          error: 'forbidden',
+          message: 'Supplied linkedGoogleUid does not match verified Google ID token.'
+        });
+      }
+      verifiedGoogleUid = googleClaims.uid;
+    }
+
     const result = await lanzarIdService.authenticateOrRegisterLanzarId({
       email,
       password,
@@ -3467,10 +3717,13 @@ app.post('/api/auth/lanzar/session', async (req, res) => {
       mode: mode === 'register' ? 'register' : 'login',
       mailingListOptIn: mailingListOptIn === true,
       consentSource: consentSource || 'pythos_lanzar_id_modal',
-      linkedGoogleUid: linkedGoogleUid || null
+      linkedGoogleUid: verifiedGoogleUid
     });
     return res.status(200).json({ status: 'ok', ...result });
   } catch (err) {
+    if (isPersistenceOrConfigFailure(err)) {
+      return res.status(500).json({ error: 'persistence_error', message: err.message });
+    }
     return res.status(400).json({ error: 'lanzar_auth_error', message: err.message });
   }
 });
@@ -3487,7 +3740,7 @@ app.get('/api/auth/lanzar/verify', (req, res) => {
   return res.status(200).json({ status: 'ok', claims });
 });
 
-app.post('/api/auth/lanzar/link-google', async (req, res) => {
+app.post('/api/auth/lanzar/link-google', authRateLimiter.middleware, async (req, res) => {
   try {
     const authHeader = req.headers['authorization'];
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -3497,29 +3750,77 @@ app.post('/api/auth/lanzar/link-google', async (req, res) => {
     if (!claims || !claims.uid) {
       return res.status(401).json({ error: 'unauthorized', message: 'Invalid LANZAR ID token.' });
     }
-    const { googleUid, googleEmail } = req.body || {};
-    if (!googleUid || typeof googleUid !== 'string') {
-      return res.status(400).json({ error: 'invalid_request', message: 'googleUid is required.' });
+
+    // HIGH-04: Require cryptographically verified Google ID token (never trust raw googleUid)
+    const { googleIdToken, googleUid, googleEmail } = req.body || {};
+    if (!googleIdToken || typeof googleIdToken !== 'string') {
+      return res.status(401).json({
+        error: 'unauthorized',
+        message: 'A cryptographically verified googleIdToken is required to link a Google account.'
+      });
     }
+    const googleClaims = await verifyGoogleIdTokenCryptographically(googleIdToken);
+    if (!googleClaims || !googleClaims.uid) {
+      return res.status(401).json({
+        error: 'unauthorized',
+        message: 'Invalid or unverifiable Google ID token.'
+      });
+    }
+    if (googleUid && googleUid !== googleClaims.uid) {
+      return res.status(403).json({
+        error: 'forbidden',
+        message: 'Supplied googleUid does not match verified Google ID token.'
+      });
+    }
+
     const linked = await lanzarIdService.linkGoogleAccountToLanzarId({
       lanzarUid: claims.uid,
-      googleUid,
-      googleEmail
+      googleUid: googleClaims.uid,
+      googleEmail: googleClaims.email || googleEmail || null
     });
     return res.status(200).json({ status: 'ok', linked });
   } catch (err) {
+    if (isPersistenceOrConfigFailure(err)) {
+      return res.status(500).json({ error: 'persistence_error', message: err.message });
+    }
     return res.status(400).json({ error: 'link_error', message: err.message });
   }
 });
 
-app.post('/api/mailing-list/consent', async (req, res) => {
+app.post('/api/mailing-list/consent', mailingRateLimiter.middleware, async (req, res) => {
   try {
+    // HIGH-04: Require cryptographically verified authentication matching the target email/UID
+    const authUser = await verifyAuthenticatedRequestUser(req);
+    if (!authUser) {
+      return res.status(401).json({
+        error: 'unauthorized',
+        message: 'Verified authentication token is required to update mailing-list consent.'
+      });
+    }
+
     const { email, consented, consentSource, uid } = req.body || {};
+    const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+    if (!normalizedEmail || !lanzarIdService.isValidEmail(normalizedEmail)) {
+      return res.status(400).json({ error: 'consent_error', message: 'A valid email address is required.' });
+    }
+    if (!authUser.email || authUser.email !== normalizedEmail) {
+      return res.status(403).json({
+        error: 'forbidden',
+        message: 'Authenticated user email does not match target consent email.'
+      });
+    }
+    if (uid && authUser.uid && uid !== authUser.uid) {
+      return res.status(403).json({
+        error: 'forbidden',
+        message: 'Authenticated user UID does not match target consent UID.'
+      });
+    }
+
     const record = await lanzarIdService.updateMailingListConsent({
-      email,
+      email: normalizedEmail,
       consented: consented === true,
       consentSource: consentSource || 'pythos_consent_api',
-      uid: uid || null
+      uid: authUser.uid || uid || null
     });
     return res.status(200).json({
       status: 'ok',
@@ -3529,16 +3830,36 @@ app.post('/api/mailing-list/consent', async (req, res) => {
       consentSource: record.consentSource
     });
   } catch (err) {
+    if (isPersistenceOrConfigFailure(err)) {
+      return res.status(500).json({ error: 'persistence_error', message: err.message });
+    }
     return res.status(400).json({ error: 'consent_error', message: err.message });
   }
 });
 
-app.post('/api/mailing-list/unsubscribe', async (req, res) => {
+app.post('/api/mailing-list/unsubscribe', mailingRateLimiter.middleware, async (req, res) => {
   try {
     const { email, token } = req.body || {};
+    const hasUnsubToken = typeof token === 'string' && token.trim().length > 0;
+
+    if (!hasUnsubToken) {
+      // HIGH-04: Without a signed/secret unsubscribeToken, require verified session matching email
+      const authUser = await verifyAuthenticatedRequestUser(req);
+      const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+      if (!authUser || !authUser.email || authUser.email !== normalizedEmail) {
+        return res.status(401).json({
+          error: 'unauthorized',
+          message: 'Valid unsubscribe token or authenticated session for this email is required.'
+        });
+      }
+    }
+
     const result = await lanzarIdService.unsubscribeMailingList({ email, token });
     return res.status(200).json({ status: 'ok', ...result });
   } catch (err) {
+    if (isPersistenceOrConfigFailure(err)) {
+      return res.status(500).json({ error: 'persistence_error', message: err.message });
+    }
     return res.status(400).json({ error: 'unsubscribe_error', message: err.message });
   }
 });
