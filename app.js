@@ -7759,6 +7759,18 @@ if (lanzarSubmitBtn) {
   });
 }
 
+function handleLanzarInputKeydown(e) {
+  if (e.key === "Enter" || e.keyCode === 13) {
+    e.preventDefault();
+    if (lanzarSubmitBtn) {
+      lanzarSubmitBtn.click();
+    }
+  }
+}
+if (lanzarEmailInput) lanzarEmailInput.addEventListener("keydown", handleLanzarInputKeydown);
+if (lanzarPasswordInput) lanzarPasswordInput.addEventListener("keydown", handleLanzarInputKeydown);
+if (lanzarDisplayNameInput) lanzarDisplayNameInput.addEventListener("keydown", handleLanzarInputKeydown);
+
 if (lanzarSubmitBtn) {
   lanzarSubmitBtn.addEventListener("click", async () => {
     const email = lanzarEmailInput ? lanzarEmailInput.value.trim() : "";
