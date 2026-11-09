@@ -17,6 +17,42 @@ export class LanzarIdAuthProvider {
   constructor(apiBaseUrl) {
     this.apiBaseUrl = (apiBaseUrl || '').replace(/\/+$/, '');
     this.listeners = new Set();
+    this.handleIncomingAuthRedirect();
+  }
+
+  redirectToCentralAuth() {
+    const redirectUri = encodeURIComponent(window.location.origin);
+    const authHubUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+      ? 'http://localhost:3000'
+      : 'https://auth.lanzar.me';
+    window.location.href = `${authHubUrl}?client_id=pythos&redirect_uri=${redirectUri}`;
+  }
+
+  handleIncomingAuthRedirect() {
+    if (typeof window === 'undefined') return false;
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = urlParams.get('token') || urlParams.get('id_token');
+      if (token) {
+        let userPayload = { provider: 'lanzar_id' };
+        try {
+          const parts = token.split('.');
+          if (parts.length >= 2) {
+            const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+            const jsonStr = decodeURIComponent(escape(atob(b64)));
+            userPayload = { ...userPayload, ...JSON.parse(jsonStr) };
+          }
+        } catch (_) {}
+        this.saveSession(token, userPayload);
+        urlParams.delete('token');
+        urlParams.delete('id_token');
+        const searchStr = urlParams.toString();
+        const clean = window.location.pathname + (searchStr ? '?' + searchStr : '') + window.location.hash;
+        window.history.replaceState({}, document.title, clean);
+        return true;
+      }
+    } catch (_) {}
+    return false;
   }
 
   getStoredToken() {
