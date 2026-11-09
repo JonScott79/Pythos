@@ -5896,9 +5896,22 @@
         </div>
 
         <div>
-          <label for="lanzarPasswordInput" style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px;">Password (min. 8 characters)</label>
+          <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px;">
+            <label for="lanzarPasswordInput" style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); margin: 0;">Password (min. 8 characters)</label>
+            <button type="button" id="lanzarForgotPasswordBtn" style="background: none; border: none; padding: 0; color: var(--primary-color, #f97316); text-decoration: underline; font-size: 0.75rem; cursor: pointer; font-family: inherit;" aria-label="Forgot Password?">Forgot Password?</button>
+          </div>
           <input type="password" id="lanzarPasswordInput" class="check-input" placeholder="••••••••" autocomplete="current-password" data-clarity-mask="true" />
         </div>
+
+        <div style="display: flex; align-items: center; gap: 8px; margin: 2px 0;">
+          <hr style="flex: 1; border: none; border-top: 1px solid var(--border-color, rgba(255,255,255,0.1));" />
+          <span style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Or</span>
+          <hr style="flex: 1; border: none; border-top: 1px solid var(--border-color, rgba(255,255,255,0.1));" />
+        </div>
+
+        <button type="button" id="lanzarOpenCentralHubBtn" class="tool-btn" style="width: 100%; justify-content: center; gap: 8px; font-weight: 600; font-size: 0.82rem; padding: 8px 12px; background: rgba(255,255,255,0.06); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; color: var(--text-main);">
+          <span>🌐 Continue with Central LANZAR ID Hub</span>
+        </button>
 
         <!-- Dedicated LANZAR & Pythos Newsletter Subscription Group -->
         <div id="lanzarNewsletterGroup" class="lanzar-newsletter-group" style="display: none; background: var(--bg-color); padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border-color); margin-top: 4px;">

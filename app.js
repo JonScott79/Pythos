@@ -35,6 +35,7 @@ let signInWithPopup = null;
 let GoogleAuthProvider = null;
 let onAuthStateChanged = null;
 let signOut = null;
+let sendPasswordResetEmail = null;
 let getFirestore = null;
 let collection = null;
 let addDoc = null;
@@ -63,6 +64,7 @@ async function ensureFirebaseInitialized() {
     GoogleAuthProvider = authMod.GoogleAuthProvider;
     onAuthStateChanged = authMod.onAuthStateChanged;
     signOut = authMod.signOut;
+    sendPasswordResetEmail = authMod.sendPasswordResetEmail;
     getFirestore = firestoreMod.getFirestore;
     collection = firestoreMod.collection;
     addDoc = firestoreMod.addDoc;
@@ -7685,7 +7687,59 @@ if (lanzarModeLoginTab && lanzarModeRegisterTab) {
     lanzarModeRegisterTab.setAttribute("aria-selected", "false");
     if (lanzarDisplayNameGroup) lanzarDisplayNameGroup.style.display = "none";
     if (lanzarNewsletterGroup) lanzarNewsletterGroup.style.display = "none";
-    if (lanzarSubmitBtn) {
+    const lanzarForgotPasswordBtn = document.getElementById("lanzarForgotPasswordBtn");
+if (lanzarForgotPasswordBtn) {
+  lanzarForgotPasswordBtn.addEventListener("click", async () => {
+    const email = (lanzarEmailInput && lanzarEmailInput.value) ? lanzarEmailInput.value.trim() : "";
+    if (!email) {
+      if (lanzarAuthStatusMsg) {
+        lanzarAuthStatusMsg.style.display = "block";
+        lanzarAuthStatusMsg.style.color = "#f97316";
+        lanzarAuthStatusMsg.textContent = "Please enter your email address above, then click 'Forgot Password?' to receive a reset link.";
+      }
+      if (lanzarEmailInput) lanzarEmailInput.focus();
+      return;
+    }
+
+    try {
+      if (lanzarAuthStatusMsg) {
+        lanzarAuthStatusMsg.style.display = "block";
+        lanzarAuthStatusMsg.style.color = "var(--text-muted)";
+        lanzarAuthStatusMsg.textContent = "Sending password reset instructions...";
+      }
+
+      await ensureFirebaseInitialized();
+      if (typeof sendPasswordResetEmail === "function" && auth) {
+        await sendPasswordResetEmail(auth, email);
+      } else {
+        window.location.href = "https://auth.lanzar.me?view=reset&email=" + encodeURIComponent(email);
+        return;
+      }
+
+      if (lanzarAuthStatusMsg) {
+        lanzarAuthStatusMsg.style.display = "block";
+        lanzarAuthStatusMsg.style.color = "#10b981";
+        lanzarAuthStatusMsg.textContent = "A password reset link has been dispatched to " + email + ". Check your inbox.";
+      }
+    } catch (err) {
+      console.warn("[AUTH] In-app reset fallback to Central Auth:", err);
+      window.location.href = "https://auth.lanzar.me?view=reset&email=" + encodeURIComponent(email);
+    }
+  });
+}
+
+const lanzarOpenCentralHubBtn = document.getElementById("lanzarOpenCentralHubBtn");
+if (lanzarOpenCentralHubBtn) {
+  lanzarOpenCentralHubBtn.addEventListener("click", () => {
+    const redirectUri = encodeURIComponent(window.location.origin);
+    const authHubUrl = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+      ? "http://localhost:3000"
+      : "https://auth.lanzar.me";
+    window.location.href = authHubUrl + "?client_id=pythos&redirect_uri=" + redirectUri;
+  });
+}
+
+if (lanzarSubmitBtn) {
       lanzarSubmitBtn.textContent = "Sign In with LANZAR ID";
       lanzarSubmitBtn.setAttribute("aria-label", "Sign In with LANZAR ID");
     }
