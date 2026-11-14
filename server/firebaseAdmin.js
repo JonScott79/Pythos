@@ -100,6 +100,15 @@ async function verifyIdToken(idToken) {
 }
 
 /**
+ * Returns a Firebase Auth instance for server-side account synchronization.
+ * Returns null if Admin SDK is not initialized.
+ */
+function getAdminAuth() {
+  initAdminSDK();
+  return _adminAuth;
+}
+
+/**
  * Returns a Firestore instance for server-side reads (bypasses Security Rules).
  * Returns null if Admin SDK is not initialized.
  *
@@ -159,6 +168,7 @@ function getAdminSdkStatus() {
 
 module.exports = {
   verifyIdToken,
+  getAdminAuth,
   getAdminFirestore,
   isFirestoreAdmin,
   isAdminSdkAvailable,

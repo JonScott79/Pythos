@@ -20,7 +20,7 @@ const fs = require('fs');
 const path = require('path');
 const util = require('util');
 const firestoreService = require('./firestoreService');
-const { getAdminFirestore } = require('./firebaseAdmin');
+const { getAdminFirestore, getAdminAuth } = require('./firebaseAdmin');
 
 const scryptAsync = util.promisify(crypto.scrypt);
 
@@ -507,6 +507,120 @@ async function unsubscribeMailingList({ email, token }) {
 }
 
 /**
+ * Best-effort synchronization of a verified Pythos LANZAR ID credential into
+ * centralized Firebase Auth (lanzar-95ae3) and /users/{uid} link metadata.
+ */
+async function syncAccountPasswordToFirebaseAuth(account, password) {
+  if (!account || !account.email || !password) return null;
+  const adminAuth = typeof getAdminAuth === 'function' ? getAdminAuth() : null;
+  if (!adminAuth) return null;
+
+  let fbUser = null;
+  try {
+    fbUser = await adminAuth.getUserByEmail(account.email);
+  } catch (err) {
+    if (err.code !== 'auth/user-not-found') {
+      console.warn('[LANZAR ID] Firebase Auth lookup warning:', err.message);
+      return null;
+    }
+  }
+
+  if (!fbUser && account.linkedGoogleUid) {
+    try {
+      const candidate = await adminAuth.getUser(account.linkedGoogleUid);
+      if (!candidate.email || candidate.email.trim().toLowerCase() === account.email.trim().toLowerCase()) {
+        fbUser = candidate;
+      }
+    } catch (err) {
+      if (err.code !== 'auth/user-not-found') {
+        console.warn('[LANZAR ID] Firebase Auth UID lookup warning:', err.message);
+      }
+    }
+  }
+
+  if (fbUser && fbUser.disabled) {
+    throw new Error('This account has been suspended.');
+  }
+
+  try {
+    if (fbUser) {
+      const updates = { password };
+      if (!fbUser.displayName && account.displayName) {
+        updates.displayName = account.displayName;
+      }
+      fbUser = await adminAuth.updateUser(fbUser.uid, updates);
+    } else {
+      const payload = {
+        uid: account.uid,
+        email: account.email,
+        password,
+        displayName: account.displayName || account.email.split('@')[0]
+      };
+      try {
+        fbUser = await adminAuth.createUser(payload);
+      } catch (createErr) {
+        if (createErr.code === 'auth/uid-already-exists') {
+          delete payload.uid;
+          fbUser = await adminAuth.createUser(payload);
+        } else {
+          throw createErr;
+        }
+      }
+    }
+
+    const adminDb = typeof getAdminFirestore === 'function' ? getAdminFirestore() : null;
+    if (adminDb && fbUser?.uid) {
+      const linkPatch = {
+        pythosLegacyUid: account.uid,
+        updatedAt: new Date().toISOString()
+      };
+      if (account.linkedGoogleUid) {
+        linkPatch.linkedGoogleUid = account.linkedGoogleUid;
+      }
+      await adminDb.collection('users').doc(fbUser.uid).set(linkPatch, { merge: true });
+    }
+    return fbUser;
+  } catch (syncErr) {
+    console.warn('[LANZAR ID] Firebase Auth credential sync warning:', syncErr.message);
+    return null;
+  }
+}
+
+/**
+ * Verifies an email/password pair against centralized Firebase Auth (Identity Toolkit REST API)
+ * so accounts created or updated on auth.lanzar.me can authenticate on Pythos too.
+ */
+async function verifyPasswordViaFirebaseRest(normalizedEmail, password) {
+  const apiKey = (process.env.FIREBASE_WEB_API_KEY || process.env.VITE_FIREBASE_API_KEY || '').trim();
+  if (!apiKey || typeof fetch !== 'function') return null;
+
+  try {
+    const res = await fetch(
+      `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${encodeURIComponent(apiKey)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: normalizedEmail,
+          password,
+          returnSecureToken: true
+        })
+      }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data || !data.localId) return null;
+    return {
+      uid: data.localId,
+      displayName: data.displayName || ''
+    };
+  } catch (err) {
+    console.warn('[LANZAR ID] Firebase REST credential check warning:', err.message);
+    return null;
+  }
+}
+
+/**
  * Register or authenticate a LANZAR ID account.
  * Note: Account creation NEVER requires mailing-list opt-in.
  */
@@ -565,6 +679,7 @@ async function authenticateOrRegisterLanzarId({
           uid
         });
       }
+      await syncAccountPasswordToFirebaseAuth(account, password);
     } catch (err) {
       accountsByEmail.delete(normalizedEmail);
       accountsByUid.delete(uid);
@@ -583,21 +698,58 @@ async function authenticateOrRegisterLanzarId({
       throw err;
     }
   } else {
-    if (!account) {
-      throw new Error('Invalid email or password.');
+    const localValid = account ? await verifyPassword(password, account.passwordSalt, account.passwordHash) : false;
+    let fbVerified = null;
+    if (!localValid) {
+      fbVerified = await verifyPasswordViaFirebaseRest(normalizedEmail, password);
+      if (!fbVerified) {
+        throw new Error('Invalid email or password.');
+      }
     }
-    const passwordValid = await verifyPassword(password, account.passwordSalt, account.passwordHash);
-    if (!passwordValid) {
-      throw new Error('Invalid email or password.');
-    }
-    const prevAccount = { ...account, providers: Array.isArray(account.providers) ? [...account.providers] : ['lanzar_id'] };
+
+    const prevAccount = account
+      ? { ...account, providers: Array.isArray(account.providers) ? [...account.providers] : ['lanzar_id'] }
+      : null;
     const nowIso = new Date().toISOString();
-    account.lastLoginAt = nowIso;
-    account.updatedAt = nowIso;
-    if (linkedGoogleUid && !account.linkedGoogleUid) {
-      account.linkedGoogleUid = linkedGoogleUid;
-      if (!account.providers.includes('google')) account.providers.push('google');
+
+    if (fbVerified) {
+      const { salt, hash } = await hashPassword(password);
+      if (account) {
+        account.passwordSalt = salt;
+        account.passwordHash = hash;
+        account.lastLoginAt = nowIso;
+        account.updatedAt = nowIso;
+        if (!Array.isArray(account.providers)) account.providers = ['lanzar_id'];
+        if (!account.providers.includes('lanzar_id')) account.providers.push('lanzar_id');
+        if (!account.linkedGoogleUid && fbVerified.uid) {
+          account.linkedGoogleUid = fbVerified.uid;
+        }
+      } else {
+        const uid = 'lanzar_' + crypto.createHash('sha256').update(normalizedEmail).digest('hex').slice(0, 20);
+        account = {
+          uid,
+          email: normalizedEmail,
+          displayName: (fbVerified.displayName || displayName || normalizedEmail.split('@')[0]).trim().slice(0, 80),
+          passwordSalt: salt,
+          passwordHash: hash,
+          providers: ['lanzar_id'],
+          linkedGoogleUid: linkedGoogleUid || fbVerified.uid || null,
+          createdAt: nowIso,
+          lastLoginAt: nowIso,
+          updatedAt: nowIso
+        };
+        accountsByEmail.set(normalizedEmail, account);
+        accountsByUid.set(uid, account);
+      }
+    } else {
+      account.lastLoginAt = nowIso;
+      account.updatedAt = nowIso;
+      if (linkedGoogleUid && !account.linkedGoogleUid) {
+        account.linkedGoogleUid = linkedGoogleUid;
+        if (!account.providers.includes('google')) account.providers.push('google');
+      }
     }
+
     try {
       await persistAccount(account);
       if (mailingListOptIn === true) {
@@ -608,12 +760,20 @@ async function authenticateOrRegisterLanzarId({
           uid: account.uid
         });
       }
+      if (localValid) {
+        await syncAccountPasswordToFirebaseAuth(account, password);
+      }
     } catch (err) {
-      accountsByEmail.set(normalizedEmail, prevAccount);
-      accountsByUid.set(account.uid, prevAccount);
-      try {
-        await persistAccount(prevAccount);
-      } catch (_) {}
+      if (prevAccount) {
+        accountsByEmail.set(normalizedEmail, prevAccount);
+        accountsByUid.set(account.uid, prevAccount);
+        try {
+          await persistAccount(prevAccount);
+        } catch (_) {}
+      } else if (account?.uid) {
+        accountsByEmail.delete(normalizedEmail);
+        accountsByUid.delete(account.uid);
+      }
       throw err;
     }
   }
