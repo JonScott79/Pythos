@@ -575,7 +575,7 @@ function classifyLearnerState(userText, conversationHistory = [], activeProblemS
   }
 
   // Conceptual mistake signaled in conversational text (e.g. wrong definition)
-  if (/\b(?:means\s+the\s+hypotenuse\s+is|is\s+hypotenuse\s+\d+|sin\s+means\s+adj|cos\s+means\s+opp)\b/i.test(lower)) {
+  if (/\b(?:means\s+(?:the\s+)?(?:hypotenuse|adjacent|opposite)\s+is|is\s+hypotenuse\s+\d+|sin\s+(?:means|=).*?\badj|cos\s+(?:means|=).*?\bopp)\b/i.test(lower)) {
     signals.push('conceptual_definition_slip');
     return {
       state: LEARNER_STATES.PRODUCTIVE_MISTAKE_CONCEPTUAL,

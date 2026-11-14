@@ -34,6 +34,13 @@ const INTENTS = Object.freeze({
   GRAPH_REQUEST: 'GRAPH_REQUEST',
   CALCULATION_REQUEST: 'CALCULATION_REQUEST',
   CAPABILITY_GAP_REQUEST: 'CAPABILITY_GAP_REQUEST',
+  INDEPENDENT_WORK_REQUEST: 'INDEPENDENT_WORK_REQUEST',
+  HINT_REQUEST: 'HINT_REQUEST',
+  DIRECT_ANSWER_REQUEST: 'DIRECT_ANSWER_REQUEST',
+  WALKTHROUGH_REQUEST: 'WALKTHROUGH_REQUEST',
+  SHORTCUT_PROPOSAL: 'SHORTCUT_PROPOSAL',
+  STANDARD_METHOD_REQUEST: 'STANDARD_METHOD_REQUEST',
+  WHY_EXPLANATION_REQUEST: 'WHY_EXPLANATION_REQUEST',
   UNKNOWN: 'UNKNOWN'
 });
 
@@ -163,6 +170,70 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
       signals,
       isDisambiguation: Boolean(isConversationalDisambiguation)
     };
+  }
+
+  // -------------------------------------------------------------
+  // 1b. STUDENT AGENCY INTENTS (Independent Work, Hints, Direct Answer, Walkthrough)
+  // -------------------------------------------------------------
+  // Independent Work: "Let me try", "I want to do it myself", "Don't tell me yet"
+  const isIndependentWork = /^(?:(?:wait|hold\s+on|stop)[,\s]+)?(?:let\s+me\s+try|i('?ll|\s+will|\s+want\s+to)\s+(?:try|do\s+it|solve\s+it|work\s+(?:on|through)\s+it)|give\s+me\s+a\s+(?:sec|second|moment|minute)\s+to\s+(?:try|work|do)|don'?t\s+(?:tell|give|spoil)\s+me(?:\s+the\s+answer)?\s*(?:yet|please)?|hold\s+on\s+let\s+me|can\s+i\s+try(?:\s+it)?(?:\s+myself|\s+first)?|let\s+me\s+do\s+it|i\s+can\s+do\s+this\s+myself)[.?!]*$/i.test(clean) ||
+                            /\b(?:let\s+me\s+try(?:\s+first|\s+myself|\s+to\s+solve\s+it)?|don'?t\s+give\s+me\s+the\s+answer\s+yet|want\s+to\s+try\s+myself|want\s+to\s+solve\s+it\s+myself)\b/i.test(lower);
+  if (isIndependentWork) {
+    signals.push('independent_work_agency_marker');
+    return { intent: INTENTS.INDEPENDENT_WORK_REQUEST, confidence: 'high', signals };
+  }
+
+  // Hint Request: "Give me a hint", "Just a hint", "Can I get a hint"
+  const isHint = /^(?:can\s+(?:you\s+give\s+me|i\s+get|i\s+have)\s+)?(?:just\s+)?a\s+hint[.?!]*$/i.test(clean) ||
+                 /\b(?:(?:give|send|provide)\s+me\s+a\s+hint|just\s+a\s+hint|small\s+hint|little\s+hint|tiny\s+hint|nudge\s+me|give\s+me\s+a\s+clue|can\s+i\s+get\s+a\s+hint|only\s+a\s+hint|need\s+a\s+hint)\b/i.test(lower) ||
+                 /\bdon'?t\s+(?:give|tell)\s+me\s+the\s+answer[,\s]+(?:just|only)\s+a\s+hint\b/i.test(lower);
+  if (isHint) {
+    signals.push('explicit_hint_request_marker');
+    return { intent: INTENTS.HINT_REQUEST, confidence: 'high', signals };
+  }
+
+  // Direct Answer Request: "Just give me the answer", "What is the final answer?"
+  const isDirectAnswer = /^(?:just\s+)?(?:give|tell|show)\s+me\s+the\s+(?:final\s+)?answer[.?!]*$/i.test(clean) ||
+                         /^(?:what(?:'s|\s+is)\s+(?:the\s+)?(?:final\s+)?answer|just\s+the\s+answer(?:\s+please)?|tell\s+me\s+the\s+answer|solve\s+(?:this|it)\s+for\s+me)[.?!]*$/i.test(clean) ||
+                         /\b(?:just\s+(?:give|tell)\s+me\s+the\s+(?:final\s+)?answer|just\s+give\s+me\s+the\s+solution|skip\s+to\s+the\s+answer)\b/i.test(lower);
+  if (isDirectAnswer) {
+    signals.push('direct_answer_agency_marker');
+    return { intent: INTENTS.DIRECT_ANSWER_REQUEST, confidence: 'high', signals };
+  }
+
+  // Walkthrough Request: "Walk me through this", "Guide me step by step"
+  const isWalkthrough = /^(?:can\s+you\s+)?(?:walk\s+me\s+through(?:\s+this|\s+it)?|guide\s+me\s+step\s+by\s+step|break\s+it\s+down\s+step\s+by\s+step|teach\s+me\s+step\s+by\s+step|show\s+me\s+all\s+(?:the\s+)?steps)[.?!]*$/i.test(clean) ||
+                        /\b(?:walk\s+me\s+through|guide\s+me\s+step\s+by\s+step|step\s+by\s+step\s+walkthrough|break\s+it\s+down\s+step\s+by\s+step)\b/i.test(lower);
+  if (isWalkthrough) {
+    signals.push('walkthrough_agency_marker');
+    return { intent: INTENTS.WALKTHROUGH_REQUEST, confidence: 'high', signals };
+  }
+
+  // Standard Method Request: "Show me the standard method", "What's the textbook way?"
+  const isStandardMethod = /\b(?:standard\s+method|standard\s+way|textbook\s+(?:method|way)|conventional\s+way|usual\s+way\s+to\s+solve|normal\s+way\s+to\s+solve)\b/i.test(lower) ||
+                           /^(?:what(?:'s|\s+is)\s+the\s+standard\s+(?:method|way)|show\s+me\s+the\s+standard\s+method|how\s+is\s+this\s+usually\s+solved)[.?!]*$/i.test(clean);
+  if (isStandardMethod) {
+    signals.push('standard_method_agency_marker');
+    return { intent: INTENTS.STANDARD_METHOD_REQUEST, confidence: 'high', signals };
+  }
+
+  // Shortcut / Alternative Method Proposal: "Can I just divide by x?", "Is there a shortcut?"
+  const isShortcutProposal = /\b(?:is\s+there\s+a\s+(?:shortcut|faster\s+way|quicker\s+way)|can\s+(?:i|we)\s+(?:take\s+a\s+shortcut|use\s+a\s+shortcut))\b/i.test(lower) ||
+                             /\b(?:can\s+(?:i|we)(?:\s+just)?|what\s+if\s+(?:i|we)(?:\s+just)?|could\s+(?:i|we)(?:\s+just)?|would\s+it\s+work\s+if\s+(?:i|we))\s+(?:divide|multiply|factor|cancel|cross\s+multiply|square|combine|substitute|use)\b/i.test(lower) ||
+                             /\b(?:can\s+(?:i|we)\s+do\s+(?:it|this)\s+(?:this\s+way\s+instead|faster|differently)|is\s+it\s+(?:valid|okay|allowed)\s+to\s+(?:just\s+)?(?:divide|cancel|factor|square))\b/i.test(lower) ||
+                             /\b(?:conservation\s+of\s+energy|energy\s+conservation)\b/i.test(lower);
+  if (isShortcutProposal) {
+    signals.push('shortcut_proposal_marker');
+    return { intent: INTENTS.SHORTCUT_PROPOSAL, confidence: 'high', signals };
+  }
+
+  // Conceptual "Why" Request: "Why does this formula work?", "Why do we divide by 2a?"
+  const isWhyFormulaOrConcept = /\bwhy\s+(?:does|do|is|can't|must|should|would)\b/i.test(lower) &&
+                                /\b(?:formula|method|rule|step|work|theorem|identity|divide|multiply|cancel|square|factor|theorem|conserved|exist|negative|zero)\b/i.test(lower) &&
+                                !/^(?:why\s+is\s+that|why\s+did\s+you\s+do\s+that)\??$/i.test(clean);
+  if (isWhyFormulaOrConcept) {
+    signals.push('why_conceptual_inquiry_marker');
+    return { intent: INTENTS.WHY_EXPLANATION_REQUEST, confidence: 'high', signals };
   }
 
   // -------------------------------------------------------------

@@ -814,6 +814,7 @@ const { classifyStudentIntent } = require('./studentIntentClassifier');
 const { generatePracticeProblem } = require('./practiceProblemGenerator');
 const { evaluateStudentWork, formatStudentWorkContext, stripModelScratchpad } = require('./studentWorkEvaluator');
 const { classifyLearnerState, formatLearnerStateContext, LEARNER_STATES } = require('./learnerState');
+const teachingIntelligence = require('./teachingIntelligence');
 
 const { enforceVisualFidelity } = require('./vizEngine/visualFidelity');
 const toolController = require('./toolController');
@@ -2323,6 +2324,43 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
     console.log(`[LEARNER STATE] Classified learner state: ${learnerState.state} (signals: ${learnerState.signals.join(', ')})`);
   }
 
+  // Student Personal Memory Load (<= 150 tokens) — loaded before Adaptive Teaching so persisted mastery restores across sessions
+  let studentProfile = null;
+  let memoryContext = '';
+  let studentPreferredName = null;
+  if (studentUid) {
+    try {
+      studentProfile = await memoryService.getStudentMemoryProfile(studentUid);
+      if (studentProfile) {
+        memoryContext = memoryService.formatMemoryContext(studentProfile, classification);
+        if (studentProfile.identity && studentProfile.identity.preferredName) {
+          if (isValidPreferredName(studentProfile.identity.preferredName)) {
+            studentPreferredName = studentProfile.identity.preferredName;
+          }
+        }
+      }
+    } catch (memErr) {
+      console.warn('[MEMORY] Error injecting student memory context:', memErr.message);
+    }
+  }
+
+  // Adaptive Teaching Intelligence (Agency Precedence, Concept Mastery, Shortcuts + Transformation Sequence, Conceptual Why)
+  const teachingStrategy = lastUserMsg
+    ? await teachingIntelligence.evaluateTeachingStrategyAsync({
+        userText: lastUserMsg.content,
+        conversationHistory: messages,
+        studentIntent,
+        studentEvaluation,
+        learnerState,
+        activeProblemState,
+        studentProfile
+      })
+    : null;
+  const adaptiveTeachingContext = teachingStrategy ? teachingIntelligence.formatAdaptiveTeachingContext(teachingStrategy) : '';
+  if (teachingStrategy && teachingStrategy.agency.mode !== 'GUIDED_STEP') {
+    console.log(`[TEACHING INTELLIGENCE] Active mode: ${teachingStrategy.agency.mode} | Mastery: ${teachingStrategy.mastery?.level} (conf=${teachingStrategy.mastery?.confidence})`);
+  }
+
 
   // Phase B2: Practice-Problem Generation Flow (Must not fail closed)
   if (studentIntent && studentIntent.intent === 'PRACTICE_REQUEST') {
@@ -2391,25 +2429,6 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
   const relevantLessons = (lastUserMsg && studentUid) ? await learningStore.retrieveRelevantCorrections(studentUid, lastUserMsg.content) : [];
   const learningContext = learningStore.formatLearningContext(relevantLessons);
 
-  // Student Personal Memory Injection (<= 150 tokens)
-  let memoryContext = '';
-  let studentPreferredName = null;
-  if (studentUid) {
-    try {
-      const studentProfile = await memoryService.getStudentMemoryProfile(studentUid);
-      if (studentProfile) {
-        memoryContext = memoryService.formatMemoryContext(studentProfile, classification);
-        if (studentProfile.identity && studentProfile.identity.preferredName) {
-          if (isValidPreferredName(studentProfile.identity.preferredName)) {
-            studentPreferredName = studentProfile.identity.preferredName;
-          }
-        }
-      }
-    } catch (memErr) {
-      console.warn('[MEMORY] Error injecting student memory context:', memErr.message);
-    }
-  }
-
   // Synchronously detect immediate preferred name override/declaration from current message
   if (lastUserMsg && typeof lastUserMsg.content === 'string') {
     try {
@@ -2470,7 +2489,7 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
   let preparedMessages = [...boundedContext.messagesForModel];
   preparedMessages.unshift({
     role: 'system',
-    content: PYTHOS_SYSTEM_PROMPT + identityContext + preflightContext + studentWorkContext + learnerStateContext + activeProblemContext + learningContext + memoryContext + projectKnowledgeContext + toolResultContext + specialistContext
+    content: PYTHOS_SYSTEM_PROMPT + identityContext + preflightContext + studentWorkContext + learnerStateContext + adaptiveTeachingContext + activeProblemContext + learningContext + memoryContext + projectKnowledgeContext + toolResultContext + specialistContext
   });
 
   // Clean vision messages in conversation history
@@ -3421,11 +3440,15 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
         ollamaResponse.intent = studentIntent.type;
       }
 
-      // Asynchronously trigger background personal memory extraction (non-blocking, only for non-withheld responses)
+      // Asynchronously trigger background personal memory extraction and concept mastery persistence (non-blocking, only for non-withheld responses)
       if (studentUid && lastUserMsg?.content && finalContent && !ollamaResponse.withheld) {
         setImmediate(() => {
           memoryExtractor.processInteractionAsync(studentUid, lastUserMsg.content, finalContent, req.body.chatId || null)
             .catch(err => console.warn('[MEMORY EXTRACTOR] Error in post-response extraction:', err.message));
+          if (teachingStrategy?.mastery) {
+            teachingIntelligence.persistConceptMastery(studentUid, teachingStrategy.mastery, studentProfile, memoryService)
+              .catch(err => console.warn('[TEACHING INTELLIGENCE] Error persisting concept mastery:', err.message));
+          }
         });
       }
 

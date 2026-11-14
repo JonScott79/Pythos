@@ -1142,6 +1142,18 @@ function formatStudentWorkContext(classification, evaluation, activeProblemState
     out += `- Action Required: Student expresses confusion. Break the current step into a simpler, foundational question.\n`;
   } else if (classification.intent === INTENTS.HYPOTHETICAL) {
     out += `- Action Required: Student is asking a hypothetical variation ("What if..."). Walk through the parameter change and show how it alters the intermediate steps and final answer.\n`;
+  } else if (classification.intent === INTENTS.INDEPENDENT_WORK_REQUEST) {
+    out += `- Action Required: Student explicitly requested to work independently ("Let me try"). DO NOT solve the problem, do not calculate the next step, and do not provide answers. Validate their autonomy warmly and wait.\n`;
+  } else if (classification.intent === INTENTS.HINT_REQUEST) {
+    out += `- Action Required: Student explicitly requested a hint. Provide ONLY a targeted conceptual nudge. DO NOT perform the calculation, do not write the intermediate equation, and do not give the answer.\n`;
+  } else if (classification.intent === INTENTS.DIRECT_ANSWER_REQUEST) {
+    out += `- Action Required: Student explicitly requested the direct answer. State the final answer immediately in \\boxed{...} followed by a clean verification.\n`;
+  } else if (classification.intent === INTENTS.SHORTCUT_PROPOSAL) {
+    out += `- Action Required: Student proposed a shortcut or alternative approach. Audit its mathematical validity, explain why it works if valid, or pinpoint the exact step where it fails if invalid.\n`;
+  } else if (classification.intent === INTENTS.STANDARD_METHOD_REQUEST) {
+    out += `- Action Required: Student requested the standard method. Provide the canonical textbook procedure clearly.\n`;
+  } else if (classification.intent === INTENTS.WHY_EXPLANATION_REQUEST) {
+    out += `- Action Required: Student asked why a formula or method works. Explain the foundational conceptual/physical reasoning.\n`;
   }
 
   return out;

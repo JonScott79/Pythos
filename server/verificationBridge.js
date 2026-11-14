@@ -3254,6 +3254,44 @@ function evaluateVerificationState({
   };
 }
 
+/**
+ * Verifies a proposed shortcut or algebraic transformation sequence.
+ * Connects directly to SymPy / Math.js symbolic equivalence, domain restriction
+ * checking, zero divisor audits, and extraneous/lost root analysis.
+ * Crucial Invariant: The teaching layer is subordinate to deterministic verification.
+ * If verification is inconclusive or unavailable, returns UNVERIFIABLE (never manufactures certainty).
+ */
+async function verifyProposedShortcut({ originalExpr, shortcutExpr, variable = 'x', domain = 'algebra' }) {
+  if (!originalExpr || !shortcutExpr) {
+    return {
+      verified: false,
+      status: 'UNKNOWN',
+      reason: 'Missing original or shortcut expression for transformation verification'
+    };
+  }
+
+  const claim = {
+    domain,
+    claim_type: 'symbolic_equivalence',
+    data: {
+      expr1: originalExpr,
+      expr2: shortcutExpr,
+      variable
+    }
+  };
+
+  try {
+    const res = await runDeterministicVerification(claim);
+    return res;
+  } catch (err) {
+    return {
+      verified: false,
+      status: 'UNVERIFIABLE',
+      reason: `Deterministic CAS verifier error: ${err.message}`
+    };
+  }
+}
+
 module.exports = {
   extractBoxedMatches,
   cleanLatexUnits,
@@ -3269,5 +3307,6 @@ module.exports = {
   synthesizeVerificationStepAudit,
   verifyResponseClaims,
   getPythonExecutable,
-  getCasTelemetry
+  getCasTelemetry,
+  verifyProposedShortcut
 };
