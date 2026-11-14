@@ -32,7 +32,9 @@ let db = null;
 let initializeApp = null;
 let getAuth = null;
 let signInWithPopup = null;
+let googleAuthProvider = null; // reserved
 let GoogleAuthProvider = null;
+let signInWithCustomToken = null;
 let onAuthStateChanged = null;
 let signOut = null;
 let sendPasswordResetEmail = null;
@@ -61,6 +63,7 @@ async function ensureFirebaseInitialized() {
     initializeApp = appMod.initializeApp;
     getAuth = authMod.getAuth;
     signInWithPopup = authMod.signInWithPopup;
+    signInWithCustomToken = authMod.signInWithCustomToken;
     GoogleAuthProvider = authMod.GoogleAuthProvider;
     onAuthStateChanged = authMod.onAuthStateChanged;
     signOut = authMod.signOut;
@@ -80,6 +83,12 @@ async function ensureFirebaseInitialized() {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
     db = getFirestore(app);
+    if (typeof window !== "undefined") {
+      window.ensureFirebaseInitialized = ensureFirebaseInitialized;
+      window.firebaseAuth = auth;
+      window.firebaseAuthSignInWithCustomToken = signInWithCustomToken;
+      window.firebaseAuthSignOut = signOut;
+    }
     bindFirebaseAuthListener();
     return { app, auth, db };
   })();
@@ -2852,9 +2861,13 @@ if (typeof window !== "undefined") {
 
 logoutBtn.addEventListener("click", async () => {
   try {
-    clearPythosClientStorage({ preserveTheme: true });
-    if (currentUser && currentUser.isLanzarId && window.lanzarIdAuthProvider) {
-      window.lanzarIdAuthProvider.signOut();
+    const provider = await getLanzarIdProvider().catch(() => window.lanzarIdAuthProvider || null);
+    if (provider && typeof provider.signOut === "function") {
+      await provider.signOut({ preserveTheme: true });
+    } else {
+      clearPythosClientStorage({ preserveTheme: true });
+    }
+    if (currentUser && currentUser.isLanzarId && !auth?.currentUser) {
       currentUser = null;
       loginBtn.style.display = "block";
       const lanzarBtn = document.getElementById("lanzarIdLoginBtn");
@@ -2875,7 +2888,7 @@ logoutBtn.addEventListener("click", async () => {
 
 function bindFirebaseAuthListener() {
   if (!onAuthStateChanged || !auth) return;
-  onAuthStateChanged(auth, (user) => {
+  onAuthStateChanged(auth, async (user) => {
     if (user) {
       currentUser = user;
       loginBtn.style.display = "none";
@@ -2885,14 +2898,23 @@ function bindFirebaseAuthListener() {
       if (anonNotice) anonNotice.style.display = "none";
       userInfo.style.display = "flex";
       logoutBtn.style.display = "block";
-      userName.textContent = user.displayName;
-      userAvatar.src = user.photoURL;
+      const fallbackName = user.displayName || (user.email ? user.email.split("@")[0] : "Scholar");
+      userName.textContent = fallbackName;
+      userAvatar.src = user.photoURL || ("https://ui-avatars.com/api/?name=" + encodeURIComponent(fallbackName) + "&background=0ea5e9&color=fff");
       if (messages.length === 0) {
         currentChatId = null;
         clearChatUI();
       }
       loadSidebarChats();
     } else if (!currentUser || !currentUser.isLanzarId) {
+      try {
+        const hasSearchCode = typeof window !== "undefined" && /[?&](code|token)=/.test(window.location.search || "");
+        if (!hasSearchCode) {
+          const provider = await getLanzarIdProvider();
+          const silentResult = await provider.attemptSilentCookieSession();
+          if (silentResult && silentResult.user) return;
+        }
+      } catch (_) {}
       const wasLoggedIn = Boolean(currentUser);
       currentUser = null;
       loginBtn.style.display = "block";
@@ -7687,7 +7709,27 @@ if (lanzarModeLoginTab && lanzarModeRegisterTab) {
     lanzarModeRegisterTab.setAttribute("aria-selected", "false");
     if (lanzarDisplayNameGroup) lanzarDisplayNameGroup.style.display = "none";
     if (lanzarNewsletterGroup) lanzarNewsletterGroup.style.display = "none";
-    const lanzarForgotPasswordBtn = document.getElementById("lanzarForgotPasswordBtn");
+    if (lanzarSubmitBtn) {
+      lanzarSubmitBtn.textContent = "Sign In with LANZAR ID";
+      lanzarSubmitBtn.setAttribute("aria-label", "Sign In with LANZAR ID");
+    }
+  });
+  lanzarModeRegisterTab.addEventListener("click", () => {
+    lanzarAuthMode = "register";
+    lanzarModeRegisterTab.classList.add("active");
+    lanzarModeRegisterTab.setAttribute("aria-selected", "true");
+    lanzarModeLoginTab.classList.remove("active");
+    lanzarModeLoginTab.setAttribute("aria-selected", "false");
+    if (lanzarDisplayNameGroup) lanzarDisplayNameGroup.style.display = "block";
+    if (lanzarNewsletterGroup) lanzarNewsletterGroup.style.display = "block";
+    if (lanzarSubmitBtn) {
+      lanzarSubmitBtn.textContent = "Create LANZAR ID";
+      lanzarSubmitBtn.setAttribute("aria-label", "Create LANZAR ID");
+    }
+  });
+}
+
+const lanzarForgotPasswordBtn = document.getElementById("lanzarForgotPasswordBtn");
 if (lanzarForgotPasswordBtn) {
   lanzarForgotPasswordBtn.addEventListener("click", async () => {
     const email = (lanzarEmailInput && lanzarEmailInput.value) ? lanzarEmailInput.value.trim() : "";
@@ -7730,31 +7772,14 @@ if (lanzarForgotPasswordBtn) {
 
 const lanzarOpenCentralHubBtn = document.getElementById("lanzarOpenCentralHubBtn");
 if (lanzarOpenCentralHubBtn) {
-  lanzarOpenCentralHubBtn.addEventListener("click", () => {
-    const redirectUri = encodeURIComponent(window.location.origin);
-    const authHubUrl = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
-      ? "http://localhost:3000"
-      : "https://auth.lanzar.me";
-    window.location.href = authHubUrl + "?client_id=pythos&redirect_uri=" + redirectUri;
-  });
-}
-
-if (lanzarSubmitBtn) {
-      lanzarSubmitBtn.textContent = "Sign In with LANZAR ID";
-      lanzarSubmitBtn.setAttribute("aria-label", "Sign In with LANZAR ID");
-    }
-  });
-  lanzarModeRegisterTab.addEventListener("click", () => {
-    lanzarAuthMode = "register";
-    lanzarModeRegisterTab.classList.add("active");
-    lanzarModeRegisterTab.setAttribute("aria-selected", "true");
-    lanzarModeLoginTab.classList.remove("active");
-    lanzarModeLoginTab.setAttribute("aria-selected", "false");
-    if (lanzarDisplayNameGroup) lanzarDisplayNameGroup.style.display = "block";
-    if (lanzarNewsletterGroup) lanzarNewsletterGroup.style.display = "block";
-    if (lanzarSubmitBtn) {
-      lanzarSubmitBtn.textContent = "Create LANZAR ID";
-      lanzarSubmitBtn.setAttribute("aria-label", "Create LANZAR ID");
+  lanzarOpenCentralHubBtn.addEventListener("click", async () => {
+    try {
+      const provider = await getLanzarIdProvider();
+      await provider.redirectToCentralAuth(lanzarAuthMode);
+    } catch (err) {
+      console.error("[AUTH] Central LANZAR ID redirect error:", err);
+      const redirectUri = encodeURIComponent(window.location.origin);
+      window.location.href = "https://auth.lanzar.me?client_id=pythos&redirect_uri=" + redirectUri;
     }
   });
 }
@@ -7844,19 +7869,27 @@ if (input) {
   input.focus();
 }
 
-// Defer non-critical background checks (reporting status & Firebase auth hydration)
-// until after initial paint so First/Largest Contentful Paint is never delayed
+// Complete incoming OAuth PKCE redirect immediately on load if ?code= or ?token= is present;
+// otherwise defer Firebase Auth hydration until after initial paint so LCP is never delayed
+const _hasIncomingLanzarAuthParams = typeof window !== "undefined" && /[?&](code|token|id_token)=/.test(window.location.search || "");
+if (_hasIncomingLanzarAuthParams) {
+  ensureFirebaseInitialized()
+    .then(() => getLanzarIdProvider())
+    .then(provider => provider.handleIncomingAuthRedirect())
+    .catch(err => console.warn("[AUTH] Incoming redirect completion warning:", err?.message || err));
+}
+
 if (document.readyState === "complete") {
   setTimeout(() => {
     checkReportingStatus();
     ensureFirebaseInitialized().catch(() => {});
-  }, 2500);
+  }, _hasIncomingLanzarAuthParams ? 0 : 2500);
 } else {
   window.addEventListener("load", () => {
     setTimeout(() => {
       checkReportingStatus();
       ensureFirebaseInitialized().catch(() => {});
-    }, 2500);
+    }, _hasIncomingLanzarAuthParams ? 0 : 2500);
   }, { once: true });
 }
 

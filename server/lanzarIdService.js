@@ -20,10 +20,11 @@ const fs = require('fs');
 const path = require('path');
 const util = require('util');
 const firestoreService = require('./firestoreService');
+const { getAdminFirestore } = require('./firebaseAdmin');
 
 const scryptAsync = util.promisify(crypto.scrypt);
 
-const LANZAR_ID_ISSUER = process.env.LANZAR_ID_ISSUER || 'https://id.lanzar.me';
+const LANZAR_ID_ISSUER = process.env.LANZAR_ID_ISSUER || 'https://auth.lanzar.me';
 const LANZAR_ID_CLIENT_ID = process.env.LANZAR_ID_CLIENT_ID || 'pythos-web';
 
 // Non-predictable CSPRNG ephemeral secret for local/test runs ONLY when LANZAR_ID_SECRET is unset.
@@ -769,6 +770,67 @@ async function eraseMailingConsent(email) {
   return true;
 }
 
+/**
+ * Resolves canonical centralized LANZAR ID identity from a verified Firebase ID token.
+ * Checks /users/{uid} in shared Firestore (lanzar-95ae3) for suspension status and
+ * preserves non-destructive pythosLegacyUid bridges for historical memory Continuity.
+ *
+ * @param {object} decodedFirebaseToken
+ * @returns {Promise<object>}
+ */
+async function resolveCanonicalIdentity(decodedFirebaseToken) {
+  if (!decodedFirebaseToken || !decodedFirebaseToken.uid) {
+    const err = new Error('Missing verified Firebase UID.');
+    err.statusCode = 401;
+    err.code = 'UNAUTHENTICATED';
+    throw err;
+  }
+
+  const uid = decodedFirebaseToken.uid;
+  const sessionId = decodedFirebaseToken.session_id || decodedFirebaseToken.lanzarSessionId || null;
+  const clientId = decodedFirebaseToken.client_id || decodedFirebaseToken.lanzarClientApp || 'pythos';
+
+  let userRecord = null;
+  const adminDb = typeof getAdminFirestore === 'function' ? getAdminFirestore() : null;
+  if (adminDb) {
+    try {
+      const snap = await adminDb.collection('users').doc(uid).get();
+      if (snap.exists) {
+        userRecord = snap.data() || null;
+      }
+    } catch (err) {
+      console.warn(`[LANZAR ID] /users/${uid} lookup warning:`, err.message);
+    }
+  }
+
+  if (userRecord && userRecord.status === 'suspended') {
+    const err = new Error('Account suspended. Access denied.');
+    err.statusCode = 403;
+    err.code = 'ACCOUNT_SUSPENDED';
+    throw err;
+  }
+
+  let legacyAccount = null;
+  try {
+    legacyAccount = await loadAccountByUid(uid);
+  } catch (_) {}
+
+  const pythosLegacyUid =
+    (userRecord && userRecord.pythosLegacyUid) ||
+    (legacyAccount && legacyAccount.pythosLegacyUid) ||
+    null;
+
+  return {
+    uid,
+    email: decodedFirebaseToken.email || userRecord?.email || legacyAccount?.email || null,
+    displayName: decodedFirebaseToken.name || userRecord?.displayName || legacyAccount?.displayName || null,
+    sessionId,
+    clientId,
+    status: userRecord?.status || 'active',
+    pythosLegacyUid
+  };
+}
+
 module.exports = {
   DATA_DIR,
   ACCOUNTS_FILE,
@@ -792,5 +854,6 @@ module.exports = {
   getMailingListStatus: (email) => mailingListByEmail.get(String(email || '').trim().toLowerCase()) || null,
   eraseAccount,
   eraseMailingConsent,
-  loadAccountByUid
+  loadAccountByUid,
+  resolveCanonicalIdentity
 };
