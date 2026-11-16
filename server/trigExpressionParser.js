@@ -167,6 +167,15 @@ function deriveReferenceTriangle(fn, refAngleRad, refAngleDeg, quadrant, rawAngl
 function parseTrigExpression(text) {
   if (!text || typeof text !== 'string') return null;
 
+  // Do not synthesize a numeric reference triangle for algebraic/symbolic trig equations
+  // (e.g., "cos(2x)+3+5cos(x)=0" or "7sin^2(X)+5sin(X)=2").
+  if (/=/.test(text) && /\b(?:sin|cos|tan|csc|sec|cot)\s*\([^)]*[a-zA-Z][^)]*\)/i.test(text.replace(/\b(?:deg(?:rees)?|rad(?:ians)?|pi)\b/gi, ''))) {
+    return null;
+  }
+  if (/\b(?:sin|cos|tan|csc|sec|cot)\s*\(\s*-?\d+(?:\.\d+)?\s*[a-zA-Z]\b/i.test(text.replace(/\b(?:deg(?:rees)?|rad(?:ians)?|pi)\b/gi, ''))) {
+    return null;
+  }
+
   // 1. Nested trig expression: outer(inner(arg))
   // e.g. csc(cot(-28.45°)), sec(tan(-30°)), sin(cos(45 deg))
   const nestedRegex = /\b(sin|cos|tan|csc|sec|cot)\s*\(\s*(sin|cos|tan|csc|sec|cot)\s*\(\s*(-?[0-9]+(?:\.[0-9]+)?)\s*(°|\s*deg(?:rees)?)?\s*\)\s*\)/i;
@@ -239,7 +248,8 @@ function parseTrigExpression(text) {
     .replace(/negative\s+([0-9]+)/gi, '-$1');
 
   // Match: fn + angle (with or without parentheses, degrees or radians with pi)
-  const nlTrigRegex = /\b(sin(?:e)?|cos(?:ine)?|tan(?:gent)?|csc|cosecant|sec(?:ant)?|cot(?:angent)?)\s*(?:\(?\s*|\s+)(?:left\s*\(?\s*)?(-?[0-9]+(?:\.[0-9]+)?\s*pi\s*\/\s*[0-9]+|-?pi\s*\/\s*[0-9]+|-?[0-9]+(?:\.[0-9]+)?\s*(?:°|\s*deg(?:rees)?)?)/i;
+  // Require a non-alphabetic boundary after the angle so "cos(2x)" never matches "cos(2)".
+  const nlTrigRegex = /\b(sin(?:e)?|cos(?:ine)?|tan(?:gent)?|csc|cosecant|sec(?:ant)?|cot(?:angent)?)\s*(?:\(?\s*|\s+)(?:left\s*\(?\s*)?(-?[0-9]+(?:\.[0-9]+)?\s*pi\s*\/\s*[0-9]+|-?pi\s*\/\s*[0-9]+|-?[0-9]+(?:\.[0-9]+)?\s*(?:°|\s*deg(?:rees)?)?)(?![a-zA-Z_])(?=\s*(?:\)|$|[,;.?]|\s))/i;
   const nlRefRegex = /reference\s+angle\s+(?:for|of)?\s*(?:the\s+angle)?[.:\s]*(-?[0-9]+(?:\.[0-9]+)?\s*pi\s*\/\s*[0-9]+|-?pi\s*\/\s*[0-9]+|-?[0-9]+(?:\.[0-9]+)?\s*(?:°|\s*deg(?:rees)?)?)/i;
 
   const nlMatch = cleanNL.match(nlTrigRegex);

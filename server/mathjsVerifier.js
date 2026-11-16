@@ -256,19 +256,51 @@ const MathJSVerifier = {
                 : `${expression} evaluated to ${numResult}, not ${proposed_value}`
             };
           } else {
-            // Strict exact match (allowing for IEEE 754 floating-point machine epsilon ~1e-11)
-            const matches = Math.abs(numResult - Number(proposed_value)) < 1e-11;
+            // Strict exact match (allowing for IEEE 754 floating-point machine epsilon ~1e-11),
+            // OR valid decimal rounding when proposed_value is a rounded decimal (>= 2 decimal places)
+            // within exact half-ULP rounding tolerance (e.g., 14/17 = 0.8235294... -> 0.8235).
+            const propNumVal = Number(proposed_value);
+            const rawValStr = typeof claim.raw_val_str === 'string'
+              ? claim.raw_val_str.trim()
+              : String(proposed_value).trim();
+            const decMatch = !claim.is_percent && rawValStr.match(/^\s*[-+]?\d+\.(\d+)\s*$/);
+            const decPlaces = decMatch ? decMatch[1].length : 0;
+            const diff = Math.abs(numResult - propNumVal);
+
+            if (diff < 1e-11) {
+              return {
+                verified: true,
+                engine: 'mathjs',
+                status: 'VERIFIED',
+                exact_value: numResult,
+                proposed_value: proposed_value,
+                is_exact: true,
+                details: `${expression} = ${proposed_value} (exact)`
+              };
+            }
+
+            if (decPlaces >= 2 && diff <= (0.5 * Math.pow(10, -decPlaces) + 1e-9)) {
+              return {
+                verified: true,
+                engine: 'mathjs',
+                status: 'VERIFIED',
+                exact_value: numResult,
+                proposed_value: proposed_value,
+                is_approximate: true,
+                tolerance_used: 0.5 * Math.pow(10, -decPlaces),
+                details: `${expression} ≈ ${proposed_value} (valid rounding to ${decPlaces} decimal places)`
+              };
+            }
+
             return {
-              verified: matches,
+              verified: false,
               engine: 'mathjs',
-              status: matches ? 'VERIFIED' : 'INCORRECT_RESULT',
-              error_type: matches ? undefined : 'INCORRECT_RESULT',
+              status: 'INCORRECT_RESULT',
+              error_type: 'INCORRECT_RESULT',
               exact_value: numResult,
               proposed_value: proposed_value,
               is_exact: true,
-              details: matches
-                ? `${expression} = ${proposed_value} (exact)`
-                : `${expression} is exactly ${numResult}, not equal to ${proposed_value}`
+              details: `${expression} is exactly ${numResult}, not equal to ${proposed_value}`
             };
           }
         }
