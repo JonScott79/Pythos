@@ -1220,7 +1220,8 @@ function extractClaims(text, userPrompt = '') {
 
   const rawEquivBlocks = text
     .replace(/\\begin\{aligned\}|\\end\{aligned\}|&/g, ' ')
-    .split(/\r?\n|\\\\|\\\]|\$\$|\\qquad|\\quad/);
+    .split(/\r?\n|\\\\|\\\]|\$\$|\\qquad|\\quad/)
+    .flatMap(b => (/^\s*\|/.test(b) || (b.match(/\|/g) || []).length >= 2) ? b.split('|') : [b]);
 
   for (let block of rawEquivBlocks) {
     let cleanBlock = block.replace(/\\\[|\\\]|\\\(|\\\)|\\text\{[^}]*\}|\$/g, ' ').trim();
@@ -1245,7 +1246,10 @@ function extractClaims(text, userPrompt = '') {
       rhsRaw = rhsRaw.replace(/[.,;:]+$/, '').trim();
 
       if (pi === 0 && lhsRaw.includes(':')) lhsRaw = lhsRaw.slice(lhsRaw.lastIndexOf(':') + 1).trim();
-      if (/[,;]/.test(lhsRaw) || /[,;]/.test(rhsRaw)) continue;
+      if (/[,;|]/.test(lhsRaw) || /[,;|]/.test(rhsRaw) || /\*\*/.test(lhsRaw) || /\*\*/.test(rhsRaw)) continue;
+      // Skip function/model definitions like f(x) = ... or P(t) = P_0 + kt (not algebraic identities)
+      if (/^[a-zA-Z](?:_\{?[a-zA-Z0-9]+\}?)?\s*\([a-zA-Z0-9,\s]+\)$/.test(lhsRaw) &&
+          !/^(?:sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|log|ln|exp|sqrt)\s*\(/i.test(lhsRaw)) continue;
       if (/\b(?:the|solutions?|roots?|are|is|and|or|if|when|where|with|for|from|into|by|to|of|in|on|at|as|be|have|has|can|will|let|set|check|substitute|plug|solve|solving|factor|factoring|setting|each|zero|equals?|equal|both|either|neither|none|no|not|all|any|some)\b/i.test(lhsRaw) || /\b(?:the|solutions?|roots?|are|is|and|or|if|when|where|with|for|from|into|by|to|of|in|on|at|as|be|have|has|can|will|let|set|check|substitute|plug|solve|solving|factor|factoring|setting|each|zero|equals?|equal|both|either|neither|none|no|not|all|any|some)\b/i.test(rhsRaw)) continue;
       if (/^\s*[a-zA-Z]\s*$/.test(lhsRaw) || /^\s*[a-zA-Z]\s*$/.test(rhsRaw)) continue;
       if (lhsRaw === '0' || rhsRaw === '0') continue;
