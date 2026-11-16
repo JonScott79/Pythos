@@ -592,7 +592,7 @@ app.use((req, res, next) => {
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()');
-  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com https://fonts.googleapis.com; font-src 'self' data: https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://pythos-api.lanzar.me https://auth-api.lanzar.me https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com https://www.gstatic.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com; frame-src 'self' https://*.firebaseapp.com https://accounts.google.com; object-src 'none'; base-uri 'self';");
+  res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com https://www.gstatic.com https://apis.google.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com https://fonts.googleapis.com; font-src 'self' data: https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://pythos-api.lanzar.me https://auth-api.lanzar.me https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com https://www.gstatic.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com; frame-src 'self' https://*.firebaseapp.com https://accounts.google.com; object-src 'none'; base-uri 'self';");
   next();
 });
 
@@ -688,9 +688,10 @@ app.use((req, res, next) => {
     return res.status(400).json({ error: 'bad_request', message: 'Malformed URL path.' });
   }
   const lowerPath = decodedPath.toLowerCase().replace(/\\/g, '/');
+  const isAllowedWellKnown = lowerPath === '/api/auth/lanzar/.well-known/openid-configuration';
   if (
     lowerPath.includes('..') ||
-    /(^|\/)\./.test(lowerPath) ||
+    (!isAllowedWellKnown && /(^|\/)\./.test(lowerPath)) ||
     BLOCKED_STATIC_FILES.has(lowerPath) ||
     BLOCKED_STATIC_PREFIXES.some(prefix =>
       lowerPath === prefix ||
