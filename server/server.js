@@ -3221,7 +3221,8 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
 
     const verifiedClaimCount = (verificationResults || []).filter(v => v && v.verified === true && v.status === 'VERIFIED').length;
     const unknownClaimCount = (verificationResults || []).filter(v => v && v.verified === false && v.status === 'UNKNOWN').length;
-    const allExtractedClaimsUnknown = claims.length > 0 && verifiedClaimCount === 0 && unknownClaimCount > 0;
+    const isConceptualSimLabPrompt = /\bin\s+the\s+sim\s+lab\b/i.test(effectiveVerificationPrompt || '');
+    const allExtractedClaimsUnknown = !isConceptualSimLabPrompt && claims.length > 0 && verifiedClaimCount === 0 && unknownClaimCount > 0;
 
     const hasUnresolvableFailure =
       uncorrectedInvalidClaims.length > 0 ||

@@ -1881,18 +1881,29 @@ function extractClaims(text, userPrompt = '') {
         }
       }
     } else if (cleanBoxedStr) {
-      // Response contains a \boxed{...} final mathematical claim with zero extracted equations
-      claims.push({
-        domain: 'general',
-        claim_type: 'unverified_boxed_answer',
-        raw_match: lastBoxed.fullMatch,
-        data: {
-          proposed_value: cleanBoxedStr,
-          from_boxed_conclusion: true,
+      // Only flag unverified_boxed_answer when the boxed content is a concrete numeric/equation solution
+      // (or not a multi-variable symbolic formula in a conceptual/Sim Lab derivation).
+      const isConceptualPrompt = /\b(?:in\s+the\s+sim\s+lab|derive|how\s+does|why\s+does|explain\s+(?:why|how)|difference\s+between|walk\s+me\s+through)\b/i.test(promptStr || '');
+      const formulaVars = new Set(
+        cleanBoxedStr
+          .replace(/\\(?:sqrt|frac|text|left|right|sin|cos|tan|sec|csc|cot|log|ln|pi|Delta|theta|omega|alpha|beta|gamma|cdot|times)\b/gi, '')
+          .match(/[a-zA-Z]/g) || []
+      );
+      const hasMultiVarFormula = formulaVars.size >= 2 && !/^\s*[-+]?\d/.test(cleanBoxedStr);
+      if (!(isConceptualPrompt && hasMultiVarFormula)) {
+        // Response contains a \boxed{...} final mathematical claim with zero extracted equations
+        claims.push({
+          domain: 'general',
+          claim_type: 'unverified_boxed_answer',
+          raw_match: lastBoxed.fullMatch,
+          data: {
+            proposed_value: cleanBoxedStr,
+            from_boxed_conclusion: true,
+            userPrompt: promptStr
+          },
           userPrompt: promptStr
-        },
-        userPrompt: promptStr
-      });
+        });
+      }
     }
   }
 
