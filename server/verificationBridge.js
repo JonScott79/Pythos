@@ -3080,8 +3080,9 @@ function auditPromptClaimFidelity(claims, prompt, verificationResults = null) {
   }
 
   // 7. If both non-arithmetic domain claims and intermediate arithmetic claims exist,
-  // intermediate arithmetic alone cannot certify a response whose non-arithmetic claims are all UNKNOWN/unverified.
-  if (hasVerifications && safeClaims.length > 0) {
+  // intermediate arithmetic alone cannot certify a response whose non-arithmetic claims are all UNKNOWN/unverified
+  // (excluding conceptual Sim Lab exploration prompts where symbolic physics formulas may be UNKNOWN).
+  if (hasVerifications && safeClaims.length > 0 && !/\bin\s+the\s+sim\s+lab\b/i.test(prompt)) {
     const nonArithmeticIndices = [];
     for (let i = 0; i < safeClaims.length; i++) {
       const c = safeClaims[i];
