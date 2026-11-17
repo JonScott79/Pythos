@@ -221,7 +221,7 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
   const isShortcutProposal = /\b(?:is\s+there\s+a\s+(?:shortcut|faster\s+way|quicker\s+way)|can\s+(?:i|we)\s+(?:take\s+a\s+shortcut|use\s+a\s+shortcut))\b/i.test(lower) ||
                              /\b(?:can\s+(?:i|we)(?:\s+just)?|what\s+if\s+(?:i|we)(?:\s+just)?|could\s+(?:i|we)(?:\s+just)?|would\s+it\s+work\s+if\s+(?:i|we))\s+(?:divide|multiply|factor|cancel|cross\s+multiply|square|combine|substitute|use)\b/i.test(lower) ||
                              /\b(?:can\s+(?:i|we)\s+do\s+(?:it|this)\s+(?:this\s+way\s+instead|faster|differently)|is\s+it\s+(?:valid|okay|allowed)\s+to\s+(?:just\s+)?(?:divide|cancel|factor|square))\b/i.test(lower) ||
-                             /\b(?:conservation\s+of\s+energy|energy\s+conservation)\b/i.test(lower);
+                             /\b(?:use|using|apply|applying)\s+(?:the\s+)?(?:conservation\s+of\s+energy|energy\s+conservation)\b.*\binstead\b/i.test(lower);
   if (isShortcutProposal) {
     signals.push('shortcut_proposal_marker');
     return { intent: INTENTS.SHORTCUT_PROPOSAL, confidence: 'high', signals };
