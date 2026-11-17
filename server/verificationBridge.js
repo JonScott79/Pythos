@@ -3050,8 +3050,13 @@ function auditPromptClaimFidelity(claims, prompt, verificationResults = null) {
     }
   }
 
-  // 6. Calculus Derivative Queries
-  if ((/\bderivative\b/i.test(prompt) || /\bdifferentiate\b/i.test(prompt)) && !/\bwhat\s+is\s+(?:a|the)\s+derivative\s*\??$/i.test(prompt.trim())) {
+  // 6. Calculus Derivative Queries (only when asking to compute/find a derivative of an expression,
+  // not conceptual questions like "limit definition of the derivative" or "how does shrinking Δx illustrate...")
+  const isDerivativeComputationPrompt = (
+    /(?:find|calculate|compute|what\s+is|determine)\s+(?:the\s+)?(?:first\s+|second\s+|partial\s+)?derivative\s+of\b/i.test(prompt) ||
+    /\bdifferentiate\s+(?!between\b)/i.test(prompt)
+  ) && !/\b(?:limit\s+definition|concept(?:ual)?|illustrate|explain\s+why|in\s+the\s+sim\s+lab)\b/i.test(prompt);
+  if (isDerivativeComputationPrompt && !/\bwhat\s+is\s+(?:a|the)\s+derivative\s*\??$/i.test(prompt.trim())) {
     const check = hasAffirmativelyVerifiedClaim(c => c.claim_type === 'derivative');
     if (!check.ok) {
       return {
