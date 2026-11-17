@@ -828,6 +828,8 @@ function extractClaims(text, userPrompt = '') {
     let s = String(rawSide || '')
       .replace(/²/g, '^2')
       .replace(/³/g, '^3')
+      .replace(/\\(?:tfrac|dfrac)\s*(\d)\s*(\d)/g, '\\frac{$1}{$2}')
+      .replace(/\\(?:tfrac|dfrac)\b/g, '\\frac')
       .replace(/\\displaystyle\b/g, '')
       .replace(/\\left\(/g, '(')
       .replace(/\\right\)/g, ')');
@@ -1220,13 +1222,14 @@ function extractClaims(text, userPrompt = '') {
 
   const rawEquivBlocks = text
     .replace(/\\begin\{aligned\}|\\end\{aligned\}|&/g, ' ')
-    .split(/\r?\n|\\\\|\\\]|\$\$|\\qquad|\\quad/)
+    .replace(/\\boxed\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g, '$1')
+    .split(/\r?\n|\\\\|\\\]|\$\$|\\qquad|\\quad|\\implies|\\Longrightarrow|\\Rightarrow|⇒|==>/)
     .flatMap(b => (/^\s*\|/.test(b) || (b.match(/\|/g) || []).length >= 2) ? b.split('|') : [b]);
 
   for (let block of rawEquivBlocks) {
     let cleanBlock = block.replace(/\\\[|\\\]|\\\(|\\\)|\\text\{[^}]*\}|\$/g, ' ').trim();
     if (!cleanBlock || !cleanBlock.includes('=')) continue;
-    if (cleanBlock.includes('<') || cleanBlock.includes('>') || cleanBlock.includes('≈') || cleanBlock.includes('~')) continue;
+    if (cleanBlock.includes('<') || cleanBlock.includes('>') || cleanBlock.includes('≈') || cleanBlock.includes('~') || /\\(?:approx|thickapprox)\b/.test(cleanBlock)) continue;
     if (/\b(?:d|dt|dx|dy)\b\s*=\s*/.test(cleanBlock)) continue;
     if (/\\int|\\frac\{d\}\{d|\\lim\b/i.test(cleanBlock)) continue;
 
@@ -1269,6 +1272,11 @@ function extractClaims(text, userPrompt = '') {
       const vMatchRhs = normRhs.match(/\b([a-zA-Z])\b/);
       // Algebraic equivalence and factorizations must contain variables on BOTH sides
       if (!vMatchLhs || !vMatchRhs) continue;
+      // Skip subscripted multi-variable physics formulas (e.g. h_0, U_0, E_{tot})
+      if (/_/.test(normLhs) || /_/.test(normRhs) || /[\\{}]/.test(normLhs) || /[\\{}]/.test(normRhs)) continue;
+      const lhsVars = new Set((normLhs.match(/\b([a-zA-Z])\b/g) || []));
+      const rhsVars = new Set((normRhs.match(/\b([a-zA-Z])\b/g) || []));
+      if (lhsVars.size !== rhsVars.size || [...lhsVars].some(v => !rhsVars.has(v))) continue;
 
       // Reject variable assignments / substitution definitions (e.g. let u = sqrt(2x+9))
       if (/\b(?:let|set|assume|suppose)\s+[a-zA-Z]\s*=/i.test(cleanBlock)) continue;
