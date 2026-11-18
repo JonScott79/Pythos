@@ -37,7 +37,7 @@ const packageJson = require('./package.json');
 
 // ── Namespace Constants ────────────────────────────────────────────────────────
 const PYTHOS_COLLECTION         = 'pythos';
-const PYTHOS_ANCHOR_DOC         = 'app';
+const PYTHOS_ANCHOR_DOC         = process.env.PYTHOS_ENV === 'staging' ? 'app_staging' : 'app';
 const BUG_REPORTS_SUBCOL        = 'bug_reports';
 const CONFIG_SUBCOL             = 'config';
 const LANZAR_ACCOUNTS_SUBCOL    = 'lanzar_id_accounts';

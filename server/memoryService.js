@@ -21,7 +21,7 @@ const { getAdminFirestore, isAdminSdkAvailable } = require('./firebaseAdmin');
 
 // ── Constants & Limits ──────────────────────────────────────────────────────────
 const MEMORY_ROOT_COLLECTION = 'users';
-const MEMORY_DOC_NAMESPACE = 'pythos_memory';
+const MEMORY_DOC_NAMESPACE = process.env.PYTHOS_ENV === 'staging' ? 'pythos_memory_staging' : 'pythos_memory';
 const ITEMS_SUBCOLLECTION = 'items';
 const PROFILE_DOC = 'profile';
 const EXTRACTION_QUEUE_SUBCOLLECTION = 'extraction_queue';
