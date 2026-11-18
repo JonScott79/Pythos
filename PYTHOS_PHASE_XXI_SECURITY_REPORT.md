@@ -26,4 +26,24 @@ Implemented [safe_sympify.py](file:///C:/Projects/lanzar/pythos/server/verifier/
 
 - [test/test-verifier-security.js](file:///C:/Projects/lanzar/pythos/test/test-verifier-security.js) (`3/3 PASSED`): Verified `__import__('os').system(...)`, `chr()`-obfuscated `__import__`, `(1).__class__.__base__.__subclasses__()`, `lambda x: x`, `[x for x in range(10)]`, `open('/etc/passwd').read()`, `9**9**9**9`, `x**999999`, and `>4096`-char payloads all fail closed on both `VerifierWorker` and `CalculusWorker`, with both pools remaining healthy afterward.
 - **Cross-Request Isolation:** Strict 1-task-per-worker model + `_id` mismatch guard (`CAS_DESYNC_ERROR`) prevents cross-request leakage.
-- **Firestore Staging Isolation (`c826280`):** `firestoreService.js` and `memoryService.js` isolate `PYTHOS_ENV=staging` writes to `pythos/app_staging` and `users/{uid}/pythos_memory_staging`.
+
+---
+
+## 3. Firestore Namespace Isolation Audit (`afa5b27`)
+
+Centralized in [server/firestoreNamespace.js](file:///C:/Projects/lanzar/pythos/server/firestoreNamespace.js) (`resolveFirestoreNamespaces()`, failing closed on invalid `PYTHOS_ENV`):
+
+| Source File | Function / Operation | Firestore Path | Student-Associated | Respects `PYTHOS_ENV` | Isolation Enforcement |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `server/firestoreService.js` | `anchorRef()`, `ensurePythosNamespace()`, `saveBugReport()`, `getBugReport()`, `listBugReports()`, `updateBugReportReview()`, `deleteBugReport()`, `saveConfig()`, `getConfig()` | `pythos/{app \| app_staging}/...` | Partial (reporter UID) | **Yes** | Resolved dynamically via `getAnchorDocName()`. |
+| `server/firestoreService.js` | `saveLanzarAccount()`, `getLanzarAccountByEmail()`, `getLanzarAccountByUid()`, `deleteLanzarAccount()` | `pythos/{app \| app_staging}/lanzar_id_accounts/...` | **Yes** | **Yes** | Resolved dynamically via `getAnchorDocName()`. |
+| `server/firestoreService.js` | `saveMailingListConsent()`, `getMailingListConsentByEmail()`, `deleteMailingListConsent()` | `pythos/{app \| app_staging}/mailing_list_consents/...` | **Yes** | **Yes** | Resolved dynamically via `getAnchorDocName()`. |
+| `server/firestoreService.js` | `deleteUserChats(uid)` | `users/{uid}/{pythos_chats \| pythos_chats_staging}` | **Yes** | **Yes** | Uses `getChatsCollectionName()`; skips deleting root `users/{uid}` doc when `isStagingEnvironment()` is true. |
+| `server/memoryService.js` | `memoryRootRef(uid)` (reads, writes, `items`, `extraction_queue`, `deleteAllStudentMemories`) | `users/{uid}/{pythos_memory \| pythos_memory_staging}/...` | **Yes** | **Yes** | Resolved dynamically via `getMemoryCollectionName()`. |
+| `server/learningStore.js` | `learningColRef(uid)` (concept mastery, learning records) | `users/{uid}/{pythos_learning \| pythos_learning_staging}/...` | **Yes** | **Yes** | Resolved dynamically via `getLearningCollectionName()`. |
+| `server/toolController.js` | `search_conversations` tool query | `users/{uid}/{pythos_chats \| pythos_chats_staging}` | **Yes** | **Yes** | Uses `getChatsCollectionName()`. |
+| `server/firebaseAdmin.js` | `isFirestoreAdmin(uid)` | `admins/{uid}` (read-only) | No (admin ACL) | N/A | Read-only ACL aligned with Security Rules. |
+| `server/lanzarIdService.js` | `linkGoogleAccountToLanzarId()`, `resolveCanonicalIdentity()` | `users/{uid}` | **Yes** | No (preserved untouched) | File preserved untouched per Section 12; live staging tests must use isolated `p21_staging_*` UIDs only. |
+
+- **Automated Namespace Isolation Verification:** [test/test-firestore-namespace-isolation.js](file:///C:/Projects/lanzar/pythos/test/test-firestore-namespace-isolation.js) (**4/4 PASSED**): verified staging reads/writes/updates/deletes resolve exclusively to `app_staging` and `*_staging` collections, production preserves `app` / `pythos_*`, and invalid `PYTHOS_ENV` fails closed.
+- **Shared Firebase Project Assessment (`lanzar-95ae3`):** Logical collection namespacing (`app_staging`, `*_staging`) is sufficient for controlled staging validation with isolated `p21_staging_*` test UIDs, **but does not provide the cryptographic/IAM boundary of a separate Firebase project and service account**. Dedicated Firebase project migration is recommended before opening staging to untrusted testers.

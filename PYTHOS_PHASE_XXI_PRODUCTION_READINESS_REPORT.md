@@ -1,7 +1,7 @@
 # PYTHOS — PHASE XXI PRODUCTION READINESS REPORT
 
 **Branch:** `staging/specialist-engines-integration`  
-**Latest Code Commit:** `c826280`  
+**Latest Code Commit:** `afa5b27`  
 **Protected Production Branch (`master`):** `6c204be` (untouched)  
 **Overall Readiness Verdict:** **LOCAL & SECURITY HARDENED — PENDING LIVE STAGING DEPLOY APPROVAL (`accept-deploy`)**
 
@@ -15,7 +15,7 @@ Phase XXI hardened the Pythos staging candidate across worker reliability, SymPy
 - **Worker Pool Reliability & Performance (`c4671c9`, `f380aa7`):** Added `stderr` drain, `stdin` `EPIPE` guard, rapid-crash circuit breaker, structured diagnostics, and `262144`-byte daemon line cap. Stress tests passed `6/6` across `c=1..50` (peak `754.58 req/s`, `0` errors, `0` mismatches), queue saturation (`n=75`), fallback parity, and 20s soak (`1,998` SymPy requests, `+0.4 MB` RSS).
 - **Independent Mathematical Corpus (`f380aa7`):** `265/265 (100.0%)` passed across 9 categories after fixing `\int 1/x dx = \ln|x| + C`, `sin(30 deg)` regex backtracking, and `1 / / 2` syntax rejection.
 - **Adaptive Multi-Turn Scenarios A–J (`f380aa7`):** `10/10` scenarios passed locally (Firebase ID token verification mocked via `setGoogleTokenVerifierForTesting`; LANZAR ID signed/verified in-process).
-- **Railway & Firestore Isolation (`c826280`):** Isolated Firestore under `PYTHOS_ENV=staging` (`pythos/app_staging`, `users/{uid}/pythos_memory_staging`), set `PYTHOS_ENV=staging` on `pythos-staging`, and staged `staging/specialist-engines-integration@c826280` (`patch 61cb66cc-a70e-4604-8aca-e4ca34d3677e`).
+- **Railway & Firestore Isolation (`c826280`, `afa5b27`):** Centralized Firestore namespace isolation under `PYTHOS_ENV=staging` (`app_staging`, `pythos_memory_staging`, `pythos_learning_staging`, `pythos_chats_staging` via [firestoreNamespace.js](file:///C:/Projects/lanzar/pythos/server/firestoreNamespace.js), `4/4` passed in [test-firestore-namespace-isolation.js](file:///C:/Projects/lanzar/pythos/test/test-firestore-namespace-isolation.js)), set `PYTHOS_ENV=staging` on `pythos-staging`, and staged `staging/specialist-engines-integration@afa5b27` (`patch 61cb66cc-a70e-4604-8aca-e4ca34d3677e`).
 
 ---
 
