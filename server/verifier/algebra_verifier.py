@@ -458,7 +458,7 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
         RESERVED_WORDS = {
             'sin', 'cos', 'tan', 'sec', 'csc', 'cot', 'asin', 'acos', 'atan',
             'arcsin', 'arccos', 'arctan', 'sinh', 'cosh', 'tanh', 'log', 'ln',
-            'exp', 'sqrt', 'cbrt', 'atan2', 'Abs', 'pi'
+            'exp', 'sqrt', 'cbrt', 'atan2', 'Abs', 'abs', 'pi'
         }
         def _split_juxtaposed_vars(expr_norm: str) -> str:
             def _repl(m):
@@ -475,7 +475,7 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
 
         # Build symbol table with real=True by default (unless complex domain)
         all_identifiers = set(_re.findall(r'\b([a-zA-Z_][a-zA-Z0-9_]*)\b', norm1 + ' ' + norm2)) - RESERVED_WORDS
-        local_syms = {"e": sp.E, "pi": sp.pi, "ln": sp.log, "Abs": sp.Abs}
+        local_syms = {"e": sp.E, "pi": sp.pi, "ln": sp.log, "Abs": sp.Abs, "abs": sp.Abs}
         for ident in all_identifiers:
             if ident == 'I':
                 local_syms[ident] = sp.I

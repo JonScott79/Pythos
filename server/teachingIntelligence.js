@@ -263,6 +263,7 @@ function analyzeConceptMastery(arg0 = {}, arg1 = null, arg2 = null, arg3 = null,
   const {
     conversationHistory = [],
     activeProblemState = null,
+    classification = null,
     studentEvaluation = null,
     studentIntent = null,
     studentProfile = null
@@ -271,6 +272,8 @@ function analyzeConceptMastery(arg0 = {}, arg1 = null, arg2 = null, arg3 = null,
   const currentConcept = activeProblemState?.active?.targetConcept ||
                          activeProblemState?.active?.domain ||
                          activeProblemState?.active?.problemType ||
+                         classification?.problemSubtype ||
+                         classification?.problemDomain ||
                          'GENERAL_STEM';
 
   // Helper to infer canonical subject family of a concept tag or problem turn
@@ -286,7 +289,7 @@ function analyzeConceptMastery(arg0 = {}, arg1 = null, arg2 = null, arg3 = null,
   };
 
   const activeSubjectFamily = inferSubjectFamily(
-    `${currentConcept} ${activeProblemState?.active?.domain || ''} ${activeProblemState?.active?.subtype || ''} ${activeProblemState?.active?.activeExpression || ''}`
+    `${currentConcept} ${activeProblemState?.active?.domain || ''} ${activeProblemState?.active?.subtype || ''} ${activeProblemState?.active?.activeExpression || ''} ${classification?.problemDomain || ''} ${classification?.problemSubtype || ''}`
   );
 
   let unassistedSuccessCount = 0;

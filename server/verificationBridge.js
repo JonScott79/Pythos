@@ -809,12 +809,15 @@ function extractClaims(text, userPrompt = '') {
       });
     }
   }
-  // 2. Derivatives (e.g. \frac{d}{dx}[x^2] = 2x or \frac{d}{dx}\,x^3 = 3x^2)
-  const derivRegex = /\\frac\{d\}\{d([a-zA-Z])\}\s*(?:\\,|\\;|\\s)*(?:\[([^\]]+)\]|\\left\(([^)]+)\\right\)|\(([^)]+)\)|([a-zA-Z0-9^+\-*/.{}\s]+?))\s*=\s*([^$\n\\]+?)(?:\\quad|\$|\\\\|\n|\\end|\]|$)/g;
+  // 2. Derivatives (e.g. \frac{d}{dx}[x^2] = 2x or \frac{d}{dx}\left(\frac{x^{3}}{3}\right) = \frac{x^{2}}{2})
+  const derivRegex = /\\frac\{d\}\{d([a-zA-Z])\}\s*(?:\\,|\\;|\\s)*(?:\[([^\]]+)\]|\\left\((.+?)\\right\)|\(([^)]+)\)|([a-zA-Z0-9^+\-*/.{}\s\\]+?))\s*=\s*([^$\n]+?)(?=\s*(?:\\quad|\$|\\\\|\n|\\end|\]|$))/g;
   while ((match = derivRegex.exec(text)) !== null) {
-    let cleanExpr = (match[2] || match[3] || match[4] || match[5] || '').trim().replace(/[{}]/g, '');
-    cleanExpr = cleanExpr.replace(/^(?:differentiate|find\s+the\s+derivative\s+of|calculate\s+the\s+derivative\s+of|what\s+is\s+the\s+derivative\s+of|compute\s+the\s+derivative\s+of)\s+/i, '').trim();
-    const propVal = match[6].trim().replace(/[{}]/g, '').replace(/[.,;:]+$/, '');
+    let rawExpr = (match[2] || match[3] || match[4] || match[5] || '').trim();
+    let cleanExpr = normalizeSymbolicSide(rawExpr)
+      .replace(/^(?:differentiate|find\s+the\s+derivative\s+of|calculate\s+the\s+derivative\s+of|what\s+is\s+the\s+derivative\s+of|compute\s+the\s+derivative\s+of)\s+/i, '')
+      .trim();
+    const rawPropVal = match[6].trim().replace(/[.,;:]+$/, '');
+    const propVal = normalizeSymbolicSide(rawPropVal) || rawPropVal;
 
     claims.push({
       domain: 'calculus',
@@ -918,6 +921,9 @@ function extractClaims(text, userPrompt = '') {
       });
       if (next === s) break;
       s = next;
+    }
+    while (/\{([^{}]+)\}/.test(s)) {
+      s = s.replace(/\{([^{}]+)\}/g, '($1)');
     }
     s = s
       .replace(/\\\(|\\\)/g, '')
@@ -1378,26 +1384,29 @@ function extractClaims(text, userPrompt = '') {
       const normLhs = normalizeSymbolicSide(lhsRaw);
       const normRhs = normalizeSymbolicSide(rhsRaw);
 
-      const vMatchLhs = normLhs.match(/\b([a-zA-Z])\b/);
-      const vMatchRhs = normRhs.match(/\b([a-zA-Z])\b/);
-      // Algebraic equivalence and factorizations must contain variables on BOTH sides
-      if (!vMatchLhs || !vMatchRhs) continue;
+      const reservedFnTokens = new Set(['sin', 'cos', 'tan', 'sec', 'csc', 'cot', 'arcsin', 'arccos', 'arctan', 'asin', 'acos', 'atan', 'sinh', 'cosh', 'tanh', 'log', 'log10', 'log2', 'ln', 'exp', 'sqrt', 'cbrt', 'abs', 'pi']);
+      const extractVarList = (exprStr) =>
+        (exprStr.match(/\b([a-zA-Z]+)\b/g) || [])
+          .filter(tok => tok.length === 1 && !reservedFnTokens.has(tok.toLowerCase()));
+      const lhsVarList = extractVarList(normLhs);
+      const rhsVarList = extractVarList(normRhs);
+      if (lhsVarList.length === 0 || rhsVarList.length === 0) continue;
       // Skip subscripted multi-variable physics formulas (e.g. h_0, U_0, E_{tot})
       if (/_/.test(normLhs) || /_/.test(normRhs) || /[\\{}]/.test(normLhs) || /[\\{}]/.test(normRhs)) continue;
-      const lhsVars = new Set((normLhs.match(/\b([a-zA-Z])\b/g) || []));
-      const rhsVars = new Set((normRhs.match(/\b([a-zA-Z])\b/g) || []));
+      const lhsVars = new Set(lhsVarList);
+      const rhsVars = new Set(rhsVarList);
       if (lhsVars.size !== rhsVars.size || [...lhsVars].some(v => !rhsVars.has(v))) continue;
 
       // Reject variable assignments / substitution definitions (e.g. let u = sqrt(2x+9))
       if (/\b(?:let|set|assume|suppose)\s+[a-zA-Z]\s*=/i.test(cleanBlock)) continue;
       // Single variable on one side cannot be symbolically equivalent to an expression in another variable
-      if (vMatchLhs[1] !== vMatchRhs[1] && (!normLhs.includes(vMatchRhs[1]) || !normRhs.includes(vMatchLhs[1]))) continue;
+      if (lhsVarList[0] !== rhsVarList[0] && (!normLhs.includes(rhsVarList[0]) || !normRhs.includes(lhsVarList[0]))) continue;
 
       // Do not mistake the prompt's equation-to-solve for an algebraic identity
       if (parts.length === 2 && promptStr && promptStr.includes('=') && (cleanBlock.includes(promptStr.split('=')[0].trim()) || promptStr.includes(cleanBlock))) continue;
       if (parts.length > 2 && promptStr && /\bsolve\b/i.test(promptStr) && promptStr.includes('=') && promptStr.replace(/\s+/g, '').includes(pairCleanBlock.replace(/\s+/g, ''))) continue;
 
-      const vMatch = vMatchLhs;
+      const vMatch = [lhsVarList[0], lhsVarList[0]];
 
       const alreadyEquiv = claims.some(c => c.claim_type === 'symbolic_equivalence' && c.data?.expr1 === normLhs && c.data?.expr2 === normRhs);
       if (!alreadyEquiv) {
@@ -2515,8 +2524,13 @@ function checkPromptClaimFidelity(claim, userPrompt) {
       let promptExpr = derivPromptMatch[1].trim().replace(/^[a-zA-Z]\s*\([a-zA-Z]\)\s*=\s*/, '');
       const claimExpr = claim.data?.expression;
       if (promptExpr && claimExpr) {
-        const normP = promptExpr.replace(/\s+/g, '').replace(/(\d)([a-zA-Z])/g, '$1*$2');
-        const normC = claimExpr.replace(/\s+/g, '').replace(/(\d)([a-zA-Z])/g, '$1*$2');
+        const canonDerivExpr = (expr) => replaceLatexRadicalsAndFractions(String(expr))
+          .replace(/\{([^{}]+)\}/g, '$1')
+          .replace(/\s+/g, '')
+          .replace(/(\d)([a-zA-Z])/g, '$1*$2')
+          .replace(/[()]/g, '');
+        const normP = canonDerivExpr(promptExpr);
+        const normC = canonDerivExpr(claimExpr);
         if (normP !== normC) {
           return {
             ok: false,

@@ -34,6 +34,10 @@ const trigExpressionParser = require('./server/trigExpressionParser');
 const visualFidelity = require('./server/vizEngine/visualFidelity');
 const toolController = require('./server/toolController');
 const mathInputEngine = require('./js/mathInputEngine');
+const teachingIntelligence = require('./server/teachingIntelligence');
+const learnerState = require('./server/learnerState');
+const lanzarIdService = require('./server/lanzarIdService');
+const serverGateway = require('./server/server');
 
 const STAGE_STATS = {
   interpretation: { total: 0, passed: 0 },
@@ -467,6 +471,183 @@ async function runCampaign() {
     });
     assert.strictEqual(res.status, 'FAILED');
     assert.strictEqual(res.error, 'DIVERGENT_INTEGRAL');
+  });
+
+  // ===========================================================================
+  // CATEGORY 11: PHASE XIX–XX ADVERSARIAL END-TO-END REGRESSION GAUNTLET (ADV-01..ADV-10)
+  // ===========================================================================
+  await runCase('11_Phase_XX_Adversarial', 'verification', 'ADV-01', 'Brace-nested exponent derivative: d/dx(x^3/3) = x^2/2 with \\frac{x^{3}}{3} and \\frac{x^{2}}{2} is caught as invalid claim end-to-end', async () => {
+    const res = await verificationBridge.verifyResponseClaims(
+      '$$\\frac{d}{dx}\\left(\\frac{x^{3}}{3}\\right) = \\frac{x^{2}}{2}$$',
+      'Differentiate x^3/3'
+    );
+    assert(res.invalidClaims.length > 0, `Expected invalidClaims for d/dx(x^3/3) = x^2/2, got ${JSON.stringify(res)}`);
+    assert(
+      res.invalidClaims[0].verification.status === 'CONTRADICTION' ||
+      res.invalidClaims[0].verification.status === 'INCORRECT_DERIVATIVE',
+      `Unexpected status: ${res.invalidClaims[0].verification.status}`
+    );
+  });
+
+  await runCase('11_Phase_XX_Adversarial', 'verification', 'ADV-02', 'Indefinite integral verification: \\int 2x\\,dx = x^3 + C is caught as CONTRADICTION while \\int 2x\\,dx = x^2 + C is VERIFIED', async () => {
+    const wrong = await verificationBridge.verifyResponseClaims(
+      '$$\\int 2x\\,dx = x^3 + C$$',
+      'Evaluate the indefinite integral of 2x'
+    );
+    assert(wrong.invalidClaims.length > 0, `Expected invalidClaims for \\int 2x dx = x^3 + C, got ${JSON.stringify(wrong)}`);
+    assert(
+      wrong.invalidClaims[0].verification.status === 'CONTRADICTION' ||
+      wrong.invalidClaims[0].verification.status === 'INCORRECT_INTEGRAL',
+      `Unexpected status: ${wrong.invalidClaims[0].verification.status}`
+    );
+
+    const right = await verificationBridge.verifyResponseClaims(
+      '$$\\int 2x\\,dx = x^2 + C$$',
+      'Evaluate the indefinite integral of 2x'
+    );
+    assert.strictEqual(right.invalidClaims.length, 0);
+    assert(right.verificationResults.some(v => v.verified === true), 'Expected verified=true for \\int 2x dx = x^2 + C');
+  });
+
+  await runCase('11_Phase_XX_Adversarial', 'verification', 'ADV-03', 'Inline prose removable singularity: "Simplifying gives \\frac{x^2 - 4}{x - 2} = x + 2 for all real numbers." is rejected', async () => {
+    const res = await verificationBridge.verifyResponseClaims(
+      'Simplifying gives $\\frac{x^2 - 4}{x - 2} = x + 2$ for all real numbers.',
+      'Simplify (x^2 - 4)/(x - 2)'
+    );
+    assert(res.invalidClaims.length > 0, `Expected domain-restriction contradiction in prose, got ${JSON.stringify(res)}`);
+    assert.strictEqual(res.invalidClaims[0].verification.status, 'NON_EQUIVALENT');
+  });
+
+  await runCase('11_Phase_XX_Adversarial', 'verification', 'ADV-04', 'Real-domain principal root & absolute value: \\sqrt{x^2} = x and |x| = x are rejected, while |x| = \\sqrt{x^2} is VERIFIED over R', async () => {
+    const falseRoot = await verificationBridge.verifyResponseClaims(
+      'For any real number $x$, $\\sqrt{x^2} = x$.',
+      'Simplify sqrt(x^2)'
+    );
+    assert(falseRoot.invalidClaims.length > 0, `Expected invalidClaims for sqrt(x^2) = x, got ${JSON.stringify(falseRoot)}`);
+
+    const falseAbs = await verificationBridge.verifyResponseClaims(
+      'For any real number $x$, $|x| = x$.',
+      'Simplify |x|'
+    );
+    assert(falseAbs.invalidClaims.length > 0, `Expected invalidClaims for |x| = x, got ${JSON.stringify(falseAbs)}`);
+
+    const trueIdentity = await verificationBridge.verifyResponseClaims(
+      'For any real number $x$, $|x| = \\sqrt{x^2}$.',
+      'Relate |x| and sqrt(x^2)'
+    );
+    assert.strictEqual(trueIdentity.invalidClaims.length, 0, `Expected |x| = sqrt(x^2) to verify over R, got ${JSON.stringify(trueIdentity)}`);
+    assert(trueIdentity.verificationResults.some(v => v.verified === true));
+  });
+
+  await runCase('11_Phase_XX_Adversarial', 'verification', 'ADV-05', 'Symbolic removable singularity: (x^2 - a^2)/(x - a) = x + a is rejected with restriction x != a', async () => {
+    const res = await verificationBridge.verifyResponseClaims(
+      '$$\\frac{x^2 - a^2}{x - a} = x + a$$',
+      'Simplify (x^2 - a^2)/(x - a)'
+    );
+    assert(res.invalidClaims.length > 0, `Expected symbolic singularity rejection for (x^2-a^2)/(x-a) = x+a, got ${JSON.stringify(res)}`);
+    assert.strictEqual(res.invalidClaims[0].verification.status, 'NON_EQUIVALENT');
+  });
+
+  await runCase('11_Phase_XX_Adversarial', 'routing_context', 'ADV-06', 'Impossible geometry specialist context: "Right triangle with leg 10 and hypotenuse 6" injects deterministic domain violation into LLM context', async () => {
+    const spec = await specialistAssist.evaluateSpecialistAssist('Right triangle with leg 10 and hypotenuse 6', [], { problemDomain: 'GEOMETRY' });
+    assert.strictEqual(spec.matched, true);
+    assert.strictEqual(spec.outcome.outcomeCategory, specialistAssist.SPECIALIST_OUTCOMES.IMPOSSIBLE_DOMAIN_CONFIGURATION);
+    assert(spec.contextString.includes('PRE-COMPUTED DETERMINISTIC DOMAIN VIOLATION'), `Expected domain violation context, got: ${spec.contextString}`);
+    assert(spec.contextString.includes('hypotenuse c (6) must be strictly greater than leg (10)'));
+  });
+
+  await runCase('11_Phase_XX_Adversarial', 'routing_context', 'ADV-07', 'Definite integral variable inference: "Integrate 3t^2 from 0 to 2" infers variable="t" and evaluates to 8', async () => {
+    const spec = await specialistAssist.evaluateSpecialistAssist('Integrate 3t^2 from 0 to 2', [], { problemDomain: 'CALCULUS' });
+    assert.strictEqual(spec.matched, true);
+    assert.strictEqual(spec.outcome.outcomeCategory, specialistAssist.SPECIALIST_OUTCOMES.VERIFIED);
+    assert.strictEqual(spec.task.variable, 't');
+    assert.strictEqual(spec.result.exactResult, '8');
+  });
+
+  await runCase('11_Phase_XX_Adversarial', 'routing_context', 'ADV-08', 'Derivative at a point: "Find the derivative of x^3 + 2x at x = 2" extracts point=2 and evaluates exactResult="14"', async () => {
+    const spec = await specialistAssist.evaluateSpecialistAssist('Find the derivative of x^3 + 2x at x = 2', [], { problemDomain: 'CALCULUS' });
+    assert.strictEqual(spec.matched, true);
+    assert.strictEqual(spec.outcome.outcomeCategory, specialistAssist.SPECIALIST_OUTCOMES.VERIFIED);
+    assert.strictEqual(spec.task.point, 2);
+    assert.strictEqual(spec.result.exactResult, '14');
+    assert.strictEqual(spec.result.symbolicDerivative, '3*x**2 + 2');
+  });
+
+  await runCase('11_Phase_XX_Adversarial', 'interpretation', 'ADV-09', 'Cross-domain mastery isolation & assisted hint accounting: 3 Algebra successes do NOT promote Physics to MASTERY, and hinted steps count as assisted', () => {
+    const history = [
+      { role: 'user', content: 'Solve 2x + 4 = 10' },
+      { role: 'assistant', content: 'Subtract 4 from both sides.' },
+      { role: 'user', content: '2x = 6' },
+      { role: 'assistant', content: 'Correct! Now divide by 2.' },
+      { role: 'user', content: 'x = 3' },
+      { role: 'assistant', content: 'Great job! Next: Solve 3x - 3 = 6' },
+      { role: 'user', content: '3x = 9' },
+      { role: 'assistant', content: 'Spot on! Next?' },
+      { role: 'user', content: 'x = 3' },
+      { role: 'assistant', content: 'Awesome!' }
+    ];
+    const physicsClassification = { problemDomain: 'PHYSICS', problemSubtype: 'KINEMATICS' };
+    const physicsMastery = teachingIntelligence.analyzeConceptMastery({
+      classification: physicsClassification,
+      learnerState: { state: 'NEUTRAL_QUESTION', signals: [] },
+      studentIntent: { intent: 'CONCEPTUAL_QUESTION' },
+      studentEvaluation: null,
+      conversationHistory: history,
+      studentProfile: null
+    });
+    assert.notStrictEqual(physicsMastery.level, teachingIntelligence.MASTERY_LEVELS.MASTERY, 'Algebra history must NOT promote Physics mastery');
+    assert.strictEqual(physicsMastery.metrics.unassistedSuccessCount, 0);
+
+    // Assisted hint test: assistant gives hint immediately before student's verified step
+    const hintHistory = [
+      { role: 'user', content: 'Solve 2x + 5 = 13' },
+      { role: 'assistant', content: 'Here is a hint: first step is to subtract 5 from both sides.' },
+      { role: 'user', content: '2x = 8' }
+    ];
+    const hintedMastery = teachingIntelligence.analyzeConceptMastery({
+      classification: { problemDomain: 'ALGEBRA', problemSubtype: 'LINEAR_EQUATION' },
+      learnerState: { state: 'PROPOSED_STEP', signals: [] },
+      studentIntent: { intent: 'PROPOSED_STEP' },
+      studentEvaluation: { status: 'STEP_VERIFIED_CORRECT' },
+      conversationHistory: hintHistory,
+      studentProfile: null
+    });
+    assert.strictEqual(hintedMastery.metrics.unassistedSuccessCount, 0, 'Step immediately after hint must not increment unassistedSuccessCount');
+    assert(hintedMastery.metrics.assistedSuccessCount >= 1, 'Step immediately after hint must increment assistedSuccessCount');
+  });
+
+  await runCase('11_Phase_XX_Adversarial', 'interpretation', 'ADV-10', 'Pedagogical shortcut & intent hardening: "Can I simplify sqrt(x^2 + 9) to x + 3?", "I am totally lost", "Why do we divide both sides by 2a?", and LANZAR ID auth', async () => {
+    const shortcutAudit = teachingIntelligence.auditProposedShortcut({ userText: 'Can I simplify sqrt(x^2 + 9) to x + 3?' });
+    assert(shortcutAudit && shortcutAudit.isValid === false, 'Must detect invalid radical shortcut on "simplify sqrt(x^2+9) to x+3"');
+    assert.strictEqual(shortcutAudit.failureReason, 'RADICAL_DOES_NOT_DISTRIBUTE_OVER_ADDITION');
+
+    const lostIntent = studentIntentClassifier.classifyStudentIntent('I am totally lost', []);
+    assert.strictEqual(lostIntent.intent, studentIntentClassifier.INTENTS.CONFUSION);
+
+    const whyIntent = studentIntentClassifier.classifyStudentIntent('Why do we divide both sides by 2a?', []);
+    assert.strictEqual(whyIntent.intent, studentIntentClassifier.INTENTS.WHY_EXPLANATION_REQUEST);
+    const whyState = learnerState.classifyLearnerState('Why do we divide both sides by 2a?', [], null, whyIntent, null);
+    assert.notStrictEqual(whyState.state, learnerState.LEARNER_STATES.CONFUSION, '"Why do we divide both sides by 2a?" must NOT classify as CONFUSION');
+    assert.strictEqual(whyState.state, learnerState.LEARNER_STATES.NEUTRAL_QUESTION);
+
+    const challengeIntent = studentIntentClassifier.classifyStudentIntent("That isn't 1896; it is 1888", [
+      { role: 'assistant', content: 'The result is 1896.' }
+    ]);
+    assert.strictEqual(challengeIntent.intent, studentIntentClassifier.INTENTS.CORRECTION);
+    assert.strictEqual(challengeIntent.isTutorChallenge, true);
+
+    // LANZAR ID authentication resolution in server gateway
+    const token = lanzarIdService.signLanzarToken({
+      uid: 'lanzar_test_student_01',
+      email: 'student01@lanzar.test',
+      displayName: 'Ada Lovelace'
+    });
+    const resolvedUser = await serverGateway.verifyAuthenticatedRequestUser({
+      headers: { authorization: `Bearer ${token}` }
+    });
+    assert(resolvedUser && resolvedUser.uid === 'lanzar_test_student_01', 'Gateway must authenticate LANZAR ID bearer token for learner persistence');
+    assert.strictEqual(resolvedUser.provider, 'lanzar_id');
+    assert.strictEqual(resolvedUser.claims.displayName, 'Ada Lovelace');
   });
 
   // Summary
