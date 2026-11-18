@@ -679,6 +679,9 @@ async function runCampaign() {
   try {
     calculusEngine.closeCalculusDaemon();
   } catch (_) {}
+  try {
+    verificationBridge.closeVerifierDaemon();
+  } catch (_) {}
 
   if (failedCases > 0) {
     process.exit(1);
@@ -688,5 +691,6 @@ async function runCampaign() {
 runCampaign().catch(err => {
   console.error('Fatal diagnostic campaign error:', err);
   try { calculusEngine.closeCalculusDaemon(); } catch (_) {}
+  try { verificationBridge.closeVerifierDaemon(); } catch (_) {}
   process.exit(1);
 });

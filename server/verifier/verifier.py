@@ -145,6 +145,33 @@ def dispatch_payload(payload):
         return {"verified": False, "status": "ERROR", "error": "Unsupported payload type"}
 
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] == "--daemon":
+        for line in sys.stdin:
+            line = line.strip()
+            if not line:
+                continue
+            req_id = None
+            try:
+                payload = json.loads(line)
+                if isinstance(payload, dict):
+                    req_id = payload.get("_id")
+                res = dispatch_payload(payload)
+                if req_id is not None:
+                    if isinstance(res, dict):
+                        res["_id"] = req_id
+                        out = res
+                    else:
+                        out = {"_id": req_id, "results": res}
+                else:
+                    out = res
+                print(json.dumps(out), flush=True)
+            except Exception as e:
+                err_res = {"verified": False, "status": "ERROR", "error": str(e)}
+                if req_id is not None:
+                    err_res["_id"] = req_id
+                print(json.dumps(err_res), flush=True)
+        return
+
     if len(sys.argv) > 1:
         # Read JSON string argument
         try:

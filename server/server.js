@@ -4088,6 +4088,10 @@ function gracefulShutdown(signal) {
     const { closeCalculusDaemon } = require('./engines/calculusEngine');
     closeCalculusDaemon();
   } catch (_) {}
+  try {
+    const { closeVerifierDaemon } = require('./verificationBridge');
+    closeVerifierDaemon();
+  } catch (_) {}
   if (server) {
     server.close(() => {
       console.log('[PYTHOS BACKEND] Server closed. Process terminated.');

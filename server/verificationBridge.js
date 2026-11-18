@@ -2677,6 +2677,309 @@ class BoundedCASQueue {
 }
 
 const casQueue = new BoundedCASQueue(process.env.PYTHOS_CAS_CONCURRENCY ? parseInt(process.env.PYTHOS_CAS_CONCURRENCY, 10) : 2);
+
+// -------------------------------------------------------------
+// Persistent SymPy Verifier Worker Pool (MEDIUM-01)
+// 1-task-per-worker isolation, bounded queue, timeout isolation
+// -------------------------------------------------------------
+
+class VerifierWorker {
+  constructor(id, onAvailable, onCrash) {
+    this.id = id;
+    this.onAvailable = onAvailable;
+    this.onCrash = onCrash;
+    this.proc = null;
+    this.busy = false;
+    this.currentTask = null;
+    this.buffer = '';
+    this.decoder = new StringDecoder('utf8');
+    this.isDead = false;
+  }
+
+  start() {
+    this.terminate();
+    this.isDead = false;
+    this.buffer = '';
+    this.decoder = new StringDecoder('utf8');
+
+    const pythonBin = getPythonExecutable();
+    const pythonScript = path.join(__dirname, 'verifier', 'verifier.py');
+
+    try {
+      this.proc = child_process.spawn(pythonBin, [pythonScript, '--daemon'], {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env: { ...process.env, PYTHONIOENCODING: 'utf-8' }
+      });
+    } catch (spawnErr) {
+      this.isDead = true;
+      this.proc = null;
+      if (this.currentTask) {
+        const task = this.currentTask;
+        this.currentTask = null;
+        this.busy = false;
+        task.resolve(task.makeErrorResult('CAS_SPAWN_ERROR', `Failed to spawn Python verifier (${pythonBin}): ${spawnErr.message}`));
+      }
+      return false;
+    }
+
+    this.proc.stdout.on('data', (chunk) => this._handleStdout(chunk));
+    this.proc.on('error', (err) => {
+      const code = err && err.code === 'ENOENT' ? 'CAS_SPAWN_ERROR' : 'CAS_EXECUTION_ERROR';
+      this._handleProcessFailure(code, `Verifier worker process error: ${err.message}`);
+    });
+    this.proc.on('close', (code, signal) => {
+      this._handleProcessFailure('CAS_PROCESS_EXIT_ERROR', `Verifier worker exited (code=${code}, signal=${signal})`);
+    });
+
+    return true;
+  }
+
+  _handleStdout(chunk) {
+    this.buffer += typeof chunk === 'string' ? chunk : this.decoder.write(chunk);
+    let nlIndex;
+    while ((nlIndex = this.buffer.indexOf('\n')) !== -1) {
+      const line = this.buffer.slice(0, nlIndex).trim();
+      this.buffer = this.buffer.slice(nlIndex + 1);
+      if (!line) continue;
+      if (!this.currentTask) continue;
+
+      const task = this.currentTask;
+      clearTimeout(task.timer);
+      this.currentTask = null;
+      this.busy = false;
+
+      try {
+        const parsed = JSON.parse(line);
+        if (parsed && typeof parsed === 'object' && parsed._id !== undefined && parsed._id !== task.id) {
+          // Cross-talk guard: ID mismatch -> fail closed and recycle worker
+          task.resolve(task.makeErrorResult('CAS_DESYNC_ERROR', `Verifier worker response _id mismatch (expected ${task.id}, got ${parsed._id})`));
+          this.terminate();
+          this.onCrash(this);
+          return;
+        }
+        if (task.isBatch) {
+          const results = parsed && Array.isArray(parsed.results) ? parsed.results : (Array.isArray(parsed) ? parsed : null);
+          if (results && results.length === task.batchLength) {
+            task.resolve(results);
+          } else {
+            task.resolve(task.makeErrorResult('CAS_MALFORMED_OUTPUT', 'Malformed batch verifier response'));
+          }
+        } else {
+          if (parsed && typeof parsed === 'object' && '_id' in parsed) {
+            delete parsed._id;
+          }
+          task.resolve(parsed);
+        }
+      } catch (parseErr) {
+        task.resolve(task.makeErrorResult('CAS_MALFORMED_OUTPUT', `Failed to parse verifier worker output: ${parseErr.message}`));
+      }
+
+      this.onAvailable(this);
+    }
+  }
+
+  _handleProcessFailure(errorType, reason) {
+    if (this.isDead) return;
+    this.isDead = true;
+
+    if (this.currentTask) {
+      const task = this.currentTask;
+      clearTimeout(task.timer);
+      this.currentTask = null;
+      this.busy = false;
+      task.resolve(task.makeErrorResult(errorType, reason));
+    }
+
+    this.terminate();
+    this.onCrash(this);
+  }
+
+  execute(task) {
+    if (this.busy || !this.proc || this.isDead) {
+      return false;
+    }
+
+    this.busy = true;
+    this.currentTask = task;
+
+    task.timer = setTimeout(() => {
+      this._handleTimeout(task);
+    }, task.timeoutMs);
+
+    try {
+      const payloadWithId = { ...task.payload, _id: task.id };
+      this.proc.stdin.write(JSON.stringify(payloadWithId) + '\n');
+      return true;
+    } catch (writeErr) {
+      clearTimeout(task.timer);
+      this.currentTask = null;
+      this.busy = false;
+      task.resolve(task.makeErrorResult('CAS_PIPE_ERROR', `Failed to write to verifier worker stdin: ${writeErr.message}`));
+      this.terminate();
+      this.onCrash(this);
+      return false;
+    }
+  }
+
+  _handleTimeout(task) {
+    this.currentTask = null;
+    this.busy = false;
+    this.terminate();
+    task.resolve(task.makeErrorResult('CAS_TIMEOUT', `Verifier timeout after ${task.timeoutMs}ms`));
+    this.onCrash(this);
+  }
+
+  isAlive() {
+    return Boolean(this.proc && !this.isDead && !this.proc.killed);
+  }
+
+  terminate() {
+    this.isDead = true;
+    if (this.proc) {
+      const p = this.proc;
+      this.proc = null;
+      p.removeAllListeners('error');
+      p.removeAllListeners('close');
+      if (p.stdout) p.stdout.removeAllListeners('data');
+      try { if (p.stdin && !p.stdin.destroyed) p.stdin.destroy(); } catch (_) {}
+      try { if (p.stdout && !p.stdout.destroyed) p.stdout.destroy(); } catch (_) {}
+      try { if (p.stderr && !p.stderr.destroyed) p.stderr.destroy(); } catch (_) {}
+      try {
+        if (process.platform === 'win32') p.kill();
+        else p.kill('SIGKILL');
+      } catch (_) {}
+    }
+  }
+}
+
+const VERIFIER_MAX_WORKERS = process.env.VERIFIER_MAX_WORKERS
+  ? parseInt(process.env.VERIFIER_MAX_WORKERS, 10)
+  : 2;
+const VERIFIER_MAX_QUEUE_SIZE = process.env.VERIFIER_MAX_QUEUE_SIZE
+  ? parseInt(process.env.VERIFIER_MAX_QUEUE_SIZE, 10)
+  : 50;
+
+let verifierPool = [];
+let verifierTaskCounter = 0;
+const verifierTaskQueue = [];
+let verifierShuttingDown = false;
+
+function initVerifierDaemon(poolSize = VERIFIER_MAX_WORKERS) {
+  if (verifierShuttingDown) return;
+  if (verifierPool.length > 0) return;
+
+  const targetSize = Math.max(1, Math.min(poolSize, 8));
+  for (let i = 1; i <= targetSize; i++) {
+    const worker = new VerifierWorker(
+      i,
+      () => dispatchNextVerifierTask(),
+      (w) => onVerifierWorkerCrash(w)
+    );
+    worker.start();
+    verifierPool.push(worker);
+  }
+}
+
+function onVerifierWorkerCrash(crashedWorker) {
+  if (verifierShuttingDown) return;
+  crashedWorker.start();
+  dispatchNextVerifierTask();
+}
+
+function dispatchNextVerifierTask() {
+  if (verifierShuttingDown || verifierTaskQueue.length === 0) return;
+
+  const idleWorker = verifierPool.find(w => !w.busy && w.isAlive());
+  if (!idleWorker) return;
+
+  const task = verifierTaskQueue.shift();
+  if (!task) return;
+  clearTimeout(task.queueTimer);
+
+  const ok = idleWorker.execute(task);
+  if (!ok) {
+    verifierTaskQueue.unshift(task);
+  }
+}
+
+function runViaVerifierPool(payload, { isBatch = false, batchLength = 0, timeoutMs = 5000 } = {}) {
+  const makeErrorResult = (errorType, reason) => {
+    const singleErr = { verified: false, status: 'ERROR', error_type: errorType, reason };
+    return isBatch ? new Array(batchLength).fill(null).map(() => ({ ...singleErr })) : singleErr;
+  };
+
+  if (verifierShuttingDown) {
+    return Promise.resolve(makeErrorResult('CAS_SHUTDOWN', 'Verifier daemon is shut down'));
+  }
+
+  if (verifierPool.length === 0) {
+    initVerifierDaemon();
+  }
+
+  return new Promise((resolve) => {
+    const taskId = ++verifierTaskCounter;
+    const task = {
+      id: taskId,
+      payload,
+      isBatch,
+      batchLength,
+      timeoutMs,
+      makeErrorResult,
+      resolve
+    };
+
+    const idleWorker = verifierPool.find(w => !w.busy && w.isAlive());
+    if (idleWorker) {
+      idleWorker.execute(task);
+      return;
+    }
+
+    if (verifierTaskQueue.length >= VERIFIER_MAX_QUEUE_SIZE) {
+      return resolve(makeErrorResult('CAS_QUEUE_SATURATED', `Verifier queue saturated (${verifierTaskQueue.length}/${VERIFIER_MAX_QUEUE_SIZE} tasks pending)`));
+    }
+
+    task.queueTimer = setTimeout(() => {
+      const idx = verifierTaskQueue.indexOf(task);
+      if (idx !== -1) {
+        verifierTaskQueue.splice(idx, 1);
+        resolve(makeErrorResult('CAS_TIMEOUT', `Verifier task timed out in queue after ${timeoutMs}ms`));
+      }
+    }, timeoutMs);
+
+    verifierTaskQueue.push(task);
+  });
+}
+
+function getVerifierPoolStatus() {
+  return {
+    totalWorkers: verifierPool.length,
+    busyWorkers: verifierPool.filter(w => w.busy).length,
+    idleWorkers: verifierPool.filter(w => !w.busy && w.isAlive()).length,
+    queuedTasks: verifierTaskQueue.length,
+    isShuttingDown: verifierShuttingDown
+  };
+}
+
+function closeVerifierDaemon() {
+  verifierShuttingDown = true;
+
+  while (verifierTaskQueue.length > 0) {
+    const task = verifierTaskQueue.shift();
+    clearTimeout(task.queueTimer);
+    task.resolve(task.makeErrorResult('CAS_SHUTDOWN', 'Verifier daemon closed'));
+  }
+
+  for (const worker of verifierPool) {
+    worker.terminate();
+  }
+  verifierPool = [];
+  verifierShuttingDown = false;
+}
+
+process.once('exit', () => {
+  closeVerifierDaemon();
+});
+
 async function runDeterministicVerification(claim, userPrompt = '') {
   if (!claim || !claim.data) {
     return { verified: false, status: 'UNKNOWN', reason: 'Invalid claim structure' };
@@ -2709,7 +3012,13 @@ async function runDeterministicVerification(claim, userPrompt = '') {
     return mathjsResult;
   }
 
-  // Second-Line: Python Symbolic Verifiers (SymPy / SciPy) under Bounded Host Queue
+  // Second-Line: Persistent SymPy Verifier Worker Pool (or one-shot fallback if disabled)
+  if (process.env.VERIFIER_DAEMON_DISABLED !== 'true') {
+    const poolResult = await runViaVerifierPool(claim, { isBatch: false, timeoutMs: 5000 });
+    return poolResult;
+  }
+
+  // Fallback: One-shot Python Symbolic Verifier under Bounded Host Queue
   const pythonResult = await casQueue.run(async () => {
     return new Promise((resolve) => {
       const pythonBin = getPythonExecutable();
@@ -2963,6 +3272,15 @@ async function runPythonVerifierBatch(claimsBatch) {
   if (claimsBatch.length === 1) {
     const single = await runDeterministicVerification(claimsBatch[0]);
     return [single];
+  }
+
+  const timeoutMs = Math.min(15000, Math.max(5000, claimsBatch.length * 2500));
+  if (process.env.VERIFIER_DAEMON_DISABLED !== 'true') {
+    return runViaVerifierPool({ batch: claimsBatch }, {
+      isBatch: true,
+      batchLength: claimsBatch.length,
+      timeoutMs
+    });
   }
 
   return casQueue.run(async () => {
@@ -3536,5 +3854,9 @@ module.exports = {
   verifyResponseClaims,
   getPythonExecutable,
   getCasTelemetry,
-  verifyProposedShortcut
+  verifyProposedShortcut,
+  initVerifierDaemon,
+  closeVerifierDaemon,
+  getVerifierPoolStatus,
+  runViaVerifierPool
 };
