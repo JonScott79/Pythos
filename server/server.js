@@ -962,6 +962,7 @@ app.authRateLimiter = authRateLimiter;
 app.mailingRateLimiter = mailingRateLimiter;
 app.resetAllRateLimits = resetAllRateLimits;
 app.setGoogleTokenVerifierForTesting = setGoogleTokenVerifierForTesting;
+app.verifyAuthenticatedRequestUser = verifyAuthenticatedRequestUser;
 
 // =====================================
 // Vision Provider Drivers (Primary: Groq, Backup: Gemini)
@@ -2258,20 +2259,15 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
     res.on('close', clientCloseHandler);
   }
 
-  // Extract optional student identity from Authorization Bearer token
+  // Extract optional student identity from Authorization Bearer token (supports both LANZAR ID and Firebase ID tokens)
   let studentUid = null;
   let studentDisplayName = null;
-  const authHeader = req.headers['authorization'];
-  if (authHeader && authHeader.startsWith('Bearer ') && firebaseAdmin.isAdminSdkAvailable()) {
-    const rawToken = authHeader.slice(7).trim();
-    if ((rawToken.match(/\./g) || []).length >= 2) {
-      const decoded = await firebaseAdmin.verifyIdToken(rawToken).catch(() => null);
-      if (decoded?.uid) {
-        studentUid = decoded.uid;
-        if (typeof decoded.name === 'string' && decoded.name.trim()) {
-          studentDisplayName = sanitizeDisplayName(decoded.name);
-        }
-      }
+  const authenticatedUser = await verifyAuthenticatedRequestUser(req).catch(() => null);
+  if (authenticatedUser && authenticatedUser.uid) {
+    studentUid = authenticatedUser.uid;
+    const rawName = authenticatedUser.claims?.displayName || authenticatedUser.claims?.name;
+    if (typeof rawName === 'string' && rawName.trim()) {
+      studentDisplayName = sanitizeDisplayName(rawName);
     }
   }
 
@@ -4112,5 +4108,6 @@ module.exports = {
   getActiveControllers: () => activeControllers,
   clearActiveControllers,
   executeVisionCall,
-  stripModelScratchpad
+  stripModelScratchpad,
+  verifyAuthenticatedRequestUser
 };
