@@ -2684,7 +2684,7 @@ function appendMessage(role, text, images = null, metadata = {}) {
 
     const headerColor = isFullyVerified ? "#15803d" : "#b45309";
     const headerTitle = isFullyVerified ? "🛡️ Verified Derivation Audit" : (isPartiallyVerified ? "⚠️ Partially Verified Derivation Audit" : "⚠️ Derivation Verification Audit");
-    auditPanel.innerHTML = `<div style="font-size:0.75rem; font-weight:600; color:${headerColor}; margin-bottom:6px; display:flex; align-items:center; gap:5px;"><span>${headerTitle}</span><span style="font-size:0.7rem; color:var(--text-muted); font-weight:normal;">(${verifiedCount} verified, ${unknownCount} unknown, ${rejectedCount} rejected of ${totalCount})</span></div><div class="pythos-audit-body">${stepsHtml}</div>`;
+    auditPanel.innerHTML = `<div style="font-size:0.75rem; font-weight:600; color:${headerColor}; margin-bottom:6px; display:flex; flex-wrap:wrap; align-items:center; gap:4px 6px;"><span>${headerTitle}</span><span style="font-size:0.7rem; color:var(--text-muted); font-weight:normal;">(${verifiedCount} verified, ${unknownCount} unknown, ${rejectedCount} rejected of ${totalCount})</span></div><div class="pythos-audit-body">${stepsHtml}</div>`;
 
     auditBtn.addEventListener("click", () => {
       const isVisible = auditPanel.style.display !== "none";

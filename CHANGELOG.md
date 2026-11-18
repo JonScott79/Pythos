@@ -1,3 +1,17 @@
+## Pythos 1.8.64
+**Release Date:** November 17, 2026
+
+### Adaptive Teaching Intelligence, Centralized LANZAR ID Authentication, Verification Engine Calibration & Mobile Action UX
+- **Adaptive Teaching Intelligence (`server/teachingIntelligence.js`, `server/learnerState.js`, `server/studentIntentClassifier.js`, `server/studentWorkEvaluator.js`, `test-adaptive-teaching.js`):**
+  - **Student Agency & Learning Modes:** Enforced strict precedence for explicit learning-mode requests (`INDEPENDENT`, `HINT_ONLY`, `GUIDED_STEP`, `FULL_WALKTHROUGH`, `DIRECT_ANSWER`, `STANDARD_METHOD`, `EXPLAIN_WHY`, `EVALUATE_SHORTCUT`) so students are never trapped in unwanted Socratic loops.
+  - **Transformation Sequence & Shortcut Auditing:** Added deterministic transformation auditing (`evaluateTransformationSequence`, `auditProposedShortcutAsync`) detecting lost roots from zero-capable variable division, extraneous roots from even-power steps, rational cancellation holes, and physics energy-vs-kinematics scope limits.
+  - **Concept-Specific Mastery Persistence:** Implemented cross-session evidence-based mastery tracking (`NOVICE`, `DEVELOPING`, `COMPETENT`, `MASTERY`) isolated per mathematical domain.
+- **Centralized LANZAR ID Authentication (`js/lanzarIdAuth.js`, `app.js`, `server/lanzarIdService.js`):**
+  - Migrated Pythos authentication to the centralized LANZAR ID PKCE (`S256`) and first-party session architecture (`auth.lanzar.me` / `auth-api.lanzar.me`) with silent SSO, session validation, central logout, and legacy UID continuity.
+- **Verification Engine, Sim Lab & Telemetry Refinements (`server/verificationBridge.js`, `server/mathjsVerifier.js`, `server/trigExpressionParser.js`, `netlify.toml`):**
+  - Prevented algebraic trigonometric equations (e.g., `cos(2x)+3+5cos(x)=0`) from triggering numeric `2°` right-triangle fallbacks; added half-ULP decimal rounding verification (`>= 2` decimal places); normalized LaTeX `\cos`/`\sin`/`\tan`/`\tfrac`/`\implies` blocks before SymPy evaluation; scoped derivative fidelity checks; and cleared Sim Lab conceptual derivations and comparison tables.
+  - Allowed Google Tag Manager and Google Analytics collection endpoints in `Content-Security-Policy` and refined the mobile `.msg-actions` bar into a clean two-tier layout with wrapping audit headers.
+
 ## Pythos 1.8.63
 **Release Date:** November 8, 2026
 

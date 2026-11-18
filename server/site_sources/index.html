@@ -68,8 +68,8 @@
         "url": "https://pythos.lanzar.me/",
         "applicationCategory": "EducationalApplication",
         "operatingSystem": "All modern web browsers",
-        "softwareVersion": "1.8.63",
-        "dateModified": "2026-11-07",
+        "softwareVersion": "1.8.64",
+        "dateModified": "2026-11-17",
         "description": "Free AI mathematics and physics tutor providing Socratic step-by-step guidance, deterministic computer algebra verification, 2D function plotting, and study tools.",
         "inLanguage": "en",
         "isAccessibleForFree": true,
@@ -803,6 +803,7 @@
 
     .msg-actions {
       display: flex;
+      flex-wrap: wrap;
       justify-content: flex-end;
       align-items: center;
       gap: 6px;
@@ -829,6 +830,8 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      flex-shrink: 0;
+      white-space: nowrap;
       transition: all 0.15s;
     }
 
@@ -850,6 +853,8 @@
       gap: 4px;
       font-size: 0.72rem;
       font-family: 'Inter', sans-serif;
+      flex-shrink: 0;
+      white-space: nowrap;
       transition: all 0.15s;
       margin-right: 6px;
     }
@@ -873,6 +878,8 @@
       font-size: 0.72rem;
       display: inline-flex;
       align-items: center;
+      flex-shrink: 0;
+      white-space: nowrap;
       transition: all 0.15s;
     }
     .msg-feedback-btn:hover {
@@ -960,6 +967,9 @@
       gap: 4px;
       font-size: 0.72rem;
       font-family: 'Inter', sans-serif;
+      max-width: 100%;
+      text-align: left;
+      line-height: 1.3;
       transition: all 0.15s;
     }
 
@@ -1011,7 +1021,9 @@
 
     .pythos-audit-step-header {
       display: flex;
+      flex-wrap: wrap;
       justify-content: space-between;
+      gap: 4px 8px;
       font-size: 0.76rem;
       font-weight: 600;
       color: var(--text-muted);
@@ -1023,6 +1035,8 @@
       font-family: monospace, sans-serif;
       font-size: 0.85rem;
       color: var(--text-main);
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
 
     .pythos-audit-step-meta {
@@ -3982,6 +3996,30 @@
       }
       .msg-actions {
         opacity: 0.95;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 6px;
+        margin-top: 8px;
+      }
+      .msg-actions .msg-audit-btn {
+        flex: 1 1 100%;
+        width: 100%;
+        justify-content: flex-start;
+        padding: 5px 8px;
+        font-size: 0.74rem;
+        box-sizing: border-box;
+      }
+      .msg-actions .msg-report-btn,
+      .msg-actions .msg-copy-btn,
+      .msg-actions .msg-feedback-btn {
+        min-height: 28px;
+        padding: 4px 8px;
+        margin-right: 0;
+        flex-shrink: 0;
+        white-space: nowrap;
+      }
+      .pythos-audit-panel {
+        padding: 8px 10px;
       }
       .input-wrapper {
         padding: 6px 8px;
@@ -4815,7 +4853,7 @@
           <a href="accessibility.html">Accessibility</a>
           <a href="license.html">License</a>
           <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" title="Official Facebook Page" aria-label="Facebook — Official Facebook Page">Facebook</a>
-          <a href="changelog.html#pythos-1-8-63" title="View Changelog" aria-label="v1.8.63 — Version 1.8.63 Release Notes">v1.8.63</a>
+          <a href="changelog.html#pythos-1-8-64" title="View Changelog" aria-label="v1.8.64 — Version 1.8.64 Release Notes">v1.8.64</a>
         </nav>
       </div>
     </aside>
@@ -4833,7 +4871,7 @@
         <header class="header">
           <img class="header-avatar" src="assets/pythos_avatar.jpg" alt="Pythos Oracle" width="40" height="40" />
           <div class="header-info">
-            <h1>PYTHOS <a href="changelog.html#pythos-1-8-63" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.63)" aria-label="v1.8.63 — Version 1.8.63 Release Notes">v1.8.63</a></h1>
+            <h1>PYTHOS <a href="changelog.html#pythos-1-8-64" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.64)" aria-label="v1.8.64 — Version 1.8.64 Release Notes">v1.8.64</a></h1>
             <p>Mathematics & Physics Oracle</p>
           </div>
           <button id="themeToggleBtn" class="theme-toggle-btn" title="Toggle Dark/Light Mode" aria-label="Toggle Dark and Light Theme">
@@ -5896,9 +5934,22 @@
         </div>
 
         <div>
-          <label for="lanzarPasswordInput" style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 4px;">Password (min. 8 characters)</label>
+          <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px;">
+            <label for="lanzarPasswordInput" style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted); margin: 0;">Password (min. 8 characters)</label>
+            <button type="button" id="lanzarForgotPasswordBtn" style="background: none; border: none; padding: 0; color: var(--primary-color, #f97316); text-decoration: underline; font-size: 0.75rem; cursor: pointer; font-family: inherit;" aria-label="Forgot Password?">Forgot Password?</button>
+          </div>
           <input type="password" id="lanzarPasswordInput" class="check-input" placeholder="••••••••" autocomplete="current-password" data-clarity-mask="true" />
         </div>
+
+        <div style="display: flex; align-items: center; gap: 8px; margin: 2px 0;">
+          <hr style="flex: 1; border: none; border-top: 1px solid var(--border-color, rgba(255,255,255,0.1));" />
+          <span style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Or</span>
+          <hr style="flex: 1; border: none; border-top: 1px solid var(--border-color, rgba(255,255,255,0.1));" />
+        </div>
+
+        <button type="button" id="lanzarOpenCentralHubBtn" class="tool-btn" style="width: 100%; justify-content: center; gap: 8px; font-weight: 600; font-size: 0.82rem; padding: 8px 12px; background: rgba(255,255,255,0.06); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; color: var(--text-main);">
+          <span>🌐 Continue with Central LANZAR ID Hub</span>
+        </button>
 
         <!-- Dedicated LANZAR & Pythos Newsletter Subscription Group -->
         <div id="lanzarNewsletterGroup" class="lanzar-newsletter-group" style="display: none; background: var(--bg-color); padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border-color); margin-top: 4px;">
