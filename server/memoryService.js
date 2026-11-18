@@ -18,10 +18,10 @@
 */
 
 const { getAdminFirestore, isAdminSdkAvailable } = require('./firebaseAdmin');
+const { getMemoryCollectionName } = require('./firestoreNamespace');
 
 // ── Constants & Limits ──────────────────────────────────────────────────────────
 const MEMORY_ROOT_COLLECTION = 'users';
-const MEMORY_DOC_NAMESPACE = process.env.PYTHOS_ENV === 'staging' ? 'pythos_memory_staging' : 'pythos_memory';
 const ITEMS_SUBCOLLECTION = 'items';
 const PROFILE_DOC = 'profile';
 const EXTRACTION_QUEUE_SUBCOLLECTION = 'extraction_queue';
@@ -57,7 +57,7 @@ function isValidUid(uid) {
 function memoryRootRef(uid) {
   const db = getAdminFirestore();
   if (!db || !isValidUid(uid)) return null;
-  return db.collection(MEMORY_ROOT_COLLECTION).doc(uid).collection(MEMORY_DOC_NAMESPACE);
+  return db.collection(MEMORY_ROOT_COLLECTION).doc(uid).collection(getMemoryCollectionName());
 }
 
 /**

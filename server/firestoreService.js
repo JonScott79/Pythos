@@ -33,11 +33,11 @@
 
 const crypto = require('crypto');
 const { getAdminFirestore, isAdminSdkAvailable } = require('./firebaseAdmin');
+const { getAnchorDocName, getChatsCollectionName, isStagingEnvironment } = require('./firestoreNamespace');
 const packageJson = require('./package.json');
 
 // ── Namespace Constants ────────────────────────────────────────────────────────
 const PYTHOS_COLLECTION         = 'pythos';
-const PYTHOS_ANCHOR_DOC         = process.env.PYTHOS_ENV === 'staging' ? 'app_staging' : 'app';
 const BUG_REPORTS_SUBCOL        = 'bug_reports';
 const CONFIG_SUBCOL             = 'config';
 const LANZAR_ACCOUNTS_SUBCOL    = 'lanzar_id_accounts';
@@ -62,7 +62,7 @@ function isFirestoreActive() {
  */
 function anchorRef() {
   const db = _testFirestoreAdapter?.db || getAdminFirestore();
-  return db ? db.collection(PYTHOS_COLLECTION).doc(PYTHOS_ANCHOR_DOC) : null;
+  return db ? db.collection(PYTHOS_COLLECTION).doc(getAnchorDocName()) : null;
 }
 
 /**
@@ -606,7 +606,7 @@ async function deleteUserChats(uid) {
   const db = _testFirestoreAdapter?.db || getAdminFirestore();
   if (!db || !uid) return true;
 
-  const chatsCol = db.collection('users').doc(uid).collection('pythos_chats');
+  const chatsCol = db.collection('users').doc(uid).collection(getChatsCollectionName());
   const snap = await chatsCol.get();
   if (!snap.empty) {
     const batch = db.batch();
@@ -614,9 +614,11 @@ async function deleteUserChats(uid) {
     await batch.commit();
   }
 
-  try {
-    await db.collection('users').doc(uid).delete();
-  } catch (_) {}
+  if (!isStagingEnvironment()) {
+    try {
+      await db.collection('users').doc(uid).delete();
+    } catch (_) {}
+  }
 
   return true;
 }

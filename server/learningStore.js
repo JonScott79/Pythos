@@ -36,7 +36,8 @@ function isValidUid(uid) {
 function learningColRef(uid) {
   const db = getAdminFirestore();
   if (!db || !isValidUid(uid)) return null;
-  return db.collection('users').doc(uid).collection('pythos_learning');
+  const { getLearningCollectionName } = require('./firestoreNamespace');
+  return db.collection('users').doc(uid).collection(getLearningCollectionName());
 }
 
 /**
