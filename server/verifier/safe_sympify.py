@@ -135,6 +135,10 @@ def validate_math_expression(expr_str: str) -> str:
         if bad in lower:
             raise UnsafeMathExpressionError(f"Forbidden token in expression: {bad}")
 
+    # Reject malformed consecutive binary division/multiplication operators (e.g. "1 / / 2")
+    if re.search(r'/\s*/', expr_str):
+        raise UnsafeMathExpressionError("Malformed consecutive division operators")
+
     # Normalize caret to ** for AST inspection when expression is Python-parseable
     candidate = expr_str.replace("^", "**")
     try:

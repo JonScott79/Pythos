@@ -40,10 +40,10 @@ function checkAmbiguousNotation(rawExpr) {
 
   // 2. Trigonometric functions without explicit unit (degrees vs radians)
   // e.g. "sin 30", "cos 45" without "deg", "rad", "°", or "pi"
-  const bareTrigMatch = s.match(/\b(sin|cos|tan|sec|csc|cot)\s*\(?\s*([1-9]\d*)\s*\)?(?!\s*(?:deg|rad|°|pi|π))/i);
+  const bareTrigMatch = s.match(/\b(sin|cos|tan|sec|csc|cot)\s*(?:\(\s*([1-9]\d*)(?!\d)\s*\)|([1-9]\d*)(?!\d))(?!\s*(?:deg|rad|°|pi|π))/i);
   if (bareTrigMatch) {
     const fn = bareTrigMatch[1];
-    const val = bareTrigMatch[2];
+    const val = bareTrigMatch[2] || bareTrigMatch[3];
     return {
       ambiguous: true,
       reason: `Trigonometric call ${fn}(${val}) lacks explicit angle units (degrees vs radians).`,

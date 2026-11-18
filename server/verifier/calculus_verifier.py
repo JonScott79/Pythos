@@ -253,7 +253,7 @@ def verify_antiderivative(claim: dict) -> dict:
         if not integrand_clean or not anti_clean:
             return {"verified": False, "status": "UNKNOWN", "reason": "Empty normalized integral or antiderivative expression"}
 
-        local_syms = {var_str: x, "e": sp.E, "pi": sp.pi, "ln": sp.log}
+        local_syms = {var_str: x, "e": sp.E, "pi": sp.pi, "ln": sp.log, "Abs": sp.Abs, "abs": sp.Abs}
         integrand = safe_sympify(integrand_clean, locals=local_syms)
         proposed_anti = safe_sympify(anti_clean, locals=local_syms)
 
@@ -263,6 +263,16 @@ def verify_antiderivative(claim: dict) -> dict:
             try:
                 diff_log = sp.simplify(sp.expand_log(deriv_of_anti - integrand, force=True))
                 if diff_log == 0:
+                    diff = 0
+            except Exception:
+                pass
+        if diff != 0 and (deriv_of_anti.has(sp.sign) or deriv_of_anti.has(sp.Abs)):
+            try:
+                x_pos = sp.Symbol(var_str, positive=True)
+                x_neg = sp.Symbol(var_str, negative=True)
+                d_pos = sp.simplify((deriv_of_anti - integrand).subs(x, x_pos))
+                d_neg = sp.simplify((deriv_of_anti - integrand).subs(x, x_neg))
+                if d_pos == 0 and d_neg == 0:
                     diff = 0
             except Exception:
                 pass
