@@ -169,10 +169,11 @@ function parseTrigExpression(text) {
 
   // Do not synthesize a numeric reference triangle for algebraic/symbolic trig equations
   // (e.g., "cos(2x)+3+5cos(x)=0" or "7sin^2(X)+5sin(X)=2").
-  if (/=/.test(text) && /\b(?:sin|cos|tan|csc|sec|cot)\s*\([^)]*[a-zA-Z][^)]*\)/i.test(text.replace(/\b(?:deg(?:rees)?|rad(?:ians)?|pi)\b/gi, ''))) {
+  const strippedTrigKeywords = text.replace(/\b(?:sin|cos|tan|csc|sec|cot|arcsin|arccos|arctan|asin|acos|atan|deg(?:rees)?|rad(?:ians)?|pi)\b/gi, '');
+  if (/=/.test(text) && /\b(?:sin|cos|tan|csc|sec|cot)\s*\([^)]*[a-zA-Z][^)]*\)/i.test(strippedTrigKeywords)) {
     return null;
   }
-  if (/\b(?:sin|cos|tan|csc|sec|cot)\s*\(\s*-?\d+(?:\.\d+)?\s*[a-zA-Z]\b/i.test(text.replace(/\b(?:deg(?:rees)?|rad(?:ians)?|pi)\b/gi, ''))) {
+  if (/\b(?:sin|cos|tan|csc|sec|cot)\s*\(\s*-?\d+(?:\.\d+)?\s*[a-zA-Z]\b/i.test(strippedTrigKeywords)) {
     return null;
   }
 

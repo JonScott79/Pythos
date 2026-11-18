@@ -2,34 +2,68 @@
 calculus_verifier.py - Deterministic calculus, derivative, integral, and substitution verifier.
 """
 
+import re
 import sympy as sp
+
+
+def _normalize_calculus_expr(raw_str: str, strip_constant: bool = False) -> str:
+    if not raw_str:
+        return ""
+    s = str(raw_str).strip()
+    s = re.sub(r'^\$+|\$+$|^\\\(|\\\)$|^\\\[|\\\]$', '', s).strip()
+    s = re.sub(
+        r'^(?:differentiate|find\s+the\s+derivative\s+of|calculate\s+the\s+derivative\s+of|what\s+is\s+the\s+derivative\s+of|compute\s+the\s+derivative\s+of)\s+',
+        '', s, flags=re.IGNORECASE
+    ).strip()
+    if strip_constant:
+        s = re.sub(r'\s*[+-]\s*(?:C|c|constant)\b\s*$', '', s).strip()
+
+    s = re.sub(r'\\(?:text|boxed)\s*\{([^{}]+)\}', r'\1', s)
+    for _ in range(5):
+        s = re.sub(r'\\left\|([^|]+)\\right\|', r'Abs(\1)', s)
+        s = re.sub(r'\\sqrt\[(\d+)\]\{([^{}]+)\}', r'((\2)**(1/\1))', s)
+        s = re.sub(r'\\sqrt\{([^{}]+)\}', r'sqrt(\1)', s)
+        s = re.sub(r'\\(?:d|t)?frac\{([^{}]+)\}\{([^{}]+)\}', r'((\1)/(\2))', s)
+    while '|' in s and re.search(r'\|([^|]+)\|', s):
+        s = re.sub(r'\|([^|]+)\|', r'Abs(\1)', s)
+
+    s = re.sub(r'\\left\s*([(\[{])', r'\1', s)
+    s = re.sub(r'\\right\s*([)\]}])', r'\1', s)
+    s = re.sub(r'\\(?:cdot|times)\b', '*', s)
+    s = re.sub(r'\\pi\b', 'pi', s).replace('π', 'pi')
+    s = re.sub(r'\\(sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|sinh|cosh|tanh|exp|log|sqrt)\b', r'\1', s)
+    s = re.sub(r'\\?ln\b', 'log', s)
+    s = re.sub(r'\b(arcsin|arccos|arctan)\b', lambda m: {'arcsin': 'asin', 'arccos': 'acos', 'arctan': 'atan'}[m.group(1)], s)
+    s = s.replace('{', '(').replace('}', ')')
+    s = re.sub(r'\s*\bwith\s+respect\s+to\s+[a-zA-Z]\b.*$', '', s, flags=re.IGNORECASE).strip()
+    s = re.sub(r'(?:\s|\\,|\*)+d[a-zA-Z]$', '', s).strip()
+    s = s.replace('^', '**')
+    s = re.sub(r'\be\s*\*\*\s*\(([^()]+)\)', r'exp(\1)', s)
+    s = re.sub(r'\be\s*\*\*\s*([a-zA-Z0-9_]+)', r'exp(\1)', s)
+    s = re.sub(r'(?<![a-zA-Z_])(\d+)\s*([a-zA-Z(])', r'\1*\2', s)
+    s = re.sub(r'\)\s*\(', ')*(', s)
+    s = re.sub(r'\)\s*([a-zA-Z0-9])', r')*\1', s)
+    return s.strip()
+
 
 def verify_derivative(claim: dict) -> dict:
     """
     Verifies claimed derivative: d/dx [ expression ] = proposed_derivative
     """
-    expr_str = claim.get("expression")
+    expr_str = claim.get("expression") or claim.get("function")
     proposed_str = claim.get("proposed_derivative") or claim.get("proposed_value")
     var_str = claim.get("variable", "x")
 
     if not expr_str or not proposed_str:
         return {"verified": False, "status": "UNKNOWN", "reason": "Missing expression or proposed derivative"}
 
-    if isinstance(expr_str, str):
-        import re
-        expr_str = re.sub(r'^(?:differentiate|find\s+the\s+derivative\s+of|calculate\s+the\s+derivative\s+of|what\s+is\s+the\s+derivative\s+of|compute\s+the\s+derivative\s+of)\s+', '', expr_str, flags=re.IGNORECASE).strip()
-        expr_str = expr_str.replace('^', '**')
-        expr_str = re.sub(r'(\d+)\s*([a-zA-Z])', r'\1*\2', expr_str)
-
-    if isinstance(proposed_str, str):
-        import re
-        proposed_str = proposed_str.replace('^', '**')
-        proposed_str = re.sub(r'(\d+)\s*([a-zA-Z])', r'\1*\2', proposed_str)
-
     try:
         x = sp.Symbol(var_str)
-        expr = sp.sympify(expr_str, locals={var_str: x})
-        proposed = sp.sympify(proposed_str, locals={var_str: x})
+        expr_clean = _normalize_calculus_expr(expr_str, strip_constant=False)
+        prop_clean = _normalize_calculus_expr(proposed_str, strip_constant=False)
+        local_syms = {var_str: x, "e": sp.E, "pi": sp.pi, "ln": sp.log}
+        expr = sp.sympify(expr_clean, locals=local_syms)
+        proposed = sp.sympify(prop_clean, locals=local_syms)
 
         actual_deriv = sp.diff(expr, x)
         diff = sp.simplify(actual_deriv - proposed)
@@ -57,7 +91,7 @@ def verify_antiderivative(claim: dict) -> dict:
     """
     Verifies claimed antiderivative: d/dx [ proposed_antiderivative ] = integrand
     """
-    integrand_str = claim.get("integrand")
+    integrand_str = claim.get("integrand") or claim.get("expression") or claim.get("function")
     proposed_anti_str = claim.get("proposed_antiderivative")
     var_str = claim.get("variable", "x")
 
@@ -66,8 +100,11 @@ def verify_antiderivative(claim: dict) -> dict:
 
     try:
         x = sp.Symbol(var_str)
-        integrand = sp.sympify(integrand_str, locals={var_str: x})
-        proposed_anti = sp.sympify(proposed_anti_str, locals={var_str: x})
+        integrand_clean = _normalize_calculus_expr(integrand_str, strip_constant=False)
+        anti_clean = _normalize_calculus_expr(proposed_anti_str, strip_constant=True)
+        local_syms = {var_str: x, "e": sp.E, "pi": sp.pi, "ln": sp.log}
+        integrand = sp.sympify(integrand_clean, locals=local_syms)
+        proposed_anti = sp.sympify(anti_clean, locals=local_syms)
 
         deriv_of_anti = sp.diff(proposed_anti, x)
         diff = sp.simplify(deriv_of_anti - integrand)

@@ -28,9 +28,13 @@ def sanitize_expr_str(expr_str: str) -> str:
     s = re.sub(r'^\\\(|\\\)$|^\\\[|\\\]$', '', s).strip()
 
     # Convert common LaTeX constructs before SymPy parsing
-    while re.search(r'\\(?:d|t)?frac\{([^{}]+)\}\{([^{}]+)\}', s):
+    for _ in range(5):
+        s = re.sub(r'\\left\|([^|]+)\\right\|', r'Abs(\1)', s)
+        s = re.sub(r'\\sqrt\[(\d+)\]\{([^{}]+)\}', r'((\2)**(1/\1))', s)
+        s = re.sub(r'\\sqrt\{([^{}]+)\}', r'sqrt(\1)', s)
         s = re.sub(r'\\(?:d|t)?frac\{([^{}]+)\}\{([^{}]+)\}', r'((\1)/(\2))', s)
-    s = re.sub(r'\\sqrt\{([^{}]+)\}', r'sqrt(\1)', s)
+    while '|' in s and re.search(r'\|([^|]+)\|', s):
+        s = re.sub(r'\|([^|]+)\|', r'Abs(\1)', s)
     s = re.sub(r'\\(?:sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|sinh|cosh|tanh)\b', lambda m: m.group(0)[1:], s)
     s = re.sub(r'\\ln\b', 'log', s)
     s = re.sub(r'\bln\b', 'log', s)
@@ -51,7 +55,8 @@ def sanitize_expr_str(expr_str: str) -> str:
         '', s, flags=re.IGNORECASE
     )
     s = re.sub(r'^(?:limit\s+of|find\s+the\s+limit\s+of)\s+', '', s, flags=re.IGNORECASE)
-    # Strip trailing dx, dt, du if attached to integrand
+    # Strip trailing "with respect to <var>" or dx, dt, du if attached to integrand
+    s = re.sub(r'\s*\bwith\s+respect\s+to\s+[a-zA-Z]\b.*$', '', s, flags=re.IGNORECASE).strip()
     s = re.sub(r'(?:\s|\\,|\*)+d[a-zA-Z]$', '', s).strip()
     # Strip leading f(x) = or y =
     s = re.sub(r'^(?:[fghy]\s*\(\s*[a-zA-Z]\s*\)|[y])\s*=\s*', '', s).strip()
@@ -61,7 +66,8 @@ def sanitize_expr_str(expr_str: str) -> str:
     s = re.sub(r'\be\s*\*\*\s*\(([^()]+)\)', r'exp(\1)', s)
     s = re.sub(r'\be\s*\*\*\s*([a-zA-Z0-9_]+)', r'exp(\1)', s)
     # Implicit multiplication: 2x -> 2*x, 3(x+1) -> 3*(x+1), (x+1)(x-1) -> (x+1)*(x-1)
-    s = re.sub(r'(\d)\s*([a-zA-Z(])', r'\1*\2', s)
+    # Guard against corrupting function names ending in digits like log10, log2, atan2
+    s = re.sub(r'(?<![a-zA-Z_])(\d)\s*([a-zA-Z(])', r'\1*\2', s)
     s = re.sub(r'(\))\s*(\()', r'\1*\2', s)
     s = re.sub(r'(\))\s*([a-zA-Z0-9])', r'\1*\2', s)
     return s.strip()

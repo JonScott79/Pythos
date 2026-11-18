@@ -16,7 +16,7 @@
 const calculusEngine = require('./engines/calculusEngine');
 const geometryEngine = require('./engines/geometryEngine');
 
-const SPECIALIST_TIMEOUT_MS = parseInt(process.env.SPECIALIST_TIMEOUT_MS, 10) || 3500;
+const SPECIALIST_TIMEOUT_MS = parseInt(process.env.SPECIALIST_TIMEOUT_MS, 10) || 6000;
 const MAX_TELEMETRY_LOG = 200;
 
 const shadowTelemetryLog = [];
@@ -101,29 +101,47 @@ function extractSpecialistTask(userText) {
 
   // 2. Symbolic Derivative
   // e.g. "derivative of sin(x^2)", "differentiate x^3 - 4x", "d/dx (e^(2x))", "second derivative of x^4"
-  const isSecondDeriv = /\b(?:second\s+derivative|d\^2\/dx\^2|f''\(x\))\b/i.test(clean);
-  const derivMatch = clean.match(/(?:differentiate|derivative\s+of|find\s+the\s+derivative\s+of|calculate\s+the\s+derivative\s+of|d\/dx|dy\/dx)\s+(?:f\(x\)\s*=\s*|y\s*=\s*)?([$a-zA-Z0-9.+\-*\/^()_\s\\]+)/i) ||
-                     clean.match(/(?:d\^2\/dx\^2|second\s+derivative\s+of)\s+([$a-zA-Z0-9.+\-*\/^()_\s\\]+)/i);
+  const isSecondDeriv = /\b(?:second\s+derivative|d\^2\/d[a-zA-Z]\^2|f''\([a-zA-Z]\))\b/i.test(clean);
+  const derivMatch = clean.match(/(?:differentiate(?!\s+between\b)|derivative\s+of|find\s+the\s+derivative\s+of|calculate\s+the\s+derivative\s+of|compute\s+the\s+derivative\s+of|d\/d[a-zA-Z]|dy\/d[a-zA-Z])\s+(?:[fgh]\([a-zA-Z]\)\s*=\s*|y\s*=\s*)?([$a-zA-Z0-9.+\-*\/^()_\s\\]+)/i) ||
+                     clean.match(/(?:d\^2\/d[a-zA-Z]\^2|second\s+derivative\s+of)\s+([$a-zA-Z0-9.+\-*\/^()_\s\\]+)/i);
   if (derivMatch) {
-    const expr = derivMatch[1].replace(/[$?]/g, '').trim();
+    const wrtMatch = clean.match(/\bwith\s+respect\s+to\s+([a-zA-Z])\b/i) || clean.match(/\bd(?:\^2)?\/d([a-zA-Z])(?:\^2)?\b/i);
+    let expr = derivMatch[1]
+      .replace(/\s*\bwith\s+respect\s+to\s+[a-zA-Z]\b.*$/i, '')
+      .replace(/\s+\b(?:is|equals?|when|where|if|and|then|because|which)\b.*$/i, '')
+      .replace(/[$?.!,;]+$/g, '')
+      .replace(/[$?]/g, '')
+      .trim();
+    let varName = wrtMatch ? wrtMatch[1] : 'x';
+    if (!wrtMatch) {
+      const cleanedVars = expr.replace(/\b(?:sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|sinh|cosh|tanh|ln|log|exp|sqrt|cbrt|pi|e)\b/gi, '');
+      const varTokens = [...new Set((cleanedVars.match(/[a-zA-Z]/g) || []))];
+      if (varTokens.length === 1) varName = varTokens[0];
+    }
     if (expr.length > 0 && /[a-zA-Z]/.test(expr)) {
       return {
         domain: 'calculus',
         operation: 'DIFFERENTIATION',
         expression: expr,
         order: isSecondDeriv ? 2 : 1,
-        variable: 'x'
+        variable: varName
       };
     }
   }
 
   // 3. Integrals (Indefinite and Definite)
   // e.g. "integrate 3x^2", "integral of sin(x) from 0 to pi", "antiderivative of e^x"
-  const definiteMatch = clean.match(/(?:integral\s+of|integrate)\s+(?:f\(x\)\s*=\s*)?([$a-zA-Z0-9.+\-*\/^()_\s\\]+?)\s+from\s+([-\d.]+|\bpi\b)\s+to\s+([-\d.]+|\bpi\b)/i);
+  const definiteMatch = clean.match(/(?:integral\s+of|integrate)\s+(?:[fgh]\([a-zA-Z]\)\s*=\s*)?([$a-zA-Z0-9.+\-*\/^()_\s\\]+?)\s+from\s+([-\d.]+|\bpi\b)\s+to\s+([-\d.]+|\bpi\b)/i);
   if (definiteMatch) {
-    const expr = definiteMatch[1].replace(/[$?]/g, '').trim();
+    const wrtMatch = clean.match(/\bwith\s+respect\s+to\s+([a-zA-Z])\b/i) || definiteMatch[1].match(/(?:\s|\\,|\*)+d([a-zA-Z])$/i);
+    const expr = definiteMatch[1]
+      .replace(/\s*\bwith\s+respect\s+to\s+[a-zA-Z]\b.*$/i, '')
+      .replace(/(?:\s|\\,|\*)+d[a-zA-Z]$/i, '')
+      .replace(/[$?]/g, '')
+      .trim();
     const a = definiteMatch[2].trim();
     const b = definiteMatch[3].trim();
+    const varName = wrtMatch ? wrtMatch[1] : 'x';
     if (expr.length > 0) {
       return {
         domain: 'calculus',
@@ -132,21 +150,34 @@ function extractSpecialistTask(userText) {
         isDefinite: true,
         lowerLimit: a,
         upperLimit: b,
-        variable: 'x'
+        variable: varName
       };
     }
   }
 
-  const indefiniteMatch = clean.match(/(?:integrate|integral\s+of|antiderivative\s+of|find\s+the\s+integral\s+of)\s+(?:f\(x\)\s*=\s*)?([$a-zA-Z0-9.+\-*\/^()_\s\\]+)/i);
+  const indefiniteMatch = clean.match(/(?:integrate|integral\s+of|antiderivative\s+of|find\s+the\s+integral\s+of)\s+(?:[fgh]\([a-zA-Z]\)\s*=\s*)?([$a-zA-Z0-9.+\-*\/^()_\s\\]+)/i);
   if (indefiniteMatch) {
-    const expr = indefiniteMatch[1].replace(/[$?]/g, '').trim();
+    const wrtMatch = clean.match(/\bwith\s+respect\s+to\s+([a-zA-Z])\b/i) || indefiniteMatch[1].match(/(?:\s|\\,|\*)+d([a-zA-Z])$/i);
+    const expr = indefiniteMatch[1]
+      .replace(/\s*\bwith\s+respect\s+to\s+[a-zA-Z]\b.*$/i, '')
+      .replace(/\s+\b(?:is|equals?|when|where|if|and|then|because|which)\b.*$/i, '')
+      .replace(/(?:\s|\\,|\*)+d[a-zA-Z]$/i, '')
+      .replace(/[$?.!,;]+$/g, '')
+      .replace(/[$?]/g, '')
+      .trim();
+    let varName = wrtMatch ? wrtMatch[1] : 'x';
+    if (!wrtMatch) {
+      const cleanedVars = expr.replace(/\b(?:sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|sinh|cosh|tanh|ln|log|exp|sqrt|cbrt|pi|e)\b/gi, '');
+      const varTokens = [...new Set((cleanedVars.match(/[a-zA-Z]/g) || []))];
+      if (varTokens.length === 1) varName = varTokens[0];
+    }
     if (expr.length > 0 && /[a-zA-Z]/.test(expr)) {
       return {
         domain: 'calculus',
         operation: 'INTEGRATION',
         expression: expr,
         isDefinite: false,
-        variable: 'x'
+        variable: varName
       };
     }
   }
@@ -284,7 +315,7 @@ function extractSpecialistTask(userText) {
     if (legHypMatch) {
       const a = parseFloat(legHypMatch[1] || legHypMatch[4]);
       const c = parseFloat(legHypMatch[2] || legHypMatch[3]);
-      if (a > 0 && c > a) {
+      if (a > 0 && c > 0) {
         return {
           domain: 'geometry',
           operation: 'RIGHT_TRIANGLE',

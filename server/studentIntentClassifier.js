@@ -230,7 +230,7 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
   // Conceptual "Why" Request: "Why does this formula work?", "Why do we divide by 2a?"
   const isWhyFormulaOrConcept = /\bwhy\s+(?:does|do|is|can't|must|should|would)\b/i.test(lower) &&
                                 /\b(?:formula|method|rule|step|work|theorem|identity|divide|multiply|cancel|square|factor|theorem|conserved|exist|negative|zero)\b/i.test(lower) &&
-                                !/^(?:why\s+is\s+that|why\s+did\s+you\s+do\s+that)\??$/i.test(clean);
+                                !/^(?:why\s+is\s+(?:that|this|it)\b|why\s+did\s+you\s+do\s+that\??$)/i.test(clean);
   if (isWhyFormulaOrConcept) {
     signals.push('why_conceptual_inquiry_marker');
     return { intent: INTENTS.WHY_EXPLANATION_REQUEST, confidence: 'high', signals };
@@ -271,7 +271,7 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
   // -------------------------------------------------------------
   // 5a. HYPOTHETICAL Intent
   // -------------------------------------------------------------
-  const isHypothetical = /^(?:what\s+if|suppose|say\s+we|what\s+would\s+happen\s+if)\b/i.test(lower);
+  const isHypothetical = /^(?:what\s+if|suppose|say\s+we|what\s+(?:would\s+happen|happens)\s+if)\b/i.test(lower);
   if (isHypothetical) {
     signals.push('hypothetical_query_marker');
     return { intent: INTENTS.HYPOTHETICAL, confidence: 'high', signals };
@@ -321,10 +321,21 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
   }
 
   // -------------------------------------------------------------
-  // 5e. VISUAL_REQUEST Intent
+  // 5e. COMPOUND VALIDATION + VISUALIZATION & VALIDATION_REQUEST
+  // Must precede pure VISUAL_REQUEST so "Is my work right? Can you visualize this?"
+  // preserves the student's validation intent.
+  // -------------------------------------------------------------
+  const isCompoundValViz = /^(?:is\s+(?:my\s+work|this|that|it|my\s+answer)\s+(?:right|correct)|did\s+i\s+(?:do\s+this|get\s+this)\s+(?:right|correct))[?.,;!\s]+(?:can\s+you\s+)?(?:visualize|draw|plot|show|sketch)\s+(?:this|it|that)/i.test(clean);
+  if (isCompoundValViz) {
+    signals.push('pure_validation_query', 'compound_visualization_query', 'compound_intent');
+    return { intent: INTENTS.VALIDATION_REQUEST, confidence: 'high', signals };
+  }
+
+  // -------------------------------------------------------------
+  // 5f. VISUAL_REQUEST Intent
   // e.g. "Show me this visually", "draw the triangle", "can you sketch this", "using sketches find..."
   // -------------------------------------------------------------
-  if (isVisualRequested(clean)) {
+  if (isVisualRequested(clean) && !/^is\s+(?:that|this|the)?\s*.+?\s*(?:right|correct)\??/i.test(clean)) {
     signals.push('visual_instruction_request');
     return {
       intent: INTENTS.VISUAL_REQUEST,
@@ -374,12 +385,6 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
   const isMistakeCheck = /\b(?:did\s+i\s+make\s+a\s+mistake|is\s+there\s+a\s+mistake|where\s+did\s+i\s+go\s+wrong|did\s+i\s+mess\s+up|what\s+did\s+i\s+do\s+wrong|am\s+i\s+wrong)\b/i.test(lower);
   if (isMistakeCheck) {
     signals.push('mistake_verification_query');
-    return { intent: INTENTS.VALIDATION_REQUEST, confidence: 'high', signals };
-  }
-
-  const isCompoundValViz = /^(?:is\s+(?:my\s+work|this|that|it|my\s+answer)\s+(?:right|correct)|did\s+i\s+(?:do\s+this|get\s+this)\s+(?:right|correct))[?.,;!\s]+(?:can\s+you\s+)?(?:visualize|draw|plot|show|sketch)\s+(?:this|it|that)/i.test(clean);
-  if (isCompoundValViz) {
-    signals.push('pure_validation_query', 'compound_visualization_query');
     return { intent: INTENTS.VALIDATION_REQUEST, confidence: 'high', signals };
   }
 

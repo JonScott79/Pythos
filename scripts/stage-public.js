@@ -153,6 +153,15 @@ if (process.env.PYTHOS_ENV === 'staging') {
     fs.writeFileSync(distAppJsPath, appContent, 'utf8');
   }
 
+  // 2b. Sanitize dist/js/lanzarIdAuth.js comments/endpoints for staging air-gap isolation
+  const distLanzarAuthPath = path.join(DIST, 'js', 'lanzarIdAuth.js');
+  if (fs.existsSync(distLanzarAuthPath)) {
+    let authContent = fs.readFileSync(distLanzarAuthPath, 'utf8');
+    authContent = authContent.replace(/lanzar-95ae3/g, stagingConfig.projectId);
+    authContent = authContent.replace(/https:\/\/pythos-api\.lanzar\.me/g, stagingApiUrl);
+    fs.writeFileSync(distLanzarAuthPath, authContent, 'utf8');
+  }
+
   // 3. Rewrite dist/admin/index.html API endpoint and Firebase config
   const distAdminPath = path.join(DIST, 'admin', 'index.html');
   if (fs.existsSync(distAdminPath)) {

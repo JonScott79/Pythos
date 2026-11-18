@@ -340,6 +340,18 @@ const MathJSVerifier = {
       return { verified: false, engine: 'mathjs', status: 'UNKNOWN', reason: 'Missing expressions for equivalence check' };
     }
 
+    // If either expression contains division by an algebraic subexpression (variable in denominator),
+    // defer to Python SymPy so removable singularities and domain restrictions are audited.
+    const hasVariableDenominator = (s) => /\/\s*(?:\([^)]*[a-zA-Z][^)]*\)|[a-zA-Z0-9_]*[a-zA-Z][a-zA-Z0-9_^]*)/.test(String(s));
+    if (hasVariableDenominator(expr1) || hasVariableDenominator(expr2)) {
+      return {
+        verified: false,
+        engine: 'mathjs',
+        status: 'UNKNOWN',
+        reason: 'Rational expression with variable denominator deferred to CAS/SymPy for domain-restriction audit'
+      };
+    }
+
     try {
       // 1. Symbolic simplification comparison
       const simp1 = math.simplify(expr1).toString();
@@ -1162,11 +1174,15 @@ const MathJSVerifier = {
       proposed_value
     } = claim || {};
 
+    const rawExpr = expression !== undefined && expression !== null
+      ? expression
+      : (claim && claim.function !== undefined ? claim.function : null);
+
     const proposed = proposed_derivative !== undefined && proposed_derivative !== null
       ? proposed_derivative
       : proposed_value;
 
-    if (!expression || proposed === undefined || proposed === null || String(proposed).trim() === "") {
+    if (!rawExpr || proposed === undefined || proposed === null || String(proposed).trim() === "") {
       return {
         verified: false,
         engine: "mathjs",
@@ -1178,22 +1194,48 @@ const MathJSVerifier = {
     const varStr = typeof variable === "string" && variable.trim() ? variable.trim() : "x";
 
     // Strip leading conversational/prompt prefixes if present
-    let cleanExpr = String(expression).trim();
-    cleanExpr = cleanExpr.replace(/^(?:differentiate|find\s+the\s+derivative\s+of|calculate\s+the\s+derivative\s+of|what\s+is\s+the\s+derivative\s+of|compute\s+the\s+derivative\s+of)\s+/i, "").trim();
+    let cleanExpr = String(rawExpr).trim();
+    cleanExpr = cleanExpr
+      .replace(/^(?:differentiate|find\s+the\s+derivative\s+of|calculate\s+the\s+derivative\s+of|what\s+is\s+the\s+derivative\s+of|compute\s+the\s+derivative\s+of)\s+/i, "")
+      .replace(/\s*\bwith\s+respect\s+to\s+[a-zA-Z]\b.*$/i, "")
+      .trim();
 
     let cleanProposed = String(proposed).trim();
 
-    // Normalize polynomial expressions for Math.js parsing (e.g. 10x^2 -> 10*x^2, -5x -> -5*x)
+    // Normalize LaTeX and polynomial/transcendental expressions for Math.js parsing
     function normalizePoly(str) {
-      return str
-        .replace(/\\(?:frac|text|boxed|cdot)/g, "")
+      let s = str
+        .replace(/\\left\s*([(\[{|])/g, "$1")
+        .replace(/\\right\s*([)\]}|])/g, "$1")
+        .replace(/\\(?:cdot|times)\b/g, "*")
+        .replace(/\\(?:text|boxed)\s*\{([^{}]+)\}/g, "$1")
+        .replace(/\\ln\b/g, "log")
+        .replace(/\bln\b/g, "log")
+        .replace(/\\(sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|sinh|cosh|tanh|exp|log|sqrt)\b/g, "$1");
+      for (let i = 0; i < 4; i++) {
+        s = s
+          .replace(/\\sqrt\{([^{}]+)\}/g, "sqrt($1)")
+          .replace(/\\(?:d|t)?frac\{([^{}]+)\}\{([^{}]+)\}/g, "(($1)/($2))");
+      }
+      return s
         .replace(/\{([^{}]+)\}/g, "($1)")
-        .replace(/(\d+)\s*([a-zA-Z])/g, "$1*$2")
+        .replace(/(?<![a-zA-Z_])(\d+)\s*([a-zA-Z(])/g, "$1*$2")
         .replace(/\s+/g, "");
     }
 
     const normExpr = normalizePoly(cleanExpr);
     const normProposed = normalizePoly(cleanProposed);
+
+    // Defer exponential base-e expressions (e^...) to SymPy because Math.js derivative() treats 'e'
+    // as a symbolic variable or leaves unsimplified log(e) factors.
+    if (/\be\s*\^/.test(normExpr) || /\be\s*\^/.test(normProposed)) {
+      return {
+        verified: false,
+        engine: "mathjs",
+        status: "UNKNOWN",
+        reason: "Exponential base-e derivative deferred to SymPy CAS"
+      };
+    }
 
     try {
       const computed = math.derivative(normExpr, varStr);

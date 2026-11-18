@@ -84,7 +84,8 @@ def verify_algebra(claim: dict) -> dict:
     if not eq_str:
         return {"verified": False, "status": "UNKNOWN", "reason": "Missing equation"}
 
-    eq_str = _normalize_implicit_functions(eq_str)
+    eq_str = _normalize_implicit_functions(eq_str).replace("^", "**")
+    eq_str = _re.sub(r'(?<![a-zA-Z_])(\d+)\s*([a-zA-Z(])', r'\1*\2', eq_str)
 
     try:
         var = sp.Symbol(variable_str)
@@ -221,24 +222,31 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
     try:
         def _norm(s):
             s = str(s).replace(r'\(', ' ').replace(r'\)', ' ').replace(r'\[', ' ').replace(r'\]', ' ')
+            for _ in range(4):
+                s = _re.sub(r'\\left\|([^|]+)\\right\|', r'Abs(\1)', s)
+                s = _re.sub(r'\\sqrt\{([^{}]+)\}', r'sqrt(\1)', s)
+                s = _re.sub(r'\\(?:d|t)?frac\{([^{}]+)\}\{([^{}]+)\}', r'((\1)/(\2))', s)
+            while '|' in s and _re.search(r'\|([^|]+)\|', s):
+                s = _re.sub(r'\|([^|]+)\|', r'Abs(\1)', s)
             s = _re.sub(r'\\?log_\{?([a-zA-Z0-9]+)\}?\s*(?:\*|\s)*\(([^()]+)\)', r'(log(\2)/log(\1))', s)
             s = _re.sub(r'\\?log_\{?([a-zA-Z0-9]+)\}?\s*(?:\*|\s)*([a-zA-Z0-9]+)', r'(log(\2)/log(\1))', s)
             s = _re.sub(r'\\?ln\b', 'log', s)
             s = _re.sub(r'\\?log\b', 'log', s)
             s = _normalize_implicit_functions(s)
-            s = _re.sub(r'(\d)\s*([a-zA-Z])', r'\1*\2', s)
-            s = _re.sub(r'(\d)\s*\(', r'\1*(', s)
+            s = s.replace('^', '**')
+            s = _re.sub(r'(?<![a-zA-Z_])(\d)\s*([a-zA-Z])', r'\1*\2', s)
+            s = _re.sub(r'(?<![a-zA-Z_])(\d)\s*\(', r'\1*(', s)
             s = _re.sub(r'\)\s*\(', r')*(', s)
             s = _re.sub(r'\)\s*([a-zA-Z])', r')*\1', s)
-            s = _re.sub(r'\b(?!sin|cos|tan|sec|csc|cot|log|ln|exp|sqrt|asin|acos|atan\b)([a-zA-Z])\s*\(', r'\1*(', s)
+            s = _re.sub(r'\b(?!sin|cos|tan|sec|csc|cot|log|ln|exp|sqrt|asin|acos|atan|Abs\b)([a-zA-Z])\s*\(', r'\1*(', s)
             return s
 
         e1 = sp.sympify(_norm(expr1_str))
         e2 = sp.sympify(_norm(expr2_str))
 
-        # Check domain restrictions from denominators
-        domain_restrictions = set()
-        for raw_s in [expr1_str, expr2_str]:
+        # Check domain restrictions from denominators separately for expr1 and expr2
+        def _extract_denom_restrictions(raw_s):
+            restr = set()
             try:
                 raw_expr = sp.sympify(_norm(raw_s), evaluate=False)
                 for atom in sp.preorder_traversal(raw_expr):
@@ -248,11 +256,18 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
                             zeros = sp.solve(denom_base, symb)
                             for z in zeros:
                                 try:
-                                    domain_restrictions.add(float(z.evalf()))
+                                    val_c = complex(z.evalf())
+                                    if abs(val_c.imag) < 1e-12:
+                                        restr.add(round(val_c.real, 10))
                                 except Exception:
                                     pass
             except Exception:
                 pass
+            return restr
+
+        restrictions_1 = _extract_denom_restrictions(expr1_str)
+        restrictions_2 = _extract_denom_restrictions(expr2_str)
+        domain_restrictions = restrictions_1 | restrictions_2
 
         diff = sp.simplify(sp.trigsimp(e1 - e2))
         if diff != 0:
@@ -267,6 +282,14 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
                 pass
 
         if diff == 0:
+            if restrictions_1 != restrictions_2:
+                return {
+                    "verified": False,
+                    "status": "NON_EQUIVALENT",
+                    "error_type": "DOMAIN_RESTRICTION_MISMATCH",
+                    "details": f"Expressions {expr1_str} and {expr2_str} simplify to the same form except at excluded domain point(s) {sorted(domain_restrictions)}, where one expression is undefined.",
+                    "domain_restrictions": sorted(domain_restrictions)
+                }
             details = f"Symbolic equivalence proven: {expr1_str} ≡ {expr2_str} (Difference simplifies to 0)."
             if domain_restrictions:
                 details += f" Domain restrictions: {sorted(domain_restrictions)}."

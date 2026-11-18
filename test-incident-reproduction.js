@@ -15,6 +15,9 @@
  */
 
 const assert = require('assert');
+if (!process.env.GROQ_API_KEY) {
+  process.env.GROQ_API_KEY = 'gsk_mock_incident_reproduction_test_key';
+}
 const providerPolicy = require('./server/providerPolicy');
 const errorHandler = require('./server/errorHandler');
 const toolController = require('./server/toolController');

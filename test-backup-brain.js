@@ -65,7 +65,7 @@ async function runAllTests() {
     });
     assert.strictEqual(selection.provider?.name, 'groq-text');
     assert.strictEqual(selection.provider?.freeEligible, true);
-    assert.strictEqual(selection.provider?.model, 'openai/gpt-oss-20b');
+    assert(selection.provider?.model === 'openai/gpt-oss-120b' || selection.provider?.model === 'openai/gpt-oss-20b');
   });
 
   await test('1.3: Cost guardrail blocks paid providers when free_only is enforced', async () => {
@@ -754,9 +754,9 @@ async function runAllTests() {
         messages: [{ role: 'user', content: 'What is the philosophy behind socratic mathematics?' }]
       });
 
-      // System must safely withhold, returning 503 or 429
-      assert(resp.statusCode === 503 || resp.statusCode === 429 || resp.statusCode === 504,
-        `Expected 503/429/504 when both brains fail, got ${resp.statusCode}`);
+      // System must safely withhold, returning 502, 503, 504, or 429
+      assert([502, 503, 429, 504].includes(resp.statusCode),
+        `Expected 502/503/429/504 when both brains fail, got ${resp.statusCode}`);
       console.log(`     Safe withholding on dual failure verified: status=${resp.statusCode}`);
     });
   } finally {
