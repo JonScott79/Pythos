@@ -28,11 +28,12 @@ function checkAmbiguousNotation(rawExpr) {
   if (!rawExpr || typeof rawExpr !== 'string') return null;
   const s = rawExpr.trim();
 
-  // 1. Ambiguous division binding: e.g. 1/2x, a/bc
-  if (/\b\d+\s*\/\s*\d+[a-zA-Z]\b/.test(s) || /\b[a-zA-Z]\s*\/\s*[a-zA-Z]{2,}\b/.test(s)) {
+  // 1. Ambiguous division binding: e.g. 1/2x, a/bc, x/2y
+  const cleanedForDiv = s.replace(/\b(?:sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|sinh|cosh|tanh|ln|log10|log2|log|exp|sqrt|cbrt|abs|pi)\b/gi, 'F');
+  if (/(?<![a-zA-Z0-9_])[a-zA-Z0-9.]+\s*\/\s*(?:\d+(?:\.\d+)?[a-zA-Z]|[a-zA-Z]{2,})\b/.test(cleanedForDiv)) {
     return {
       ambiguous: true,
-      reason: 'Ambiguous fraction division binding (e.g. 1/2x could represent (1/2)x or 1/(2x)).',
+      reason: 'Ambiguous fraction division binding (e.g. 1/2x or a/bc could represent (1/2)x vs 1/(2x) or (a/b)c vs a/(bc)).',
       suggestion: 'Clarify expression with explicit parentheses.'
     };
   }

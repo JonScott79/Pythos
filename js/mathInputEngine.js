@@ -112,9 +112,9 @@
     for (let i = 0; i < 3; i++) {
       expr = expr
         .replace(/\(([^()]+)\)\s*\/\s*\(([^()]+)\)/g, "\\frac{$1}{$2}")
-        .replace(/\(([^()]+)\)\s*\/\s*([-+]?(?:\d+(?:\.\d+)?(?![a-zA-Z])|[a-zA-Z]+)(?:[⁰¹²³⁴⁵⁶⁷⁸⁹]+)?)/g, "\\frac{$1}{$2}")
+        .replace(/\(([^()]+)\)\s*\/\s*([-+]?(?:\d+(?:\.\d+)?(?![a-zA-Z])|\bpi\b|[a-zA-Z](?![a-zA-Z0-9]))(?:[⁰¹²³⁴⁵⁶⁷⁸⁹]+)?)/g, "\\frac{$1}{$2}")
         .replace(/(^|[^a-zA-Z0-9.)\]])([-+]?[a-zA-Z0-9.]+(?:[⁰¹²³⁴⁵⁶⁷⁸⁹]+)?)\s*\/\s*\(([^()]+)\)/g, "$1\\frac{$2}{$3}")
-        .replace(/(^|[^a-zA-Z0-9.)\]])([-+]?[a-zA-Z0-9.]+(?:[⁰¹²³⁴⁵⁶⁷⁸⁹]+)?)\s*\/\s*([-+]?(?:\d+(?:\.\d+)?(?![a-zA-Z])|[a-zA-Z]+)(?:[⁰¹²³⁴⁵⁶⁷⁸⁹]+)?)(?=$|[^a-zA-Z0-9.([⁰¹²³⁴⁵⁶⁷⁸⁹])/g, "$1\\frac{$2}{$3}");
+        .replace(/(^|[^a-zA-Z0-9.)\]])([-+]?[a-zA-Z0-9.]+(?:[⁰¹²³⁴⁵⁶⁷⁸⁹]+)?)\s*\/\s*([-+]?(?:\d+(?:\.\d+)?(?![a-zA-Z])|\bpi\b|[a-zA-Z](?![a-zA-Z0-9]))(?:[⁰¹²³⁴⁵⁶⁷⁸⁹]+)?)(?=$|[^a-zA-Z0-9.([⁰¹²³⁴⁵⁶⁷⁸⁹])/g, "$1\\frac{$2}{$3}");
     }
 
     // 4. Convert exponents: x^2 or x^(n+1) or x^ or Unicode superscripts (e.g. 5⁶, x²)
@@ -462,13 +462,22 @@
       .replace(/\\pi\b/g, "pi")
       .replace(/\\theta\b/g, "theta")
       .replace(/\\div\b/g, "/")
-      .replace(/\\(?:times|cdot)\b/g, "*")
-      .replace(/\\sqrt\{([^}]+)\}/g, "sqrt($1)");
+      .replace(/\\(?:times|cdot)\b/g, "*");
 
-    for (let i = 0; i < 4; i++) {
-      s = s.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, "(($1)/($2))");
-      s = s.replace(/\\left\|([^|]+)\\right\|/g, "abs($1)");
-      s = s.replace(/\|([^|]+)\|/g, "abs($1)");
+    for (let i = 0; i < 5; i++) {
+      s = s.replace(/\^\s*\{([^{}]+)\}/g, "^($1)");
+      s = s.replace(/\\sqrt\[(\d+)\]\{([^{}]+)\}/g, "(($2)^(1/$1))");
+      s = s.replace(/\\sqrt\{([^{}]+)\}/g, "sqrt($1)");
+      s = s.replace(/\\(?:d|t)?frac\{([^{}]+)\}\{([^{}]+)\}/g, "(($1)/($2))");
+      s = s.replace(/\\left\|((?:(?!\\left\||\\right\|).)+)\\right\|/g, "abs($1)");
+    }
+    while (s.includes("|")) {
+      const next = s.replace(/\|\s*([^|]*?[a-zA-Z0-9_)][^|]*?)\s*\|/, function (m, inner) {
+        if (/[+\-*/^,(]\s*$/.test(inner)) return m;
+        return "abs(" + inner.trim() + ")";
+      });
+      if (next === s) break;
+      s = next;
     }
 
     return s;

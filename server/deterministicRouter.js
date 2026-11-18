@@ -1502,6 +1502,40 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
     return null; // Ambiguous division notation (e.g. 6 / 2(1+2))
   }
 
+  // Standalone ambiguous fraction division binding check (e.g. "1/2x", "a/bc", "x/2y")
+  {
+    const { detectInputAmbiguity } = require('./inputAmbiguityDetector');
+    const divAmbig = detectInputAmbiguity(clean);
+    if (divAmbig && divAmbig.hasAmbiguity && divAmbig.ambiguityType === 'AMBIGUOUS_DIVISION_BINDING') {
+      return {
+        type: 'INPUT_AMBIGUITY_CLARIFICATION',
+        ambiguityType: divAmbig.ambiguityType,
+        result: 'AMBIGUOUS',
+        solution: 'AMBIGUOUS',
+        formatted: 'Ambiguity Detected',
+        clarificationMessage: divAmbig.clarificationMessage
+      };
+    }
+  }
+
+  // Contradictory Right Triangle Hypotenuse Check: hypotenuse c must strictly exceed leg a
+  if (/\bright\s+triangle\b/i.test(clean)) {
+    const legHypMatch = clean.match(/(?:leg\s*[:=]?\s*([-+]?\d+(?:\.\d+)?).*?hypotenuse\s*[:=]?\s*([-+]?\d+(?:\.\d+)?)|hypotenuse\s*[:=]?\s*([-+]?\d+(?:\.\d+)?).*?leg\s*[:=]?\s*([-+]?\d+(?:\.\d+)?))/i);
+    if (legHypMatch) {
+      const legVal = parseFloat(legHypMatch[1] || legHypMatch[4]);
+      const hypVal = parseFloat(legHypMatch[2] || legHypMatch[3]);
+      if (legVal <= 0 || hypVal <= 0 || hypVal <= legVal) {
+        return {
+          type: 'GEOMETRIC_CONTRADICTION',
+          result: 'IMPOSSIBLE',
+          solution: 'IMPOSSIBLE',
+          formatted: `Geometric Contradiction: In a right triangle, the hypotenuse (${hypVal}) must be strictly greater than the leg (${legVal}).`,
+          reason: `Right triangle with leg ${legVal} and hypotenuse ${hypVal} is mathematically impossible because the hypotenuse must be strictly greater than each leg (c > a > 0).`
+        };
+      }
+    }
+  }
+
   // Contradictory Circle Dimensions Check: radius and diameter must satisfy d = 2r
   const circleContradictionMatch = clean.match(/circle.*?(?:radius\s*[:=]?\s*(\d+(?:\.\d+)?).*?diameter\s*[:=]?\s*(\d+(?:\.\d+)?)|diameter\s*[:=]?\s*(\d+(?:\.\d+)?).*?radius\s*[:=]?\s*(\d+(?:\.\d+)?))/i);
   if (circleContradictionMatch) {
@@ -3135,6 +3169,10 @@ Points within the highlighted segment satisfy the condition. Would you like to s
 
   if (intent.type === 'INPUT_AMBIGUITY_CLARIFICATION') {
     return intent.clarificationMessage;
+  }
+
+  if (intent.type === 'GEOMETRIC_CONTRADICTION') {
+    return `❌ **${intent.formatted || 'Geometric Contradiction'}**\n\n${intent.reason || 'The stated geometric dimensions violate fundamental Euclidean constraints and cannot form a valid figure.'}`;
   }
 
   if (intent.type === 'GEOMETRY_VIZ') {

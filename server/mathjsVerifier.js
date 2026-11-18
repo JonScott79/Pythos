@@ -335,22 +335,68 @@ const MathJSVerifier = {
    * Level 2: Basic Symbolic Equivalence & Simplification
    */
   verifySymbolicEquivalence(claim) {
-    const { expr1, expr2, variables = ['x'] } = claim;
-    if (!expr1 || !expr2) {
+    const rawExpr1 = claim ? (claim.expr1 || claim.expression_1) : null;
+    const rawExpr2 = claim ? (claim.expr2 || claim.expression_2) : null;
+    const variables = (claim && claim.variables) || ['x'];
+    if (!rawExpr1 || !rawExpr2) {
       return { verified: false, engine: 'mathjs', status: 'UNKNOWN', reason: 'Missing expressions for equivalence check' };
     }
 
-    // If either expression contains division by an algebraic subexpression (variable in denominator),
+    const expr1Str = String(rawExpr1).trim();
+    const expr2Str = String(rawExpr2).trim();
+
+    // Reject ambiguous inline division binding (e.g. 1/2x, a/bc, x/2y) instead of guessing
+    const hasAmbiguousDiv = (s) => {
+      if (s.includes('\\frac') || s.includes('\\dfrac') || s.includes('\\tfrac')) return false;
+      const cleaned = s.replace(/\\?(?:arcsin|arccos|arctan|sinh|cosh|tanh|sin|cos|tan|sec|csc|cot|asin|acos|atan|log10|log2|log|ln|exp|sqrt|cbrt|abs|pi)\b/gi, 'F');
+      return /(?<![a-zA-Z0-9_])[a-zA-Z0-9.]+\s*\/\s*(?:\d+(?:\.\d+)?[a-zA-Z]|[a-zA-Z]{2,})\b/.test(cleaned);
+    };
+    if (hasAmbiguousDiv(expr1Str) || hasAmbiguousDiv(expr2Str)) {
+      return {
+        verified: false,
+        engine: 'mathjs',
+        status: 'AMBIGUOUS_NOTATION',
+        error_type: 'AMBIGUOUS_DIVISION_BINDING',
+        reason: `Ambiguous division binding in '${expr1Str}' vs '${expr2Str}'; explicit parentheses required.`
+      };
+    }
+
+    // If either expression contains inline conditions (for x != 2), LaTeX fractions, or division by a variable,
     // defer to Python SymPy so removable singularities and domain restrictions are audited.
-    const hasVariableDenominator = (s) => /\/\s*(?:\([^)]*[a-zA-Z][^)]*\)|[a-zA-Z0-9_]*[a-zA-Z][a-zA-Z0-9_^]*)/.test(String(s));
-    if (hasVariableDenominator(expr1) || hasVariableDenominator(expr2)) {
+    const hasInlineCondition = (s) => /(?:[,;]\s*|\s+)(?:for|where|when|if|assuming|provided)\s+/i.test(s);
+    const hasVariableDenominator = (s) =>
+      /\/\s*(?:\([^)]*[a-zA-Z][^)]*\)|[a-zA-Z0-9_]*[a-zA-Z][a-zA-Z0-9_^]*)/.test(s) ||
+      /\\(?:d|t)?frac\s*\{[\s\S]*?\}\s*\{[^}]*[a-zA-Z][^}]*\}/.test(s);
+    if (hasInlineCondition(expr1Str) || hasInlineCondition(expr2Str) || hasVariableDenominator(expr1Str) || hasVariableDenominator(expr2Str)) {
       return {
         verified: false,
         engine: 'mathjs',
         status: 'UNKNOWN',
-        reason: 'Rational expression with variable denominator deferred to CAS/SymPy for domain-restriction audit'
+        reason: 'Rational expression with variable denominator or domain condition deferred to CAS/SymPy for domain-restriction audit'
       };
     }
+
+    const normalizeForMathjs = (rawS) => {
+      let s = String(rawS).trim();
+      for (let i = 0; i < 4; i++) {
+        s = s.replace(/\^\s*\{([^{}]+)\}/g, '^($1)');
+        s = s.replace(/\\sqrt\{([^{}]+)\}/g, 'sqrt($1)');
+        s = s.replace(/\\(?:d|t)?frac\{([^{}]+)\}\{([^{}]+)\}/g, '(($1)/($2))');
+        s = s.replace(/\\left\|((?:(?!\\left\||\\right\|).)+)\\right\|/g, 'abs($1)');
+      }
+      while (s.includes('|')) {
+        const next = s.replace(/\|\s*([^|]*?[a-zA-Z0-9_)][^|]*?)\s*\|/, (m, inner) => {
+          if (/[+\-*/^,(]\s*$/.test(inner)) return m;
+          return `abs(${inner.trim()})`;
+        });
+        if (next === s) break;
+        s = next;
+      }
+      return s;
+    };
+
+    const expr1 = normalizeForMathjs(expr1Str);
+    const expr2 = normalizeForMathjs(expr2Str);
 
     try {
       // 1. Symbolic simplification comparison
@@ -362,7 +408,7 @@ const MathJSVerifier = {
           verified: true,
           engine: 'mathjs',
           status: 'VERIFIED',
-          details: `Symbolic equivalence established: ${expr1} ≡ ${expr2} (Canonical form: ${simp1})`
+          details: `Symbolic equivalence established: ${expr1Str} ≡ ${expr2Str} (Canonical form: ${simp1})`
         };
       }
 
@@ -373,13 +419,12 @@ const MathJSVerifier = {
           verified: true,
           engine: 'mathjs',
           status: 'VERIFIED',
-          details: `Symbolic equivalence established: (${expr1}) - (${expr2}) simplifies to 0.`
+          details: `Symbolic equivalence established: (${expr1Str}) - (${expr2Str}) simplifies to 0.`
         };
       }
 
-      // 3. Multi-point rational test to check if definitely NOT equivalent
-      // Test 5 distinct rational points
-      const testPoints = [-3, -1/2, 1, 2, 7];
+      // 3. Multi-point rational test across negative, zero, and positive real points
+      const testPoints = [-3, -1/2, 0, 1, 2, 7];
       let mismatchFound = false;
 
       for (const p of testPoints) {
@@ -401,7 +446,7 @@ const MathJSVerifier = {
           engine: 'mathjs',
           status: 'NON_EQUIVALENT',
           error_type: 'NON_EQUIVALENT_EXPRESSIONS',
-          details: `Expressions ${expr1} and ${expr2} are not algebraically equivalent.`
+          details: `Expressions ${expr1Str} and ${expr2Str} are not algebraically equivalent.`
         };
       }
 
@@ -1212,8 +1257,9 @@ const MathJSVerifier = {
         .replace(/\\ln\b/g, "log")
         .replace(/\bln\b/g, "log")
         .replace(/\\(sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|sinh|cosh|tanh|exp|log|sqrt)\b/g, "$1");
-      for (let i = 0; i < 4; i++) {
+      for (let i = 0; i < 5; i++) {
         s = s
+          .replace(/\^\s*\{([^{}]+)\}/g, "^($1)")
           .replace(/\\sqrt\{([^{}]+)\}/g, "sqrt($1)")
           .replace(/\\(?:d|t)?frac\{([^{}]+)\}\{([^{}]+)\}/g, "(($1)/($2))");
       }
