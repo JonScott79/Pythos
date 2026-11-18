@@ -154,11 +154,12 @@ function resolveStudentAgencyMode({ text = '', studentIntent = null, learnerStat
     };
   }
 
-  // 6. Shortcut / Alternative Method Proposal ("Can I just divide by x?", "What if I factor first?")
+  // 6. Shortcut / Alternative Method Proposal ("Can I just divide by x?", "Can I simplify sqrt(x^2 + 9) to x + 3?", "Can I expand (x + 3)^2 to x^2 + 9?")
   if (studentIntent?.intent === INTENTS.SHORTCUT_PROPOSAL ||
       /\b(?:is\s+there\s+a\s+(?:shortcut|faster\s+way|quicker\s+way)|can\s+(?:i|we)\s+(?:take\s+a\s+shortcut|use\s+a\s+shortcut))\b/i.test(lower) ||
-      /\b(?:can\s+(?:i|we)\s+just|what\s+if\s+(?:i|we)\s+just|could\s+(?:i|we)\s+just|would\s+it\s+work\s+if\s+(?:i|we))\s+(?:divide|multiply|factor|cancel|cross\s+multiply|square|combine|substitute|use)\b/i.test(lower) ||
-      /\b(?:can\s+(?:i|we)\s+do\s+(?:it|this)\s+(?:this\s+way\s+instead|faster|differently)|is\s+it\s+(?:valid|okay|allowed)\s+to\s+(?:just\s+)?(?:divide|cancel|factor|square))\b/i.test(lower)) {
+      /\b(?:can\s+(?:i|we)(?:\s+just)?|what\s+if\s+(?:i|we)(?:\s+just)?|could\s+(?:i|we)(?:\s+just)?|would\s+it\s+work\s+if\s+(?:i|we))\s+(?:divide|multiply|factor|cancel|cross\s+multiply|square|combine|substitute|use|distribute|take\s+the\s+square\s+root)\b/i.test(lower) ||
+      /\b(?:can\s+(?:i|we)(?:\s+just)?|what\s+if\s+(?:i|we)(?:\s+just)?|could\s+(?:i|we)(?:\s+just)?|would\s+it\s+work\s+if\s+(?:i|we)|is\s+it\s+(?:valid|okay|allowed)\s+to(?:\s+just)?)\s+(?:simplify|expand|rewrite|reduce|convert|transform)\s+.+?\s+(?:to|into|as)\s+/i.test(lower) ||
+      /\b(?:can\s+(?:i|we)\s+do\s+(?:it|this)\s+(?:this\s+way\s+instead|faster|differently)|is\s+it\s+(?:valid|okay|allowed)\s+to\s+(?:just\s+)?(?:divide|cancel|factor|square|distribute|take\s+the\s+square\s+root))\b/i.test(lower)) {
     return {
       mode: LEARNING_MODES.EVALUATE_SHORTCUT,
       confidence: 'high',
@@ -272,6 +273,22 @@ function analyzeConceptMastery(arg0 = {}, arg1 = null, arg2 = null, arg3 = null,
                          activeProblemState?.active?.problemType ||
                          'GENERAL_STEM';
 
+  // Helper to infer canonical subject family of a concept tag or problem turn
+  const inferSubjectFamily = (str = '') => {
+    const s = String(str || '').toUpperCase();
+    if (/PHYS|KINEMAT|NEWTON|FORCE|ENERGY|MOMENTUM|VELOCITY|ACCEL|MASS|\bM\/S\b|\bKG\b/.test(s)) return 'PHYSICS';
+    if (/CALC|DERIV|INTEGR|ANTIDERIV|LIMIT|TANGENT|\bD\/D[A-Z]\b|\\INT|∫/.test(s)) return 'CALCULUS';
+    if (/TRIG|SIN\b|COS\b|TAN\b|CSC\b|SEC\b|COT\b|RADIAN|COTERMINAL|QUADRANT/.test(s)) return 'TRIGONOMETRY';
+    if (/GEOM|TRIANGLE|CIRCLE|POLYGON|HYPOTENUSE|PERIMETER|SECTOR|MIDPOINT/.test(s)) return 'GEOMETRY';
+    if (/STAT|PROB|BAYES|SIMPSON|DISTRIBUTION|COMBINAT|PERMUT/.test(s)) return 'STATISTICS';
+    if (/ALG|LINEAR|QUADRAT|POLYNOM|RATIONAL|RADICAL|SOLVE|FACTOR|[0-9]*[X-Z]\s*[+\-=]/.test(s)) return 'ALGEBRA';
+    return null;
+  };
+
+  const activeSubjectFamily = inferSubjectFamily(
+    `${currentConcept} ${activeProblemState?.active?.domain || ''} ${activeProblemState?.active?.subtype || ''} ${activeProblemState?.active?.activeExpression || ''}`
+  );
+
   let unassistedSuccessCount = 0;
   let assistedSuccessCount = 0;
   let hintCount = 0;
@@ -285,11 +302,27 @@ function analyzeConceptMastery(arg0 = {}, arg1 = null, arg2 = null, arg3 = null,
       if (msg && msg.role === 'user') userIndices.push(idx);
     });
 
+    let runningSubjectFamily = null;
     for (let i = 0; i < userIndices.length; i++) {
       const uIdx = userIndices[i];
       const uMsg = conversationHistory[uIdx];
       const uText = (uMsg.content || '').trim();
       const uLower = uText.toLowerCase();
+
+      // Detect if this user turn introduces a problem or switches subject domain
+      const explicitTurnFamily = inferSubjectFamily(uText);
+      const isTopicSwitchOrNewProblem =
+        /\b(?:switch\s+to|now\s+help\s+me\s+with|moving\s+on\s+to|new\s+problem|solve\s+|find\s+the\s+|calculate\s+|evaluate\s+|differentiate\s+|integrate\s+)/i.test(uText);
+      if (explicitTurnFamily && (isTopicSwitchOrNewProblem || !runningSubjectFamily)) {
+        runningSubjectFamily = explicitTurnFamily;
+      }
+
+      // Cross-Domain Mastery Isolation (HIGH-04):
+      // Do not count successes, hints, or errors from turns belonging to a different subject family!
+      const turnFamily = runningSubjectFamily || explicitTurnFamily;
+      if (activeSubjectFamily && turnFamily && turnFamily !== activeSubjectFamily) {
+        continue;
+      }
 
       // Check if previous assistant message had hint or scaffolding
       let prevAssistantHadHint = false;
@@ -298,7 +331,7 @@ function analyzeConceptMastery(arg0 = {}, arg1 = null, arg2 = null, arg3 = null,
         const prevA = conversationHistory[uIdx - 1];
         if (prevA && prevA.role === 'assistant') {
           const aText = (prevA.content || '').toLowerCase();
-          prevAssistantHadHint = /\b(?:hint|clue|remember\s+that|try\s+thinking|notice\s+that|what\s+if\s+you)\b/.test(aText);
+          prevAssistantHadHint = /\b(?:hint|clue|nudge|remember\s+that|try\s+(?:thinking|subtracting|adding|dividing|multiplying|factoring|substituting)|notice\s+that|what\s+if\s+you|first\s+try)\b/.test(aText);
           prevAssistantSolvedStep = /\b(?:so\s+we\s+get|which\s+gives|becomes|the\s+step\s+is)\b/.test(aText) && /[=+\-*/^]/.test(aText);
         }
       }
@@ -345,10 +378,30 @@ function analyzeConceptMastery(arg0 = {}, arg1 = null, arg2 = null, arg3 = null,
     }
   }
 
-  // Include current turn evaluation if available
+  // Include current turn evaluation if available (checking whether preceding assistant message gave a hint — MEDIUM-03A)
   if (studentEvaluation) {
+    let currentTurnWasAssisted = false;
+    if (Array.isArray(conversationHistory) && conversationHistory.length > 0) {
+      for (let k = conversationHistory.length - 1; k >= 0; k--) {
+        const msg = conversationHistory[k];
+        if (msg && msg.role === 'assistant') {
+          const aText = (msg.content || '').toLowerCase();
+          if (
+            /\b(?:hint|clue|nudge|remember\s+that|try\s+(?:thinking|subtracting|adding|dividing|multiplying|factoring|substituting)|notice\s+that|what\s+if\s+you|first\s+try)\b/.test(aText) ||
+            (/\b(?:so\s+we\s+get|which\s+gives|becomes|the\s+step\s+is)\b/.test(aText) && /[=+\-*/^]/.test(aText))
+          ) {
+            currentTurnWasAssisted = true;
+          }
+          break;
+        }
+      }
+    }
     if (studentEvaluation.status === 'STEP_VERIFIED_CORRECT' || studentEvaluation.status === 'ANSWER_VERIFIED_CORRECT') {
-      unassistedSuccessCount++;
+      if (currentTurnWasAssisted) {
+        assistedSuccessCount++;
+      } else {
+        unassistedSuccessCount++;
+      }
       totalStudentAttempts++;
     } else if (studentEvaluation.status === 'STEP_VERIFIED_INCORRECT' || studentEvaluation.status === 'ANSWER_VERIFIED_INCORRECT') {
       errorCount++;
@@ -691,8 +744,8 @@ function extractTransformationSteps({ userText = '', activeProblemState = null, 
     if (parsedParts.length >= 2) return parsedParts;
   }
 
-  // "simplify <expr1> to <expr2>" or "reduce <expr1> to <expr2>"
-  const simplifyMatch = clean.match(/\b(?:simplify|reduce|rewrite|convert|transform)\s+(.+?)\s+(?:to|into|as)\s+([^?!.;]+)/i);
+  // "simplify/expand/rewrite <expr1> to <expr2>"
+  const simplifyMatch = clean.match(/\b(?:simplify|expand|distribute|reduce|rewrite|convert|transform)\s+(.+?)\s+(?:to|into|as)\s+([^?!.;]+)/i);
   if (simplifyMatch) {
     const s1 = simplifyMatch[1].trim();
     const s2 = simplifyMatch[2].trim();
@@ -965,8 +1018,9 @@ function auditProposedShortcut({ userText = '', activeProblemState = null, origi
   }
 
   // 3. EXPONENT DISTRIBUTION OVER ADDITION ("Freshman's Dream")
-  // e.g. "Can I just square x and 4 to get x^2 + 16?" for (x + 4)^2
+  // e.g. "Can I just square x and 4 to get x^2 + 16?" or "Can I expand (x + 3)^2 to x^2 + 9?"
   if (/\b(?:just\s+)?square\s+([a-zA-Z0-9]+)\s+and\s+([a-zA-Z0-9]+)\b/i.test(lower) ||
+      /\b(?:square|expand|simplify|rewrite)\b.*?\(\s*[a-zA-Z0-9]+\s*[+-]\s*[a-zA-Z0-9]+\s*\)\s*\^\s*2.*?(?:to|into|as|=)\s*[a-zA-Z0-9]+\s*\^\s*2\s*[+-]\s*\d+\b/i.test(lower) ||
       /\b(?:square|expand)\b.*?\b(?:x\^2\s*\+\s*\d+|a\^2\s*\+\s*b\^2)\b/i.test(lower) ||
       /\b\(a\s*\+\s*b\)\^2\s*=\s*a\^2\s*\+\s*b\^2\b/i.test(lower)) {
     return attachSeqMetadata({
@@ -975,8 +1029,24 @@ function auditProposedShortcut({ userText = '', activeProblemState = null, origi
       exactFailingStep: 'Distributing exponent over addition: (a + b)^2 -> a^2 + b^2',
       failureReason: 'EXPONENT_DOES_NOT_DISTRIBUTE_OVER_ADDITION',
       lostRoots: [],
-      explanation: 'Exponents do not distribute over addition: (a + b)^2 ≠ a^2 + b^2. The expression (x + 4)^2 means (x + 4)(x + 4) = x^2 + 8x + 16. Squaring individual terms completely omits the middle cross-term 2ab = 8x.',
+      explanation: 'Exponents do not distribute over addition: (a + b)^2 ≠ a^2 + b^2. Squaring a binomial (a + b)^2 = (a + b)(a + b) = a^2 + 2ab + b^2 requires including the middle cross-term 2ab.',
       pedagogicalDirective: 'Politely reject the shortcut without false praise. Point out the missing cross-term 2ab.'
+    });
+  }
+
+  // 3b. RADICAL DISTRIBUTION OVER ADDITION OR SUBTRACTION
+  // e.g. "Can I simplify sqrt(x^2 + 9) to x + 3?" or "take the square root of each term"
+  if ((/\b(?:sqrt|√)\s*\(\s*[a-zA-Z0-9^]+\s*[+-]\s*[a-zA-Z0-9^]+\s*\)/i.test(clean) &&
+       /\b(?:simplify|rewrite|reduce|turn|change|equals?|=|to|into|as)\b.*?\b[a-zA-Z0-9]+\s*[+-]\s*[a-zA-Z0-9]+\b/i.test(clean)) ||
+      /\b(?:take\s+the\s+square\s+root\s+of\s+each\s+term|distribute\s+the\s+(?:square\s+)?root)\b/i.test(lower)) {
+    return attachSeqMetadata({
+      isValid: false,
+      status: SHORTCUT_STATUS.INVALID_SHORTCUT,
+      exactFailingStep: 'Distributing square root over addition/subtraction: sqrt(a^2 + b^2) -> a + b',
+      failureReason: 'RADICAL_DOES_NOT_DISTRIBUTE_OVER_ADDITION',
+      lostRoots: [],
+      explanation: 'Square roots do not distribute over addition or subtraction: sqrt(a^2 + b^2) ≠ a + b. For example, at x = 4, sqrt(4^2 + 9) = sqrt(25) = 5, whereas 4 + 3 = 7 ≠ 5.',
+      pedagogicalDirective: 'Politely reject the invalid radical simplification using a concrete counterexample (e.g. x = 4 gives sqrt(16 + 9) = 5 ≠ 7).'
     });
   }
 

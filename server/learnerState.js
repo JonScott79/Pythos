@@ -205,7 +205,11 @@ function classifyLearnerState(userText, conversationHistory = [], activeProblemS
   // Student discovers their own mistake or problem mismatch.
   // =========================================================================
   const hasHumor = containsHumorMarkers(raw);
-  const hasSelfCorrection = containsSelfCorrectionMarkers(raw) || (studentIntent && studentIntent.intent === 'CORRECTION');
+  const isTutorChallenge = Boolean(studentIntent && studentIntent.isTutorChallenge) ||
+                           /\b(?:double\s*[- ]?check|re-?check|re-?calculate|check\s+your\s+(?:math|work|calculation|arithmetic)|are\s+you\s+sure\s+(?:that|the|this|it'?s|it\s+is))\b/i.test(lower) ||
+                           /\b(?:that|it)\s+(?:isn'?t|is\s+not)\s+[-+]?\d+(?:\.\d+)?[;,.\s]+(?:it'?s|it\s+is)\s+[-+]?\d+/i.test(lower) ||
+                           /\b(?:is|equals?)\s+[-+]?\d+(?:\.\d+)?\s*,\s*not\s+[-+]?\d+/i.test(lower);
+  const hasSelfCorrection = !isTutorChallenge && (containsSelfCorrectionMarkers(raw) || (studentIntent && studentIntent.intent === 'CORRECTION'));
 
   if (hasSelfCorrection) {
     signals.push('self_correction_detected');
@@ -405,10 +409,15 @@ function classifyLearnerState(userText, conversationHistory = [], activeProblemS
   // =========================================================================
   // 5. CONFUSION & REPEATED CONFUSION
   // Evaluated before generic discouragement so "I still don't get it" triggers REPEATED_CONFUSION.
+  // Genuine conceptual "Why" questions (WHY_EXPLANATION_REQUEST) are excluded so they do not receive contradictory CONFUSION directives.
   // =========================================================================
-  const isExplicitRepeatedConfusion = /\b(?:still\s+don'?t\s+(?:get|understand)|still\s+(?:lost|confused))\b/i.test(lower);
-  const isBaseConfusion = (studentIntent && studentIntent.intent === 'CONFUSION') ||
-                          /\b(?:i\s+don'?t\s+get\s+(?:this|it)|wait\s+what|i'?m\s+lost|i\s+don'?t\s+understand|what\s+do\s+you\s+mean|why\??)\b/i.test(lower);
+  const isWhyInquiry = Boolean(studentIntent && studentIntent.intent === 'WHY_EXPLANATION_REQUEST');
+  const isExplicitRepeatedConfusion = !isWhyInquiry && /\b(?:still\s+(?:don'?t|do\s+not)\s+(?:get|understand)|still\s+(?:lost|confused))\b/i.test(lower);
+  const isBaseConfusion = !isWhyInquiry && (
+    (studentIntent && studentIntent.intent === 'CONFUSION') ||
+    /\b(?:i\s+(?:don'?t|do\s+not)\s+(?:get\s+(?:this|it)|understand)|wait\s+what|(?:i'?m|i\s+am)\s+(?:(?:completely|totally|so|really|still)\s+)?(?:lost|confused)|i\s+have\s+no\s+idea|what\s+do\s+you\s+mean)\b/i.test(lower) ||
+    /^why\??$/i.test(raw)
+  );
 
   if (isExplicitRepeatedConfusion || isBaseConfusion) {
     signals.push('confusion_detected');
@@ -596,21 +605,27 @@ function classifyLearnerState(userText, conversationHistory = [], activeProblemS
   }
 
   // =========================================================================
-  // 11. VALIDATION REQUEST ("Is this right?", "Am I right?")
+  // 11. VALIDATION REQUEST ("Is this right?", "Am I right?", or Student Challenging Tutor Calculation)
   // =========================================================================
-  if ((studentIntent && studentIntent.intent === 'VALIDATION_REQUEST') ||
+  if (isTutorChallenge ||
+      (studentIntent && studentIntent.intent === 'VALIDATION_REQUEST') ||
       /^(?:is\s+(?:this|that|it|my\s+answer|my\s+work)\s+(?:right|correct)\??|did\s+i\s+(?:do\s+this|get\s+this|get\s+it)\s+(?:right|correct|correctly)\??|am\s+i\s+(?:right|correct)\??)$/i.test(lower)) {
-    signals.push('validation_query');
+    signals.push(isTutorChallenge ? 'tutor_calculation_challenge' : 'validation_query');
     return {
       state: LEARNER_STATES.VALIDATION_REQUEST,
       confidence: 'high',
       signals,
+      isTutorChallenge,
       pedagogy: {
-        action: 'VALIDATE_STUDENT_WORK',
+        action: isTutorChallenge ? 'RE_VERIFY_OBJECTIVELY_ZERO_DEFENSIVENESS' : 'VALIDATE_STUDENT_WORK',
         tone: 'clear, encouraging, objective',
         cognitiveLoad: 'maintain',
         scaffoldLevel: 'targeted_hint',
-        directive: [
+        directive: isTutorChallenge ? [
+          '1. OBJECTIVE RE-VERIFICATION (ZERO DEFENSIVENESS): The student is challenging or asking to double-check a calculation or statement. Re-compute from scratch step-by-step.',
+          '2. If the student caught an arithmetic or algebraic slip, immediately acknowledge their correction warmly and update the derivation.',
+          '3. If strict re-computation confirms the original result is mathematically true, demonstrate the proof clearly from first principles without sycophancy or defensiveness.'
+        ].join('\n') : [
           '1. Directly evaluate the student\'s active or proposed work against verified mathematical truth.',
           '2. Explicitly confirm if correct, or pinpoint the exact step where an adjustment is needed.',
           '3. Encourage their self-checking habit without empty cheerleading.'
