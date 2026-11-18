@@ -144,9 +144,20 @@ def dispatch_payload(payload):
     else:
         return {"verified": False, "status": "ERROR", "error": "Unsupported payload type"}
 
+MAX_DAEMON_LINE_BYTES = 262144  # 256 KB per-request JSON line cap
+
+
 def main():
     if len(sys.argv) > 1 and sys.argv[1] == "--daemon":
         for line in sys.stdin:
+            if len(line.encode("utf-8", errors="replace")) > MAX_DAEMON_LINE_BYTES:
+                print(json.dumps({
+                    "verified": False,
+                    "status": "ERROR",
+                    "error_type": "PAYLOAD_TOO_LARGE",
+                    "error": f"Verifier payload exceeds {MAX_DAEMON_LINE_BYTES} bytes"
+                }), flush=True)
+                continue
             line = line.strip()
             if not line:
                 continue

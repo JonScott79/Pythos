@@ -2679,9 +2679,56 @@ class BoundedCASQueue {
 const casQueue = new BoundedCASQueue(process.env.PYTHOS_CAS_CONCURRENCY ? parseInt(process.env.PYTHOS_CAS_CONCURRENCY, 10) : 2);
 
 // -------------------------------------------------------------
-// Persistent SymPy Verifier Worker Pool (MEDIUM-01)
-// 1-task-per-worker isolation, bounded queue, timeout isolation
+// Persistent SymPy Verifier Worker Pool (MEDIUM-01 / Phase XXI)
+// 1-task-per-worker isolation, bounded queue, timeout isolation,
+// crash-loop circuit breaker, stderr drain, and structured telemetry
 // -------------------------------------------------------------
+
+const VERIFIER_MAX_WORKERS = process.env.VERIFIER_MAX_WORKERS
+  ? parseInt(process.env.VERIFIER_MAX_WORKERS, 10)
+  : 2;
+const VERIFIER_MAX_QUEUE_SIZE = process.env.VERIFIER_MAX_QUEUE_SIZE
+  ? parseInt(process.env.VERIFIER_MAX_QUEUE_SIZE, 10)
+  : 50;
+const VERIFIER_MAX_CONSECUTIVE_CRASHES = 3;
+const VERIFIER_CIRCUIT_COOLDOWN_MS = 30000;
+const VERIFIER_MAX_DIAG_RECORDS = 100;
+
+const verifierTelemetry = {
+  totalRequests: 0,
+  daemonRequests: 0,
+  fallbackRequests: 0,
+  timeouts: 0,
+  crashes: 0,
+  desyncErrors: 0,
+  queueRejections: 0,
+  recentDurationsMs: [],
+  recentDiagnostics: [],
+  circuitOpenUntil: 0
+};
+
+function recordVerifierDiag(entry) {
+  if (typeof entry.durationMs === 'number' && Number.isFinite(entry.durationMs)) {
+    verifierTelemetry.recentDurationsMs.push(entry.durationMs);
+    if (verifierTelemetry.recentDurationsMs.length > 200) {
+      verifierTelemetry.recentDurationsMs.shift();
+    }
+  }
+  verifierTelemetry.recentDiagnostics.push({
+    timestamp: new Date().toISOString(),
+    correlationId: entry.correlationId || null,
+    claimType: entry.claimType || 'unknown',
+    engine: entry.engine || 'sympy',
+    workerId: entry.workerId ?? null,
+    durationMs: entry.durationMs ?? null,
+    outcome: entry.outcome || 'UNKNOWN',
+    failureCategory: entry.failureCategory || null,
+    fallbackUsed: Boolean(entry.fallbackUsed)
+  });
+  if (verifierTelemetry.recentDiagnostics.length > VERIFIER_MAX_DIAG_RECORDS) {
+    verifierTelemetry.recentDiagnostics.shift();
+  }
+}
 
 class VerifierWorker {
   constructor(id, onAvailable, onCrash) {
@@ -2692,15 +2739,24 @@ class VerifierWorker {
     this.busy = false;
     this.currentTask = null;
     this.buffer = '';
+    this.stderrBuffer = '';
     this.decoder = new StringDecoder('utf8');
     this.isDead = false;
+    this.startedAt = 0;
+    this.tasksCompleted = 0;
+    this.crashCount = 0;
+    this.consecutiveRapidCrashes = 0;
+    this.hasCompletedTaskSinceStart = false;
   }
 
   start() {
     this.terminate();
     this.isDead = false;
     this.buffer = '';
+    this.stderrBuffer = '';
     this.decoder = new StringDecoder('utf8');
+    this.startedAt = Date.now();
+    this.hasCompletedTaskSinceStart = false;
 
     const pythonBin = getPythonExecutable();
     const pythonScript = path.join(__dirname, 'verifier', 'verifier.py');
@@ -2713,6 +2769,8 @@ class VerifierWorker {
     } catch (spawnErr) {
       this.isDead = true;
       this.proc = null;
+      this.crashCount++;
+      this.consecutiveRapidCrashes++;
       if (this.currentTask) {
         const task = this.currentTask;
         this.currentTask = null;
@@ -2723,12 +2781,24 @@ class VerifierWorker {
     }
 
     this.proc.stdout.on('data', (chunk) => this._handleStdout(chunk));
+    if (this.proc.stderr) {
+      this.proc.stderr.on('data', (chunk) => {
+        const text = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
+        this.stderrBuffer = (this.stderrBuffer + text).slice(-2048);
+      });
+    }
+    if (this.proc.stdin) {
+      this.proc.stdin.on('error', (err) => {
+        this._handleProcessFailure('CAS_PIPE_ERROR', `Verifier worker stdin error: ${err.message}`);
+      });
+    }
     this.proc.on('error', (err) => {
       const code = err && err.code === 'ENOENT' ? 'CAS_SPAWN_ERROR' : 'CAS_EXECUTION_ERROR';
       this._handleProcessFailure(code, `Verifier worker process error: ${err.message}`);
     });
     this.proc.on('close', (code, signal) => {
-      this._handleProcessFailure('CAS_PROCESS_EXIT_ERROR', `Verifier worker exited (code=${code}, signal=${signal})`);
+      const stderrNote = this.stderrBuffer.trim() ? ` | stderr: ${this.stderrBuffer.trim().slice(-300)}` : '';
+      this._handleProcessFailure('CAS_PROCESS_EXIT_ERROR', `Verifier worker exited (code=${code}, signal=${signal})${stderrNote}`);
     });
 
     return true;
@@ -2747,30 +2817,79 @@ class VerifierWorker {
       clearTimeout(task.timer);
       this.currentTask = null;
       this.busy = false;
+      const durationMs = Number((performance.now() - task.startedPerf).toFixed(2));
 
       try {
         const parsed = JSON.parse(line);
         if (parsed && typeof parsed === 'object' && parsed._id !== undefined && parsed._id !== task.id) {
-          // Cross-talk guard: ID mismatch -> fail closed and recycle worker
+          verifierTelemetry.desyncErrors++;
+          recordVerifierDiag({
+            correlationId: task.correlationId,
+            claimType: task.claimType,
+            workerId: this.id,
+            durationMs,
+            outcome: 'ERROR',
+            failureCategory: 'CAS_DESYNC_ERROR',
+            fallbackUsed: false
+          });
           task.resolve(task.makeErrorResult('CAS_DESYNC_ERROR', `Verifier worker response _id mismatch (expected ${task.id}, got ${parsed._id})`));
           this.terminate();
           this.onCrash(this);
           return;
         }
+        this.tasksCompleted++;
+        this.hasCompletedTaskSinceStart = true;
+        this.consecutiveRapidCrashes = 0;
+
         if (task.isBatch) {
           const results = parsed && Array.isArray(parsed.results) ? parsed.results : (Array.isArray(parsed) ? parsed : null);
           if (results && results.length === task.batchLength) {
+            recordVerifierDiag({
+              correlationId: task.correlationId,
+              claimType: `batch(${task.batchLength})`,
+              workerId: this.id,
+              durationMs,
+              outcome: results.every(r => r.verified) ? 'VERIFIED' : 'COMPLETED',
+              fallbackUsed: false
+            });
             task.resolve(results);
           } else {
+            recordVerifierDiag({
+              correlationId: task.correlationId,
+              claimType: `batch(${task.batchLength})`,
+              workerId: this.id,
+              durationMs,
+              outcome: 'ERROR',
+              failureCategory: 'CAS_MALFORMED_OUTPUT',
+              fallbackUsed: false
+            });
             task.resolve(task.makeErrorResult('CAS_MALFORMED_OUTPUT', 'Malformed batch verifier response'));
           }
         } else {
           if (parsed && typeof parsed === 'object' && '_id' in parsed) {
             delete parsed._id;
           }
+          recordVerifierDiag({
+            correlationId: task.correlationId,
+            claimType: task.claimType,
+            workerId: this.id,
+            durationMs,
+            outcome: parsed?.status || (parsed?.verified ? 'VERIFIED' : 'UNKNOWN'),
+            failureCategory: parsed?.error_type || null,
+            fallbackUsed: false
+          });
           task.resolve(parsed);
         }
       } catch (parseErr) {
+        recordVerifierDiag({
+          correlationId: task.correlationId,
+          claimType: task.claimType,
+          workerId: this.id,
+          durationMs,
+          outcome: 'ERROR',
+          failureCategory: 'CAS_MALFORMED_OUTPUT',
+          fallbackUsed: false
+        });
         task.resolve(task.makeErrorResult('CAS_MALFORMED_OUTPUT', `Failed to parse verifier worker output: ${parseErr.message}`));
       }
 
@@ -2781,12 +2900,29 @@ class VerifierWorker {
   _handleProcessFailure(errorType, reason) {
     if (this.isDead) return;
     this.isDead = true;
+    this.crashCount++;
+    verifierTelemetry.crashes++;
+    if (!this.hasCompletedTaskSinceStart && (Date.now() - this.startedAt) < 1500) {
+      this.consecutiveRapidCrashes++;
+    } else {
+      this.consecutiveRapidCrashes = 0;
+    }
 
     if (this.currentTask) {
       const task = this.currentTask;
       clearTimeout(task.timer);
       this.currentTask = null;
       this.busy = false;
+      const durationMs = Number((performance.now() - task.startedPerf).toFixed(2));
+      recordVerifierDiag({
+        correlationId: task.correlationId,
+        claimType: task.claimType,
+        workerId: this.id,
+        durationMs,
+        outcome: 'ERROR',
+        failureCategory: errorType,
+        fallbackUsed: false
+      });
       task.resolve(task.makeErrorResult(errorType, reason));
     }
 
@@ -2801,6 +2937,7 @@ class VerifierWorker {
 
     this.busy = true;
     this.currentTask = task;
+    task.startedPerf = performance.now();
 
     task.timer = setTimeout(() => {
       this._handleTimeout(task);
@@ -2824,6 +2961,17 @@ class VerifierWorker {
   _handleTimeout(task) {
     this.currentTask = null;
     this.busy = false;
+    verifierTelemetry.timeouts++;
+    const durationMs = Number((performance.now() - task.startedPerf).toFixed(2));
+    recordVerifierDiag({
+      correlationId: task.correlationId,
+      claimType: task.claimType,
+      workerId: this.id,
+      durationMs,
+      outcome: 'ERROR',
+      failureCategory: 'CAS_TIMEOUT',
+      fallbackUsed: false
+    });
     this.terminate();
     task.resolve(task.makeErrorResult('CAS_TIMEOUT', `Verifier timeout after ${task.timeoutMs}ms`));
     this.onCrash(this);
@@ -2841,6 +2989,8 @@ class VerifierWorker {
       p.removeAllListeners('error');
       p.removeAllListeners('close');
       if (p.stdout) p.stdout.removeAllListeners('data');
+      if (p.stderr) p.stderr.removeAllListeners('data');
+      if (p.stdin) p.stdin.removeAllListeners('error');
       try { if (p.stdin && !p.stdin.destroyed) p.stdin.destroy(); } catch (_) {}
       try { if (p.stdout && !p.stdout.destroyed) p.stdout.destroy(); } catch (_) {}
       try { if (p.stderr && !p.stderr.destroyed) p.stderr.destroy(); } catch (_) {}
@@ -2851,13 +3001,6 @@ class VerifierWorker {
     }
   }
 }
-
-const VERIFIER_MAX_WORKERS = process.env.VERIFIER_MAX_WORKERS
-  ? parseInt(process.env.VERIFIER_MAX_WORKERS, 10)
-  : 2;
-const VERIFIER_MAX_QUEUE_SIZE = process.env.VERIFIER_MAX_QUEUE_SIZE
-  ? parseInt(process.env.VERIFIER_MAX_QUEUE_SIZE, 10)
-  : 50;
 
 let verifierPool = [];
 let verifierTaskCounter = 0;
@@ -2882,6 +3025,16 @@ function initVerifierDaemon(poolSize = VERIFIER_MAX_WORKERS) {
 
 function onVerifierWorkerCrash(crashedWorker) {
   if (verifierShuttingDown) return;
+  if (crashedWorker.consecutiveRapidCrashes >= VERIFIER_MAX_CONSECUTIVE_CRASHES) {
+    verifierTelemetry.circuitOpenUntil = Date.now() + VERIFIER_CIRCUIT_COOLDOWN_MS;
+    // Drain queued tasks with fail-closed error instead of spin-spawning broken workers
+    while (verifierTaskQueue.length > 0) {
+      const queued = verifierTaskQueue.shift();
+      clearTimeout(queued.queueTimer);
+      queued.resolve(queued.makeErrorResult('CAS_CIRCUIT_OPEN', 'Verifier worker pool tripped rapid-crash circuit breaker'));
+    }
+    return;
+  }
   crashedWorker.start();
   dispatchNextVerifierTask();
 }
@@ -2902,28 +3055,50 @@ function dispatchNextVerifierTask() {
   }
 }
 
-function runViaVerifierPool(payload, { isBatch = false, batchLength = 0, timeoutMs = 5000 } = {}) {
+function runViaVerifierPool(payload, { isBatch = false, batchLength = 0, timeoutMs = 5000, correlationId = null } = {}) {
   const makeErrorResult = (errorType, reason) => {
     const singleErr = { verified: false, status: 'ERROR', error_type: errorType, reason };
     return isBatch ? new Array(batchLength).fill(null).map(() => ({ ...singleErr })) : singleErr;
   };
 
+  verifierTelemetry.totalRequests++;
+  const claimType = isBatch ? `batch(${batchLength})` : (payload?.claim_type || payload?.domain || 'unknown');
+
   if (verifierShuttingDown) {
     return Promise.resolve(makeErrorResult('CAS_SHUTDOWN', 'Verifier daemon is shut down'));
+  }
+
+  const now = Date.now();
+  if (verifierTelemetry.circuitOpenUntil > now) {
+    return Promise.resolve(makeErrorResult('CAS_CIRCUIT_OPEN', 'Verifier worker pool circuit breaker is open; use one-shot fallback'));
+  }
+  if (verifierTelemetry.circuitOpenUntil > 0 && verifierTelemetry.circuitOpenUntil <= now) {
+    verifierTelemetry.circuitOpenUntil = 0;
+    for (const w of verifierPool) {
+      if (!w.isAlive()) {
+        w.consecutiveRapidCrashes = 0;
+        w.start();
+      }
+    }
   }
 
   if (verifierPool.length === 0) {
     initVerifierDaemon();
   }
 
+  verifierTelemetry.daemonRequests++;
+
   return new Promise((resolve) => {
     const taskId = ++verifierTaskCounter;
     const task = {
       id: taskId,
+      correlationId: correlationId || `ver_${taskId}`,
+      claimType,
       payload,
       isBatch,
       batchLength,
       timeoutMs,
+      startedPerf: performance.now(),
       makeErrorResult,
       resolve
     };
@@ -2935,6 +3110,16 @@ function runViaVerifierPool(payload, { isBatch = false, batchLength = 0, timeout
     }
 
     if (verifierTaskQueue.length >= VERIFIER_MAX_QUEUE_SIZE) {
+      verifierTelemetry.queueRejections++;
+      recordVerifierDiag({
+        correlationId: task.correlationId,
+        claimType: task.claimType,
+        workerId: null,
+        durationMs: 0,
+        outcome: 'ERROR',
+        failureCategory: 'CAS_QUEUE_SATURATED',
+        fallbackUsed: false
+      });
       return resolve(makeErrorResult('CAS_QUEUE_SATURATED', `Verifier queue saturated (${verifierTaskQueue.length}/${VERIFIER_MAX_QUEUE_SIZE} tasks pending)`));
     }
 
@@ -2942,6 +3127,16 @@ function runViaVerifierPool(payload, { isBatch = false, batchLength = 0, timeout
       const idx = verifierTaskQueue.indexOf(task);
       if (idx !== -1) {
         verifierTaskQueue.splice(idx, 1);
+        verifierTelemetry.timeouts++;
+        recordVerifierDiag({
+          correlationId: task.correlationId,
+          claimType: task.claimType,
+          workerId: null,
+          durationMs: timeoutMs,
+          outcome: 'ERROR',
+          failureCategory: 'CAS_QUEUE_TIMEOUT',
+          fallbackUsed: false
+        });
         resolve(makeErrorResult('CAS_TIMEOUT', `Verifier task timed out in queue after ${timeoutMs}ms`));
       }
     }, timeoutMs);
@@ -2951,12 +3146,49 @@ function runViaVerifierPool(payload, { isBatch = false, batchLength = 0, timeout
 }
 
 function getVerifierPoolStatus() {
+  const durations = verifierTelemetry.recentDurationsMs;
+  const sorted = [...durations].sort((a, b) => a - b);
+  const avgDurationMs = sorted.length > 0
+    ? Number((sorted.reduce((a, b) => a + b, 0) / sorted.length).toFixed(2))
+    : 0;
+  const p95DurationMs = sorted.length > 0
+    ? sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))]
+    : 0;
+
   return {
     totalWorkers: verifierPool.length,
     busyWorkers: verifierPool.filter(w => w.busy).length,
     idleWorkers: verifierPool.filter(w => !w.busy && w.isAlive()).length,
     queuedTasks: verifierTaskQueue.length,
-    isShuttingDown: verifierShuttingDown
+    maxQueueSize: VERIFIER_MAX_QUEUE_SIZE,
+    isShuttingDown: verifierShuttingDown,
+    circuitOpen: verifierTelemetry.circuitOpenUntil > Date.now(),
+    telemetry: {
+      totalRequests: verifierTelemetry.totalRequests,
+      daemonRequests: verifierTelemetry.daemonRequests,
+      fallbackRequests: verifierTelemetry.fallbackRequests,
+      timeouts: verifierTelemetry.timeouts,
+      crashes: verifierTelemetry.crashes,
+      desyncErrors: verifierTelemetry.desyncErrors,
+      queueRejections: verifierTelemetry.queueRejections,
+      avgDurationMs,
+      p95DurationMs
+    },
+    workers: verifierPool.map(w => ({
+      id: w.id,
+      busy: w.busy,
+      alive: w.isAlive(),
+      tasksCompleted: w.tasksCompleted,
+      crashCount: w.crashCount,
+      consecutiveRapidCrashes: w.consecutiveRapidCrashes
+    }))
+  };
+}
+
+function getVerifierDiagnostics() {
+  return {
+    pool: getVerifierPoolStatus(),
+    recentDiagnostics: [...verifierTelemetry.recentDiagnostics]
   };
 }
 
@@ -2973,6 +3205,7 @@ function closeVerifierDaemon() {
     worker.terminate();
   }
   verifierPool = [];
+  verifierTelemetry.circuitOpenUntil = 0;
   verifierShuttingDown = false;
 }
 
@@ -3012,13 +3245,16 @@ async function runDeterministicVerification(claim, userPrompt = '') {
     return mathjsResult;
   }
 
-  // Second-Line: Persistent SymPy Verifier Worker Pool (or one-shot fallback if disabled)
+  // Second-Line: Persistent SymPy Verifier Worker Pool (or one-shot fallback if disabled / circuit open)
   if (process.env.VERIFIER_DAEMON_DISABLED !== 'true') {
     const poolResult = await runViaVerifierPool(claim, { isBatch: false, timeoutMs: 5000 });
-    return poolResult;
+    if (poolResult?.error_type !== 'CAS_CIRCUIT_OPEN') {
+      return poolResult;
+    }
   }
 
   // Fallback: One-shot Python Symbolic Verifier under Bounded Host Queue
+  verifierTelemetry.fallbackRequests++;
   const pythonResult = await casQueue.run(async () => {
     return new Promise((resolve) => {
       const pythonBin = getPythonExecutable();
@@ -3858,5 +4094,6 @@ module.exports = {
   initVerifierDaemon,
   closeVerifierDaemon,
   getVerifierPoolStatus,
+  getVerifierDiagnostics,
   runViaVerifierPool
 };
