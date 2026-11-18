@@ -104,7 +104,27 @@ function replaceLatexRadicalsAndFractions(str) {
     res = res.slice(0, idx) + '((' + num + ')/(' + den + '))' + res.slice(denEnd + 1);
   }
 
-  // 2. Balanced-brace replacement for \sqrt{inner} -> sqrt(inner) from innermost out
+  // 2. Balanced-brace replacement for \sqrt[n]{inner} -> ((inner)^(1/(n))) and \sqrt{inner} -> sqrt(inner)
+  while (/\\+sqrt\[([^\]]+)\]\{/.test(res)) {
+    const m = res.match(/\\+sqrt\[([^\]]+)\]\{/);
+    const idx = m.index;
+    const deg = m[1];
+    const matchLen = m[0].length;
+    let depth = 0;
+    let start = idx + matchLen;
+    let end = -1;
+    for (let i = start; i < res.length; i++) {
+      if (res[i] === '{') depth++;
+      else if (res[i] === '}') {
+        if (depth === 0) { end = i; break; }
+        depth--;
+      }
+    }
+    if (end === -1) break;
+    const inner = res.slice(start, end);
+    res = res.slice(0, idx) + '((' + inner + ')^(1/(' + deg + ')))' + res.slice(end + 1);
+  }
+
   while (/\\+sqrt\{/.test(res)) {
     const m = res.match(/\\+sqrt\{/);
     const idx = m.index;
@@ -122,6 +142,26 @@ function replaceLatexRadicalsAndFractions(str) {
     if (end === -1) break;
     const inner = res.slice(start, end);
     res = res.slice(0, idx) + 'sqrt(' + inner + ')' + res.slice(end + 1);
+  }
+
+  // 3. Balanced-brace replacement for ^{exp} -> ^(exp)
+  while (/\^\s*\{/.test(res)) {
+    const m = res.match(/\^\s*\{/);
+    const idx = m.index;
+    const matchLen = m[0].length;
+    let depth = 0;
+    let start = idx + matchLen;
+    let end = -1;
+    for (let i = start; i < res.length; i++) {
+      if (res[i] === '{') depth++;
+      else if (res[i] === '}') {
+        if (depth === 0) { end = i; break; }
+        depth--;
+      }
+    }
+    if (end === -1) break;
+    const inner = res.slice(start, end);
+    res = res.slice(0, idx) + '^(' + inner + ')' + res.slice(end + 1);
   }
 
   return res;
@@ -735,6 +775,40 @@ function extractClaims(text, userPrompt = '') {
     });
   }
 
+  // 1b. Indefinite Integrals / Antiderivatives (e.g. \int 2x\,dx = x^2 + C or ∫ 3t^2 dt = t^3 + C)
+  const indefIntegralRegex = /(?:\\int(?!\s*_)|∫(?!\s*_))\s*([^=$\n]+?)\s*(?:\\,|\\;|\\!|\s|\*)*d([a-zA-Z])\s*=\s*([^$\n]+?)(?=\$|\\\]|\\quad|\\\\|\.\s+(?:Final|Therefore|Thus|So|Hence|[A-Z])|\n|$)/g;
+  while ((match = indefIntegralRegex.exec(text)) !== null) {
+    let rawIntegrand = match[1].trim()
+      .replace(/^\\left\((.+)\\right\)$/, '$1')
+      .replace(/^\((.+)\)$/, '$1')
+      .trim();
+    const intVar = match[2].trim();
+    let rawRhsChain = match[3].trim()
+      .replace(/\\boxed\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g, '$1')
+      .replace(/\s*(?:where\s+[CcKk]\s+is\b.*|\.\s*Final\s+Answer.*)$/i, '')
+      .replace(/[.,;:]+$/, '')
+      .trim();
+    // If chained equality (\int 2x dx = 2*(x^2/2) + C = x^2 + C), take the final proposed antiderivative
+    if (rawRhsChain.includes('=')) {
+      const rhsSegments = rawRhsChain.split('=').map(s => s.trim()).filter(Boolean);
+      if (rhsSegments.length > 0) {
+        rawRhsChain = rhsSegments[rhsSegments.length - 1];
+      }
+    }
+    if (rawIntegrand && rawRhsChain && !/\\int|∫/.test(rawRhsChain)) {
+      claims.push({
+        domain: 'calculus',
+        claim_type: 'antiderivative',
+        raw_match: match[0].trim(),
+        data: {
+          integrand: rawIntegrand,
+          variable: intVar,
+          proposed_antiderivative: rawRhsChain,
+          proposed_value: rawRhsChain
+        }
+      });
+    }
+  }
   // 2. Derivatives (e.g. \frac{d}{dx}[x^2] = 2x or \frac{d}{dx}\,x^3 = 3x^2)
   const derivRegex = /\\frac\{d\}\{d([a-zA-Z])\}\s*(?:\\,|\\;|\\s)*(?:\[([^\]]+)\]|\\left\(([^)]+)\\right\)|\(([^)]+)\)|([a-zA-Z0-9^+\-*/.{}\s]+?))\s*=\s*([^$\n\\]+?)(?:\\quad|\$|\\\\|\n|\\end|\]|$)/g;
   while ((match = derivRegex.exec(text)) !== null) {
@@ -833,7 +907,19 @@ function extractClaims(text, userPrompt = '') {
       .replace(/\\displaystyle\b/g, '')
       .replace(/\\left\(/g, '(')
       .replace(/\\right\)/g, ')');
-    s = replaceLatexRadicalsAndFractions(s)
+    while (/\\left\|((?:(?!\\left\||\\right\|).)+)\\right\|/.test(s)) {
+      s = s.replace(/\\left\|((?:(?!\\left\||\\right\|).)+)\\right\|/g, 'abs($1)');
+    }
+    s = replaceLatexRadicalsAndFractions(s);
+    while (s.includes('|')) {
+      const next = s.replace(/\|\s*([^|]*?[a-zA-Z0-9_)][^|]*?)\s*\|/, (m, inner) => {
+        if (/[+\-*/^,(]\s*$/.test(inner)) return m;
+        return `abs(${inner.trim()})`;
+      });
+      if (next === s) break;
+      s = next;
+    }
+    s = s
       .replace(/\\\(|\\\)/g, '')
       .replace(/\\log_\{?([a-zA-Z0-9]+)\}?\s*(?:\*|\s)*\(([^()]+)\)/g, '(log($2)/log($1))')
       .replace(/\\log_\{?([a-zA-Z0-9]+)\}?\s*(?:\*|\s)*([a-zA-Z0-9]+)/g, '(log($2)/log($1))')
@@ -843,13 +929,13 @@ function extractClaims(text, userPrompt = '') {
       .replace(/\\times|\\cdot/g, '*')
       .replace(/\b(sin|cos|tan|sec|csc|cot)\s*\^\s*\{?(\d+)\}?\s*(?:\(([^()]+)\)|([a-zA-Z]))/g, (_, fn, pow, argP, argS) => `(${fn}(${argP || argS}))^${pow}`)
       .replace(/\b(sin|cos|tan|sec|csc|cot)\s*([a-zA-Z])(?![a-zA-Z(])/g, '$1($2)')
-      .replace(/(\d)\s*([a-zA-Z])(?![a-zA-Z])/g, '$1*$2')
-      .replace(/(\d)\s*(sqrt|sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|log|exp)/g, '$1*$2')
-      .replace(/(\d)\s*\(/g, '$1*(')
+      .replace(/(?<![a-zA-Z_])(\d)\s*([a-zA-Z])(?![a-zA-Z])/g, '$1*$2')
+      .replace(/(?<![a-zA-Z_])(\d)\s*(sqrt|sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|log|exp|abs)/g, '$1*$2')
+      .replace(/(?<![a-zA-Z_])(\d)\s*\(/g, '$1*(')
       .replace(/\)\s*\(/g, ')*(')
       .replace(/\)\s*([a-zA-Z])/g, ')*$1')
       .replace(/([a-zA-Z])\s*(sqrt)/g, '$1*$2')
-      .replace(/\b(?!sin|cos|tan|sec|csc|cot|log|ln|exp|sqrt|asin|acos|atan|arcsin|arccos|arctan\b)([a-zA-Z])\s*\(/g, '$1*(')
+      .replace(/\b(?!sin|cos|tan|sec|csc|cot|log|log10|log2|ln|exp|sqrt|cbrt|asin|acos|atan|arcsin|arccos|arctan|abs|Abs\b)([a-zA-Z])\s*\(/g, '$1*(')
       .replace(/\s+/g, ' ')
       .trim();
     return s;
@@ -1220,18 +1306,40 @@ function extractClaims(text, userPrompt = '') {
     }
   }
 
-  const rawEquivBlocks = text
-    .replace(/\\begin\{aligned\}|\\end\{aligned\}|&/g, ' ')
-    .replace(/\\boxed\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g, '$1')
-    .split(/\r?\n|\\\\|\\\]|\$\$|\\qquad|\\quad|\\implies|\\Longrightarrow|\\Rightarrow|⇒|==>/)
-    .flatMap(b => (/^\s*\|/.test(b) || (b.match(/\|/g) || []).length >= 2) ? b.split('|') : [b]);
+  // Extract inline delimited math spans ($...$ and \(...\)) containing '=' first so surrounding sentence prose cannot contaminate them
+  const inlineDelimitedMathBlocks = [];
+  const inlineDollarMatches = text.matchAll(/(?<!\$)\$(?!\$)([^$\n]+?=[^$\n]+?)\$(?!\$)/g);
+  for (const im of inlineDollarMatches) {
+    inlineDelimitedMathBlocks.push(im[1].replace(/\\boxed\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g, '$1').trim());
+  }
+  const inlineParenMatches = text.matchAll(/\\\(([\s\S]+?=[\s\S]+?)\\\)/g);
+  for (const ip of inlineParenMatches) {
+    inlineDelimitedMathBlocks.push(ip[1].replace(/\\boxed\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g, '$1').trim());
+  }
+
+  const rawEquivBlocks = [
+    ...inlineDelimitedMathBlocks,
+    ...text
+      .replace(/\\begin\{aligned\}|\\end\{aligned\}|&/g, ' ')
+      .replace(/\\boxed\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g, '$1')
+      .split(/\r?\n|\\\\|\\\]|\$\$|\\qquad|\\quad|\\implies|\\Longrightarrow|\\Rightarrow|⇒|==>|\.\s+(?=[A-Z\\$])|\b(?:Final\s+Answer|Answer|Solution)\s*:?/i)
+      .flatMap(b => (/^\s*\|.*\|\s*$/.test(b) && /\s+\|\s+/.test(b)) ? b.split('|') : [b])
+  ];
 
   for (let block of rawEquivBlocks) {
     let cleanBlock = block.replace(/\\\[|\\\]|\\\(|\\\)|\\text\{[^}]*\}|\$/g, ' ').trim();
     if (!cleanBlock || !cleanBlock.includes('=')) continue;
     if (cleanBlock.includes('<') || cleanBlock.includes('>') || cleanBlock.includes('≈') || cleanBlock.includes('~') || /\\(?:approx|thickapprox)\b/.test(cleanBlock)) continue;
     if (/\b(?:d|dt|dx|dy)\b\s*=\s*/.test(cleanBlock)) continue;
-    if (/\\int|\\frac\{d\}\{d|\\lim\b/i.test(cleanBlock)) continue;
+    if (/\\int|∫|\\frac\{d\}\{d|\\lim\b/i.test(cleanBlock)) continue;
+
+    // Preserve explicit inline domain restriction (e.g. ", for x != 2") if attached to block
+    let blockInlineCondition = null;
+    const condMatch = cleanBlock.match(/(?:[,;]\s*|\s+)(?:for|where|when|if|assuming|provided(?:\s+that)?)\s+([a-zA-Z_][a-zA-Z0-9_]*\s*(?:!=|\\neq|≠|<>)\s*[-+]?[a-zA-Z0-9_.]+).*$/i);
+    if (condMatch) {
+      blockInlineCondition = condMatch[1].trim();
+      cleanBlock = cleanBlock.slice(0, condMatch.index).trim();
+    }
 
     const parts = cleanBlock.split('=');
     if (parts.length < 2) continue;
@@ -1242,6 +1350,8 @@ function extractClaims(text, userPrompt = '') {
       const pairCleanBlock = `${lhsRaw} = ${rhsRaw}`;
 
       // Strip leading conversational/prose prefixes from LHS
+      lhsRaw = lhsRaw.replace(/^(?:.*?\b(?:gives?|yields?|is|equals?|becomes?|have|get|find|that|as)\s+)+/i, '').trim();
+      lhsRaw = lhsRaw.replace(/^(?:for\s+all\s+real\s+(?:numbers?\s*)?(?:[a-zA-Z]\s*)?,?\s*)+/i, '').trim();
       lhsRaw = lhsRaw.replace(/^(?:(?:notice|observe|note|we\s+(?:have|see|get|find)|factors?|factorizations?|yields?|gives?|since|because|that|so|then|therefore|thus|hence|here|first|second|third|term\s*\d*|rhs|lhs)\s+)+/i, '').trim();
       // Strip trailing conversational/prose suffixes from RHS
       rhsRaw = rhsRaw.replace(/[.,;:]+$/, '').trim();
@@ -1249,12 +1359,12 @@ function extractClaims(text, userPrompt = '') {
       rhsRaw = rhsRaw.replace(/[.,;:]+$/, '').trim();
 
       if (pi === 0 && lhsRaw.includes(':')) lhsRaw = lhsRaw.slice(lhsRaw.lastIndexOf(':') + 1).trim();
-      if (/[,;|]/.test(lhsRaw) || /[,;|]/.test(rhsRaw) || /\*\*/.test(lhsRaw) || /\*\*/.test(rhsRaw)) continue;
+      if (/[,;]/.test(lhsRaw) || /[,;]/.test(rhsRaw) || /\*\*/.test(lhsRaw) || /\*\*/.test(rhsRaw)) continue;
       // Skip function/model definitions like f(x) = ... or P(t) = P_0 + kt (not algebraic identities)
       if (/^[a-zA-Z](?:_\{?[a-zA-Z0-9]+\}?)?\s*\([a-zA-Z0-9,\s]+\)$/.test(lhsRaw) &&
-          !/^(?:sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|log|ln|exp|sqrt)\s*\(/i.test(lhsRaw)) continue;
+          !/^(?:sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|log|ln|exp|sqrt|abs)\s*\(/i.test(lhsRaw)) continue;
       if (/\b(?:the|solutions?|roots?|are|is|and|or|if|when|where|with|for|from|into|by|to|of|in|on|at|as|be|have|has|can|will|let|set|check|substitute|plug|solve|solving|factor|factoring|setting|each|zero|equals?|equal|both|either|neither|none|no|not|all|any|some)\b/i.test(lhsRaw) || /\b(?:the|solutions?|roots?|are|is|and|or|if|when|where|with|for|from|into|by|to|of|in|on|at|as|be|have|has|can|will|let|set|check|substitute|plug|solve|solving|factor|factoring|setting|each|zero|equals?|equal|both|either|neither|none|no|not|all|any|some)\b/i.test(rhsRaw)) continue;
-      if (/^\s*[a-zA-Z]\s*$/.test(lhsRaw) || /^\s*[a-zA-Z]\s*$/.test(rhsRaw)) continue;
+      if (/^\s*[a-zA-Z]\s*$/.test(lhsRaw) && /^\s*[a-zA-Z]\s*$/.test(rhsRaw)) continue;
       if (lhsRaw === '0' || rhsRaw === '0') continue;
       if (!/[a-zA-Z]/.test(lhsRaw) && !/[a-zA-Z]/.test(rhsRaw)) continue;
       if (/^[-+]?\d+(?:\.\d+)?$/.test(lhsRaw) || /^[-+]?\d+(?:\.\d+)?$/.test(rhsRaw)) continue;
@@ -1299,6 +1409,7 @@ function extractClaims(text, userPrompt = '') {
             expr1: normLhs,
             expr2: normRhs,
             variable: vMatch[1],
+            condition: blockInlineCondition || undefined,
             userPrompt: promptStr
           },
           userPrompt: promptStr
@@ -1721,12 +1832,14 @@ function extractClaims(text, userPrompt = '') {
       }
 
       // 10c. Calculus Derivatives: Find the derivative of <expr> [with respect to <var>]
-      const derivPromptMatch = cleanPrompt.match(/^(?:find\s+the\s+derivative\s+of|calculate\s+the\s+derivative\s+of|what\s+is\s+the\s+derivative\s+of|compute\s+the\s+derivative\s+of|differentiate)\s+([a-zA-Z0-9^+\-*/().\s]+?)(?:\s+with\s+respect\s+to\s+([a-zA-Z]))?$/i);
+      const derivPromptMatch = cleanPrompt.match(/^(?:find\s+the\s+derivative\s+of|calculate\s+the\s+derivative\s+of|what\s+is\s+the\s+derivative\s+of|compute\s+the\s+derivative\s+of|differentiate|find\s+d\/d[a-zA-Z]\s*)\s*\[?([a-zA-Z0-9^+\-*/().\s\\{}]+?)\]?(?:\s+with\s+respect\s+to\s+([a-zA-Z]))?$/i);
       if (derivPromptMatch) {
         const expr = derivPromptMatch[1].trim();
-        if (/^[a-zA-Z0-9^+\-*/().\s]+$/.test(expr) && /[a-zA-Z]/.test(expr)) {
-          const vMatch = expr.match(/[a-zA-Z]/);
-          const v = derivPromptMatch[2] || (vMatch ? vMatch[0] : 'x');
+        if (/[a-zA-Z]/.test(expr)) {
+          const wrtPrompt = cleanPrompt.match(/\bd\/d([a-zA-Z])\b/i);
+          const cleanedVars = expr.replace(/\b(?:sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|sinh|cosh|tanh|ln|log|exp|sqrt|cbrt|pi|e|frac)\b/gi, '');
+          const vMatch = cleanedVars.match(/[a-zA-Z]/);
+          const v = derivPromptMatch[2] || (wrtPrompt ? wrtPrompt[1] : (vMatch ? vMatch[0] : 'x'));
           if (!claims.some(c => c.claim_type === 'derivative')) {
             claims.push({
               domain: 'calculus',
@@ -1737,6 +1850,35 @@ function extractClaims(text, userPrompt = '') {
                 variable: v,
                 proposed_value: candidateBoxed,
                 proposed_derivative: candidateBoxed,
+                userPrompt: promptStr
+              },
+              userPrompt: promptStr
+            });
+          }
+        }
+      }
+
+      // 10c-2. Calculus Indefinite Integrals / Antiderivatives: Evaluate \int <expr> dx, Integrate <expr>, Antiderivative of <expr>
+      if (!/\bfrom\s+[-\d.a-zA-Z\\]+\s+to\s+[-\d.a-zA-Z\\]+/i.test(cleanPrompt) && !/\\int_/.test(cleanPrompt)) {
+        const intPromptMatch = cleanPrompt.match(/^(?:evaluate|compute|calculate|find)?\s*(?:the\s+)?(?:(?:indefinite\s+)?integral\s+of|antiderivative\s+of|integrate|\\int|∫)\s*(.+?)(?:\s+with\s+respect\s+to\s+([a-zA-Z])|(?:\s|\\,|\\;|\\!|\*)+d([a-zA-Z]))?$/i);
+        if (intPromptMatch) {
+          const intExpr = intPromptMatch[1]
+            .replace(/(?:\s|\\,|\\;|\\!|\*)+d[a-zA-Z]$/i, '')
+            .replace(/\s*\bwith\s+respect\s+to\s+[a-zA-Z]\b.*$/i, '')
+            .trim();
+          const cleanedVars = intExpr.replace(/\b(?:sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|sinh|cosh|tanh|ln|log|exp|sqrt|cbrt|pi|e|frac)\b/gi, '');
+          const varTokens = [...new Set((cleanedVars.match(/[a-zA-Z]/g) || []))];
+          const v = intPromptMatch[2] || intPromptMatch[3] || (varTokens.length === 1 ? varTokens[0] : 'x');
+          if (intExpr && !claims.some(c => c.claim_type === 'antiderivative')) {
+            claims.push({
+              domain: 'calculus',
+              claim_type: 'antiderivative',
+              raw_match: `\\int ${intExpr} d${v} = ${candidateBoxed}`,
+              data: {
+                integrand: intExpr,
+                variable: v,
+                proposed_antiderivative: candidateBoxed,
+                proposed_value: candidateBoxed,
                 userPrompt: promptStr
               },
               userPrompt: promptStr
@@ -1854,6 +1996,8 @@ function extractClaims(text, userPrompt = '') {
     const boxedNum = /^[-+]?\d+(?:\.\d+)?$/.test(cleanBoxedStr) ? Number(cleanBoxedStr) : NaN;
     const isAlreadyClaimed = claims.some(c => {
       if (c.data?.raw_val_str === cleanBoxedStr) return true;
+      if (c.data?.proposed_derivative === cleanBoxedStr || c.data?.proposed_antiderivative === cleanBoxedStr) return true;
+      if (c.claim_type === 'symbolic_equivalence' && (c.data?.expr2 === cleanBoxedStr || c.data?.expr2 === normalizeSymbolicSide(cleanBoxedStr))) return true;
       if (Number.isFinite(boxedNum) && typeof c.data?.proposed_value === 'number' && Math.abs(c.data.proposed_value - boxedNum) < 1e-4) return true;
       if (Number.isFinite(boxedNum) && c.claim_type === 'equation_solution' && Array.isArray(c.data?.proposed_solutions)) {
         return c.data.proposed_solutions.some(s => Math.abs(Number(s) - boxedNum) < 1e-4);
@@ -1863,6 +2007,41 @@ function extractClaims(text, userPrompt = '') {
 
     if (claims.length > 0) {
       if (!isAlreadyClaimed) {
+        const calcClaims = claims.filter(c => c.domain === 'calculus' && (c.claim_type === 'derivative' || c.claim_type === 'antiderivative'));
+        if (calcClaims.length > 0 && cleanBoxedStr) {
+          const lastCalc = calcClaims[calcClaims.length - 1];
+          if (lastCalc.claim_type === 'antiderivative' && lastCalc.data?.proposed_antiderivative !== cleanBoxedStr) {
+            claims.push({
+              domain: 'calculus',
+              claim_type: 'antiderivative',
+              raw_match: `\\int ${lastCalc.data.integrand} d${lastCalc.data.variable || 'x'} = ${cleanBoxedStr}`,
+              data: {
+                integrand: lastCalc.data.integrand,
+                variable: lastCalc.data.variable || 'x',
+                proposed_antiderivative: cleanBoxedStr,
+                proposed_value: cleanBoxedStr,
+                from_boxed_conclusion: true,
+                userPrompt: promptStr
+              },
+              userPrompt: promptStr
+            });
+          } else if (lastCalc.claim_type === 'derivative' && lastCalc.data?.proposed_derivative !== cleanBoxedStr) {
+            claims.push({
+              domain: 'calculus',
+              claim_type: 'derivative',
+              raw_match: `d/d${lastCalc.data.variable || 'x'}[${lastCalc.data.expression}] = ${cleanBoxedStr}`,
+              data: {
+                expression: lastCalc.data.expression,
+                variable: lastCalc.data.variable || 'x',
+                proposed_derivative: cleanBoxedStr,
+                proposed_value: cleanBoxedStr,
+                from_boxed_conclusion: true,
+                userPrompt: promptStr
+              },
+              userPrompt: promptStr
+            });
+          }
+        }
         const arithmeticClaims = claims.filter(c => c.domain === 'arithmetic' && c.data && c.data.expression);
         if (arithmeticClaims.length > 0) {
           const lastArith = arithmeticClaims[arithmeticClaims.length - 1];
@@ -2683,6 +2862,8 @@ function synthesizeVerificationStepAudit(claim, verification, stepIndex = 0) {
     expressionEvaluated = `\\int_{${data.lower_limit || '?'}}^{${data.upper_limit || '?'}} ${data.integrand || ''} d${data.variable || 'x'}`;
   } else if (!expressionEvaluated && claim.claim_type === 'derivative') {
     expressionEvaluated = `\\frac{d}{d${data.variable || 'x'}}[${data.expression || ''}]`;
+  } else if (!expressionEvaluated && claim.claim_type === 'antiderivative') {
+    expressionEvaluated = `\\int ${data.integrand || ''} d${data.variable || 'x'}`;
   } else if (!expressionEvaluated && claim.claim_type === 'limit') {
     expressionEvaluated = `\\lim_{${data.variable || 'x'} \\to ${data.target || '0'}} ${data.expression || ''}`;
   } else if (!expressionEvaluated) {
@@ -3084,6 +3265,23 @@ function auditPromptClaimFidelity(claims, prompt, verificationResults = null) {
         primaryClaimVerified: false,
         primaryClaimStatus: check.status,
         reason: 'Prompt requested a derivative, but no verified derivative claim was established.'
+      };
+    }
+  }
+
+  // 6b. Calculus Indefinite Integral / Antiderivative Queries
+  const isIndefiniteIntegralPrompt = (
+    /(?:(?:find|calculate|compute|evaluate|what\s+is)\s+(?:the\s+)?(?:(?:indefinite\s+)?integral|antiderivative)\s+of\b|\bintegrate\b|\\int(?!\s*_)|∫(?!\s*_))/i.test(prompt)
+  ) && !/\bfrom\s+[-\d.a-zA-Z\\]+\s+to\s+[-\d.a-zA-Z\\]+/i.test(prompt) &&
+    !/\b(?:concept(?:ual)?|illustrate|explain\s+(?:why|how)|how\s+does|in\s+the\s+sim\s+lab)\b/i.test(prompt);
+  if (isIndefiniteIntegralPrompt && !/\bwhat\s+is\s+(?:an?\s+|the\s+)?(?:integral|antiderivative)\s*\??$/i.test(prompt.trim())) {
+    const check = hasAffirmativelyVerifiedClaim(c => c.claim_type === 'antiderivative');
+    if (!check.ok) {
+      return {
+        valid: false,
+        primaryClaimVerified: false,
+        primaryClaimStatus: check.status,
+        reason: 'Prompt requested an indefinite integral / antiderivative, but no verified antiderivative claim was established.'
       };
     }
   }
