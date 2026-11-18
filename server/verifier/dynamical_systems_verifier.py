@@ -3,6 +3,7 @@ dynamical_systems_verifier.py - Deterministic symbolic verifier for 1D maps, fix
 """
 
 import sympy as sp
+from safe_sympify import safe_sympify
 import re
 
 def verify_map_fixed_point(claim: dict) -> dict:
@@ -24,7 +25,7 @@ def verify_map_fixed_point(claim: dict) -> dict:
     try:
         x = sp.Symbol(var_str, real=True)
         r = sp.Symbol(param_str, real=True, positive=True)
-        f = sp.sympify(map_expr_str, locals={var_str: x, param_str: r})
+        f = safe_sympify(map_expr_str, locals={var_str: x, param_str: r})
 
         # True fixed points solve f(x) - x = 0
         eq = sp.Eq(f, x)
@@ -35,7 +36,7 @@ def verify_map_fixed_point(claim: dict) -> dict:
         verified_points = []
 
         for pt in proposed_points:
-            pt_sym = sp.sympify(str(pt), locals={param_str: r})
+            pt_sym = safe_sympify(str(pt), locals={param_str: r})
             # Check residue f(pt) - pt
             residue = sp.simplify(f.subs(x, pt_sym) - pt_sym)
             if residue == 0:
@@ -91,8 +92,8 @@ def verify_map_stability(claim: dict) -> dict:
     try:
         x = sp.Symbol(var_str, real=True)
         r = sp.Symbol(param_str, real=True, positive=True)
-        f = sp.sympify(map_expr_str, locals={var_str: x, param_str: r})
-        pt = sp.sympify(str(fixed_point_str), locals={param_str: r})
+        f = safe_sympify(map_expr_str, locals={var_str: x, param_str: r})
+        pt = safe_sympify(str(fixed_point_str), locals={param_str: r})
 
         # 1. Verify it's actually a fixed point
         if sp.simplify(f.subs(x, pt) - pt) != 0:

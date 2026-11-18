@@ -16,6 +16,7 @@ Core Capabilities:
 
 import re
 import sympy as sp
+from safe_sympify import safe_sympify
 from sympy.core.symbol import Symbol
 from sympy.logic.inference import satisfiable
 from sympy.logic.boolalg import And, Or, Not, Implies, Equivalent
@@ -74,8 +75,8 @@ def verify_propositional_logic(claim: dict) -> dict:
             "False": False
         })
 
-        parsed_premises = [sp.sympify(p, locals=local_symbols) for p in premises]
-        parsed_conclusion = sp.sympify(conclusion, locals=local_symbols)
+        parsed_premises = [safe_sympify(p, locals=local_symbols) for p in premises]
+        parsed_conclusion = safe_sympify(conclusion, locals=local_symbols)
 
         # Entailment test: (Premises) implies Conclusion
         # Is (Premises AND NOT Conclusion) satisfiable?
@@ -114,10 +115,10 @@ def _parse_relation(rel_str: str, var: Symbol):
     locals_dict = {str(var): var}
     if "=" in rel_str and not any(op in rel_str for op in ["<=", ">=", "!=", "=="]):
         lhs_str, rhs_str = rel_str.split("=", 1)
-        lhs = sp.sympify(lhs_str, locals=locals_dict)
-        rhs = sp.sympify(rhs_str, locals=locals_dict)
+        lhs = safe_sympify(lhs_str, locals=locals_dict)
+        rhs = safe_sympify(rhs_str, locals=locals_dict)
         return sp.Eq(lhs, rhs)
-    return sp.sympify(rel_str, locals=locals_dict)
+    return safe_sympify(rel_str, locals=locals_dict)
 
 
 def verify_algebraic_entailment(claim: dict) -> dict:

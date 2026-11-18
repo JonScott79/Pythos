@@ -7,6 +7,7 @@ Distinguishes:
 """
 
 import sympy as sp
+from safe_sympify import safe_sympify
 
 def verify_singularity_classification(claim: dict) -> dict:
     """
@@ -23,8 +24,8 @@ def verify_singularity_classification(claim: dict) -> dict:
 
     try:
         x = sp.Symbol(var_str)
-        expr = sp.sympify(expr_str, locals={var_str: x})
-        point = sp.sympify(point_str, locals={var_str: x})
+        expr = safe_sympify(expr_str, locals={var_str: x})
+        point = safe_sympify(point_str, locals={var_str: x})
 
         # 1. Compute limit at the point
         lim_val = sp.limit(expr, x, point, direction)

@@ -3,6 +3,7 @@ algebra_verifier.py - Deterministic symbolic algebra, root check, and substituti
 """
 
 import sympy as sp
+from safe_sympify import safe_sympify, UnsafeMathExpressionError
 import math
 
 from message_helper import user_message, log_internal
@@ -253,13 +254,13 @@ def verify_algebra(claim: dict) -> dict:
         var = sp.Symbol(variable_str)
         if "=" in eq_str:
             lhs_str, rhs_str = eq_str.split("=", 1)
-            lhs = sp.sympify(lhs_str.strip())
-            rhs = sp.sympify(rhs_str.strip())
+            lhs = safe_sympify(lhs_str.strip())
+            rhs = safe_sympify(rhs_str.strip())
             equation = sp.Eq(lhs, rhs)
         else:
             lhs_str = eq_str
             rhs_str = "0"
-            equation = sp.Eq(sp.sympify(eq_str), 0)
+            equation = sp.Eq(safe_sympify(eq_str), 0)
 
         # Honest failure classification: if the equation still contains symbols other than the
         # solve variable (unparsed function names, parameters), substitution cannot decide the
@@ -279,7 +280,7 @@ def verify_algebra(claim: dict) -> dict:
         domain_excluded_vals = set()
         for raw_side in [lhs_str.strip(), rhs_str.strip()]:
             try:
-                raw_expr = sp.sympify(raw_side, evaluate=False)
+                raw_expr = safe_sympify(raw_side, evaluate=False)
                 # Collect all denominators from Pow(base, -1) and Mul terms
                 for atom in sp.preorder_traversal(raw_expr):
                     if isinstance(atom, sp.Pow) and atom.exp.is_negative:
@@ -484,8 +485,8 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
             else:
                 local_syms[ident] = sp.Symbol(ident)
 
-        e1 = sp.sympify(norm1, locals=local_syms)
-        e2 = sp.sympify(norm2, locals=local_syms)
+        e1 = safe_sympify(norm1, locals=local_syms)
+        e2 = safe_sympify(norm2, locals=local_syms)
 
         primary_sym = local_syms.get(primary_var_name)
         if primary_sym is None and all_identifiers:
@@ -495,7 +496,7 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
         def _extract_denom_restrictions(norm_s):
             restr = set()
             try:
-                raw_expr = sp.sympify(norm_s, locals=local_syms, evaluate=False)
+                raw_expr = safe_sympify(norm_s, locals=local_syms, evaluate=False)
                 for atom in sp.preorder_traversal(raw_expr):
                     if isinstance(atom, sp.Pow) and (atom.exp.is_negative or (atom.exp.is_Number and float(atom.exp) < 0)):
                         denom_base = atom.base

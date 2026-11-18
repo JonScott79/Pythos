@@ -13,6 +13,7 @@ if sys.platform == 'win32' or hasattr(sys.stdin, 'reconfigure'):
     except Exception:
         pass
 
+from safe_sympify import validate_payload_strings, UnsafeMathExpressionError
 from arithmetic_verifier import verify_arithmetic
 from algebra_verifier import verify_algebra, verify_symbolic_equivalence
 from probability_verifier import verify_birthday_problem
@@ -29,6 +30,16 @@ def dispatch_verification(payload: dict) -> dict:
     """
     Dispatches a structured claim payload to the appropriate deterministic verifier.
     """
+    try:
+        validate_payload_strings(payload)
+    except UnsafeMathExpressionError as sec_err:
+        return {
+            "verified": False,
+            "status": "ERROR",
+            "error_type": "UNSAFE_EXPRESSION",
+            "reason": str(sec_err),
+        }
+
     domain = payload.get("domain")
     claim_type = payload.get("claim_type")
     data = payload.get("data", {})

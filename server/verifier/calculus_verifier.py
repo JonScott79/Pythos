@@ -4,6 +4,7 @@ calculus_verifier.py - Deterministic calculus, derivative, integral, and substit
 
 import re
 import sympy as sp
+from safe_sympify import safe_sympify
 
 
 def _extract_brace_group(s: str, open_idx: int, open_ch: str = '{', close_ch: str = '}'):
@@ -201,8 +202,8 @@ def verify_derivative(claim: dict) -> dict:
         if not expr_clean or not prop_clean:
             return {"verified": False, "status": "UNKNOWN", "reason": "Empty normalized derivative expression"}
         local_syms = {var_str: x, "e": sp.E, "pi": sp.pi, "ln": sp.log}
-        expr = sp.sympify(expr_clean, locals=local_syms)
-        proposed = sp.sympify(prop_clean, locals=local_syms)
+        expr = safe_sympify(expr_clean, locals=local_syms)
+        proposed = safe_sympify(prop_clean, locals=local_syms)
 
         actual_deriv = sp.diff(expr, x)
         diff = sp.simplify(sp.trigsimp(actual_deriv - proposed))
@@ -253,8 +254,8 @@ def verify_antiderivative(claim: dict) -> dict:
             return {"verified": False, "status": "UNKNOWN", "reason": "Empty normalized integral or antiderivative expression"}
 
         local_syms = {var_str: x, "e": sp.E, "pi": sp.pi, "ln": sp.log}
-        integrand = sp.sympify(integrand_clean, locals=local_syms)
-        proposed_anti = sp.sympify(anti_clean, locals=local_syms)
+        integrand = safe_sympify(integrand_clean, locals=local_syms)
+        proposed_anti = safe_sympify(anti_clean, locals=local_syms)
 
         deriv_of_anti = sp.diff(proposed_anti, x)
         diff = sp.simplify(sp.trigsimp(deriv_of_anti - integrand))
@@ -327,9 +328,9 @@ def verify_change_of_variables(claim: dict) -> dict:
         u = sp.Symbol(new_var_str, positive=True)
         sym_dict = {old_var_str: x, new_var_str: u}
 
-        orig_integrand = sp.sympify(original_integrand_str, locals=sym_dict)
-        g_u = sp.sympify(sub_x_expr_str, locals=sym_dict)
-        proposed_transformed = sp.sympify(proposed_transformed_str, locals=sym_dict)
+        orig_integrand = safe_sympify(original_integrand_str, locals=sym_dict)
+        g_u = safe_sympify(sub_x_expr_str, locals=sym_dict)
+        proposed_transformed = safe_sympify(proposed_transformed_str, locals=sym_dict)
 
         # Differential: dx = g'(u) du
         dx_factor = sp.diff(g_u, u)

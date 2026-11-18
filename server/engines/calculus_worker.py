@@ -12,11 +12,17 @@ Handles:
 """
 
 import sys
+import os
 import json
 import math
 import re
 import traceback
 import sympy as sp
+
+_VERIFIER_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "verifier"))
+if _VERIFIER_DIR not in sys.path:
+    sys.path.insert(0, _VERIFIER_DIR)
+from safe_sympify import safe_sympify, validate_payload_strings, UnsafeMathExpressionError
 
 
 def _extract_brace_group(s: str, open_idx: int, open_ch: str = '{', close_ch: str = '}'):
@@ -207,7 +213,7 @@ def solve_derivative(payload: dict) -> dict:
     clean_expr = sanitize_expr_str(expr_raw)
     x = sp.Symbol(var_str)
     try:
-        expr = sp.sympify(clean_expr, locals={var_str: x, "e": sp.E})
+        expr = safe_sympify(clean_expr, locals={var_str: x, "e": sp.E})
         deriv = expr
         steps = []
         for o in range(1, order + 1):
@@ -328,7 +334,7 @@ def solve_derivative(payload: dict) -> dict:
 
         if point_raw is not None:
             try:
-                pt = sp.sympify(sanitize_expr_str(str(point_raw)), locals={var_str: x, "e": sp.E})
+                pt = safe_sympify(sanitize_expr_str(str(point_raw)), locals={var_str: x, "e": sp.E})
                 val_at_pt = sp.simplify(simplified.subs(x, pt))
                 num_at_pt = float(val_at_pt.evalf()) if val_at_pt.is_real else None
                 result_obj["point"] = str(pt)
@@ -366,8 +372,8 @@ def solve_tangent_line(payload: dict) -> dict:
     clean_expr = sanitize_expr_str(expr_raw)
     x = sp.Symbol(var_str)
     try:
-        expr = sp.sympify(clean_expr, locals={var_str: x, "e": sp.E})
-        x0 = sp.sympify(sanitize_expr_str(str(point_raw)), locals={var_str: x, "e": sp.E})
+        expr = safe_sympify(clean_expr, locals={var_str: x, "e": sp.E})
+        x0 = safe_sympify(sanitize_expr_str(str(point_raw)), locals={var_str: x, "e": sp.E})
 
         deriv = sp.simplify(sp.diff(expr, x))
         y0 = sp.simplify(expr.subs(x, x0))
@@ -442,11 +448,11 @@ def solve_integral(payload: dict) -> dict:
     clean_integrand = sanitize_expr_str(integrand_raw)
     x = sp.Symbol(var_str)
     try:
-        f = sp.sympify(clean_integrand, locals={var_str: x, "e": sp.E})
+        f = safe_sympify(clean_integrand, locals={var_str: x, "e": sp.E})
 
         if is_definite and lower_limit_raw is not None and upper_limit_raw is not None:
-            a = sp.sympify(sanitize_expr_str(str(lower_limit_raw)), locals={var_str: x, "e": sp.E})
-            b = sp.sympify(sanitize_expr_str(str(upper_limit_raw)), locals={var_str: x, "e": sp.E})
+            a = safe_sympify(sanitize_expr_str(str(lower_limit_raw)), locals={var_str: x, "e": sp.E})
+            b = safe_sympify(sanitize_expr_str(str(upper_limit_raw)), locals={var_str: x, "e": sp.E})
 
             exact_integral = sp.integrate(f, (x, a, b))
             exact_val_simplified = sp.simplify(exact_integral)
@@ -602,8 +608,8 @@ def solve_limit(payload: dict) -> dict:
     clean_expr = sanitize_expr_str(expr_raw)
     x = sp.Symbol(var_str)
     try:
-        expr = sp.sympify(clean_expr, locals={var_str: x, "e": sp.E})
-        target = sp.sympify(sanitize_expr_str(str(target_raw)), locals={var_str: x, "e": sp.E})
+        expr = safe_sympify(clean_expr, locals={var_str: x, "e": sp.E})
+        target = safe_sympify(sanitize_expr_str(str(target_raw)), locals={var_str: x, "e": sp.E})
 
         dir_symbol = "+-" if direction in ["+-", "both"] else direction
         lim_val = sp.limit(expr, x, target, dir=dir_symbol)
@@ -678,7 +684,7 @@ def solve_optimization(payload: dict) -> dict:
     clean_expr = sanitize_expr_str(expr_raw)
     x = sp.Symbol(var_str, real=True)
     try:
-        f = sp.sympify(clean_expr, locals={var_str: x, "e": sp.E})
+        f = safe_sympify(clean_expr, locals={var_str: x, "e": sp.E})
         f_prime = sp.diff(f, x)
         f_double_prime = sp.diff(f_prime, x)
 
@@ -714,8 +720,8 @@ def solve_optimization(payload: dict) -> dict:
         has_bounds = domain_start_raw is not None and domain_end_raw is not None
         extrema = {}
         if has_bounds:
-            a_val = float(sp.sympify(str(domain_start_raw)).evalf())
-            b_val = float(sp.sympify(str(domain_end_raw)).evalf())
+            a_val = float(safe_sympify(str(domain_start_raw)).evalf())
+            b_val = float(safe_sympify(str(domain_end_raw)).evalf())
             candidates = []
 
             f_a = float(f.subs(x, a_val).evalf())
