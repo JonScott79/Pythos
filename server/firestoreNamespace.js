@@ -37,6 +37,10 @@ function getChatsCollectionName() {
   return isStagingEnvironment() ? 'pythos_chats_staging' : 'pythos_chats';
 }
 
+function getIdentityCollectionName() {
+  return isStagingEnvironment() ? 'users_staging' : 'users';
+}
+
 function resolveFirestoreNamespaces() {
   const env = getNormalizedPythosEnv();
   return {
@@ -46,7 +50,8 @@ function resolveFirestoreNamespaces() {
     anchorDoc: getAnchorDocName(),
     memoryCollection: getMemoryCollectionName(),
     learningCollection: getLearningCollectionName(),
-    chatsCollection: getChatsCollectionName()
+    chatsCollection: getChatsCollectionName(),
+    identityCollection: getIdentityCollectionName()
   };
 }
 
@@ -57,5 +62,6 @@ module.exports = {
   getMemoryCollectionName,
   getLearningCollectionName,
   getChatsCollectionName,
+  getIdentityCollectionName,
   resolveFirestoreNamespaces
 };

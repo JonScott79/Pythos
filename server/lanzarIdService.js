@@ -20,7 +20,20 @@ const fs = require('fs');
 const path = require('path');
 const util = require('util');
 const firestoreService = require('./firestoreService');
+const firestoreNamespace = require('./firestoreNamespace');
 const { getAdminFirestore, getAdminAuth } = require('./firebaseAdmin');
+
+let _testIdentityDb = null;
+function setIdentityDbForTesting(db) {
+  _testIdentityDb = db || null;
+}
+
+function getIdentityDocRef(adminDb, uid) {
+  const db = _testIdentityDb || adminDb;
+  if (!db || !uid) return null;
+  const colName = firestoreNamespace.getIdentityCollectionName();
+  return db.collection(colName).doc(uid);
+}
 
 const scryptAsync = util.promisify(crypto.scrypt);
 
@@ -544,11 +557,10 @@ async function syncAccountPasswordToFirebaseAuth(account, password) {
 
   try {
     if (fbUser) {
-      const updates = { password };
+      // Never overwrite an existing central Firebase Auth user's password during legacy login sync
       if (!fbUser.displayName && account.displayName) {
-        updates.displayName = account.displayName;
+        fbUser = await adminAuth.updateUser(fbUser.uid, { displayName: account.displayName });
       }
-      fbUser = await adminAuth.updateUser(fbUser.uid, updates);
     } else {
       const payload = {
         uid: account.uid,
@@ -568,7 +580,7 @@ async function syncAccountPasswordToFirebaseAuth(account, password) {
       }
     }
 
-    const adminDb = typeof getAdminFirestore === 'function' ? getAdminFirestore() : null;
+    const adminDb = _testIdentityDb || (typeof getAdminFirestore === 'function' ? getAdminFirestore() : null);
     if (adminDb && fbUser?.uid) {
       const linkPatch = {
         pythosLegacyUid: account.uid,
@@ -577,7 +589,10 @@ async function syncAccountPasswordToFirebaseAuth(account, password) {
       if (account.linkedGoogleUid) {
         linkPatch.linkedGoogleUid = account.linkedGoogleUid;
       }
-      await adminDb.collection('users').doc(fbUser.uid).set(linkPatch, { merge: true });
+      const docRef = getIdentityDocRef(adminDb, fbUser.uid);
+      if (docRef) {
+        await docRef.set(linkPatch, { merge: true });
+      }
     }
     return fbUser;
   } catch (syncErr) {
@@ -713,10 +728,12 @@ async function authenticateOrRegisterLanzarId({
     const nowIso = new Date().toISOString();
 
     if (fbVerified) {
-      const { salt, hash } = await hashPassword(password);
       if (account) {
-        account.passwordSalt = salt;
-        account.passwordHash = hash;
+        if (!account.passwordSalt || !account.passwordHash) {
+          const { salt, hash } = await hashPassword(password);
+          account.passwordSalt = salt;
+          account.passwordHash = hash;
+        }
         account.lastLoginAt = nowIso;
         account.updatedAt = nowIso;
         if (!Array.isArray(account.providers)) account.providers = ['lanzar_id'];
@@ -725,6 +742,7 @@ async function authenticateOrRegisterLanzarId({
           account.linkedGoogleUid = fbVerified.uid;
         }
       } else {
+        const { salt, hash } = await hashPassword(password);
         const uid = 'lanzar_' + crypto.createHash('sha256').update(normalizedEmail).digest('hex').slice(0, 20);
         account = {
           uid,
@@ -832,17 +850,23 @@ async function linkGoogleAccountToLanzarId({ lanzarUid, googleUid, googleEmail }
 }
 
 function getOidcDiscoveryDocument() {
+  const authHubUrl = (process.env.LANZAR_AUTH_HUB_URL || LANZAR_ID_ISSUER || 'https://auth.lanzar.me').replace(/\/+$/, '');
+  const authApiUrl = (process.env.LANZAR_AUTH_API_URL || 'https://auth-api.lanzar.me').replace(/\/+$/, '');
   return {
     issuer: LANZAR_ID_ISSUER,
-    authorization_endpoint: `${LANZAR_ID_ISSUER}/oauth2/authorize`,
-    token_endpoint: `${LANZAR_ID_ISSUER}/oauth2/token`,
-    userinfo_endpoint: `${LANZAR_ID_ISSUER}/oauth2/userinfo`,
-    jwks_uri: `${LANZAR_ID_ISSUER}/.well-known/jwks.json`,
-    response_types_supported: ['code', 'id_token', 'token id_token'],
+    authorization_endpoint: authHubUrl,
+    token_endpoint: `${authApiUrl}/exchange`,
+    userinfo_endpoint: `${authApiUrl}/api/id/profile`,
+    session_endpoint: `${authApiUrl}/api/id/session/me`,
+    revocation_endpoint: `${authApiUrl}/api/id/session/logout`,
+    jwks_uri: `${authApiUrl}/.well-known/jwks.json`,
+    response_types_supported: ['code', 'token', 'id_token'],
     subject_types_supported: ['public'],
-    id_token_signing_alg_values_supported: ['RS256', 'HS256'],
-    scopes_supported: ['openid', 'profile', 'email', 'lanzar.sync'],
-    claims_supported: ['sub', 'iss', 'aud', 'exp', 'iat', 'email', 'name', 'provider']
+    id_token_signing_alg_values_supported: ['HS256', 'RS256'],
+    code_challenge_methods_supported: ['S256'],
+    scopes_supported: ['openid', 'profile', 'email', 'entitlements', 'offline_access'],
+    token_endpoint_auth_methods_supported: ['none', 'client_secret_post', 'client_secret_basic'],
+    claims_supported: ['sub', 'iss', 'aud', 'exp', 'iat', 'email', 'email_verified', 'name', 'entitlements', 'role', 'session_id']
   };
 }
 
@@ -951,15 +975,16 @@ async function resolveCanonicalIdentity(decodedFirebaseToken) {
   const clientId = decodedFirebaseToken.client_id || decodedFirebaseToken.lanzarClientApp || 'pythos';
 
   let userRecord = null;
-  const adminDb = typeof getAdminFirestore === 'function' ? getAdminFirestore() : null;
+  const adminDb = _testIdentityDb || (typeof getAdminFirestore === 'function' ? getAdminFirestore() : null);
   if (adminDb) {
     try {
-      const snap = await adminDb.collection('users').doc(uid).get();
-      if (snap.exists) {
+      const docRef = getIdentityDocRef(adminDb, uid);
+      const snap = docRef ? await docRef.get() : null;
+      if (snap && snap.exists) {
         userRecord = snap.data() || null;
       }
     } catch (err) {
-      console.warn(`[LANZAR ID] /users/${uid} lookup warning:`, err.message);
+      console.warn(`[LANZAR ID] identity lookup warning for ${uid}:`, err.message);
     }
   }
 
@@ -1015,5 +1040,7 @@ module.exports = {
   eraseAccount,
   eraseMailingConsent,
   loadAccountByUid,
-  resolveCanonicalIdentity
+  resolveCanonicalIdentity,
+  getIdentityDocRef,
+  setIdentityDbForTesting
 };
