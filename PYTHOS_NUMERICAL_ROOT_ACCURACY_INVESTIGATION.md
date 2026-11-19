@@ -100,21 +100,22 @@ The defect affected:
 
 ---
 
-## 7. Verification Results
+## 7. Verification Results (Candidate `c05fe45` / Final Campaign)
 
-- **Dedicated Regression Corpus (`test/test-numerical-root-accuracy.js`):** `23/23 PASSED` (100%):
+- **Dedicated Regression Corpus (`test/test-numerical-root-accuracy.js`):** `30/30 PASSED` (100%):
   - Original problem (`specialistAssist` ground-truth injection, rejection of `0.1129, -2.018, 1.905, 0.1132`, acceptance of `0.11141848, -2.17483393, 2.06341545, 0.11165030, 3.02994235`).
-  - 9 polynomial solver cases (linear, quadratic, *casus irreducibilis* cubic, 1-root cubic, repeated roots, irrational roots, near-zero roots, widely differing magnitudes, poorly conditioned `0.000001*(x - 1) = 0`).
+  - 9 polynomial solver cases (linear, quadratic, *casus irreducibilis* cubic, 1-root cubic, repeated roots with multiplicity metadata, irrational roots, near-zero roots, widely differing magnitudes, poorly conditioned `0.000001*(x - 1) = 0`).
   - 4 trig-polynomial solver cases (`cos+sec`, `tan+cot`, no real solution, boundary `sin(x)=1`).
   - 7 numerical verifier cases (accurate rounding, inaccurate `0.1129`, poorly conditioned `x=50`, `NaN`/`Inf`, complex-only `x^2+1=0`, domain violation `x=0`, lost root).
+  - Multiplicity preservation (`root_multiplicities`), cross-language `mathjsVerifier` vs `algebra_verifier` parity, LLM contradiction rejection, derivation vs. final-answer separation, scientific notation / Unicode `≈` / `t_{1}`, natural-language variants, and pathological input safety.
 - **Independent Adversarial Math Corpus (`test/test-math-independent-corpus.js`):** `265/265 (100.0%) — 0 FAILED`.
-- **Python Verifier Suites:**
+- **Python Verifier Suites (5 suites):**
   - `server/verifier/test_verifier.py`: 14/14 OK
   - `server/verifier/test_adversarial_gauntlet.py`: OK
   - `server/verifier/test_adversarial_round2.py`: 63/63 OK
   - `server/verifier/test_dispatch_routing.py`: OK
   - `server/verifier/test_completion_audit.py`: OK
-- **Adaptive Multi-Turn Scenarios (`test/test-adaptive-scenarios-phase21.js`):** `10/10` passed.
+- **Complete Node.js Regression Matrix:** See [PYTHOS_NUMERICAL_ROOT_ACCURACY_REGRESSION_REPORT.md](PYTHOS_NUMERICAL_ROOT_ACCURACY_REGRESSION_REPORT.md) for the full suite-by-suite ledger.
 
 ---
 
