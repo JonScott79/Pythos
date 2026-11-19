@@ -241,12 +241,14 @@ async function main() {
     assert(endRss - startRss < 100, `Unexpected RSS growth: ${(endRss - startRss).toFixed(1)} MB`);
   });
 
-  verificationBridge.closeVerifierDaemon();
   console.log(`\nSUMMARY: ${passed}/${total} stress & performance tests passed.`);
 }
 
-main().catch(err => {
-  console.error('Fatal stress test error:', err);
-  try { verificationBridge.closeVerifierDaemon(); } catch (_) {}
-  process.exit(1);
-});
+main()
+  .catch(err => {
+    console.error('Fatal stress test error:', err);
+    process.exitCode = 1;
+  })
+  .finally(() => {
+    try { verificationBridge.closeVerifierDaemon(); } catch (_) {}
+  });

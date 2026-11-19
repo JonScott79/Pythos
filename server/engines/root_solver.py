@@ -240,6 +240,19 @@ def solve_equation_roots(payload: dict) -> dict:
 
 
 if __name__ == "__main__":
-    raw_in = sys.argv[1] if len(sys.argv) > 1 else sys.stdin.read()
-    payload = json.loads(raw_in)
-    print(json.dumps(solve_equation_roots(payload)))
+    if "--daemon" in sys.argv:
+        for line in sys.stdin:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                payload = json.loads(line)
+                res = solve_equation_roots(payload)
+            except Exception as exc:
+                res = {"status": "FAILED", "error": f"Daemon error: {exc}"}
+            sys.stdout.write(json.dumps(res) + "\n")
+            sys.stdout.flush()
+    else:
+        raw_in = sys.argv[1] if len(sys.argv) > 1 else sys.stdin.read()
+        payload = json.loads(raw_in)
+        print(json.dumps(solve_equation_roots(payload)))

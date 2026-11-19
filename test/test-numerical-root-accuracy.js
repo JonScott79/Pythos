@@ -277,4 +277,12 @@ async function runTests() {
   console.log('======================================================================');
 }
 
-runTests().then(() => process.exit(process.exitCode || 0));
+runTests()
+  .catch(err => {
+    console.error(err);
+    process.exitCode = 1;
+  })
+  .finally(() => {
+    try { rootSolver.closeRootDaemon(); } catch (_) {}
+    try { verificationBridge.closeVerifierDaemon(); } catch (_) {}
+  });

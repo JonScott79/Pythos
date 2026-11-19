@@ -261,7 +261,11 @@ When x = 0, y = 2.924; when y = 0, x = 2.924.
   console.log('================================================================');
 }
 
-runAlgebraicTests().catch(err => {
-  console.error('\n❌ ALGEBRAIC VERIFICATION TEST FAILED:', err);
-  process.exit(1);
-});
+runAlgebraicTests()
+  .catch(err => {
+    console.error('\n❌ ALGEBRAIC VERIFICATION TEST FAILED:', err);
+    process.exitCode = 1;
+  })
+  .finally(() => {
+    require('../server/verificationBridge').closeVerifierDaemon();
+  });
