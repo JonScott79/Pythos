@@ -933,10 +933,10 @@ function extractClaims(text, userPrompt = '') {
       .replace(/\bln\b/g, 'log')
       .replace(/\\pi\b/g, 'pi')
       .replace(/\\times|\\cdot/g, '*')
+      .replace(/(?<![a-zA-Z_])(\d)\s*(sqrt|sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|log|exp|abs)/g, '$1*$2')
       .replace(/\b(sin|cos|tan|sec|csc|cot)\s*\^\s*\{?(\d+)\}?\s*(?:\(([^()]+)\)|([a-zA-Z]))/g, (_, fn, pow, argP, argS) => `(${fn}(${argP || argS}))^${pow}`)
       .replace(/\b(sin|cos|tan|sec|csc|cot)\s*([a-zA-Z])(?![a-zA-Z(])/g, '$1($2)')
       .replace(/(?<![a-zA-Z_])(\d)\s*([a-zA-Z])(?![a-zA-Z])/g, '$1*$2')
-      .replace(/(?<![a-zA-Z_])(\d)\s*(sqrt|sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|log|exp|abs)/g, '$1*$2')
       .replace(/(?<![a-zA-Z_])(\d)\s*\(/g, '$1*(')
       .replace(/\)\s*\(/g, ')*(')
       .replace(/\)\s*([a-zA-Z])/g, ')*$1')
@@ -1134,10 +1134,11 @@ function extractClaims(text, userPrompt = '') {
           // If the boxed content is an algebraic polynomial / identity containing the variable,
           // do NOT treat its coefficients/exponents as candidate roots!
           const hasUnboundVar = new RegExp(`\\b${v}\\b`).test(rawBoxed.replace(/^[a-zA-Z]\s*=/, ''));
+          const isIntermediateEquation = rawBoxed.includes('=') && !/^[a-zA-Z](?:_\{?\d+\}?)?\s*(?:=|\\approx|≈)/.test(rawBoxed.trim());
           // Ignore integer/parametric solution families (e.g. n\pi, k\pi, arcsin(...))
           const isParametricFamily = /\b[nkm]\b|\\pi\b|\bpi\b|\\?(?:arcsin|arccos|arctan|asin|acos|atan)\b/i.test(rawBoxed);
           if (isParametricFamily) boxedWasParametric = true;
-          if (!hasUnboundVar && !isParametricFamily) {
+          if (!hasUnboundVar && !isIntermediateEquation && !isParametricFamily) {
             const cleanBoxedForComp = cleanLatexUnits(rawBoxed).replace(/\\pi\b|\bpi\b/gi, '').replace(/^[a-zA-Z]\s*=/, '');
             const compMatches = cleanBoxedForComp.match(/(?<![a-zA-Z\\])[-+]?(?:\d*(?:\.\d+)?)?i\b(?![a-zA-Z])/g);
             if (compMatches && compMatches.length > 0) {
@@ -1195,6 +1196,93 @@ function extractClaims(text, userPrompt = '') {
                 equation: cleaned.equation,
                 variable: cleaned.variable,
                 proposed_solutions: sols,
+                userPrompt: promptStr
+              },
+              userPrompt: promptStr
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // Pattern 5d: Numerical, approximate (\approx / ≈), subscripted (t_1 = ..., t_2 ≈ ...),
+  // and periodic principal-value root claims (x ≈ 0.1132 + 2k\pi)
+  {
+    const approxOp = '(?:=|\\\\approx|≈)';
+    const numTok = '[-+]?\\d+(?:\\.\\d+)?';
+    const extractSubscriptedOrApprox = (targetVar, sourceText) => {
+      const found = [];
+      // Match v_1 = 0.1129, v_{1} \approx -2.018, v \approx 0.1132 (+ 2k\pi)
+      const re = new RegExp(
+        `(?:^|[^a-zA-Z0-9_\\\\])${targetVar}(?:_\\{?\\d+\\}?)?\\s*${approxOp}\\s*(${numTok})(?:\\s*\\+\\s*(?:2\\s*)?[knm]\\s*(?:\\\\pi|pi))?`,
+        'g'
+      );
+      let m;
+      while ((m = re.exec(sourceText)) !== null) {
+        const prefix = sourceText.slice(Math.max(0, m.index - 25), m.index);
+        if (/\b(?:let|test|try|check|at|no\s+real)\s*$/i.test(prefix)) continue;
+        if (!found.includes(m[1])) found.push(m[1]);
+      }
+      // Also match comma/or-separated additional roots after "+ 2k\pi", e.g. "x ≈ 0.1132 + 2k\pi, 3.0284 + 2k\pi"
+      const listRe = new RegExp(
+        `${targetVar}(?:_\\{?\\d+\\}?)?\\s*${approxOp}\\s*${numTok}\\s*\\+\\s*(?:2\\s*)?[knm]\\s*(?:\\\\pi|pi)\\s*(?:,|;|and|or)\\s*(?:\\\\;\\s*)?(${numTok})\\s*\\+\\s*(?:2\\s*)?[knm]\\s*(?:\\\\pi|pi)`,
+        'g'
+      );
+      while ((m = listRe.exec(sourceText)) !== null) {
+        if (!found.includes(m[1])) found.push(m[1]);
+      }
+      return found;
+    };
+
+    // 5d-1: Prompt equation with approximate / subscripted / periodic numerical roots in text
+    if (promptStr && !isSystemPrompt && !isGraphPrompt && !isIdentityPrompt) {
+      const promptEqMatch = promptStr.match(/([^\n\r;=]+=[^\n\r;=]+)/);
+      if (promptEqMatch) {
+        const cleaned = cleanAndNormalizeEquation(promptEqMatch[1]);
+        if (cleaned && isSingleVarEq(cleaned.equation)) {
+          const v = cleaned.variable;
+          const approxSols = extractSubscriptedOrApprox(v, text);
+          if (approxSols.length > 0) {
+            const alreadyClaimed = claims.some(c => c.data?.equation === cleaned.equation && c.claim_type === 'equation_solution');
+            if (!alreadyClaimed) {
+              claims.push({
+                domain: 'algebra',
+                claim_type: 'equation_solution',
+                raw_match: `${v} ≈ ${approxSols.join(', ')}`,
+                data: {
+                  equation: cleaned.equation,
+                  variable: v,
+                  proposed_solutions: approxSols,
+                  userPrompt: promptStr
+                },
+                userPrompt: promptStr
+              });
+            }
+          }
+        }
+      }
+    }
+
+    // 5d-2: Intermediate polynomial equations in text (e.g. "2t^3 - 9t + 1 = 0" followed by "t_1 = 0.1129, t_2 = -2.018, t_3 = 1.905")
+    const polyEqRegex = /(?:\\boxed\{|\$\$|\$|\[|\b)([0-9a-zA-Z^{}()+\-*/.\s]*\^[2-9][0-9a-zA-Z^{}()+\-*/.\s]*=\s*0)(?:\}|\$\$|\$|\]|\b)/g;
+    let peMatch;
+    while ((peMatch = polyEqRegex.exec(text)) !== null) {
+      const cleaned = cleanAndNormalizeEquation(peMatch[1]);
+      if (cleaned && isSingleVarEq(cleaned.equation)) {
+        const v = cleaned.variable;
+        const polySols = extractSubscriptedOrApprox(v, text);
+        if (polySols.length > 0) {
+          const alreadyClaimed = claims.some(c => c.data?.equation === cleaned.equation && c.claim_type === 'equation_solution');
+          if (!alreadyClaimed) {
+            claims.push({
+              domain: 'algebra',
+              claim_type: 'equation_solution',
+              raw_match: `${cleaned.equation} -> ${v} ≈ ${polySols.join(', ')}`,
+              data: {
+                equation: cleaned.equation,
+                variable: v,
+                proposed_solutions: polySols,
                 userPrompt: promptStr
               },
               userPrompt: promptStr

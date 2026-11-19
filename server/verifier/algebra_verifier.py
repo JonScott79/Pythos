@@ -296,38 +296,158 @@ def verify_algebra(claim: dict) -> dict:
             except Exception:
                 pass
 
-        # Solve symbolically
-        true_solutions = sp.solve(equation, var)
-        true_sol_vals = [complex(s.evalf()).real if s.is_real else None for s in true_solutions]
-        true_sol_vals = [s for s in true_sol_vals if s is not None]
+        # Solve symbolically (with real_roots support for casus irreducibilis polynomials)
+        expr_diff = lhs - rhs
+        has_trig = expr_diff.has(sp.sin, sp.cos, sp.tan, sp.csc, sp.sec, sp.cot)
+        true_solutions = []
+        true_sol_vals = []
 
-        # 1. Extraneous root check by direct substitution into original equation
+        poly_obj = None
+        if not has_trig:
+            try:
+                numer_expr, _ = sp.together(expr_diff).as_numer_denom()
+                poly_obj = sp.Poly(numer_expr, var)
+            except Exception:
+                poly_obj = None
+
+        if poly_obj is not None and poly_obj.degree() >= 1 and poly_obj.is_univariate:
+            try:
+                real_roots = sp.real_roots(poly_obj)
+                true_solutions = list(real_roots)
+                for r in real_roots:
+                    rv = float(sp.N(r, 25))
+                    if math.isfinite(rv) and not any(abs(rv - excl) < 1e-9 for excl in domain_excluded_vals):
+                        true_sol_vals.append(rv)
+            except Exception:
+                true_solutions = []
+                true_sol_vals = []
+
+        if not true_solutions and not has_trig:
+            true_solutions = sp.solve(equation, var)
+            for s in true_solutions:
+                try:
+                    if s.is_real is True:
+                        rv = float(sp.N(s, 25))
+                        if math.isfinite(rv) and not any(abs(rv - excl) < 1e-9 for excl in domain_excluded_vals):
+                            true_sol_vals.append(rv)
+                    elif s.is_real is None:
+                        c = complex(sp.N(s, 25))
+                        if math.isfinite(c.real) and math.isfinite(c.imag) and abs(c.imag) < 1e-11:
+                            if not any(abs(c.real - excl) < 1e-9 for excl in domain_excluded_vals):
+                                true_sol_vals.append(c.real)
+                except Exception:
+                    pass
+
+        def _stated_half_ulp(prop_item) -> float:
+            if isinstance(prop_item, str):
+                s_item = prop_item.strip()
+                m_dec = _re.match(r"^[+-]?\d+(?:\.(\d+))?(?:[eE]([+-]?\d+))?$", s_item)
+                if m_dec:
+                    frac = m_dec.group(1) or ""
+                    exp_str = m_dec.group(2)
+                    dec_places = len(frac) - (int(exp_str) if exp_str else 0)
+                    if dec_places > 0:
+                        return 0.5 * (10.0 ** (-dec_places))
+                    return 1e-6
+                return 1e-9
+            return 1e-6
+
+        # 1. Extraneous / inaccurate root check by direct substitution into original equation
         extraneous_found = []
+        proposed_entries = []
+        d_expr = None
+        try:
+            d_expr = sp.diff(expr_diff, var)
+        except Exception:
+            d_expr = None
+
         for prop in proposed_solutions:
             try:
                 # Support complex roots like i, -i
                 if isinstance(prop, str) and prop.strip().lower() in ('i', '-i'):
-                    val = sp.I if prop.strip().lower() == 'i' else -sp.I
+                    val_sym = sp.I if prop.strip().lower() == 'i' else -sp.I
+                    lhs_val = lhs.subs(var, val_sym)
+                    rhs_val = rhs.subs(var, val_sym)
+                    if (lhs_val == sp.zoo or lhs_val == sp.nan or lhs_val == sp.oo or lhs_val == -sp.oo or
+                        rhs_val == sp.zoo or rhs_val == sp.nan or rhs_val == sp.oo or rhs_val == -sp.oo):
+                        extraneous_found.append(prop)
+                        continue
+                    diff_c = complex(sp.N(lhs_val - rhs_val, 25))
+                    if not (math.isfinite(diff_c.real) and math.isfinite(diff_c.imag)) or abs(diff_c) > 1e-7:
+                        extraneous_found.append(prop)
+                    continue
+
+                if isinstance(prop, str):
+                    s_prop = prop.strip()
+                    if _re.match(r"^[+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$", s_prop):
+                        val_sym = sp.Float(s_prop, 30)
+                        val = float(s_prop)
+                    else:
+                        val_sym = safe_sympify(s_prop)
+                        c_val = complex(sp.N(val_sym, 25))
+                        if not (math.isfinite(c_val.real) and math.isfinite(c_val.imag)) or abs(c_val.imag) > 1e-11:
+                            extraneous_found.append(prop)
+                            continue
+                        val = c_val.real
                 else:
                     val = float(prop)
+                    val_sym = sp.Float(val, 30)
+
+                if not math.isfinite(val):
+                    extraneous_found.append(prop)
+                    continue
+
+                half_ulp = _stated_half_ulp(prop)
+
                 # Domain restriction: reject values that zero a denominator
                 # in the original (pre-simplified) expression
                 if any(abs(val - excl) < 1e-9 for excl in domain_excluded_vals):
                     extraneous_found.append(val)
                     continue
-                lhs_val = lhs.subs(var, val)
-                rhs_val = rhs.subs(var, val)
+                lhs_val = lhs.subs(var, val_sym)
+                rhs_val = rhs.subs(var, val_sym)
                 # Check if substitution produces undefined/infinite values
                 if (lhs_val == sp.zoo or lhs_val == sp.nan or lhs_val == sp.oo or lhs_val == -sp.oo or
                     rhs_val == sp.zoo or rhs_val == sp.nan or rhs_val == sp.oo or rhs_val == -sp.oo):
                     extraneous_found.append(val)
                     continue
-                diff_val = float(sp.N(lhs_val - rhs_val))
-                # NaN from domain violations (e.g., 0/0)
-                if math.isnan(diff_val) or math.isinf(diff_val):
+                diff_c = complex(sp.N(lhs_val - rhs_val, 25))
+                if not (math.isfinite(diff_c.real) and math.isfinite(diff_c.imag)) or abs(diff_c.imag) > 1e-9:
                     extraneous_found.append(val)
-                elif abs(diff_val) > 1e-4:
+                    continue
+
+                residual = abs(diff_c.real)
+                d_val = 1.0
+                if d_expr is not None:
+                    try:
+                        dc = complex(sp.N(d_expr.subs(var, val_sym), 25))
+                        if math.isfinite(dc.real) and math.isfinite(dc.imag):
+                            d_val = abs(dc.real)
+                    except Exception:
+                        d_val = 1.0
+
+                scale = 1.0
+                try:
+                    lc = complex(sp.N(lhs_val, 25))
+                    rc = complex(sp.N(rhs_val, 25))
+                    if math.isfinite(lc.real) and math.isfinite(rc.real):
+                        scale = max(1.0, abs(lc.real), abs(rc.real))
+                except Exception:
+                    scale = 1.0
+
+                tol = max(1e-7, half_ulp * max(1e-12, d_val) + 1e-9 * scale)
+                if residual > tol:
                     extraneous_found.append(val)
+                    continue
+
+                if true_sol_vals:
+                    min_dist = min(abs(val - r) for r in true_sol_vals)
+                    dist_tol = max(1e-6, half_ulp + 1e-9)
+                    if min_dist > dist_tol:
+                        extraneous_found.append(val)
+                        continue
+
+                proposed_entries.append((val, half_ulp))
             except Exception:
                 extraneous_found.append(float(prop) if isinstance(prop, (int, float)) else prop)
 
@@ -341,12 +461,11 @@ def verify_algebra(claim: dict) -> dict:
                 "details": f"Proposed value(s) {extraneous_found} do not satisfy original equation {eq_str}"
             }
 
-        # 2. Lost root check
-        if proposed_solutions and true_sol_vals:
-            proposed_nums = [float(p) for p in proposed_solutions if not (isinstance(p, str) and 'i' in p.lower())]
+        # 2. Lost root check (for algebraic / non-periodic equations)
+        if proposed_solutions and true_sol_vals and not has_trig:
             lost_roots = []
             for t in true_sol_vals:
-                if not any(abs(t - p) < 1e-4 for p in proposed_nums):
+                if not any(abs(t - p_val) <= max(1e-4, p_ulp + 1e-9) for p_val, p_ulp in proposed_entries):
                     lost_roots.append(t)
             
             if lost_roots:
