@@ -932,22 +932,44 @@ async function verifyAuthenticatedRequestUser(req) {
   if (token.startsWith('lanzar.')) {
     const claims = lanzarIdService.verifyLanzarToken(token);
     if (!claims || !claims.uid) return null;
-    return {
-      uid: claims.uid,
-      email: claims.email ? String(claims.email).trim().toLowerCase() : null,
-      provider: 'lanzar_id',
-      claims
-    };
+    try {
+      const canonical = await lanzarIdService.resolveCanonicalIdentity({ uid: claims.uid, email: claims.email });
+      return {
+        uid: canonical.uid,
+        email: canonical.email || (claims.email ? String(claims.email).trim().toLowerCase() : null),
+        provider: 'lanzar_id',
+        pythosLegacyUid: canonical.pythosLegacyUid || null,
+        claims
+      };
+    } catch (err) {
+      if (err && err.statusCode === 403) {
+        const suspended = new Error(err.message || 'Account suspended.');
+        suspended.statusCode = 403;
+        throw suspended;
+      }
+      return null;
+    }
   }
 
   const decoded = await verifyGoogleIdTokenCryptographically(token);
   if (!decoded || !decoded.uid) return null;
-  return {
-    uid: decoded.uid,
-    email: decoded.email ? String(decoded.email).trim().toLowerCase() : null,
-    provider: 'firebase',
-    claims: decoded
-  };
+  try {
+    const canonical = await lanzarIdService.resolveCanonicalIdentity(decoded);
+    return {
+      uid: canonical.uid,
+      email: canonical.email || (decoded.email ? String(decoded.email).trim().toLowerCase() : null),
+      provider: 'firebase',
+      pythosLegacyUid: canonical.pythosLegacyUid || null,
+      claims: decoded
+    };
+  } catch (err) {
+    if (err && err.statusCode === 403) {
+      const suspended = new Error(err.message || 'Account suspended.');
+      suspended.statusCode = 403;
+      throw suspended;
+    }
+    return null;
+  }
 }
 
 function resetAllRateLimits() {
@@ -3714,12 +3736,21 @@ async function studentAuthMiddleware(req, res, next) {
     return res.status(401).json({ error: 'unauthorized', message: 'Authentication required for memory management.' });
   }
 
-  const authUser = await verifyAuthenticatedRequestUser(req);
+  let authUser = null;
+  try {
+    authUser = await verifyAuthenticatedRequestUser(req);
+  } catch (err) {
+    if (err && err.statusCode === 403) {
+      return res.status(403).json({ error: 'account_suspended', message: err.message });
+    }
+    return res.status(401).json({ error: 'unauthorized', message: 'Invalid or missing authentication token.' });
+  }
   if (!authUser || !authUser.uid || !memoryService.isValidUid(authUser.uid)) {
     return res.status(401).json({ error: 'unauthorized', message: 'Invalid or missing authentication token.' });
   }
 
   req.studentUid = authUser.uid;
+  req.legacyStudentUid = authUser.pythosLegacyUid || null;
   req.authProvider = authUser.provider;
   req.studentClaims = authUser.claims;
   return next();

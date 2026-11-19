@@ -82,7 +82,7 @@ async function asyncTest(name, fn) {
       assert.ok(verified !== null);
       assert.strictEqual(verified.uid, 'lanzar_test_user_1');
       assert.strictEqual(verified.email, 'test1@lanzar.me');
-      assert.strictEqual(verified.iss, 'https://id.lanzar.me');
+      assert.strictEqual(verified.iss, 'https://auth.lanzar.me');
       assert.strictEqual(verified.aud, 'pythos-web');
     });
 
