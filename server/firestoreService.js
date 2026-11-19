@@ -149,7 +149,7 @@ async function ensurePythosNamespace() {
       await anchor.set({ createdAt: serverTimestamp() }, { merge: true });
     }
 
-    console.log('[FIRESTORE] Pythos namespace initialized → pythos/app');
+    console.log(`[FIRESTORE] Pythos namespace initialized → ${PYTHOS_COLLECTION}/${getAnchorDocName()}`);
   } catch (err) {
     console.error('[FIRESTORE] Failed to initialize Pythos namespace:', err.message);
   }

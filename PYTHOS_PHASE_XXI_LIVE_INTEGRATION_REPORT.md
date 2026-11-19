@@ -3,27 +3,37 @@
 **Railway Project:** `pythos-staging` (`ab78d55a-6e25-421d-92a8-e298005f6b58`)  
 **Environment:** `production` (`3f66d4e6-b187-4d70-95fc-0928d22bd7f7` inside `pythos-staging`)  
 **Service:** `Pythos` (`f6c92158-3f0d-40db-b27c-ccdd4d40b198`)  
+**Deployed Commit:** `47bda47` (`staging/specialist-engines-integration`)  
+**Deployment ID:** `9ca4c655-ec86-482b-b8f2-223817ae9698` `[SUCCESS]`  
 **Staging Domain:** `https://pythos-production-c45f.up.railway.app`
 
 ---
 
-## 1. Investigation & Resolution of Railway Staging Blocker
+## 1. Live Health, Auth & API Validation (`9ca4c655-ec86-482b-b8f2-223817ae9698`)
 
-1. **Root Cause of Original `connect-service-source` Denial:**
-   - Calling `railway_mcp:connect-service-source` without `staged: true` and `environmentId` attempts an immediate, unstaged mutation across all environments and was blocked by the pre-tool security hook.
-2. **Isolation Gap Discovered in `pythos-staging`:**
-   - Although `pythos-staging` (`ab78d55a-6e25-421d-92a8-e298005f6b58`) is a separate Railway project from production `Pythos` (`1f379db1-fd37-4125-b512-045d14dc056d`), deploy logs (`f8e3175d-ef95-4c1a-bace-eb6b301a8f9e`) showed `[FIRESTORE] Pythos namespace initialized → pythos/app` (sharing the `lanzar-95ae3` Firebase project with production), and `PYTHOS_ENV` was unset.
-3. **Remediations Applied:**
-   - **Firestore & LANZAR ID Staging Namespace Isolation (`c826280`, `afa5b27`, `0237ffa`, `98090e3`):** Centralized in [server/firestoreNamespace.js](file:///C:/Projects/lanzar/pythos/server/firestoreNamespace.js) and wired across `firestoreService.js`, `memoryService.js`, `learningStore.js`, `toolController.js`, and `lanzarIdService.js` (`app_staging`, `pythos_memory_staging`, `pythos_learning_staging`, `pythos_chats_staging`, `users_staging` when `PYTHOS_ENV=staging`; fail-closed on invalid `PYTHOS_ENV`). Verified `4/4` in [test/test-firestore-namespace-isolation.js](file:///C:/Projects/lanzar/pythos/test/test-firestore-namespace-isolation.js) and `5/5` in [test/test-lanzar-id-namespace-isolation.js](file:///C:/Projects/lanzar/pythos/test/test-lanzar-id-namespace-isolation.js).
-   - **Set `PYTHOS_ENV=staging`** on `pythos-staging` via `railway_mcp:set-variables` (`skipDeploys: true`).
-   - **Staged Source Connection:** Staged `JonScott79/Pythos@staging/specialist-engines-integration` (`commitSha: 98090e3`) via `railway_mcp:connect-service-source` with `staged: true` and `environmentId: "3f66d4e6-b187-4d70-95fc-0928d22bd7f7"` (patch `61cb66cc-a70e-4604-8aca-e4ca34d3677e`, `4` pending staged changes).
+| Check | Status | Latency / Details |
+| :--- | :--- | :--- |
+| `GET /health` | **PASS (Live)** | `200 OK` — `{"status":"ok","service":"pythos-api","version":"1.8.65"}` |
+| `GET /health/ready` | **PASS (Live)** | `200 OK` — `llm: groq`, `cas: sympy` |
+| `GET /api/memory` (no auth / invalid token) | **PASS (Live)** | `401` / `401` |
+| `POST /api/auth/lanzar/session` (isolated `p21_staging_*` register) | **PASS (Live)** | `200 OK` — signed `lanzar.` token issued (`uid=lanzar_2f59a1365373ad18b7f7`) |
+| `GET /api/auth/lanzar/verify` | **PASS (Live)** | `200 OK` — `status: "ok"` |
+| `GET /api/memory` (authenticated) | **PASS (Live)** | `200 OK` |
+| `DELETE /api/account` (cleanup) | **PASS (Live)** | `200 OK` — `account/mailingConsent/learningData/memories/chatHistory` erased (`errors: []`) |
 
 ---
 
-## 2. Current Live Staging Status (Blocked on Interactive `accept-deploy` Confirmation)
+## 2. Live Groq LLM & Deterministic Verification Probe
 
-| Check | Status | Details |
-| :--- | :--- | :--- |
-| **Pre-Deploy `/health/ready`** | **Tested Live** (`200 OK`) | Returned `{"status":"ready","service":"pythos-api","checks":{"llm":{"status":"ready","provider":"groq"},"cas":{"status":"ready","engine":"sympy"}}}` on prior deployment `f8e3175d-ef95-4c1a-bace-eb6b301a8f9e` (`d482f16`). |
-| **Commit of Staged Deploy (`accept-deploy`)** | **Blocked on Interactive UI Confirmation** | `railway_mcp:accept-deploy` returned `Cancelled — the user did not approve this action`. Requires clicking Approve on `accept-deploy` or Deploy in the Railway `pythos-staging` dashboard for patch `61cb66cc-a70e-4604-8aca-e4ca34d3677e` (`98090e3`). |
-| **Post-Deploy Live `/api/chat`, Groq LLM, & Firestore Persistence** | **Not Yet Tested (Blocked on `accept-deploy`)** | Ready to execute immediately once patch `61cb66cc-a70e-4604-8aca-e4ca34d3677e` (`98090e3`) is deployed. |
+| Test ID | Prompt Category | Model / Engine | HTTP | Latency | Outcome |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `LIVE-ARITH` | Percentage (`72/120`) | `pythos-deterministic-router` | 200 | 132.6ms | Delivered `\frac{72}{120} = 60%` |
+| `LIVE-ALG` | Linear Eq (`3x + 7 = 22`) | `openai/gpt-oss-120b` | 200 | 1116.0ms | Fail-closed / Socratic gate |
+| `LIVE-GEOM-IMP` | Impossible Right Triangle (`leg 10, hyp 6`) | `openai/gpt-oss-120b` | 200 | 1124.8ms | Explained Euclidean hypotenuse constraint |
+| `LIVE-DERIV` | Derivative at Point (`x^3+2x` at `x=2`) | `openai/gpt-oss-120b` + SymPy | 200 | 2416.5ms | Delivered `3*x**2 + 2` and `14` |
+| `LIVE-INDEF` | Indefinite Integral (`2x dx`) | `openai/gpt-oss-120b` | 200 | 1384.8ms | Guided / verified response |
+| `LIVE-DEF` | Definite Integral (`3t^2`, `0..2`) | `openai/gpt-oss-120b` + SymPy | 200 | 1212.5ms | Verified derivation |
+| `LIVE-AMBIG` | Ambiguous Notation (`1/2x`) | `pythos-deterministic-router` | 200 | 119.3ms | Flagged ambiguous division binding |
+| `LIVE-MAL` | Malformed Input (`x^2 + * / 3`) | `openai/gpt-oss-120b` | 200 | 1150.3ms | Rejected invalid step safely |
+| `LIVE-CONF` | Student Confusion (`I am totally lost`) | `openai/gpt-oss-120b` | 200 | 1012.2ms | Adapted step-by-step scaffolding |
+| `CONC-4` | 4 Concurrent SymPy Integrals (`/api/chat`) | `pythos-staging` worker pool | 200 (4/4) | 496.9ms total | `4/4` completed cleanly |
