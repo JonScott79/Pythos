@@ -115,12 +115,15 @@ def _solve_polynomial_real_roots(poly_expr, sym: sp.Symbol):
         tol = max(1e-12, 1e-10 * coeff_scale * max(1.0, abs(r_val) ** poly.degree()))
         if float(res_hp) > tol:
             continue
-        if any(abs(r_val - prev["value_precise"]) < 1e-11 for prev in results):
+        existing = next((prev for prev in results if abs(r_val - prev["value_precise"]) < 1e-11), None)
+        if existing is not None:
+            existing["multiplicity"] = existing.get("multiplicity", 1) + 1
             continue
         results.append({
             "value": float(f"{r_val:.10f}"),
             "value_precise": float(f"{r_val:.12f}"),
             "residual": float(res_hp),
+            "multiplicity": 1,
         })
     return results
 
@@ -225,6 +228,10 @@ def solve_equation_roots(payload: dict) -> dict:
             "operation": "POLYNOMIAL_ROOTS",
             "polynomial": f"{sp.expand(num)} = 0",
             "roots": [round(r["value_precise"], 8) for r in roots],
+            "root_multiplicities": [
+                {"value": round(r["value_precise"], 8), "multiplicity": r.get("multiplicity", 1)}
+                for r in roots
+            ],
             "residuals": [r["residual"] for r in roots],
             "exactResult": ", ".join(f"{r['value_precise']:.8f}" for r in roots) if roots else "NO_REAL_SOLUTION",
         }

@@ -200,6 +200,78 @@ async function runTests() {
     assert.strictEqual(v.status, 'LOST_ROOT');
   });
 
+  // 5. Multiplicity, cross-language consistency, contradiction & natural-language variants
+  await test('Root Solver: preserves root multiplicity metadata for (x - 3)^2 * (x + 1) = 0', async () => {
+    const res = await rootSolver.solveEquationRoots('(x - 3)^2 * (x + 1) = 0', { variable: 'x' });
+    assert.strictEqual(res.status, 'VERIFIED');
+    assert.deepStrictEqual(res.roots, [-1, 3]);
+    assert.deepStrictEqual(res.root_multiplicities, [
+      { value: -1, multiplicity: 1 },
+      { value: 3, multiplicity: 2 }
+    ]);
+  });
+
+  await test('Cross-language consistency: mathjsVerifier matches algebra_verifier on rounded, bad, and ill-conditioned roots', () => {
+    const mathjsVerifier = require('../server/mathjsVerifier');
+    const cGood = mathjsVerifier.verifyEquationSolution({
+      equation: '2*t^3 - 9*t + 1 = 0', variable: 't', proposed_solutions: ['0.1114', '-2.1748', '2.0634']
+    });
+    const cBad = mathjsVerifier.verifyEquationSolution({
+      equation: '2*t^3 - 9*t + 1 = 0', variable: 't', proposed_solutions: ['0.1129', '-2.1748', '2.0634']
+    });
+    const cIll = mathjsVerifier.verifyEquationSolution({
+      equation: '0.000001*(x - 1) = 0', variable: 'x', proposed_solutions: ['50']
+    });
+    assert.strictEqual(cGood.verified, true);
+    assert.strictEqual(cBad.verified, false);
+    assert.strictEqual(cBad.status, 'EXTRANEOUS_ROOT');
+    assert.strictEqual(cIll.verified, false);
+    assert.strictEqual(cIll.status, 'EXTRANEOUS_ROOT');
+  });
+
+  await test('LLM Contradiction Gate: verificationBridge rejects contradictory LLM roots even after specialistAssist succeeds', async () => {
+    const q = 'Solve 2\\sin^2 x + \\csc x - 9 = 0';
+    const sa = await specialistAssist.evaluateSpecialistAssist(q);
+    assert.strictEqual(sa.matched, true);
+    assert.strictEqual(sa.result.status, 'VERIFIED');
+    const contradictoryLlm = 'After substituting t = \\sin x, we obtain \\boxed{2t^3 - 9t + 1 = 0}. Solving gives t_1 = 0.1129, t_2 = -2.018, t_3 = 1.905, so x \\approx 0.1132 + 2k\\pi, 3.0284 + 2k\\pi.';
+    const audit = await verificationBridge.verifyResponseClaims(contradictoryLlm, q);
+    assert.strictEqual(audit.claims.length, 2);
+    assert.strictEqual(audit.invalidClaims.length, 2);
+  });
+
+  await test('Derivation vs Final Answer: correct final roots with wrong intermediate equation 2t^2 - 9t + 1 = 0 is rejected', async () => {
+    const q = 'Solve 2\\sin^2 x + \\csc x - 9 = 0';
+    const badDeriv = 'Substituting t = \\sin x gives \\boxed{2t^2 - 9t + 1 = 0}, with t_1 = 0.11141848. Therefore x \\approx 0.11165030 + 2k\\pi, 3.02994235 + 2k\\pi.';
+    const audit = await verificationBridge.verifyResponseClaims(badDeriv, q);
+    assert.strictEqual(audit.claims.length, 2);
+    assert.strictEqual(audit.invalidClaims.length, 1);
+    assert.strictEqual(audit.invalidClaims[0].claim.data.equation, '2*t^2 - 9*t + 1 = 0');
+  });
+
+  await test('Approximation Formats: scientific notation, Unicode ≈, and subscripted t_{1} are extracted and verified', async () => {
+    const q = 'Solve 2t^3 - 9t + 1 = 0';
+    const sciResp = 'The roots are t_{1} ≈ 1.1141848e-1, t_{2} ≈ -2.17483393, t_{3} ≈ 2.06341545.';
+    const audit = await verificationBridge.verifyResponseClaims(sciResp, q);
+    assert.strictEqual(audit.claims.length, 1);
+    assert.strictEqual(audit.invalidClaims.length, 0);
+    assert.strictEqual(audit.verificationResults[0].verified, true);
+  });
+
+  await test('Natural-Language Variants: specialistAssist extracts implicit multiplication and prose phrasing', async () => {
+    const t1 = specialistAssist.extractSpecialistTask('Find all real solutions to 2 sin^2(x) + csc(x) - 9 = 0');
+    const t2 = specialistAssist.extractSpecialistTask('What are the roots of 2t^3 - 9t + 1 = 0?');
+    assert(t1 && t1.operation === 'ROOT_SOLVING' && t1.variable === 'x');
+    assert(t2 && t2.operation === 'ROOT_SOLVING' && t2.variable === 't');
+  });
+
+  await test('Resource Safety: rootSolver rejects malicious/pathological inputs safely', async () => {
+    const evil = await rootSolver.solveEquationRoots("__import__('os').system('echo pwned') = 0", { variable: 'x' });
+    assert.strictEqual(evil.status, 'FAILED');
+    const huge = await rootSolver.solveEquationRoots('x**' + '2'.repeat(400) + ' = 0', { variable: 'x' });
+    assert.strictEqual(huge.status, 'FAILED');
+  });
+
   console.log(`\n======================================================================`);
   console.log(`RESULTS: ${passed}/${total} PASSED`);
   console.log('======================================================================');

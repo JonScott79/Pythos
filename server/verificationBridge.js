@@ -1210,7 +1210,7 @@ function extractClaims(text, userPrompt = '') {
   // and periodic principal-value root claims (x ≈ 0.1132 + 2k\pi)
   {
     const approxOp = '(?:=|\\\\approx|≈)';
-    const numTok = '[-+]?\\d+(?:\\.\\d+)?';
+    const numTok = '[-+]?\\d+(?:\\.\\d+)?(?:[eE][-+]?\\d+)?';
     const extractSubscriptedOrApprox = (targetVar, sourceText) => {
       const found = [];
       // Match v_1 = 0.1129, v_{1} \approx -2.018, v \approx 0.1132 (+ 2k\pi)

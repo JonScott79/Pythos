@@ -534,16 +534,58 @@ const MathJSVerifier = {
         }
       } catch (_) {}
 
-      // 2. Perform substitution verification
+      // 2. Perform scale-aware + stated-precision substitution verification
+      const statedHalfUlp = (rawItem) => {
+        if (typeof rawItem === 'string') {
+          const s = rawItem.trim();
+          const m = s.match(/^[+-]?\d+(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/);
+          if (m) {
+            const frac = m[1] || '';
+            const exp = m[2] ? parseInt(m[2], 10) : 0;
+            const decPlaces = frac.length - exp;
+            if (decPlaces > 0) return 0.5 * Math.pow(10, -decPlaces);
+            return 1e-6;
+          }
+          return 1e-9;
+        }
+        return 1e-6;
+      };
+
       const invalidRoots = [];
       const validRoots = [];
 
-      for (const sol of solutions) {
+      for (let i = 0; i < solutions.length; i++) {
+        const sol = solutions[i];
+        const rawSol = rawSolutions[i];
+        if (!Number.isFinite(sol)) {
+          invalidRoots.push({ solution: sol, lhs: NaN, rhs: NaN });
+          continue;
+        }
         const scope = { [variable]: sol };
         const lhsVal = math.evaluate(normLhs, scope);
         const rhsVal = math.evaluate(normRhs, scope);
-        const diff = Math.abs(lhsVal - rhsVal);
-        if (diff < 1e-5) {
+        const lhsNum = typeof lhsVal === 'number' ? lhsVal : Number(lhsVal);
+        const rhsNum = typeof rhsVal === 'number' ? rhsVal : Number(rhsVal);
+        if (!Number.isFinite(lhsNum) || !Number.isFinite(rhsNum)) {
+          invalidRoots.push({ solution: sol, lhs: lhsVal, rhs: rhsVal });
+          continue;
+        }
+        const diff = Math.abs(lhsNum - rhsNum);
+        const halfUlp = statedHalfUlp(rawSol);
+        let dVal = 1.0;
+        try {
+          const h = Math.max(1e-7, Math.abs(sol) * 1e-7);
+          const fPlus = f(sol + h);
+          const fMinus = f(sol - h);
+          if (Number.isFinite(fPlus) && Number.isFinite(fMinus)) {
+            dVal = Math.abs(fPlus - fMinus) / (2 * h);
+          }
+        } catch (_) {
+          dVal = 1.0;
+        }
+        const scale = Math.max(1.0, Math.abs(lhsNum), Math.abs(rhsNum));
+        const tol = Math.max(1e-7, halfUlp * Math.max(1e-12, dVal) + 1e-9 * scale);
+        if (diff <= tol) {
           validRoots.push(sol);
         } else {
           invalidRoots.push({ solution: sol, lhs: lhsVal, rhs: rhsVal });
