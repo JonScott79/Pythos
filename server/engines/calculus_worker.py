@@ -12,11 +12,138 @@ Handles:
 """
 
 import sys
+import os
 import json
 import math
 import re
 import traceback
 import sympy as sp
+
+_VERIFIER_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "verifier"))
+if _VERIFIER_DIR not in sys.path:
+    sys.path.insert(0, _VERIFIER_DIR)
+from safe_sympify import safe_sympify, validate_payload_strings, UnsafeMathExpressionError
+
+
+def _extract_brace_group(s: str, open_idx: int, open_ch: str = '{', close_ch: str = '}'):
+    if open_idx >= len(s) or s[open_idx] != open_ch:
+        return None, open_idx
+    depth = 0
+    for idx in range(open_idx, len(s)):
+        if s[idx] == open_ch:
+            depth += 1
+        elif s[idx] == close_ch:
+            depth -= 1
+            if depth == 0:
+                return s[open_idx + 1:idx], idx + 1
+    raise ValueError(f"Unbalanced '{open_ch}{close_ch}' in expression: {s}")
+
+
+def _expand_latex_structures(s: str) -> str:
+    if not s:
+        return ""
+    while r'\left|' in s and r'\right|' in s:
+        next_s = re.sub(r'\\left\|((?:(?!\\left\||\\right\|).)+)\\right\|', r'Abs(\1)', s)
+        if next_s == s:
+            break
+        s = next_s
+
+    out = []
+    i = 0
+    n = len(s)
+    while i < n:
+        m_frac = re.match(r'^\\(?:d|t)?frac\s*', s[i:])
+        if m_frac:
+            j = i + m_frac.end()
+            if j < n and s[j] == '{':
+                num, j2 = _extract_brace_group(s, j, '{', '}')
+                while j2 < n and s[j2].isspace():
+                    j2 += 1
+                if j2 < n and s[j2] == '{':
+                    den, j3 = _extract_brace_group(s, j2, '{', '}')
+                    num_exp = _expand_latex_structures(num)
+                    den_exp = _expand_latex_structures(den)
+                    out.append(f"(({num_exp})/({den_exp}))")
+                    i = j3
+                    continue
+
+        m_sqrt = re.match(r'^\\sqrt\s*', s[i:])
+        if m_sqrt:
+            j = i + m_sqrt.end()
+            deg_exp = None
+            if j < n and s[j] == '[':
+                deg, j = _extract_brace_group(s, j, '[', ']')
+                deg_exp = _expand_latex_structures(deg)
+                while j < n and s[j].isspace():
+                    j += 1
+            if j < n and s[j] == '{':
+                rad, j2 = _extract_brace_group(s, j, '{', '}')
+                rad_exp = _expand_latex_structures(rad)
+                if deg_exp is not None:
+                    out.append(f"(({rad_exp})**(1/({deg_exp})))")
+                else:
+                    out.append(f"sqrt({rad_exp})")
+                i = j2
+                continue
+
+        m_wrap = re.match(r'^\\(?:text|mathrm|mathbf|operatorname|boxed)\s*', s[i:])
+        if m_wrap:
+            j = i + m_wrap.end()
+            if j < n and s[j] == '{':
+                inner, j2 = _extract_brace_group(s, j, '{', '}')
+                out.append(_expand_latex_structures(inner))
+                i = j2
+                continue
+
+        if s[i] == '^':
+            j = i + 1
+            while j < n and s[j].isspace():
+                j += 1
+            if j < n and s[j] == '{':
+                exp_inner, j2 = _extract_brace_group(s, j, '{', '}')
+                exp_clean = _expand_latex_structures(exp_inner)
+                out.append(f"**({exp_clean})")
+                i = j2
+                continue
+
+        if s[i] == '_':
+            j = i + 1
+            while j < n and s[j].isspace():
+                j += 1
+            if j < n and s[j] == '{':
+                sub_inner, j2 = _extract_brace_group(s, j, '{', '}')
+                sub_clean = _expand_latex_structures(sub_inner).strip()
+                if re.match(r'^[a-zA-Z0-9]+$', sub_clean):
+                    out.append(f"_{sub_clean}")
+                else:
+                    out.append(f"_({sub_clean})")
+                i = j2
+                continue
+
+        if s[i] == '{':
+            inner, j2 = _extract_brace_group(s, i, '{', '}')
+            out.append(f"({_expand_latex_structures(inner)})")
+            i = j2
+            continue
+
+        out.append(s[i])
+        i += 1
+
+    return "".join(out)
+
+
+def _normalize_abs_bars(s: str) -> str:
+    while '|' in s:
+        next_s = re.sub(
+            r'\|\s*([^|]*?[a-zA-Z0-9_)][^|]*?)(?<![+\-*/^,(])\s*\|',
+            r'Abs(\1)',
+            s,
+            count=1
+        )
+        if next_s == s:
+            break
+        s = next_s
+    return s
 
 
 def sanitize_expr_str(expr_str: str) -> str:
@@ -27,19 +154,24 @@ def sanitize_expr_str(expr_str: str) -> str:
     s = re.sub(r'^\$+ padding|\$+$|^\$+|\$$', '', s).strip()
     s = re.sub(r'^\\\(|\\\)$|^\\\[|\\\]$', '', s).strip()
 
-    # Convert common LaTeX constructs before SymPy parsing
-    while re.search(r'\\(?:d|t)?frac\{([^{}]+)\}\{([^{}]+)\}', s):
-        s = re.sub(r'\\(?:d|t)?frac\{([^{}]+)\}\{([^{}]+)\}', r'((\1)/(\2))', s)
-    s = re.sub(r'\\sqrt\{([^{}]+)\}', r'sqrt(\1)', s)
-    s = re.sub(r'\\(?:sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|sinh|cosh|tanh)\b', lambda m: m.group(0)[1:], s)
-    s = re.sub(r'\\ln\b', 'log', s)
-    s = re.sub(r'\bln\b', 'log', s)
-    s = re.sub(r'\\pi\b', 'pi', s)
-    s = s.replace('π', 'pi')
-    s = re.sub(r'\\(?:cdot|times)', '*', s)
     s = re.sub(r'\\left\s*([(\[{])', r'\1', s)
     s = re.sub(r'\\right\s*([)\]}])', r'\1', s)
-    s = s.replace('{', '(').replace('}', ')')
+    s = re.sub(r'\\?log_\s*\{([^{}]+)\}\s*\(([^()]+)\)', r'(log(\2)/log(\1))', s)
+    s = re.sub(r'\\?log_\s*([a-zA-Z0-9]+)\s*\(([^()]+)\)', r'(log(\2)/log(\1))', s)
+
+    # Convert common LaTeX constructs using balanced-brace expansion before SymPy parsing
+    s = _expand_latex_structures(s)
+    s = _normalize_abs_bars(s)
+
+    s = re.sub(r'\\(?:sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|sinh|cosh|tanh|exp|log|sqrt)\b', lambda m: m.group(0)[1:], s)
+    s = re.sub(r'\b(arcsin|arccos|arctan)\b', lambda m: {'arcsin': 'asin', 'arccos': 'acos', 'arctan': 'atan'}[m.group(1)], s)
+    s = re.sub(r'\\ln\b', 'log', s)
+    s = re.sub(r'\bln\b', 'log', s)
+    s = re.sub(r'\bcbrt\s*\(([^()]+)\)', r'((\1)**(1/3))', s)
+    s = re.sub(r'\\pi\b', 'pi', s)
+    s = s.replace('π', 'pi')
+    s = re.sub(r'\\(?:cdot|times)\b', '*', s)
+    s = re.sub(r'\\div\b', '/', s)
 
     # Strip leading natural-language command words
     s = re.sub(
@@ -51,7 +183,8 @@ def sanitize_expr_str(expr_str: str) -> str:
         '', s, flags=re.IGNORECASE
     )
     s = re.sub(r'^(?:limit\s+of|find\s+the\s+limit\s+of)\s+', '', s, flags=re.IGNORECASE)
-    # Strip trailing dx, dt, du if attached to integrand
+    # Strip trailing "with respect to <var>" or dx, dt, du if attached to integrand
+    s = re.sub(r'\s*\bwith\s+respect\s+to\s+[a-zA-Z]\b.*$', '', s, flags=re.IGNORECASE).strip()
     s = re.sub(r'(?:\s|\\,|\*)+d[a-zA-Z]$', '', s).strip()
     # Strip leading f(x) = or y =
     s = re.sub(r'^(?:[fghy]\s*\(\s*[a-zA-Z]\s*\)|[y])\s*=\s*', '', s).strip()
@@ -61,7 +194,8 @@ def sanitize_expr_str(expr_str: str) -> str:
     s = re.sub(r'\be\s*\*\*\s*\(([^()]+)\)', r'exp(\1)', s)
     s = re.sub(r'\be\s*\*\*\s*([a-zA-Z0-9_]+)', r'exp(\1)', s)
     # Implicit multiplication: 2x -> 2*x, 3(x+1) -> 3*(x+1), (x+1)(x-1) -> (x+1)*(x-1)
-    s = re.sub(r'(\d)\s*([a-zA-Z(])', r'\1*\2', s)
+    # Guard against corrupting function names ending in digits like log10, log2, atan2
+    s = re.sub(r'(?<![a-zA-Z_])(\d)\s*([a-zA-Z(])', r'\1*\2', s)
     s = re.sub(r'(\))\s*(\()', r'\1*\2', s)
     s = re.sub(r'(\))\s*([a-zA-Z0-9])', r'\1*\2', s)
     return s.strip()
@@ -79,7 +213,7 @@ def solve_derivative(payload: dict) -> dict:
     clean_expr = sanitize_expr_str(expr_raw)
     x = sp.Symbol(var_str)
     try:
-        expr = sp.sympify(clean_expr, locals={var_str: x, "e": sp.E})
+        expr = safe_sympify(clean_expr, locals={var_str: x, "e": sp.E})
         deriv = expr
         steps = []
         for o in range(1, order + 1):
@@ -200,12 +334,21 @@ def solve_derivative(payload: dict) -> dict:
 
         if point_raw is not None:
             try:
-                pt = sp.sympify(sanitize_expr_str(str(point_raw)), locals={var_str: x, "e": sp.E})
+                pt = safe_sympify(sanitize_expr_str(str(point_raw)), locals={var_str: x, "e": sp.E})
                 val_at_pt = sp.simplify(simplified.subs(x, pt))
                 num_at_pt = float(val_at_pt.evalf()) if val_at_pt.is_real else None
                 result_obj["point"] = str(pt)
                 result_obj["valueAtPoint"] = str(val_at_pt)
                 result_obj["numericValueAtPoint"] = num_at_pt
+                result_obj["symbolicDerivative"] = str(simplified)
+                result_obj["exactResult"] = str(val_at_pt)
+                result_obj["numericResult"] = num_at_pt
+                result_obj["latexResult"] = sp.latex(val_at_pt)
+                result_obj["formattedResult"] = (
+                    f"d^{order}/d{var_str}^{order}[{expr}]|_{{{var_str}={pt}}} = {val_at_pt} (symbolic: {simplified})"
+                    if order > 1
+                    else f"d/d{var_str}[{expr}]|_{{{var_str}={pt}}} = {val_at_pt} (symbolic: {simplified})"
+                )
                 result_obj["derivationSteps"].append(f"Evaluated at {var_str} = {pt}: {val_at_pt}")
             except Exception:
                 pass
@@ -229,8 +372,8 @@ def solve_tangent_line(payload: dict) -> dict:
     clean_expr = sanitize_expr_str(expr_raw)
     x = sp.Symbol(var_str)
     try:
-        expr = sp.sympify(clean_expr, locals={var_str: x, "e": sp.E})
-        x0 = sp.sympify(sanitize_expr_str(str(point_raw)), locals={var_str: x, "e": sp.E})
+        expr = safe_sympify(clean_expr, locals={var_str: x, "e": sp.E})
+        x0 = safe_sympify(sanitize_expr_str(str(point_raw)), locals={var_str: x, "e": sp.E})
 
         deriv = sp.simplify(sp.diff(expr, x))
         y0 = sp.simplify(expr.subs(x, x0))
@@ -305,11 +448,11 @@ def solve_integral(payload: dict) -> dict:
     clean_integrand = sanitize_expr_str(integrand_raw)
     x = sp.Symbol(var_str)
     try:
-        f = sp.sympify(clean_integrand, locals={var_str: x, "e": sp.E})
+        f = safe_sympify(clean_integrand, locals={var_str: x, "e": sp.E})
 
         if is_definite and lower_limit_raw is not None and upper_limit_raw is not None:
-            a = sp.sympify(sanitize_expr_str(str(lower_limit_raw)), locals={var_str: x, "e": sp.E})
-            b = sp.sympify(sanitize_expr_str(str(upper_limit_raw)), locals={var_str: x, "e": sp.E})
+            a = safe_sympify(sanitize_expr_str(str(lower_limit_raw)), locals={var_str: x, "e": sp.E})
+            b = safe_sympify(sanitize_expr_str(str(upper_limit_raw)), locals={var_str: x, "e": sp.E})
 
             exact_integral = sp.integrate(f, (x, a, b))
             exact_val_simplified = sp.simplify(exact_integral)
@@ -465,8 +608,8 @@ def solve_limit(payload: dict) -> dict:
     clean_expr = sanitize_expr_str(expr_raw)
     x = sp.Symbol(var_str)
     try:
-        expr = sp.sympify(clean_expr, locals={var_str: x, "e": sp.E})
-        target = sp.sympify(sanitize_expr_str(str(target_raw)), locals={var_str: x, "e": sp.E})
+        expr = safe_sympify(clean_expr, locals={var_str: x, "e": sp.E})
+        target = safe_sympify(sanitize_expr_str(str(target_raw)), locals={var_str: x, "e": sp.E})
 
         dir_symbol = "+-" if direction in ["+-", "both"] else direction
         lim_val = sp.limit(expr, x, target, dir=dir_symbol)
@@ -541,7 +684,7 @@ def solve_optimization(payload: dict) -> dict:
     clean_expr = sanitize_expr_str(expr_raw)
     x = sp.Symbol(var_str, real=True)
     try:
-        f = sp.sympify(clean_expr, locals={var_str: x, "e": sp.E})
+        f = safe_sympify(clean_expr, locals={var_str: x, "e": sp.E})
         f_prime = sp.diff(f, x)
         f_double_prime = sp.diff(f_prime, x)
 
@@ -577,8 +720,8 @@ def solve_optimization(payload: dict) -> dict:
         has_bounds = domain_start_raw is not None and domain_end_raw is not None
         extrema = {}
         if has_bounds:
-            a_val = float(sp.sympify(str(domain_start_raw)).evalf())
-            b_val = float(sp.sympify(str(domain_end_raw)).evalf())
+            a_val = float(safe_sympify(str(domain_start_raw)).evalf())
+            b_val = float(safe_sympify(str(domain_end_raw)).evalf())
             candidates = []
 
             f_a = float(f.subs(x, a_val).evalf())

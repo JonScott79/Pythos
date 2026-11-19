@@ -577,12 +577,13 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
     const isTerseFollowUp = !cleanPrompt.includes('=') &&
       /^(?:[-+*/^0-9.()\s\\a-zA-Zπ_]{1,30}|yes|no|ok(?:ay)?|continue|go\s+on|is\s+that\s+right\??|am\s+i\s+right\??|that'?s\s+what\s+i\s+got)$/i.test(msg.content.trim());
 
-    // Check whether the extracted equation is an intermediate step or candidate answer of the active problem
+    // Check whether the extracted equation or referential expression is an intermediate step or candidate answer of the active problem
     let isIntermediateStepOfActive = false;
-    if (extractedEq && currentActive && currentActive.activeExpression) {
+    const stepCandidateEq = extractedEq || (activeMath && activeMath.includes('=') ? activeMath : null);
+    if (stepCandidateEq && currentActive && currentActive.activeExpression) {
       try {
-        if (evaluateLinearEquationStep(extractedEq, currentActive.activeExpression) ||
-            evaluateEquationCandidate(extractedEq, currentActive.activeExpression)) {
+        if (evaluateLinearEquationStep(stepCandidateEq, currentActive.activeExpression) ||
+            evaluateEquationCandidate(stepCandidateEq, currentActive.activeExpression)) {
           isIntermediateStepOfActive = true;
         }
       } catch (_) {}
@@ -661,9 +662,11 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
         nextOperation: null
       };
     } else if (currentActive) {
-      // Update active problem expression only on explicit correction or if previously unset
-      if (trans.type === 'CORRECTION' && activeMath) {
+      // Update active problem expression only on explicit correction of the problem itself (not an intermediate step) or if previously unset
+      if (trans.type === 'CORRECTION' && activeMath && !isIntermediateStepOfActive) {
         currentActive.activeExpression = activeMath;
+      } else if (trans.type === 'CORRECTION' && activeMath && isIntermediateStepOfActive) {
+        currentActive.currentStepEquation = activeMath;
       } else if (!currentActive.activeExpression && activeMath && currentActive.domain !== 'PHYSICS' && !/^[a-zA-Z]\s*=\s*[-\d.]+$/.test(activeMath)) {
         currentActive.activeExpression = activeMath;
       }

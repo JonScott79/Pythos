@@ -4,6 +4,7 @@ Audits boundary convergence conditions and closed-form values.
 """
 
 import sympy as sp
+from safe_sympify import safe_sympify
 
 def verify_improper_integral(claim: dict) -> dict:
     """
@@ -25,9 +26,9 @@ def verify_improper_integral(claim: dict) -> dict:
         x = sp.Symbol(var_str, positive=True)
         a = sp.Symbol(param_str, real=True)
         sym_dict = {var_str: x, param_str: a}
-        integrand = sp.sympify(integrand_str, locals=sym_dict)
-        low_b = sp.sympify(str(lower_bound), locals=sym_dict)
-        up_b = sp.sympify(str(upper_bound), locals=sym_dict)
+        integrand = safe_sympify(integrand_str, locals=sym_dict)
+        low_b = safe_sympify(str(lower_bound), locals=sym_dict)
+        up_b = safe_sympify(str(upper_bound), locals=sym_dict)
 
         canonical_target = x**(a - 1) / (1 + x)
         
@@ -84,8 +85,8 @@ def verify_improper_integral(claim: dict) -> dict:
                     }
 
             if proposed_closed_form:
-                prop_sym = sp.sympify(proposed_closed_form)
-                corr_sym = sp.sympify(correct_closed_form)
+                prop_sym = safe_sympify(proposed_closed_form)
+                corr_sym = safe_sympify(correct_closed_form)
                 diff = sp.simplify(prop_sym - corr_sym)
                 if diff != 0:
                     return {
@@ -116,13 +117,13 @@ def verify_improper_integral(claim: dict) -> dict:
             evaluated_result = claim.get("evaluated_result") # e.g. "pi"
             if parameter_substitution and evaluated_result:
                 val_a = parameter_substitution.get(param_str, parameter_substitution.get("a", 0.5))
-                sym_form = sp.sympify(correct_closed_form)
+                sym_form = safe_sympify(correct_closed_form)
                 sub_dict = {}
                 for s in sym_form.free_symbols:
                     if s.name == param_str:
                         sub_dict[s] = val_a
                 expected_val = sp.simplify(sym_form.subs(sub_dict))
-                prop_val = sp.sympify(evaluated_result)
+                prop_val = safe_sympify(evaluated_result)
                 if sp.simplify(prop_val - expected_val) != 0:
                     return {
                         "verified": False,
@@ -147,7 +148,7 @@ def verify_improper_integral(claim: dict) -> dict:
             val_exact = sp.integrate(integrand, (x, low_b, up_b))
             if val_exact is not None and not isinstance(val_exact, sp.Integral):
                 if proposed_closed_form is not None:
-                    prop_sym = sp.sympify(str(proposed_closed_form), locals={var_str: x, param_str: a})
+                    prop_sym = safe_sympify(str(proposed_closed_form), locals={var_str: x, param_str: a})
                     diff = sp.simplify(prop_sym - val_exact)
                     is_match = (diff == 0)
                     

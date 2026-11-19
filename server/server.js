@@ -932,22 +932,44 @@ async function verifyAuthenticatedRequestUser(req) {
   if (token.startsWith('lanzar.')) {
     const claims = lanzarIdService.verifyLanzarToken(token);
     if (!claims || !claims.uid) return null;
-    return {
-      uid: claims.uid,
-      email: claims.email ? String(claims.email).trim().toLowerCase() : null,
-      provider: 'lanzar_id',
-      claims
-    };
+    try {
+      const canonical = await lanzarIdService.resolveCanonicalIdentity({ uid: claims.uid, email: claims.email });
+      return {
+        uid: canonical.uid,
+        email: canonical.email || (claims.email ? String(claims.email).trim().toLowerCase() : null),
+        provider: 'lanzar_id',
+        pythosLegacyUid: canonical.pythosLegacyUid || null,
+        claims
+      };
+    } catch (err) {
+      if (err && err.statusCode === 403) {
+        const suspended = new Error(err.message || 'Account suspended.');
+        suspended.statusCode = 403;
+        throw suspended;
+      }
+      return null;
+    }
   }
 
   const decoded = await verifyGoogleIdTokenCryptographically(token);
   if (!decoded || !decoded.uid) return null;
-  return {
-    uid: decoded.uid,
-    email: decoded.email ? String(decoded.email).trim().toLowerCase() : null,
-    provider: 'firebase',
-    claims: decoded
-  };
+  try {
+    const canonical = await lanzarIdService.resolveCanonicalIdentity(decoded);
+    return {
+      uid: canonical.uid,
+      email: canonical.email || (decoded.email ? String(decoded.email).trim().toLowerCase() : null),
+      provider: 'firebase',
+      pythosLegacyUid: canonical.pythosLegacyUid || null,
+      claims: decoded
+    };
+  } catch (err) {
+    if (err && err.statusCode === 403) {
+      const suspended = new Error(err.message || 'Account suspended.');
+      suspended.statusCode = 403;
+      throw suspended;
+    }
+    return null;
+  }
 }
 
 function resetAllRateLimits() {
@@ -962,6 +984,7 @@ app.authRateLimiter = authRateLimiter;
 app.mailingRateLimiter = mailingRateLimiter;
 app.resetAllRateLimits = resetAllRateLimits;
 app.setGoogleTokenVerifierForTesting = setGoogleTokenVerifierForTesting;
+app.verifyAuthenticatedRequestUser = verifyAuthenticatedRequestUser;
 
 // =====================================
 // Vision Provider Drivers (Primary: Groq, Backup: Gemini)
@@ -2258,20 +2281,15 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
     res.on('close', clientCloseHandler);
   }
 
-  // Extract optional student identity from Authorization Bearer token
+  // Extract optional student identity from Authorization Bearer token (supports both LANZAR ID and Firebase ID tokens)
   let studentUid = null;
   let studentDisplayName = null;
-  const authHeader = req.headers['authorization'];
-  if (authHeader && authHeader.startsWith('Bearer ') && firebaseAdmin.isAdminSdkAvailable()) {
-    const rawToken = authHeader.slice(7).trim();
-    if ((rawToken.match(/\./g) || []).length >= 2) {
-      const decoded = await firebaseAdmin.verifyIdToken(rawToken).catch(() => null);
-      if (decoded?.uid) {
-        studentUid = decoded.uid;
-        if (typeof decoded.name === 'string' && decoded.name.trim()) {
-          studentDisplayName = sanitizeDisplayName(decoded.name);
-        }
-      }
+  const authenticatedUser = await verifyAuthenticatedRequestUser(req).catch(() => null);
+  if (authenticatedUser && authenticatedUser.uid) {
+    studentUid = authenticatedUser.uid;
+    const rawName = authenticatedUser.claims?.displayName || authenticatedUser.claims?.name;
+    if (typeof rawName === 'string' && rawName.trim()) {
+      studentDisplayName = sanitizeDisplayName(rawName);
     }
   }
 
@@ -3718,12 +3736,21 @@ async function studentAuthMiddleware(req, res, next) {
     return res.status(401).json({ error: 'unauthorized', message: 'Authentication required for memory management.' });
   }
 
-  const authUser = await verifyAuthenticatedRequestUser(req);
+  let authUser = null;
+  try {
+    authUser = await verifyAuthenticatedRequestUser(req);
+  } catch (err) {
+    if (err && err.statusCode === 403) {
+      return res.status(403).json({ error: 'account_suspended', message: err.message });
+    }
+    return res.status(401).json({ error: 'unauthorized', message: 'Invalid or missing authentication token.' });
+  }
   if (!authUser || !authUser.uid || !memoryService.isValidUid(authUser.uid)) {
     return res.status(401).json({ error: 'unauthorized', message: 'Invalid or missing authentication token.' });
   }
 
   req.studentUid = authUser.uid;
+  req.legacyStudentUid = authUser.pythosLegacyUid || null;
   req.authProvider = authUser.provider;
   req.studentClaims = authUser.claims;
   return next();
@@ -4092,6 +4119,10 @@ function gracefulShutdown(signal) {
     const { closeCalculusDaemon } = require('./engines/calculusEngine');
     closeCalculusDaemon();
   } catch (_) {}
+  try {
+    const { closeVerifierDaemon } = require('./verificationBridge');
+    closeVerifierDaemon();
+  } catch (_) {}
   if (server) {
     server.close(() => {
       console.log('[PYTHOS BACKEND] Server closed. Process terminated.');
@@ -4112,5 +4143,6 @@ module.exports = {
   getActiveControllers: () => activeControllers,
   clearActiveControllers,
   executeVisionCall,
-  stripModelScratchpad
+  stripModelScratchpad,
+  verifyAuthenticatedRequestUser
 };

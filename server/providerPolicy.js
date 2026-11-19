@@ -82,7 +82,7 @@ function getProviderRegistry() {
   if (rawPrimary === 'gemini') rawPrimary = 'gemini-text';
   if (rawPrimary === 'ollama') rawPrimary = 'ollama-text';
   const isRailway = Boolean(process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_ENVIRONMENT_NAME || process.env.RAILWAY_SERVICE_NAME || process.env.RAILWAY_PROJECT_NAME);
-  const primaryText = rawPrimary || (isRailway || getGroqApiKey() ? 'groq-text' : null);
+  const primaryText = rawPrimary || ((isRailway || (process.env.NODE_ENV === 'production' && getGroqApiKey())) ? 'groq-text' : null);
 
   const textProviders = [
     {

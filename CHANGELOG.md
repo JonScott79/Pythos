@@ -1,3 +1,19 @@
+## Pythos 1.8.65
+**Release Date:** November 18, 2026
+
+### Phase XX Mathematical Verification Hardening, Persistent SymPy Verifier Pool & Adaptive Intelligence Remediation
+- **Mathematical & Symbolic Verification Hardening (`server/verificationBridge.js`, `server/verifier/algebra_verifier.py`, `server/verifier/calculus_verifier.py`, `server/engines/calculus_worker.py`, `server/mathjsVerifier.js`):**
+  - Implemented balanced-brace LaTeX normalization (`\frac{x^{3}}{3}`, `\sqrt{x^{2}+1}`, `\frac{e^{2x}}{3}`) and innermost-first nested absolute-value parsing (`||x - 1| - 2|`) across Python and Node.js engines (`HIGH-02`, `DEF-04`, `DEF-06`, `DEF-14`, `DEF-15`).
+  - Completed end-to-end indefinite integral / antiderivative claim extraction (`1b`, `10c-2`), boxed-conclusion contradiction checking, `+ C` constant tracking, and `6b` prompt-claim fidelity gating (`HIGH-01`).
+  - Enforced real-domain (`real=True`) principal-root semantics (`|x| = \sqrt{x^2}` verified, `\sqrt{x^2} = x` & `|x| = x` rejected), preserved symbolic denominator restrictions (`(x^2-a^2)/(x-a) = x+a` rejected with `x != a`), and isolated inline `$...$` / `\(...\)` prose claims (`DEF-05`, `MEDIUM-05`).
+  - Unified `1/2x` inline division ambiguity handling across frontend and backend parsers (`DEF-03`, `MEDIUM-02`).
+- **Specialist Domain Violation Injection & Extraction (`server/specialistAssist.js`):**
+  - Fixed definite integral variable inference (`Integrate 3t^2 from 0 to 2` -> `t`) and derivative point evaluation (`at x = 2` -> `exactResult: 14`) (`DEF-01`), and added `classifySpecialistOutcome` + `# PRE-COMPUTED DETERMINISTIC DOMAIN VIOLATION` context injection for impossible geometry, degenerate figures, and divergent integrals (`HIGH-03`, `DEF-02`).
+- **Adaptive Intelligence, Intent & LANZAR ID Persistence (`server/teachingIntelligence.js`, `server/studentIntentClassifier.js`, `server/learnerState.js`, `server/server.js`):**
+  - Isolated `analyzeConceptMastery` across subject families (`HIGH-04`), added preceding-assistant hint accounting for current-turn evaluations (`MEDIUM-03A`), added radical-distribution shortcut auditing (`RADICAL_DOES_NOT_DISTRIBUTE_OVER_ADDITION`, `MEDIUM-03B`), excluded `WHY_EXPLANATION_REQUEST` from `CONFUSION`, added student challenge/correction detection (`MEDIUM-03C`), and updated `/api/chat` to authenticate LANZAR ID tokens via `verifyAuthenticatedRequestUser` (`MEDIUM-04`).
+- **Persistent SymPy Verifier Worker Pool & Adversarial Suite (`server/verifier/verifier.py`, `server/verificationBridge.js`, `test/test-verifier-daemon-lifecycle.js`, `test-forensic-diagnostic-campaign.js`):**
+  - Added `--daemon` mode and `VerifierWorker` managed worker pool (1-task-per-worker isolation, timeout recovery, clean shutdown), achieving ~61.6x average latency reduction on Phase XX adversarial verification cases (`MEDIUM-01`) alongside `ADV-01`–`ADV-10` end-to-end regression coverage (`52/52` diagnostic campaign, `894/894` total automated checks).
+
 ## Pythos 1.8.64
 **Release Date:** November 17, 2026
 
@@ -9,8 +25,10 @@
 - **Centralized LANZAR ID Authentication (`js/lanzarIdAuth.js`, `app.js`, `server/lanzarIdService.js`):**
   - Migrated Pythos authentication to the centralized LANZAR ID PKCE (`S256`) and first-party session architecture (`auth.lanzar.me` / `auth-api.lanzar.me`) with silent SSO, session validation, central logout, and legacy UID continuity.
 - **Verification Engine, Sim Lab & Telemetry Refinements (`server/verificationBridge.js`, `server/mathjsVerifier.js`, `server/trigExpressionParser.js`, `netlify.toml`):**
-  - Prevented algebraic trigonometric equations (e.g., `cos(2x)+3+5cos(x)=0`) from triggering numeric `2°` right-triangle fallbacks; added half-ULP decimal rounding verification (`>= 2` decimal places); normalized LaTeX `\cos`/`\sin`/`\tan`/`\tfrac`/`\implies` blocks before SymPy evaluation; scoped derivative fidelity checks; and cleared Sim Lab conceptual derivations and comparison tables.
+  - Prevented algebraic trigonometric equations (e.g., `cos(2x)+3+5cos(x)=0`) from triggering numeric `2°` right-triangle fallbacks while preserving nested numeric trig visualizations (`csc(cot(-28.45°))`); added half-ULP decimal rounding verification (`>= 2` decimal places); normalized LaTeX `\cos`/`\sin`/`\tan`/`\tfrac`/`\implies` blocks before SymPy evaluation; scoped derivative fidelity checks; and cleared Sim Lab conceptual derivations and comparison tables.
   - Allowed Google Tag Manager and Google Analytics collection endpoints in `Content-Security-Policy` and refined the mobile `.msg-actions` bar into a clean two-tier layout with wrapping audit headers.
+- **Forensic Engineering & Mathematical Intelligence Audit (`server/specialistAssist.js`, `server/engines/calculus_worker.py`, `server/verifier/calculus_verifier.py`, `server/verifier/algebra_verifier.py`, `server/mathjsVerifier.js`, `server/deterministicRouter.js`, `server/studentIntentClassifier.js`, `server/contextManager.js`, `js/mathInputEngine.js`, `scripts/stage-public.js`):**
+  - Repaired 15 cross-pipeline interpretation, normalization, routing, and symbolic verification defects (`DEF-01`–`DEF-15`), including multi-variable calculus task extraction (`with respect to t`), nested LaTeX fraction/radical sanitization (`\frac{\sqrt{x+1}}{x}`), removable singularity domain-restriction auditing (`(x^2-4)/(x-2)` vs `x+2`), `1/2x` frontend/backend precedence alignment, `|x - 5|` absolute value normalization, single-line batch arithmetic routing, intermediate step correction preservation in `contextManager.js`, and staging build air-gap sanitization.
 
 ## Pythos 1.8.63
 **Release Date:** November 8, 2026

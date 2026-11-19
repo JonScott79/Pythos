@@ -15,6 +15,7 @@
 const AMBIGUITY_TYPES = {
   GEOMETRIC_LABEL_POWER_CONFLATION: 'GEOMETRIC_LABEL_POWER_CONFLATION',
   NOTATION_CONFLATION_SUBSCRIPT_EXPONENT: 'NOTATION_CONFLATION_SUBSCRIPT_EXPONENT',
+  AMBIGUOUS_DIVISION_BINDING: 'AMBIGUOUS_DIVISION_BINDING',
   NONE: 'NONE'
 };
 
@@ -168,6 +169,35 @@ function detectInputAmbiguity(promptStr) {
         variable: varName,
         clarificationMessage: clar,
         details: { context: 'square', element: 'side' }
+      };
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // 4. INLINE AMBIGUOUS DIVISION BINDING (e.g. 1/2x, a/bc, x/2y)
+  // --------------------------------------------------------------------------
+  const strippedCmd = text
+    .replace(/^(?:please\s+)?(?:calculate|compute|evaluate|simplify|what\s+is|solve|find)\s+/i, '')
+    .replace(/[?.!]+$/, '')
+    .trim();
+  if (!strippedCmd.includes('\\frac') && !strippedCmd.includes('=')) {
+    const cleanedTokens = strippedCmd.replace(/\b(?:sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|sinh|cosh|tanh|ln|log10|log2|log|exp|sqrt|cbrt|abs|pi|m|s|kg|ft|cm|km|hr|sec|deg|rad)\b/gi, 'F');
+    const divAmbigMatch = cleanedTokens.match(/^(?:[-+*/^0-9a-zA-Z.()\s]*?)\b([a-zA-Z0-9.]+)\s*\/\s*(\d+(?:\.\d+)?[a-zA-Z][a-zA-Z0-9^]*|[a-zA-Z]{2,})\b/);
+    if (divAmbigMatch && /^[a-zA-Z0-9.+\-*/^()\s]+$/.test(strippedCmd)) {
+      const rawMatch = strippedCmd.match(/\b([a-zA-Z0-9.]+)\s*\/\s*(\d+(?:\.\d+)?[a-zA-Z][a-zA-Z0-9^]*|[a-zA-Z]{2,})\b/);
+      const numStr = rawMatch ? rawMatch[1] : divAmbigMatch[1];
+      const denStr = rawMatch ? rawMatch[2] : divAmbigMatch[2];
+      const splitIdx = /^\d/.test(denStr) ? denStr.search(/[a-zA-Z]/) : 1;
+      const denFirst = denStr.slice(0, splitIdx);
+      const denRest = denStr.slice(splitIdx);
+      const clar = `The expression '${numStr}/${denStr}' has ambiguous division binding. It could mean (${numStr}/${denFirst})${denRest} under left-to-right order of operations, or ${numStr}/(${denStr}) with the product in the denominator. Please clarify with parentheses: (${numStr}/${denFirst})${denRest} or ${numStr}/(${denStr}).`;
+      return {
+        hasAmbiguity: true,
+        ambiguityType: AMBIGUITY_TYPES.AMBIGUOUS_DIVISION_BINDING,
+        literalExpression: `(${numStr}/${denFirst})*${denRest}`,
+        inferredExpression: `${numStr}/(${denStr})`,
+        clarificationMessage: clar,
+        details: { numerator: numStr, denominatorToken: denStr }
       };
     }
   }

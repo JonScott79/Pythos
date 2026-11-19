@@ -245,7 +245,7 @@ function extractArithmeticExpressions(text) {
   const isQuestionOrProse = /[?]$/.test(text.trim()) ||
     /\b(?:is\s+(?:that|this|it)|same\s+thing|same\s+as|the\s+same|equivalent|what\s+about|why|how|explain|does\s+(?:this|that))\b/i.test(text) ||
     /\b(?:accuracy|accurate|validation|validated|benchmark|withheld|incorrect\s+answers?|correct\s+answers?|answers?\s+returned|error\s+rate|pythos|tutor|model)\b/i.test(text);
-  const isExplicitStandaloneCalc = /^(?:(?:just\s+(?:give\s+me|tell\s+me)\s+(?:the\s+answer)?|(?:don't|do not|without)\s+(?:check(?:ing)?|verify(?:ing)?)(?:\s+(?:it|this|anything))?)[,\s:]*)*(?:pythos[,\s]+)?(?:(?:please|kindly)\s+)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?)?(?:help\s+(?:me\s+)?(?:to\s+)?)?(?:calculate|compute|evaluate|determine|solve(?:\s+for)?|find|simplify|work\s+out|give\s+me|what\s+is|what\s+would\s+be|how\s+much\s+is|is)(?:\s+(?:the\s+)?(?:result|value|answer|evaluation|solution|sum|difference|product|quotient)(?:\s+(?:of|to|for))?)?[:\s]/i.test(text.trim());
+  const isExplicitStandaloneCalc = /^(?:(?:(?:just|only)\s+(?:give\s+me|tell\s+me|show\s+me|return)\s+(?:the\s+answer)?|(?:don't|do not|without)\s+(?:check(?:ing)?|verify(?:ing)?)(?:\s+(?:it|this|anything))?)[,\s:]*)*(?:pythos[,\s]+)?(?:(?:please|kindly)\s+)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?)?(?:help\s+(?:me\s+)?(?:to\s+)?)?(?:calculate|compute|evaluate|determine|solve(?:\s+for)?|find|simplify|work\s+out|(?:give|tell|show)\s+me(?:\s+(?:only|just))?|return(?:\s+(?:only|just))?|what(?:'?s|\s+(?:is|are|would\s+be))|how\s+much\s+is|is)(?:\s+(?:the\s+)?(?:result|value|answer|evaluation|solution|sum|difference|product|quotient)(?:\s+(?:of|to|for))?)?(?:\s+(?:these|the\s+following(?:\s+[a-zA-Z]+)?))?[:\s]/i.test(text.trim());
   if (isQuestionOrProse && !isExplicitStandaloneCalc) {
     return expressions;
   }
@@ -271,7 +271,8 @@ function extractArithmeticExpressions(text) {
     // General conversational prefix and correction normalization
     const cleanExprLine = cleanLine
       .replace(/^(?:wait,?\s+)?(?:i\s+meant|actually|correction|typo,?\s+meant)[:\s]*/i, '')
-      .replace(/^(?:(?:just\s+(?:give\s+me|tell\s+me)\s+(?:the\s+answer)?|(?:don't|do not|without)\s+(?:check(?:ing)?|verify(?:ing)?)(?:\s+(?:it|this|anything))?)[,\s:]*)*(?:pythos[,\s]+)?(?:(?:please|kindly)\s+)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?)?(?:help\s+(?:me\s+)?(?:to\s+)?)?(?:what\s+(?:is|would\s+be)|calculate|compute|evaluate|determine|solve(?:\s+for)?|find|simplify|work\s+out|give\s+me|how\s+much\s+is|is)(?:\s+(?:the\s+)?(?:result|value|answer|evaluation|solution|sum|difference|product|quotient)(?:\s+(?:of|to|for))?)?[:\s]+/i, '')
+      .replace(/^(?:(?:(?:just|only)\s+(?:give\s+me|tell\s+me|show\s+me|return)\s+(?:the\s+answer)?|(?:don't|do not|without)\s+(?:check(?:ing)?|verify(?:ing)?)(?:\s+(?:it|this|anything))?)[,\s:]*)*(?:pythos[,\s]+)?(?:(?:please|kindly)\s+)?(?:(?:can|could|would)\s+you\s+(?:please\s+)?)?(?:help\s+(?:me\s+)?(?:to\s+)?)?(?:what(?:'?s|\s+(?:is|are|would\s+be))|calculate|compute|evaluate|determine|solve(?:\s+for)?|find|simplify|work\s+out|(?:give|tell|show)\s+me(?:\s+(?:only|just))?|return(?:\s+(?:only|just))?|how\s+much\s+is|is)(?:\s+(?:the\s+)?(?:result|value|answer|evaluation|solution|sum|difference|product|quotient)(?:\s+(?:of|to|for))?)?(?:\s+(?:these|the\s+following(?:\s+[a-zA-Z]+)?))?[:\s]+/i, '')
+      .replace(/\s+(?:as\s+(?:a\s+)?(?:percentages?|percents?|%)|in\s+(?:percentages?|percents?|%)|for\s+a\s+(?:percentage|percent|%)|to\s+(?:a\s+)?(?:percentages?|percents?|%))[?!.]*$/i, '')
       .replace(/[?!.]+$/, '')
       .trim();
 
@@ -287,6 +288,10 @@ function extractArithmeticExpressions(text) {
     // Check if line contains a problem label like "a. Add: 3/4 + 2/5", "b. Subtract: 7/8 - 1/3", "1. Multiply: 5/6 * 2/9", "Problem 1: 5 + 3"
     const strippedLabelLine = cleanExprLine
       .replace(/^(?:[a-zA-Z0-9]+(?:\.(?!\d)|\))|(?:problem|exercise|q|question)\s*\d+[:.]?)\s*(?:add|subtract|multiply|divide|compute|evaluate|simplify|find)?[:\s]*/i, '')
+      .replace(/\bdivided\s+by\b/gi, '/')
+      .replace(/\bmultiplied\s+by\b/gi, '*')
+      .replace(/\bplus\b/gi, '+')
+      .replace(/\bminus\b/gi, '-')
       .replace(/[×✕✖]/g, '*')
       .replace(/[÷]/g, '/')
       .replace(/[−–—]/g, '-')
@@ -299,6 +304,7 @@ function extractArithmeticExpressions(text) {
       .replace(/√([0-9a-zA-Z]+)/g, 'sqrt($1)')
       .replace(/∛\(/g, 'cbrt(')
       .replace(/∛([0-9a-zA-Z]+)/g, 'cbrt($1)')
+      .replace(/\|([^|]+)\|/g, 'abs($1)')
       .replace(/([⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱˣʸ]+)/g, (match) => {
         const map = { '⁰':'0','¹':'1','²':'2','³':'3','⁴':'4','⁵':'5','⁶':'6','⁷':'7','⁸':'8','⁹':'9','⁺':'+','⁻':'-','⁼':'=','⁽':'(','⁾':')','ⁿ':'n','ⁱ':'i','ˣ':'x','ʸ':'y' };
         let s = '';
@@ -307,19 +313,31 @@ function extractArithmeticExpressions(text) {
       })
       .trim();
 
-    // Whole-Input Arithmetic Verification:
-    // Candidate line must be strictly composed of arithmetic tokens (digits, operations, parens, pi, sqrt).
-    const cleanForSyntax = strippedLabelLine
-      .replace(/\bpi\b/gi, '1')
-      .replace(/\b(?:sqrt|cbrt)\b/gi, '')
-      .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1)/($2)');
+    // Support comma-separated or "and"-separated single-line batch arithmetic (e.g., "3/7, 5/8, 11/20" or "17/20 and 13/25")
+    const subCandidates = /(?:\s*,\s*|\s+\band\b\s+)/i.test(strippedLabelLine)
+      ? strippedLabelLine.split(/(?:\s*,\s*|\s+\band\b\s+)/i).map(s => s.replace(/^(?:and\s+)/i, '').trim()).filter(Boolean)
+      : [strippedLabelLine];
 
-    if (/^[-+*/^0-9.()\s]+$/i.test(cleanForSyntax) &&
-        /(?:\d|\bpi\b)/i.test(strippedLabelLine) &&
-        (/[-+*/^]/.test(strippedLabelLine) || /\b(?:sqrt|cbrt)\b/.test(strippedLabelLine) || /\(.*\)/.test(strippedLabelLine) || /\\frac/.test(strippedLabelLine))) {
-      
-      let normalized = strippedLabelLine.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1)/($2)');
-      expressions.push(normalized);
+    let allSubValid = subCandidates.length > 0;
+    const validSubNormalized = [];
+    for (const sub of subCandidates) {
+      const cleanForSyntax = sub
+        .replace(/\bpi\b/gi, '1')
+        .replace(/\b(?:sqrt|cbrt|abs)\b/gi, '')
+        .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1)/($2)');
+
+      if (/^[-+*/^0-9.()\s]+$/i.test(cleanForSyntax) &&
+          /(?:\d|\bpi\b)/i.test(sub) &&
+          (/[-+*/^]/.test(sub) || /\b(?:sqrt|cbrt|abs)\b/.test(sub) || /\(.*\)/.test(sub) || /\\frac/.test(sub))) {
+        validSubNormalized.push(sub.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1)/($2)'));
+      } else {
+        allSubValid = false;
+        break;
+      }
+    }
+
+    if (allSubValid && validSubNormalized.length > 0) {
+      expressions.push(...validSubNormalized);
       continue;
     }
   }
@@ -1482,6 +1500,40 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   }
   if (/\b\d+\s*\/\s*\d+\s*\(/.test(clean)) {
     return null; // Ambiguous division notation (e.g. 6 / 2(1+2))
+  }
+
+  // Standalone ambiguous fraction division binding check (e.g. "1/2x", "a/bc", "x/2y")
+  {
+    const { detectInputAmbiguity } = require('./inputAmbiguityDetector');
+    const divAmbig = detectInputAmbiguity(clean);
+    if (divAmbig && divAmbig.hasAmbiguity && divAmbig.ambiguityType === 'AMBIGUOUS_DIVISION_BINDING') {
+      return {
+        type: 'INPUT_AMBIGUITY_CLARIFICATION',
+        ambiguityType: divAmbig.ambiguityType,
+        result: 'AMBIGUOUS',
+        solution: 'AMBIGUOUS',
+        formatted: 'Ambiguity Detected',
+        clarificationMessage: divAmbig.clarificationMessage
+      };
+    }
+  }
+
+  // Contradictory Right Triangle Hypotenuse Check: hypotenuse c must strictly exceed leg a
+  if (/\bright\s+triangle\b/i.test(clean)) {
+    const legHypMatch = clean.match(/(?:leg\s*[:=]?\s*([-+]?\d+(?:\.\d+)?).*?hypotenuse\s*[:=]?\s*([-+]?\d+(?:\.\d+)?)|hypotenuse\s*[:=]?\s*([-+]?\d+(?:\.\d+)?).*?leg\s*[:=]?\s*([-+]?\d+(?:\.\d+)?))/i);
+    if (legHypMatch) {
+      const legVal = parseFloat(legHypMatch[1] || legHypMatch[4]);
+      const hypVal = parseFloat(legHypMatch[2] || legHypMatch[3]);
+      if (legVal <= 0 || hypVal <= 0 || hypVal <= legVal) {
+        return {
+          type: 'GEOMETRIC_CONTRADICTION',
+          result: 'IMPOSSIBLE',
+          solution: 'IMPOSSIBLE',
+          formatted: `Geometric Contradiction: In a right triangle, the hypotenuse (${hypVal}) must be strictly greater than the leg (${legVal}).`,
+          reason: `Right triangle with leg ${legVal} and hypotenuse ${hypVal} is mathematically impossible because the hypotenuse must be strictly greater than each leg (c > a > 0).`
+        };
+      }
+    }
   }
 
   // Contradictory Circle Dimensions Check: radius and diameter must satisfy d = 2r
@@ -3117,6 +3169,10 @@ Points within the highlighted segment satisfy the condition. Would you like to s
 
   if (intent.type === 'INPUT_AMBIGUITY_CLARIFICATION') {
     return intent.clarificationMessage;
+  }
+
+  if (intent.type === 'GEOMETRIC_CONTRADICTION') {
+    return `❌ **${intent.formatted || 'Geometric Contradiction'}**\n\n${intent.reason || 'The stated geometric dimensions violate fundamental Euclidean constraints and cannot form a valid figure.'}`;
   }
 
   if (intent.type === 'GEOMETRY_VIZ') {

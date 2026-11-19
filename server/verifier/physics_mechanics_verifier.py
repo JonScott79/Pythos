@@ -9,6 +9,7 @@ Verifies fundamental mechanics principles strictly based on explicit claim conte
 
 import re
 import sympy as sp
+from safe_sympify import safe_sympify
 
 def verify_gravity_invariance(claim: dict) -> dict:
     """
@@ -122,7 +123,7 @@ def verify_inclined_plane_forces(claim: dict) -> dict:
     if proposed_accel_expr:
         try:
             m, g, theta, mu = sp.symbols('m g theta mu', positive=True)
-            prop_a = sp.sympify(str(proposed_accel_expr), locals={'m': m, 'g': g, 'theta': theta, 'mu': mu})
+            prop_a = safe_sympify(str(proposed_accel_expr), locals={'m': m, 'g': g, 'theta': theta, 'mu': mu})
             if is_frictionless:
                 correct_a = g * sp.sin(theta)
             else:
@@ -148,7 +149,7 @@ def verify_inclined_plane_forces(claim: dict) -> dict:
     if proposed_normal_expr:
         try:
             m, g, theta = sp.symbols('m g theta', positive=True)
-            prop_N = sp.sympify(str(proposed_normal_expr), locals={'m': m, 'g': g, 'theta': theta})
+            prop_N = safe_sympify(str(proposed_normal_expr), locals={'m': m, 'g': g, 'theta': theta})
             correct_N = m * g * sp.cos(theta)
             diff = sp.simplify(prop_N - correct_N)
             if diff != 0:

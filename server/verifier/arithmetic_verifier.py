@@ -4,6 +4,7 @@ arithmetic_verifier.py - Deterministic exact arithmetic and numerical evaluation
 
 import math
 import sympy as sp
+from safe_sympify import safe_sympify
 
 from message_helper import user_message, log_internal
 
@@ -62,7 +63,7 @@ def verify_arithmetic(claim: dict) -> dict:
         try:
             if len(str(expr_str)) > 500:
                 return _finalize({"verified": False, "status": "UNKNOWN", "reason": "Expression exceeds safe length limit"})
-            parsed = sp.sympify(str(expr_str))
+            parsed = safe_sympify(str(expr_str))
             if parsed.is_infinite or parsed == sp.zoo or parsed == sp.nan:
                 return _finalize({
                     "verified": False,

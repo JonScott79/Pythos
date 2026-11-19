@@ -131,18 +131,30 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
     /\b(?:the|teh)\s+([a-zA-Z\s]+)\s+(?:should|would|must)\s+be\s+([0-9.]+|[a-zA-Z0-9+\-*/^()]+)/i.test(lower) ||
     /\b(?:you\s+have|you\s+got)\s+(?:teh|the)\s+([a-zA-Z\s]+)\s+wrong\b/i.test(lower) ||
     /\b(?:i\s+think\s+)?(?:you|you've|there'?s)\s+(?:have\s+)?(?:made\s+a\s+mistake|got\s+the\s+wrong|have\s+the\s+wrong|used\s+the\s+wrong)\b/i.test(lower) ||
-    /\b(?:the\s+angle|the\s+number|the\s+side|the\s+formula|the\s+value)\s+(?:is\s+actually|is\s+supposed\s+to\s+be|should\s+be|would\s+be)\s+([0-9.]+|[a-zA-Z0-9+\-*/^()]+)/i.test(lower);
+    /\b(?:the\s+angle|the\s+number|the\s+side|the\s+formula|the\s+value|the\s+discriminant|the\s+derivative|the\s+integral)\s+(?:is\s+actually|is\s+supposed\s+to\s+be|should\s+be|would\s+be)\s+([0-9.]+|[a-zA-Z0-9+\-*/^()]+)/i.test(lower) ||
+    /\b(?:that|it)\s+(?:isn'?t|is\s+not)\s+([-+]?\d+(?:\.\d+)?)[;,.\s]+(?:it'?s|it\s+is)\s+([-+]?\d+(?:\.\d+)?)\b/i.test(lower) ||
+    /\b(?:is|equals?)\s+([-+]?\d+(?:\.\d+)?)\s*,\s*not\s+([-+]?\d+(?:\.\d+)?)\b/i.test(lower);
+
+  const isTutorChallengeOrRecheck =
+    /\b(?:double\s*[- ]?check|re-?check|re-?calculate|check\s+your\s+(?:math|work|calculation|arithmetic))\b/i.test(lower) ||
+    /\bare\s+you\s+sure\s+(?:that|the|this|it'?s|it\s+is)\b/i.test(lower);
 
   const isCorrection = isConversationalDisambiguation ||
                        isPremiseOrCorrection ||
+                       (isTutorChallengeOrRecheck && /\b(?:isn'?t|is\s+not|not\s+[-+]?\d|instead\s+of|should\s+be)\b/i.test(lower)) ||
                        /\b(?:wait|sorry|actually|correction|oops|no\s*wait)\b.*?\b(?:i\s+meant|i\s+mean|i\s+said|instead\s+of)\b/i.test(lower) ||
                        /\b(?:i\s+meant|meant\s+to\s+say|my\s+bad,?\s+i\s+meant|typo,?\s+meant)\b/i.test(lower) ||
                        /^(?:no,?\s+)?(?:i\s+meant|actually\s+i\s+meant)\b/i.test(lower) ||
                        /^(?:no,?\s+)?(?:that'?s\s+not\s+what\s+i\s+got|i\s+got\s+something\s+else|that'?s\s+wrong|i\s+didn'?t\s+get\s+that)\b/i.test(lower);
   if (isCorrection) {
     signals.push(isConversationalDisambiguation ? 'conversational_disambiguation_marker' : 'correction_linguistic_marker');
+    if (isTutorChallengeOrRecheck || /\b(?:isn'?t|is\s+not)\s+[-+]?\d|\bnot\s+[-+]?\d/i.test(lower)) {
+      signals.push('tutor_calculation_challenge');
+    }
     const correctionExprMatch = 
       clean.match(/(?:i\s+meant|meant\s+to\s+say|meant|said|instead\s+of)\s+([a-zA-Z0-9+\-*/^().\s=θ?-]+)$/i) ||
+      clean.match(/:\s*([0-9+\-*/^().\s]+?)\s+is\s+([-+]?\d+(?:\.\d+)?)\s*,\s*not\s+[-+]?\d+/i) ||
+      clean.match(/\b(?:that|it)\s+(?:isn'?t|is\s+not)\s+[-+]?\d+(?:\.\d+)?[;,.\s]+(?:it'?s|it\s+is)\s+([-+]?\d+(?:\.\d+)?)/i) ||
       clean.match(/(?:(?:the|teh)\s+)?([a-zA-Z\s]+?)\s+(?:would|should|is|must)\s+be\s+([0-9.]+|[a-zA-Z0-9+\-*/^()]+)/i) ||
       clean.match(/(?:(?:the|teh)\s+)?([a-zA-Z\s]+?)\s*=\s*([0-9.]+|[a-zA-Z0-9+\-*/^()]+)/i);
     let extractedExpr = null;
@@ -161,6 +173,7 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
         confidence: 'high',
         signals,
         isDisambiguation: Boolean(isConversationalDisambiguation),
+        isTutorChallenge: Boolean(isTutorChallengeOrRecheck || signals.includes('tutor_calculation_challenge')),
         extractedExpression: extractedExpr
       };
     }
@@ -168,7 +181,20 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
       intent: INTENTS.CORRECTION,
       confidence: 'high',
       signals,
-      isDisambiguation: Boolean(isConversationalDisambiguation)
+      isDisambiguation: Boolean(isConversationalDisambiguation),
+      isTutorChallenge: Boolean(isTutorChallengeOrRecheck || signals.includes('tutor_calculation_challenge'))
+    };
+  }
+
+  // Student Challenge / Re-Verification Request without explicit replacement number:
+  // e.g. "Double check that calculation.", "Are you sure that derivative is correct?"
+  if (isTutorChallengeOrRecheck) {
+    signals.push('tutor_verification_challenge');
+    return {
+      intent: INTENTS.VALIDATION_REQUEST,
+      confidence: 'high',
+      signals,
+      isTutorChallenge: true
     };
   }
 
@@ -217,10 +243,11 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
     return { intent: INTENTS.STANDARD_METHOD_REQUEST, confidence: 'high', signals };
   }
 
-  // Shortcut / Alternative Method Proposal: "Can I just divide by x?", "Is there a shortcut?"
+  // Shortcut / Alternative Method Proposal: "Can I just divide by x?", "Can I simplify sqrt(x^2 + 9) to x + 3?", "Can I expand (x + 3)^2 to x^2 + 9?"
   const isShortcutProposal = /\b(?:is\s+there\s+a\s+(?:shortcut|faster\s+way|quicker\s+way)|can\s+(?:i|we)\s+(?:take\s+a\s+shortcut|use\s+a\s+shortcut))\b/i.test(lower) ||
-                             /\b(?:can\s+(?:i|we)(?:\s+just)?|what\s+if\s+(?:i|we)(?:\s+just)?|could\s+(?:i|we)(?:\s+just)?|would\s+it\s+work\s+if\s+(?:i|we))\s+(?:divide|multiply|factor|cancel|cross\s+multiply|square|combine|substitute|use)\b/i.test(lower) ||
-                             /\b(?:can\s+(?:i|we)\s+do\s+(?:it|this)\s+(?:this\s+way\s+instead|faster|differently)|is\s+it\s+(?:valid|okay|allowed)\s+to\s+(?:just\s+)?(?:divide|cancel|factor|square))\b/i.test(lower) ||
+                             /\b(?:can\s+(?:i|we)(?:\s+just)?|what\s+if\s+(?:i|we)(?:\s+just)?|could\s+(?:i|we)(?:\s+just)?|would\s+it\s+work\s+if\s+(?:i|we))\s+(?:divide|multiply|factor|cancel|cross\s+multiply|square|combine|substitute|use|distribute|take\s+the\s+square\s+root)\b/i.test(lower) ||
+                             /\b(?:can\s+(?:i|we)(?:\s+just)?|what\s+if\s+(?:i|we)(?:\s+just)?|could\s+(?:i|we)(?:\s+just)?|would\s+it\s+work\s+if\s+(?:i|we)|is\s+it\s+(?:valid|okay|allowed)\s+to(?:\s+just)?)\s+(?:simplify|expand|rewrite|reduce|convert|transform)\s+.+?\s+(?:to|into|as)\s+/i.test(lower) ||
+                             /\b(?:can\s+(?:i|we)\s+do\s+(?:it|this)\s+(?:this\s+way\s+instead|faster|differently)|is\s+it\s+(?:valid|okay|allowed)\s+to\s+(?:just\s+)?(?:divide|cancel|factor|square|distribute|take\s+the\s+square\s+root))\b/i.test(lower) ||
                              /\b(?:use|using|apply|applying)\s+(?:the\s+)?(?:conservation\s+of\s+energy|energy\s+conservation)\b.*\binstead\b/i.test(lower);
   if (isShortcutProposal) {
     signals.push('shortcut_proposal_marker');
@@ -230,7 +257,7 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
   // Conceptual "Why" Request: "Why does this formula work?", "Why do we divide by 2a?"
   const isWhyFormulaOrConcept = /\bwhy\s+(?:does|do|is|can't|must|should|would)\b/i.test(lower) &&
                                 /\b(?:formula|method|rule|step|work|theorem|identity|divide|multiply|cancel|square|factor|theorem|conserved|exist|negative|zero)\b/i.test(lower) &&
-                                !/^(?:why\s+is\s+that|why\s+did\s+you\s+do\s+that)\??$/i.test(clean);
+                                !/^(?:why\s+is\s+(?:that|this|it)\b|why\s+did\s+you\s+do\s+that\??$)/i.test(clean);
   if (isWhyFormulaOrConcept) {
     signals.push('why_conceptual_inquiry_marker');
     return { intent: INTENTS.WHY_EXPLANATION_REQUEST, confidence: 'high', signals };
@@ -249,9 +276,9 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
   // -------------------------------------------------------------
   // 3. CONFUSION Intent
   // -------------------------------------------------------------
-  const isConfusion = /^(?:i\s+(?:don't|do\s+not)\s+(?:get\s+(?:it|this)|understand(?:\s+this)?|follow)|i'?m\s+(?:lost|confused)|wait\s+what\??|huh\??|what\s+do\s+you\s+mean\??|this\s+makes\s+no\s+sense)$/i.test(lower) ||
+  const isConfusion = /^(?:i\s+(?:don't|do\s+not)\s+(?:get\s+(?:it|this)|understand(?:\s+this|\s+what\s+happens\s+next)?|follow)|(?:i'?m|i\s+am)\s+(?:(?:completely|totally|so|really|still)\s+)?(?:lost|confused)|wait\s+what\??|huh\??|what\s+do\s+you\s+mean\??|this\s+makes\s+no\s+sense)[.?!]*$/i.test(lower) ||
                       /^(?:wait|hold\s+on|wait\s+a\s+sec(?:ond)?|wait\s+wait|wait\.{1,3})$/i.test(lower) ||
-                      /\b(?:i\s+(?:don't|do\s+not)\s+get\s+(?:it|this|any\s+of\s+this)|i'?m\s+completely\s+lost|you\s+lost\s+me|wtf|what\s+(?:the\s+)?(?:heck|hell|fuck|fck))\b/i.test(lower) ||
+                      /\b(?:i\s+(?:don't|do\s+not)\s+(?:get\s+(?:it|this|any\s+of\s+this)|understand\s+what\s+(?:happens\s+next|to\s+do))|(?:i'?m|i\s+am)\s+(?:completely|totally|so|really|still)?\s*(?:lost|confused)|i\s+have\s+no\s+idea(?:\s+what\s+to\s+do|\s+how\s+to\b)?|you\s+lost\s+me|wtf|what\s+(?:the\s+)?(?:heck|hell|fuck|fck))\b/i.test(lower) ||
                       /\b(?:waffling|torn|stuck|debating|unsure|not\s+sure)\s+(?:between|about)\b/i.test(lower);
   if (isConfusion) {
     signals.push('confusion_marker');
@@ -271,7 +298,7 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
   // -------------------------------------------------------------
   // 5a. HYPOTHETICAL Intent
   // -------------------------------------------------------------
-  const isHypothetical = /^(?:what\s+if|suppose|say\s+we|what\s+would\s+happen\s+if)\b/i.test(lower);
+  const isHypothetical = /^(?:what\s+if|suppose|say\s+we|what\s+(?:would\s+happen|happens)\s+if)\b/i.test(lower);
   if (isHypothetical) {
     signals.push('hypothetical_query_marker');
     return { intent: INTENTS.HYPOTHETICAL, confidence: 'high', signals };
@@ -321,10 +348,21 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
   }
 
   // -------------------------------------------------------------
-  // 5e. VISUAL_REQUEST Intent
+  // 5e. COMPOUND VALIDATION + VISUALIZATION & VALIDATION_REQUEST
+  // Must precede pure VISUAL_REQUEST so "Is my work right? Can you visualize this?"
+  // preserves the student's validation intent.
+  // -------------------------------------------------------------
+  const isCompoundValViz = /^(?:is\s+(?:my\s+work|this|that|it|my\s+answer)\s+(?:right|correct)|did\s+i\s+(?:do\s+this|get\s+this)\s+(?:right|correct))[?.,;!\s]+(?:can\s+you\s+)?(?:visualize|draw|plot|show|sketch)\s+(?:this|it|that)/i.test(clean);
+  if (isCompoundValViz) {
+    signals.push('pure_validation_query', 'compound_visualization_query', 'compound_intent');
+    return { intent: INTENTS.VALIDATION_REQUEST, confidence: 'high', signals };
+  }
+
+  // -------------------------------------------------------------
+  // 5f. VISUAL_REQUEST Intent
   // e.g. "Show me this visually", "draw the triangle", "can you sketch this", "using sketches find..."
   // -------------------------------------------------------------
-  if (isVisualRequested(clean)) {
+  if (isVisualRequested(clean) && !/^is\s+(?:that|this|the)?\s*.+?\s*(?:right|correct)\??/i.test(clean)) {
     signals.push('visual_instruction_request');
     return {
       intent: INTENTS.VISUAL_REQUEST,
@@ -374,12 +412,6 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
   const isMistakeCheck = /\b(?:did\s+i\s+make\s+a\s+mistake|is\s+there\s+a\s+mistake|where\s+did\s+i\s+go\s+wrong|did\s+i\s+mess\s+up|what\s+did\s+i\s+do\s+wrong|am\s+i\s+wrong)\b/i.test(lower);
   if (isMistakeCheck) {
     signals.push('mistake_verification_query');
-    return { intent: INTENTS.VALIDATION_REQUEST, confidence: 'high', signals };
-  }
-
-  const isCompoundValViz = /^(?:is\s+(?:my\s+work|this|that|it|my\s+answer)\s+(?:right|correct)|did\s+i\s+(?:do\s+this|get\s+this)\s+(?:right|correct))[?.,;!\s]+(?:can\s+you\s+)?(?:visualize|draw|plot|show|sketch)\s+(?:this|it|that)/i.test(clean);
-  if (isCompoundValViz) {
-    signals.push('pure_validation_query', 'compound_visualization_query');
     return { intent: INTENTS.VALIDATION_REQUEST, confidence: 'high', signals };
   }
 

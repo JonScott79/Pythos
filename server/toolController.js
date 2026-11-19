@@ -687,7 +687,8 @@ async function executeTool(toolName, args, sessionContext = {}) {
 
         try {
           const db = getAdminFirestore();
-          const chatsRef = db.collection('users').doc(uid).collection('pythos_chats');
+          const { getChatsCollectionName } = require('./firestoreNamespace');
+          const chatsRef = db.collection('users').doc(uid).collection(getChatsCollectionName());
           const snap = await chatsRef.orderBy('timestamp', 'desc').limit(15).get();
 
           const matches = [];
