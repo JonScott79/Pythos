@@ -3336,6 +3336,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           studentIntent
         });
         const resolvedReason = decision.reason;
+        console.warn(`[DELIVERY GATE] Withholding decision: reason=${resolvedReason}, anomaly=${decision.anomaly?.kind || 'NONE'}, userLen=${(lastUserMsg?.content || '').length}, userPreview=${JSON.stringify((lastUserMsg?.content || '').slice(0, 120))}`);
         const safeWithholding = getSafeWithholding(resolvedReason, decision.overrides);
 
         finalContent = safeWithholding.formattedContent;

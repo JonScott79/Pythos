@@ -58,6 +58,18 @@ for (const latexEdge of [
   {
     input: '\\( 2\\sin^{2\\left(x\\right)+}\\csc\\left(x\\right)-9=0 \\)',
     expectedFix: '\\( 2\\sin^2\\left(x\\right) + \\csc\\left(x\\right)-9=0 \\)'
+  },
+  {
+    input: '2\\sin^{2(x)+\u200B}\\csc(x)-9=0',
+    expectedFix: '2\\sin^2(x) + \\csc(x)-9=0'
+  },
+  {
+    input: '2\\sin^{2(x)+\\quad}\\csc(x)-9=0',
+    expectedFix: '2\\sin^2(x) + \\csc(x)-9=0'
+  },
+  {
+    input: '2\\sin^{2(x){+}}\\csc(x)-9=0',
+    expectedFix: '2\\sin^2(x) + \\csc(x)-9=0'
   }
 ]) {
   test(`2A Positive (LaTeX spacing / placeholder / \\left-\\right variant): ${latexEdge.input}`, () => {

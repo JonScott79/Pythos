@@ -161,6 +161,24 @@ function checkIncompleteLatexBlocks(str) {
   return null;
 }
 
+const TRAILING_EXP_NOISE_RE = /(?:\{\s*\}|\\[,;:! ]|\\(?:quad|qquad|enspace|thinspace|medspace|thickspace|negthinspace|strut|mathstrut)\b|\\(?:hspace\*?|phantom|placeholder)\{[^{}]*\}|~|\s)+$/g;
+
+function normalizeInvisibleMathChars(str) {
+  return str
+    .replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u2064\uFEFF\u00AD]/g, '')
+    .replace(/[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g, ' ')
+    .replace(/\u2212/g, '-')
+    .replace(/\uFF0B/g, '+');
+}
+
+function cleanBracedExponentInner(raw) {
+  return raw
+    .replace(TRAILING_EXP_NOISE_RE, '')
+    .replace(/\{\s*([+\-*/])\s*\}$/, '$1')
+    .replace(TRAILING_EXP_NOISE_RE, '')
+    .trim();
+}
+
 /**
  * Detects structural formatting anomalies in mathematical input.
  * @param {string} input
@@ -168,7 +186,7 @@ function checkIncompleteLatexBlocks(str) {
  */
 function detectFormattingAnomaly(input) {
   if (typeof input !== 'string') return noAnomaly();
-  const trimmed = input.trim();
+  const trimmed = normalizeInvisibleMathChars(input).trim();
   if (!trimmed || trimmed.length > MAX_SCAN_LEN) return noAnomaly();
 
   const s = trimmed.replace(/^\$\$?|\$\$?$/g, '').trim();
@@ -191,16 +209,12 @@ function detectFormattingAnomaly(input) {
       if (braceIdx >= s.length || s[braceIdx] !== '{') continue;
       const closeIdx = findMatchingBrace(s, braceIdx);
       if (closeIdx === -1) continue;
-      // Strip trailing empty placeholder braces {} and LaTeX spacing tokens (\,, \;, \:, \!, \ , ~)
-      const inner = s
-        .slice(braceIdx + 1, closeIdx)
-        .replace(/(?:\{\s*\}|\\[,;:! ]|~|\s)+$/g, '')
-        .trim();
+      const inner = cleanBracedExponentInner(s.slice(braceIdx + 1, closeIdx));
       const after = s.slice(closeIdx + 1).trimStart();
 
       if (/[+\-*/]$/.test(inner)) {
         const op = inner.slice(-1);
-        const beforeOp = inner.slice(0, -1).replace(/(?:\{\s*\}|\\[,;:! ]|~|\s)+$/g, '').trim();
+        const beforeOp = cleanBracedExponentInner(inner.slice(0, -1));
         const fullExp = s.slice(i, closeIdx + 1);
 
         // High-confidence suggestion ONLY when a non-empty math operand follows the closing '}'
