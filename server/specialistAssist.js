@@ -59,13 +59,41 @@ function clearSpecialistTelemetry() {
   telemetryStats.errorCount = 0;
 }
 
+const UNICODE_SUPER_TO_ASCII = {
+  '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4',
+  '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9',
+  '⁺': '+', '⁻': '-', '⁽': '(', '⁾': ')',
+  'ⁿ': 'n', 'ⁱ': 'i', 'ˣ': 'x', 'ʸ': 'y'
+};
+
+/**
+ * Normalizes Unicode superscript exponent runs (e.g. x² -> x^2, x⁻² -> x^(-2))
+ * into ASCII exponent notation while preserving Unicode slash fractions (e.g. ⁵⁄₄).
+ */
+function normalizeUnicodeSuperscriptsForSolver(text) {
+  if (typeof text !== 'string') return '';
+  return text
+    .replace(/\u2212/g, '-')
+    .replace(/([⁰¹²³⁴⁵⁶⁷⁸⁹]+\u2044[₀₁₂₃₄₅₆₇₈₉]+)|\^?([⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁽⁾ⁿⁱˣʸ]+)/g, (full, frac, run) => {
+      if (frac) return frac;
+      let decoded = '';
+      for (const ch of run) {
+        decoded += UNICODE_SUPER_TO_ASCII[ch] || ch;
+      }
+      if (/^\d+$/.test(decoded)) return `^${decoded}`;
+      if (decoded.startsWith('(') && decoded.endsWith(')')) return `^${decoded}`;
+      return `^(${decoded})`;
+    });
+}
+
 /**
  * Extracts candidate Calculus or Geometry tasks from text with strict guardrails
  * against simple arithmetic or linear equations.
  */
 function extractSpecialistTask(userText) {
   if (!userText || typeof userText !== 'string') return null;
-  const clean = userText.trim();
+  const rawClean = userText.trim();
+  const clean = normalizeUnicodeSuperscriptsForSolver(rawClean);
   const lower = clean.toLowerCase();
 
   // Guard 1: Pure single numbers or trivial arithmetic
@@ -375,7 +403,7 @@ function extractSpecialistTask(userText) {
 }
 
 function normalizeEquationForRootSolver(rawEq) {
-  let s = String(rawEq || '').trim();
+  let s = normalizeUnicodeSuperscriptsForSolver(String(rawEq || '').trim());
   s = s.replace(/^\$\$?|\$\$?$/g, '').trim();
   s = s.replace(/\\left|\\right/g, '');
   s = s.replace(/\\boxed\{([^}]*)\}/g, '$1');
@@ -394,21 +422,23 @@ function normalizeEquationForRootSolver(rawEq) {
 
 function extractRootSolvingTask(cleanText) {
   if (!cleanText || !cleanText.includes('=')) return null;
-  // Avoid hijacking inequality or multi-equation systems unless single equation
-  if (/[<>≤≥]/.test(cleanText)) return null;
+  const normalizedInput = normalizeUnicodeSuperscriptsForSolver(cleanText);
+  // Avoid hijacking inequality, graphing prompts, or multi-equation systems unless single equation
+  if (/[<>≤≥]/.test(normalizedInput)) return null;
+  if (/\b(?:graph|plot|sketch|draw)\b/i.test(normalizedInput)) return null;
 
   // Find candidate equation substring containing '='
   // Strip leading prose like "Solve ", "Find the roots of ", "Solve for x: "
-  let eqCandidate = cleanText;
-  const mathBlock = cleanText.match(/\$\$([^$]+)\$\$|\$([^$]+)\$|\\\[([^\]]+)\\\]|\\\(([^)]+)\\\)/);
+  let eqCandidate = normalizedInput;
+  const mathBlock = normalizedInput.match(/\$\$([^$]+)\$\$|\$([^$]+)\$|\\\[([^\]]+)\\\]|\\\(([^)]+)\\\)/);
   if (mathBlock) {
     eqCandidate = (mathBlock[1] || mathBlock[2] || mathBlock[3] || mathBlock[4] || '').trim();
   } else {
-    const colonSplit = cleanText.match(/(?:solve(?:\s+for\s+[a-zA-Z])?|roots?\s+of|zeros?\s+of|equation)\s*[:\-]?\s*([^\n.;?!]+=[^\n.;?!]+)/i);
+    const colonSplit = normalizedInput.match(/(?:solve(?:\s+for\s+[a-zA-Z])?|roots?\s+of|zeros?\s+of|equation)\s*[:\-]?\s*([^\n.;?!]+=[^\n.;?!]+)/i);
     if (colonSplit) {
       eqCandidate = colonSplit[1].trim();
     } else {
-      const bareEq = cleanText.match(/([0-9a-zA-Z\\()^{}+\-*/.\s]+=[0-9a-zA-Z\\()^{}+\-*/.\s]+)/);
+      const bareEq = normalizedInput.match(/([0-9a-zA-Z\\()^{}+\-*/.\s]+=[0-9a-zA-Z\\()^{}+\-*/.\s]+)/);
       if (bareEq) eqCandidate = bareEq[1].trim();
     }
   }
@@ -417,6 +447,7 @@ function extractRootSolvingTask(cleanText) {
   const normalized = normalizeEquationForRootSolver(eqCandidate);
   const parts = normalized.split('=');
   if (parts.length !== 2 || !parts[0].trim() || !parts[1].trim()) return null;
+  if (/^\s*[fgh]\s*\(\s*[a-zA-Z]\s*\)\s*$/i.test(parts[0].trim())) return null;
 
   const hasTrig = /\b(sin|cos|tan|csc|sec|cot)\s*\(/i.test(normalized);
   const hasHighDegPoly = /\^[2-9]|\*\*[2-9]/.test(normalized);
@@ -760,6 +791,9 @@ async function evaluateSpecialistAssist(userText, conversationHistory = [], opti
 module.exports = {
   SPECIALIST_OUTCOMES,
   getSpecialistMode,
+  normalizeUnicodeSuperscriptsForSolver,
+  normalizeEquationForRootSolver,
+  extractRootSolvingTask,
   extractSpecialistTask,
   runTask,
   classifySpecialistOutcome,

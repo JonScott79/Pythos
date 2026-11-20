@@ -53,51 +53,51 @@ const SAFE_WITHHOLDING_CONFIG = {
   },
   CLAIM_NOT_VERIFIED: {
     code: 'CLAIM_NOT_VERIFIED',
-    headline: "A step in the math didn't check out cleanly, so I held back the answer.",
-    explanation: "I checked a draft solution, and at least one step or numerical value could not be confirmed by verification.",
-    cause: "The draft derivation did not pass deterministic verification checks, so delivering it could give you an incorrect answer.",
-    help: "Pythos checks each equation, root, derivative, and transformation independently before showing a final result.",
-    nextStep: "Double-check the equation setup or ask me to walk through it with you step by step."
+    headline: "I checked part of this problem, but I couldn't confirm the final answer.",
+    explanation: "Some intermediate steps checked out, or the main result couldn't be verified independently, so I held back rather than guessing.",
+    cause: "Pythos could not independently confirm every mathematical step needed to verify the final answer.",
+    help: "Checking each step independently prevents wrong numbers or unverified jumps from slipping through.",
+    nextStep: "Try sending just the equation on its own, or ask me to walk through it one step at a time."
   },
   UNDEFINED_EXPRESSION: {
     code: 'UNDEFINED_EXPRESSION',
     headline: "This expression hits an undefined mathematical value.",
     explanation: "Under the real numbers, part of this expression evaluates to an undefined operation (such as dividing by zero or taking an even root of a negative value).",
-    cause: "The expression triggers a division by zero, singular reciprocal trig point, or real-domain violation.",
-    help: "Check denominators, reciprocal functions (csc, sec, cot), logarithms, and square-root domains for excluded values.",
-    nextStep: "Exclude the singular values (or specify if you want complex solutions) and try again."
+    cause: "The expression triggers division by zero, an undefined trig point, or a real-domain violation.",
+    help: "Check denominators, reciprocal trig functions (csc, sec, cot), logarithms, and square-root domains for excluded values.",
+    nextStep: "Exclude any undefined values (or tell me if you want complex solutions) and try again."
   },
   PROMPT_CLAIM_MISMATCH: {
     code: 'PROMPT_CLAIM_MISMATCH',
-    headline: "The solution I checked didn't line up with what your question asked.",
-    explanation: "The draft solution answered a slightly different equation, sign constraint, or quantity than the one you asked for.",
-    cause: "The candidate answer violated a prompt requirement (such as asking for a positive root, a specific variable, or the exact original equation).",
-    help: "Make sure any sign or interval constraints (for example, 'positive root' or 'in radians') are stated clearly.",
-    nextStep: "Check your question wording or constraint and resend it."
+    headline: "My draft solution didn't match what you asked for.",
+    explanation: "The solution I checked answered a slightly different equation, variable, or constraint than the one in your question.",
+    cause: "The checked solution solved for a different quantity or missed a constraint from your question.",
+    help: "Keep constraints like positive roots or angle units (degrees vs. radians) clear, or name the variable you want solved.",
+    nextStep: "Try sending the problem again (or specify the exact variable or condition you want)."
   },
   INFRASTRUCTURE_FAILURE: {
     code: 'INFRASTRUCTURE_FAILURE',
     headline: "Verification was interrupted by a temporary service hiccup.",
-    explanation: "My verification service hit a temporary timeout or busy queue before finishing, so nothing is wrong with your question.",
-    cause: "A temporary compute delay or rate limit interrupted verification before the answer could be checked.",
+    explanation: "My verification check timed out or hit a brief delay before finishing — nothing is wrong with your question.",
+    cause: "A temporary processing delay interrupted verification before the answer could be confirmed.",
     help: "Waiting a few seconds and resending usually clears temporary busyness.",
     nextStep: "Please send your question again in a moment."
   },
   DUAL_PROVIDER_FAILURE: {
     code: 'DUAL_PROVIDER_FAILURE',
-    headline: "My reasoning services are temporarily unavailable right now.",
-    explanation: "I couldn't reach a live reasoning service to complete this problem safely at the moment.",
-    cause: "Reasoning services were temporarily unreachable or rate-limited during this request.",
-    help: "Trying your question again shortly once service capacity recovers.",
+    headline: "I'm temporarily unable to reach my solving services right now.",
+    explanation: "I couldn't connect to a live solver to finish this problem safely at the moment.",
+    cause: "Solving capacity was temporarily unavailable or busy during this request.",
+    help: "Wait a few moments for service capacity to clear before resending.",
     nextStep: "Please resend your question in a few moments."
   },
   UNSUPPORTED_PROBLEM: {
     code: 'UNSUPPORTED_PROBLEM',
-    headline: "This problem uses a topic outside what I can deterministically verify.",
-    explanation: "I don't currently have independent verification coverage for this specific mathematical construct, and I'd rather be upfront than guess.",
-    cause: "This question relies on an operation or subject area outside Pythos's supported deterministic checkers.",
-    help: "Pythos deterministically verifies arithmetic, algebra, polynomial/trig roots, calculus, geometry, physics kinematics/dimensions, and basic probability.",
-    nextStep: "Try rephrasing into a supported algebraic, calculus, trig, geometry, or physics form."
+    headline: "I can't independently verify this type of problem yet.",
+    explanation: "I don't currently have an independent checker for this topic, and I'd rather be upfront than guess.",
+    cause: "This topic falls outside what Pythos can verify automatically right now.",
+    help: "Pythos checks arithmetic, algebra, polynomial and trig equations, calculus, geometry, physics kinematics/units, and basic probability.",
+    nextStep: "Try breaking the question into algebraic, calculus, trig, geometry, or physics steps I can check."
   },
   MALFORMED_SYNTAX: {
     code: 'MALFORMED_SYNTAX',
@@ -149,6 +149,89 @@ function sanitizePublicDetail(val, maxLen = 220) {
   return sanitizeDynamicText(val, maxLen);
 }
 
+function sanitizePlainDetailsText(val, maxLen = 280) {
+  const safe = sanitizePublicDetail(val, maxLen);
+  if (!safe) return '';
+  return safe
+    .replace(/^(?:\\\[|\\\(|\\?\$\$?)\s*|\s*(?:\\\]|\\\)|\\?\$\$?)$/g, '')
+    .replace(/\\left\s*([([])/g, '$1')
+    .replace(/\\right\s*([)\]])/g, '$1')
+    .replace(/`/g, '')
+    .replace(/->/g, '→')
+    .trim();
+}
+
+function humanizeFidelityReasonText(rawReason) {
+  let msg = sanitizePlainDetailsText(rawReason, 220);
+  if (!msg) return '';
+  msg = msg
+    .replace(/^Prompt-to-claim fidelity mismatch:\s*/i, '')
+    .replace(/\bPrompt requested\b/gi, 'You asked for')
+    .replace(/\bcandidate claim\b/gi, 'the draft step')
+    .replace(/\bcandidate\b/gi, 'the draft answer')
+    .replace(/\bequation_solution\b/g, 'equation solution')
+    .replace(/\bsystem_solution\b/g, 'system solution')
+    .replace(/\bcoterminal_angle\b/g, 'coterminal angle')
+    .replace(/\bfunction_evaluation\b/g, 'function evaluation')
+    .replace(/\bgeometry_area\b/g, 'triangle area')
+    .replace(/\bkinematics_velocity\b/g, 'velocity calculation')
+    .replace(/\bsymbolic_equivalence\b/g, 'algebraic equivalence')
+    .replace(/\bclaim was established\b/gi, 'step could be verified')
+    .replace(/\bprimary claim\b/gi, 'main answer');
+  return msg.trim();
+}
+
+function classifyAndTranslateFidelityOutcome(promptFidelity, combinedReasons = '') {
+  const rawReason = String(promptFidelity?.reason || '');
+  const lowerReason = rawReason.toLowerCase();
+  const hasExplicitMismatchPhrase = /(?:different equation|mutated|but candidate|answered .* instead|differentiated .* instead|prompt requested (?:variable|perimeter|diameter|smaller|larger|total|average|discount|error|positive|non-zero)|fidelity mismatch)/i.test(
+    `${rawReason} ${combinedReasons}`
+  );
+  const isUncertaintyPattern = Boolean(
+    promptFidelity?.isUncertainty === true ||
+    (!hasExplicitMismatchPhrase && (
+      promptFidelity?.primaryClaimStatus === 'UNKNOWN' ||
+      /no verified .* claim was established|intermediate arithmetic alone cannot certify|primary domain claim could not be verified|returned unknown/i.test(lowerReason)
+    ))
+  );
+
+  if (isUncertaintyPattern) {
+    let target = promptFidelity?.uncertaintyTarget || '';
+    if (!target) {
+      if (/equation_solution|system_solution|solving an equation/i.test(lowerReason)) target = 'final equation solution';
+      else if (/coterminal/i.test(lowerReason)) target = 'final coterminal angle';
+      else if (/function_evaluation|function evaluation/i.test(lowerReason)) target = 'final function value';
+      else if (/geometry_area|geometry area/i.test(lowerReason)) target = 'triangle area';
+      else if (/kinematics|velocity/i.test(lowerReason)) target = 'final velocity result';
+      else if (/antiderivative|integral/i.test(lowerReason)) target = 'final antiderivative';
+      else if (/derivative/i.test(lowerReason)) target = 'final derivative';
+      else target = 'final result';
+    }
+    const targetPhrase = target.startsWith('final ') ? target : `final ${target}`;
+    return {
+      kind: 'UNCERTAINTY',
+      overrides: {
+        diagnosticHeadline: `I checked the calculation steps, but I couldn't confirm the ${targetPhrase} yet.`,
+        diagnosticExplanation: `The intermediate calculations look consistent, but I couldn't independently confirm the ${targetPhrase} yet. Let's work through it one step at a time.`,
+        diagnosticCause: `Intermediate calculations were checked, while the ${targetPhrase} could not be confirmed automatically.`,
+        diagnosticHelp: "Sharing the single equation or asking to check one step at a time makes full verification easier.",
+        diagnosticNextStep: "Send just the core equation on its own, or share the next step you'd like to check."
+      }
+    };
+  }
+
+  const humanized = humanizeFidelityReasonText(rawReason);
+  return {
+    kind: 'MISMATCH',
+    overrides: humanized
+      ? {
+          diagnosticExplanation: humanized,
+          diagnosticCause: humanized
+        }
+      : null
+  };
+}
+
 function getSafeWithholding(reasonCode, overrides = null) {
   const cfg = SAFE_WITHHOLDING_CONFIG[reasonCode] || SAFE_WITHHOLDING_CONFIG.CLAIM_NOT_VERIFIED;
   const result = { ...cfg };
@@ -159,9 +242,9 @@ function getSafeWithholding(reasonCode, overrides = null) {
     const anomalyExplanation = sanitizePublicDetail(overrides.anomalyExplanation, 260);
     const diagnosticHeadline = sanitizePublicDetail(overrides.diagnosticHeadline, 140);
     const diagnosticExplanation = sanitizePublicDetail(overrides.diagnosticExplanation, 280);
-    const diagnosticCause = sanitizePublicDetail(overrides.diagnosticCause, 280);
-    const diagnosticHelp = sanitizePublicDetail(overrides.diagnosticHelp, 240);
-    const diagnosticNextStep = sanitizePublicDetail(overrides.diagnosticNextStep, 220);
+    const diagnosticCause = sanitizePlainDetailsText(overrides.diagnosticCause, 280);
+    const diagnosticHelp = sanitizePlainDetailsText(overrides.diagnosticHelp, 240);
+    const diagnosticNextStep = sanitizePlainDetailsText(overrides.diagnosticNextStep, 220);
 
     if (diagnosticHeadline) {
       result.headline = diagnosticHeadline;
@@ -182,11 +265,11 @@ function getSafeWithholding(reasonCode, overrides = null) {
     if (anomalyExplanation) {
       result.explanation = anomalyExplanation;
       result.cause = weirdSnippet
-        ? `${anomalyExplanation} (Spotted near ${weirdSnippet}.)`
-        : anomalyExplanation;
+        ? sanitizePlainDetailsText(`${anomalyExplanation} (Spotted near ${weirdSnippet}.)`, 280)
+        : sanitizePlainDetailsText(anomalyExplanation, 280);
     } else if (weirdSnippet && !diagnosticExplanation) {
       result.explanation = `${cfg.explanation} Specifically, ${weirdSnippet} looks misformatted.`;
-      result.cause = `Misplaced or incomplete formatting near ${weirdSnippet}.`;
+      result.cause = sanitizePlainDetailsText(`Misplaced or incomplete formatting near ${weirdSnippet}.`, 280);
     }
 
     if (suggestedFix) {
@@ -199,14 +282,14 @@ function getSafeWithholding(reasonCode, overrides = null) {
         ? `Did you mean:\n\n${renderedFix}\n\nGo ahead and send that (or tweak your equation), and I'll solve it right away.`
         : `Did you mean ${renderedFix}? Go ahead and send that (or tweak your equation), and I'll solve it right away.`;
       result.explanation = `${result.explanation}\n\n${followUpPrompt}`;
-      const plainFix = suggestedFix
-        .replace(/^(?:\\\[|\\\(|\\?\$\$?)\s*|\s*(?:\\\]|\\\)|\\?\$\$?)$/g, '')
-        .replace(/\\left\s*([([])/g, '$1')
-        .replace(/\\right\s*([)\]])/g, '$1')
-        .trim();
+      const plainFix = sanitizePlainDetailsText(suggestedFix, 200);
       result.nextStep = `Try sending ${plainFix || suggestedFix} and I'll solve it right away.`;
     }
   }
+
+  result.cause = sanitizePlainDetailsText(result.cause, 280) || cfg.cause;
+  result.help = sanitizePlainDetailsText(result.help, 240) || cfg.help;
+  result.nextStep = sanitizePlainDetailsText(result.nextStep, 220) || cfg.nextStep;
 
   return {
     ...result,
@@ -484,32 +567,30 @@ function resolveWithholdingDecision({
       overrides: isDivBind
         ? {
             diagnosticExplanation: "Part of this expression (like `1/2x`) can mean either `(1/2)*x` or `1/(2*x)`, so I won't guess which grouping you meant.",
-            diagnosticCause: "Ambiguous fraction division binding without explicit parentheses.",
-            diagnosticHelp: "Wrap either `(1/2)x` or `1/(2x)` in parentheses so there is only one meaning.",
+            diagnosticCause: "Ambiguous fraction division grouping without explicit parentheses.",
+            diagnosticHelp: "Wrap either (1/2)x or 1/(2x) in parentheses so there is only one meaning.",
             diagnosticNextStep: "Add parentheses around the intended denominator or fraction and resend."
           }
         : (isUnits
             ? {
                 diagnosticExplanation: "A trigonometric angle here didn't state whether it is in degrees or radians, which give different values.",
                 diagnosticCause: "Missing angle unit (degrees vs. radians) for a numeric trigonometric input.",
-                diagnosticHelp: "Write `deg` / `°` or `rad` explicitly after the angle.",
+                diagnosticHelp: "Write deg, °, or rad explicitly after the angle.",
                 diagnosticNextStep: "Specify degrees or radians and send the problem again."
               }
             : null)
     };
   }
 
-  // 8. Prompt-to-claim fidelity mismatch
-  if ((!promptFidelity?.valid && promptFidelity?.primaryClaimStatus !== 'UNKNOWN') || lowerAudit.includes('fidelity') || lowerAudit.includes('mismatch') || lowerAudit.includes('different equation')) {
-    const safeFidelityReason = sanitizePublicDetail(promptFidelity?.reason || '', 220);
+  // 8. Prompt-to-claim fidelity mismatch vs verification uncertainty
+  const fidelityOutcome = (promptFidelity && !promptFidelity.valid)
+    ? classifyAndTranslateFidelityOutcome(promptFidelity, combinedReasons)
+    : null;
+  const auditMismatchSignal = /(?:prompt-to-claim\s+fidelity\s+mismatch|different\s+equation|answered\s+.*\s+instead)/i.test(lowerAudit);
+  if ((fidelityOutcome && fidelityOutcome.kind === 'MISMATCH') || auditMismatchSignal) {
     return {
       reason: WITHHOLDING_REASONS.PROMPT_CLAIM_MISMATCH,
-      overrides: safeFidelityReason
-        ? {
-            diagnosticExplanation: `The draft answer didn't match your exact question requirements (${safeFidelityReason}).`,
-            diagnosticCause: safeFidelityReason
-          }
-        : null
+      overrides: fidelityOutcome ? fidelityOutcome.overrides : null
     };
   }
 
@@ -521,13 +602,13 @@ function resolveWithholdingDecision({
     )
   );
   if (unsupportedEntry || /unsupported\s+(?:domain|operation|problem|claim)|not in scope/i.test(lowerAudit)) {
-    const domName = sanitizePublicDetail(String(unsupportedEntry?.claim?.claim_type || unsupportedEntry?.claim?.domain || ''), 60);
+    const domName = sanitizePlainDetailsText(String(unsupportedEntry?.claim?.claim_type || unsupportedEntry?.claim?.domain || ''), 60);
     return {
       reason: WITHHOLDING_REASONS.UNSUPPORTED_PROBLEM,
       overrides: domName
         ? {
-            diagnosticExplanation: `I don't currently have an independent verifier for \`${domName}\` claims, so I held back rather than guessing.`,
-            diagnosticCause: `Deterministic verification for \`${domName}\` is outside current coverage.`
+            diagnosticExplanation: `I don't currently have an independent verifier for ${domName} claims, so I held back rather than guessing.`,
+            diagnosticCause: `Automatic verification for ${domName} is outside current coverage.`
           }
         : null
     };
@@ -549,7 +630,7 @@ function resolveWithholdingDecision({
     const first = safeInvalid[0];
     const v = first?.verification || {};
     const c = first?.claim || {};
-    const eq = sanitizePublicDetail(c?.data?.equation || '', 90);
+    const eq = sanitizePlainDetailsText(c?.data?.equation || '', 90);
 
     // 10a. No real roots
     if (v.error_type === 'NO_REAL_ROOTS') {
@@ -558,7 +639,7 @@ function resolveWithholdingDecision({
         overrides: {
           diagnosticHeadline: "This equation has no real solutions, and a candidate step didn't check out.",
           diagnosticExplanation: eq
-            ? `Verification found that \`${eq}\` has no real solutions (negative discriminant), so a proposed real root could not be accepted.`
+            ? `Verification found that ${eq} has no real solutions (negative discriminant), so a proposed real root could not be accepted.`
             : "Verification found that the equation has no real roots, so a proposed real value was rejected.",
           diagnosticCause: "Equation has negative discriminant over the real numbers.",
           diagnosticHelp: "Specify if you want complex solutions instead of real solutions.",
@@ -570,7 +651,7 @@ function resolveWithholdingDecision({
     // 10b. Extraneous or inaccurate numerical roots
     if (v.status === 'EXTRANEOUS_ROOT' || v.error_type === 'EXTRANEOUS_ROOT') {
       const badRoots = formatValuesList(v.extraneous_roots || v.invalid_roots || [], 4);
-      const eqClause = eq ? ` for \`${eq}\`` : '';
+      const eqClause = eq ? ` for ${eq}` : '';
       const badClause = badRoots ? ` (${badRoots})` : '';
       return {
         reason: WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED,
@@ -586,7 +667,7 @@ function resolveWithholdingDecision({
     // 10c. Lost valid roots
     if (v.status === 'LOST_ROOT' || v.error_type === 'LOST_ROOT') {
       const lostList = formatValuesList(v.lost_roots || [], 4);
-      const eqClause = eq ? ` for \`${eq}\`` : '';
+      const eqClause = eq ? ` for ${eq}` : '';
       const lostClause = lostList ? ` (missing ${lostList})` : '';
       return {
         reason: WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED,
@@ -617,7 +698,7 @@ function resolveWithholdingDecision({
         overrides: {
           diagnosticExplanation: "A change-of-variables substitution step (such as transforming dx into du) did not match algebraically.",
           diagnosticCause: "Differential or integrand transformation in substitution step failed equivalence check.",
-          diagnosticHelp: "Check that both the integrand and the differential (dx -> du) were substituted consistently.",
+          diagnosticHelp: "Check that both the integrand and the differential (dx → du) were substituted consistently.",
           diagnosticNextStep: "Ask me to walk through the u-substitution step by step."
         }
       };
@@ -643,6 +724,15 @@ function resolveWithholdingDecision({
         }
       };
     }
+  }
+
+  // 10e. Honest uncertainty diagnostic when intermediate calculations checked out
+  //      or primary claim returned UNKNOWN / unconfirmed (never branded as invalid or prompt mismatch)
+  if (fidelityOutcome && fidelityOutcome.kind === 'UNCERTAINTY') {
+    return {
+      reason: WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED,
+      overrides: fidelityOutcome.overrides
+    };
   }
 
   // 11. Honest fallback when structured evidence cannot pinpoint why verification could not confirm it

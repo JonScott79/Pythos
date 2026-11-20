@@ -902,9 +902,17 @@ function extractClaims(text, userPrompt = '') {
   }
 
   function normalizeSymbolicSide(rawSide) {
+    const superMap = {
+      '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4',
+      '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9',
+      '⁺': '+', '⁻': '-', '⁽': '(', '⁾': ')'
+    };
     let s = String(rawSide || '')
-      .replace(/²/g, '^2')
-      .replace(/³/g, '^3')
+      .replace(/([⁰¹²³⁴⁵⁶⁷⁸⁹]+\u2044[₀₁₂₃₄₅₆₇₈₉]+)|\^?([⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁽⁾]+)/g, (full, frac, run) => {
+        if (frac) return frac;
+        const decoded = [...run].map(c => superMap[c] || c).join('');
+        return /^-?\d+$/.test(decoded) ? `^${decoded}` : `^(${decoded})`;
+      })
       .replace(/\\(?:tfrac|dfrac)\s*(\d)\s*(\d)/g, '\\frac{$1}{$2}')
       .replace(/\\(?:tfrac|dfrac)\b/g, '\\frac')
       .replace(/\\displaystyle\b/g, '')
@@ -3861,6 +3869,8 @@ function auditPromptClaimFidelity(claims, prompt, verificationResults = null) {
         valid: false,
         primaryClaimVerified: false,
         primaryClaimStatus: check.status,
+        isUncertainty: check.status !== 'INVALID',
+        uncertaintyTarget: 'coterminal angle',
         reason: 'Prompt requested a coterminal angle, but no verified coterminal_angle claim was established (intermediate arithmetic alone cannot certify answer).'
       };
     }
@@ -3874,6 +3884,8 @@ function auditPromptClaimFidelity(claims, prompt, verificationResults = null) {
         valid: false,
         primaryClaimVerified: false,
         primaryClaimStatus: check.status,
+        isUncertainty: check.status !== 'INVALID',
+        uncertaintyTarget: 'equation solution',
         reason: 'Prompt requested solving an equation, but no verified equation_solution claim was established.'
       };
     }
@@ -3887,6 +3899,8 @@ function auditPromptClaimFidelity(claims, prompt, verificationResults = null) {
         valid: false,
         primaryClaimVerified: false,
         primaryClaimStatus: check.status,
+        isUncertainty: check.status !== 'INVALID',
+        uncertaintyTarget: 'function value',
         reason: 'Prompt requested function evaluation, but no verified function_evaluation claim was established.'
       };
     }
@@ -3902,6 +3916,8 @@ function auditPromptClaimFidelity(claims, prompt, verificationResults = null) {
         valid: false,
         primaryClaimVerified: false,
         primaryClaimStatus: check.status,
+        isUncertainty: check.status !== 'INVALID',
+        uncertaintyTarget: 'triangle area',
         reason: 'Prompt requested geometry area, but no verified geometry_area claim was established.'
       };
     }
@@ -3915,6 +3931,8 @@ function auditPromptClaimFidelity(claims, prompt, verificationResults = null) {
         valid: false,
         primaryClaimVerified: false,
         primaryClaimStatus: check.status,
+        isUncertainty: check.status !== 'INVALID',
+        uncertaintyTarget: 'final velocity',
         reason: 'Prompt requested final velocity calculation, but no verified kinematics claim was established (intermediate arithmetic alone cannot certify physics answer).'
       };
     }
@@ -3934,6 +3952,8 @@ function auditPromptClaimFidelity(claims, prompt, verificationResults = null) {
         valid: false,
         primaryClaimVerified: false,
         primaryClaimStatus: check.status,
+        isUncertainty: check.status !== 'INVALID',
+        uncertaintyTarget: 'derivative',
         reason: 'Prompt requested a derivative, but no verified derivative claim was established.'
       };
     }
@@ -3951,6 +3971,8 @@ function auditPromptClaimFidelity(claims, prompt, verificationResults = null) {
         valid: false,
         primaryClaimVerified: false,
         primaryClaimStatus: check.status,
+        isUncertainty: check.status !== 'INVALID',
+        uncertaintyTarget: 'antiderivative',
         reason: 'Prompt requested an indefinite integral / antiderivative, but no verified antiderivative claim was established.'
       };
     }
@@ -3977,6 +3999,8 @@ function auditPromptClaimFidelity(claims, prompt, verificationResults = null) {
           valid: false,
           primaryClaimVerified: false,
           primaryClaimStatus: 'UNKNOWN',
+          isUncertainty: true,
+          uncertaintyTarget: 'final result',
           reason: 'Primary domain claim could not be verified (intermediate arithmetic alone cannot certify the primary claim).'
         };
       }
@@ -4064,7 +4088,9 @@ function evaluateVerificationState({
       totalCount,
       primaryClaimVerified: false,
       fidelity,
-      disclosure: fidelity.reason || 'Primary mathematical claim could not be verified.'
+      disclosure: fidelity.isUncertainty
+        ? `Intermediate calculations look consistent, but the ${fidelity.uncertaintyTarget || 'final result'} could not be independently confirmed yet.`
+        : 'The draft solution did not match the specific target or constraints of the question.'
     };
   }
 
@@ -4081,9 +4107,11 @@ function evaluateVerificationState({
         valid: false,
         primaryClaimVerified: false,
         primaryClaimStatus: 'UNKNOWN',
+        isUncertainty: true,
+        uncertaintyTarget: 'final result',
         reason: 'Primary mathematical claim returned UNKNOWN and could not be verified.'
       },
-      disclosure: 'Primary mathematical claim could not be deterministically verified.'
+      disclosure: 'The calculations could not be independently confirmed yet, so the answer was held back.'
     };
   }
 

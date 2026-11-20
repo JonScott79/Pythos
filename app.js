@@ -1691,46 +1691,46 @@ const CLIENT_WITHHOLDING_EXPLANATIONS = {
     nextStep: "Confirm the labels or type the equation text into your message so I can solve it cleanly."
   },
   CLAIM_NOT_VERIFIED: {
-    headline: "A step in the math didn't check out cleanly, so I held back the answer.",
-    explanation: "I checked a draft solution, and at least one step or numerical value could not be confirmed by verification.",
-    cause: "The draft derivation did not pass deterministic verification checks, so delivering it could give you an incorrect answer.",
-    help: "Pythos checks each equation, root, derivative, and transformation independently before showing a final result.",
-    nextStep: "Double-check the equation setup or ask me to walk through it with you step by step."
+    headline: "I checked part of this problem, but I couldn't confirm the final answer.",
+    explanation: "Some intermediate steps checked out, or the main result couldn't be verified independently, so I held back rather than guessing.",
+    cause: "Pythos could not independently confirm every mathematical step needed to verify the final answer.",
+    help: "Checking each step independently prevents wrong numbers or unverified jumps from slipping through.",
+    nextStep: "Try sending just the equation on its own, or ask me to walk through it one step at a time."
   },
   UNDEFINED_EXPRESSION: {
     headline: "This expression hits an undefined mathematical value.",
     explanation: "Under the real numbers, part of this expression evaluates to an undefined operation (such as dividing by zero or taking an even root of a negative value).",
-    cause: "The expression triggers a division by zero, singular reciprocal trig point, or real-domain violation.",
-    help: "Check denominators, reciprocal functions (csc, sec, cot), logarithms, and square-root domains for excluded values.",
-    nextStep: "Exclude the singular values (or specify if you want complex solutions) and try again."
+    cause: "The expression triggers division by zero, an undefined trig point, or a real-domain violation.",
+    help: "Check denominators, reciprocal trig functions (csc, sec, cot), logarithms, and square-root domains for excluded values.",
+    nextStep: "Exclude any undefined values (or tell me if you want complex solutions) and try again."
   },
   PROMPT_CLAIM_MISMATCH: {
-    headline: "The solution I checked didn't line up with what your question asked.",
-    explanation: "The draft solution answered a slightly different equation, sign constraint, or quantity than the one you asked for.",
-    cause: "The candidate answer violated a prompt requirement (such as asking for a positive root, a specific variable, or the exact original equation).",
-    help: "Make sure any sign or interval constraints (for example, 'positive root' or 'in radians') are stated clearly.",
-    nextStep: "Check your question wording or constraint and resend it."
+    headline: "My draft solution didn't match what you asked for.",
+    explanation: "The solution I checked answered a slightly different equation, variable, or constraint than the one in your question.",
+    cause: "The checked solution solved for a different quantity or missed a constraint from your question.",
+    help: "Keep constraints like positive roots or angle units (degrees vs. radians) clear, or name the variable you want solved.",
+    nextStep: "Try sending the problem again (or specify the exact variable or condition you want)."
   },
   INFRASTRUCTURE_FAILURE: {
     headline: "Verification was interrupted by a temporary service hiccup.",
-    explanation: "My verification service hit a temporary timeout or busy queue before finishing, so nothing is wrong with your question.",
-    cause: "A temporary compute delay or rate limit interrupted verification before the answer could be checked.",
+    explanation: "My verification check timed out or hit a brief delay before finishing — nothing is wrong with your question.",
+    cause: "A temporary processing delay interrupted verification before the answer could be confirmed.",
     help: "Waiting a few seconds and resending usually clears temporary busyness.",
     nextStep: "Please send your question again in a moment."
   },
   DUAL_PROVIDER_FAILURE: {
-    headline: "My reasoning services are temporarily unavailable right now.",
-    explanation: "I couldn't reach a live reasoning service to complete this problem safely at the moment.",
-    cause: "Reasoning services were temporarily unreachable or rate-limited during this request.",
-    help: "Trying your question again shortly once service capacity recovers.",
+    headline: "I'm temporarily unable to reach my solving services right now.",
+    explanation: "I couldn't connect to a live solver to finish this problem safely at the moment.",
+    cause: "Solving capacity was temporarily unavailable or busy during this request.",
+    help: "Wait a few moments for service capacity to clear before resending.",
     nextStep: "Please resend your question in a few moments."
   },
   UNSUPPORTED_PROBLEM: {
-    headline: "This problem uses a topic outside what I can deterministically verify.",
-    explanation: "I don't currently have independent verification coverage for this specific mathematical construct, and I'd rather be upfront than guess.",
-    cause: "This question relies on an operation or subject area outside Pythos's supported deterministic checkers.",
-    help: "Pythos deterministically verifies arithmetic, algebra, polynomial/trig roots, calculus, geometry, physics kinematics/dimensions, and basic probability.",
-    nextStep: "Try rephrasing into a supported algebraic, calculus, trig, geometry, or physics form."
+    headline: "I can't independently verify this type of problem yet.",
+    explanation: "I don't currently have an independent checker for this topic, and I'd rather be upfront than guess.",
+    cause: "This topic falls outside what Pythos can verify automatically right now.",
+    help: "Pythos checks arithmetic, algebra, polynomial and trig equations, calculus, geometry, physics kinematics/units, and basic probability.",
+    nextStep: "Try breaking the question into algebraic, calculus, trig, geometry, or physics steps I can check."
   },
   MALFORMED_SYNTAX: {
     headline: "The formatting on this problem looks a little weird.",

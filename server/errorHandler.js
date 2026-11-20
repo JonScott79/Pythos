@@ -95,7 +95,7 @@ function classifyUpstreamError(err, context = 'text') {
     return {
       status: 500,
       error: 'INTERNAL_ERROR',
-      message: '❌ An unexpected error occurred while processing your request. Please try again.'
+      message: '❌ Something unexpected went wrong on my end (an unexpected error occurred). Please try sending your question again.'
     };
   }
 
@@ -165,7 +165,7 @@ function classifyUpstreamError(err, context = 'text') {
     return {
       status: 400,
       error: 'UPSTREAM_BAD_REQUEST',
-      message: '⚠️ The request could not be processed by the reasoning engine. Please rephrase or try another image.',
+      message: '⚠️ I had trouble reading that request cleanly — please rephrase your question or try uploading a clearer photo.',
       sanitizedDetail: sanitizeErrorDetail(err)
     };
   }
@@ -175,7 +175,7 @@ function classifyUpstreamError(err, context = 'text') {
     return {
       status: 503,
       error: 'UPSTREAM_UNAVAILABLE',
-      message: '🔌 Connection to the reasoning service could not be established. Please check your connection and try again.',
+      message: '🔌 Connection to the reasoning service could not be established right now. Please check your internet connection and try again.',
       sanitizedDetail: sanitizeErrorDetail(err)
     };
   }
@@ -185,7 +185,7 @@ function classifyUpstreamError(err, context = 'text') {
     return {
       status: 502,
       error: 'UPSTREAM_SERVER_ERROR',
-      message: '🌩️ The reasoning engine is experiencing high load or a temporary glitch. Please try again shortly.',
+      message: '🌩️ Pythos is experiencing high load or a brief hiccup right now. Please try sending your question again shortly.',
       sanitizedDetail: sanitizeErrorDetail(err)
     };
   }
@@ -194,7 +194,7 @@ function classifyUpstreamError(err, context = 'text') {
   return {
     status: 500,
     error: 'INTERNAL_ERROR',
-    message: '❌ An unexpected error occurred while processing your request. Please try again.',
+    message: '❌ Something unexpected went wrong on my end (an unexpected error occurred). Please try sending your question again.',
     sanitizedDetail: sanitizeErrorDetail(err)
   };
 }
