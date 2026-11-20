@@ -1670,49 +1670,67 @@ function sanitizeImageSrc(imgData) {
 // Student-safe withholding explanations for the secondary "Why do I need more information?" control
 const CLIENT_WITHHOLDING_EXPLANATIONS = {
   MISSING_INFORMATION: {
-    cause: "The problem statement is missing an essential value, variable relationship, or equation needed for an exact solution.",
-    help: "Providing the missing number, boundary condition, or formula mentioned in the problem.",
-    nextStep: "Add the missing details to your question and submit it again."
+    headline: "I'm missing a specific piece of information needed to finish this problem.",
+    explanation: "To solve this reliably, I need the missing value, bound, measurement, or variable from the problem.",
+    cause: "The problem statement is missing an essential value, boundary condition, or target variable needed for a unique solution.",
+    help: "Supply the specific missing number, interval bound, diagram measurement, or variable to solve for.",
+    nextStep: "Add the missing detail to your message and send it again."
   },
   AMBIGUOUS_PROBLEM: {
-    cause: "The question could be interpreted in more than one mathematical way, and guessing would risk giving you an incorrect derivation.",
-    help: "Specifying which variable to solve for or which interpretation of the problem you want to explore.",
-    nextStep: "Tell me what specific quantity or result you're looking for, and I'll solve it."
+    headline: "This problem can be read in more than one mathematical way.",
+    explanation: "Two different interpretations lead to different answers, so I held back rather than guessing which one you meant.",
+    cause: "Part of the expression or question has multiple valid mathematical readings (such as unparenthesized division order or unspecified angle units).",
+    help: "Add parentheses to group fractions/products clearly, specify degrees vs. radians, or clarify which quantity you want.",
+    nextStep: "Clarify the intended grouping or quantity and submit the problem again."
   },
   IMAGE_UNVERIFIABLE: {
-    cause: "One or more measurements, angle markers, or labels in the diagram or photo could not be reliably confirmed.",
-    help: "A clearer photo, closer crop, or typing the given side lengths and angle values directly into the chat.",
-    nextStep: "Double-check the diagram labels or type the numbers into your message, and I'll work through the solution with you."
+    headline: "I can see the image, but a label or measurement isn't clear enough to verify.",
+    explanation: "I couldn't confirm all of the numbers, symbols, or diagram markings in the image well enough to certify the solution.",
+    cause: "One or more measurements, exponents, angle markers, or equation terms in the image could not be read reliably.",
+    help: "Upload a sharper/closer crop of the problem, or type the given numbers and equation directly into chat.",
+    nextStep: "Confirm the labels or type the equation text into your message so I can solve it cleanly."
   },
   CLAIM_NOT_VERIFIED: {
-    cause: "The mathematical derivation could not be certified with sufficient certainty by our verification checks.",
-    help: "Pythos evaluated the derivation, but could not establish the intermediate reasoning steps or final result with sufficient mathematical certainty.",
-    nextStep: "You can ask Pythos to review the specific unverified step, explain the underlying mathematical principles, or work through the derivation together one step at a time."
+    headline: "A step in the math didn't check out cleanly, so I held back the answer.",
+    explanation: "I checked a draft solution, and at least one step or numerical value could not be confirmed by verification.",
+    cause: "The draft derivation did not pass deterministic verification checks, so delivering it could give you an incorrect answer.",
+    help: "Pythos checks each equation, root, derivative, and transformation independently before showing a final result.",
+    nextStep: "Double-check the equation setup or ask me to walk through it with you step by step."
   },
   UNDEFINED_EXPRESSION: {
-    cause: "The expression contains an undefined mathematical operation (such as division by zero or an even root of a negative value over the real domain).",
-    help: "Division by zero or taking an even root of a negative value over real numbers produces no defined value in mathematics.",
-    nextStep: "Check for zero denominators or real-domain boundaries in the problem expression before solving."
+    headline: "This expression hits an undefined mathematical value.",
+    explanation: "Under the real numbers, part of this expression evaluates to an undefined operation (such as dividing by zero or taking an even root of a negative value).",
+    cause: "The expression triggers a division by zero, singular reciprocal trig point, or real-domain violation.",
+    help: "Check denominators, reciprocal functions (csc, sec, cot), logarithms, and square-root domains for excluded values.",
+    nextStep: "Exclude the singular values (or specify if you want complex solutions) and try again."
   },
   PROMPT_CLAIM_MISMATCH: {
-    cause: "The generated steps addressed a different expression or variable than the one in your question.",
-    help: "Rephrasing the question or confirming the exact equation you want solved.",
-    nextStep: "Check the equation or question text and try sending it once more."
+    headline: "The solution I checked didn't line up with what your question asked.",
+    explanation: "The draft solution answered a slightly different equation, sign constraint, or quantity than the one you asked for.",
+    cause: "The candidate answer violated a prompt requirement (such as asking for a positive root, a specific variable, or the exact original equation).",
+    help: "Make sure any sign or interval constraints (for example, 'positive root' or 'in radians') are stated clearly.",
+    nextStep: "Check your question wording or constraint and resend it."
   },
   INFRASTRUCTURE_FAILURE: {
-    cause: "A temporary connection or computational service delay interrupted the verification process.",
-    help: "Resending the question in a few moments.",
-    nextStep: "Please click Send again to retry."
+    headline: "Verification was interrupted by a temporary service hiccup.",
+    explanation: "My verification service hit a temporary timeout or busy queue before finishing, so nothing is wrong with your question.",
+    cause: "A temporary compute delay or rate limit interrupted verification before the answer could be checked.",
+    help: "Waiting a few seconds and resending usually clears temporary busyness.",
+    nextStep: "Please send your question again in a moment."
   },
   DUAL_PROVIDER_FAILURE: {
-    cause: "Our primary and backup reasoning services were temporarily unable to complete processing.",
-    help: "Trying your question again in a moment.",
-    nextStep: "Please send your question again."
+    headline: "My reasoning services are temporarily unavailable right now.",
+    explanation: "I couldn't reach a live reasoning service to complete this problem safely at the moment.",
+    cause: "Reasoning services were temporarily unreachable or rate-limited during this request.",
+    help: "Trying your question again shortly once service capacity recovers.",
+    nextStep: "Please resend your question in a few moments."
   },
   UNSUPPORTED_PROBLEM: {
-    cause: "This problem involves topics or formats that fall outside our deterministic verification coverage.",
-    help: "Asking about algebra, calculus, geometry, trigonometry, physics, or probability problems.",
-    nextStep: "Feel free to ask a question in one of Pythos's supported math or physics subjects."
+    headline: "This problem uses a topic outside what I can deterministically verify.",
+    explanation: "I don't currently have independent verification coverage for this specific mathematical construct, and I'd rather be upfront than guess.",
+    cause: "This question relies on an operation or subject area outside Pythos's supported deterministic checkers.",
+    help: "Pythos deterministically verifies arithmetic, algebra, polynomial/trig roots, calculus, geometry, physics kinematics/dimensions, and basic probability.",
+    nextStep: "Try rephrasing into a supported algebraic, calculus, trig, geometry, or physics form."
   },
   MALFORMED_SYNTAX: {
     headline: "The formatting on this problem looks a little weird.",
@@ -2482,7 +2500,14 @@ function appendMessage(role, text, images = null, metadata = {}) {
       ? CLIENT_WITHHOLDING_EXPLANATIONS[reasonKey]
       : CLIENT_WITHHOLDING_EXPLANATIONS.CLAIM_NOT_VERIFIED;
 
-    const details = metadata.withholdingDetails || fallbackConfig;
+    const rawDetails = (metadata.withholdingDetails && typeof metadata.withholdingDetails === "object" && !Array.isArray(metadata.withholdingDetails))
+      ? metadata.withholdingDetails
+      : {};
+    const details = {
+      cause: (typeof rawDetails.cause === "string" && rawDetails.cause.trim()) ? rawDetails.cause : fallbackConfig.cause,
+      help: (typeof rawDetails.help === "string" && rawDetails.help.trim()) ? rawDetails.help : fallbackConfig.help,
+      nextStep: (typeof rawDetails.nextStep === "string" && rawDetails.nextStep.trim()) ? rawDetails.nextStep : fallbackConfig.nextStep
+    };
 
     // Context-appropriate summary and section titles
     let summaryTitle = "Why couldn't this be verified?";
@@ -2509,6 +2534,9 @@ function appendMessage(role, text, images = null, metadata = {}) {
     } else if (reasonKey === "MALFORMED_SYNTAX") {
       summaryTitle = "Why did the formatting look weird?";
       secondSectionLabel = "How to fix the notation";
+    } else if (reasonKey === "UNSUPPORTED_PROBLEM") {
+      summaryTitle = "Why isn't this topic verified yet?";
+      secondSectionLabel = "What Pythos can verify";
     }
 
     detailsEl.setAttribute("aria-label", summaryTitle);

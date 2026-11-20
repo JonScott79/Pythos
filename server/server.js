@@ -3328,7 +3328,12 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           hasImages,
           auditText,
           promptFidelity,
-          detectFormattingAnomaly
+          detectFormattingAnomaly,
+          invalidClaims: uncorrectedInvalidClaims,
+          unknownClaims,
+          internalContradictions,
+          classification,
+          studentIntent
         });
         const resolvedReason = decision.reason;
         const safeWithholding = getSafeWithholding(resolvedReason, decision.overrides);
@@ -3530,7 +3535,9 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
       }
 
       if (!res.headersSent) {
-        return res.status(200).json(ollamaResponse);
+        // Never serialize internal failureAudit array (`withholdingReasons`) in public JSON responses
+        const { withholdingReasons: _internalReasons, ...publicResponse } = ollamaResponse;
+        return res.status(200).json(publicResponse);
       }
     }
 
