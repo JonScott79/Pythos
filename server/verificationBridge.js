@@ -1429,15 +1429,18 @@ function extractClaims(text, userPrompt = '') {
   ];
 
   for (let block of rawEquivBlocks) {
-    let cleanBlock = block.replace(/\\\[|\\\]|\\\(|\\\)|\\text\{[^}]*\}|\$/g, ' ').trim();
+    let cleanBlock = block
+      .replace(/\\text\{\s*(for|where|when|if|assuming|provided(?:\s+that)?)\s*\}/gi, ' $1 ')
+      .replace(/\\\[|\\\]|\\\(|\\\)|\\text\{[^}]*\}|\$/g, ' ')
+      .trim();
     if (!cleanBlock || !cleanBlock.includes('=')) continue;
     if (cleanBlock.includes('<') || cleanBlock.includes('>') || cleanBlock.includes('≈') || cleanBlock.includes('~') || /\\(?:approx|thickapprox)\b/.test(cleanBlock)) continue;
     if (/\b(?:d|dt|dx|dy)\b\s*=\s*/.test(cleanBlock)) continue;
     if (/\\int|∫|\\frac\{d\}\{d|\\lim\b/i.test(cleanBlock)) continue;
 
-    // Preserve explicit inline domain restriction (e.g. ", for x != 2") if attached to block
+    // Preserve explicit inline domain restrictions (e.g. ", for x != 2", ", x \neq 2, 3", "where x \notin {1, 2}")
     let blockInlineCondition = null;
-    const condMatch = cleanBlock.match(/(?:[,;]\s*|\s+)(?:for|where|when|if|assuming|provided(?:\s+that)?)\s+([a-zA-Z_][a-zA-Z0-9_]*\s*(?:!=|\\neq|≠|<>)\s*[-+]?[a-zA-Z0-9_.]+).*$/i);
+    const condMatch = cleanBlock.match(/(?:(?:[,;]\s*|\s+)(?:for|where|when|if|assuming|provided(?:\s+that)?)\s+|[,;]\s*(?=[a-zA-Z_][a-zA-Z0-9_]*(?:\([^()]+\))?\s*(?:!=|\\neq|≠|<>|\\notin|\\not\\in)))([a-zA-Z_][a-zA-Z0-9_]*(?:\([^()]+\))?\s*(?:(?:!=|\\neq|≠|<>)\s*[-+]?[a-zA-Z0-9_.\/\\]+(?:\s*(?:,|and)\s*(?:[a-zA-Z_][a-zA-Z0-9_]*\s*(?:!=|\\neq|≠|<>)\s*)?[-+]?[a-zA-Z0-9_.\/\\]+)*|(?:\\notin|\\not\\in|not\s+in)\s*\\?\{[^}]+\})).*$/i);
     if (condMatch) {
       blockInlineCondition = condMatch[1].trim();
       cleanBlock = cleanBlock.slice(0, condMatch.index).trim();
@@ -3613,8 +3616,11 @@ function synthesizeVerificationStepAudit(claim, verification, stepIndex = 0) {
   };
 }
 
-async function runPythonVerifierBatch(claimsBatch) {
+async function runPythonVerifierBatch(claimsBatch, abortSignal = null) {
   if (!Array.isArray(claimsBatch) || claimsBatch.length === 0) return [];
+  if (abortSignal && abortSignal.aborted) {
+    return claimsBatch.map(() => ({ verified: false, status: 'ABORTED', reason: 'Verification aborted' }));
+  }
   if (claimsBatch.length === 1) {
     const single = await runDeterministicVerification(claimsBatch[0]);
     return [single];
@@ -3631,6 +3637,9 @@ async function runPythonVerifierBatch(claimsBatch) {
 
   return casQueue.run(async () => {
     return new Promise((resolve) => {
+      if (abortSignal && abortSignal.aborted) {
+        return resolve(claimsBatch.map(() => ({ verified: false, status: 'ABORTED', reason: 'Verification aborted' })));
+      }
       const pythonBin = getPythonExecutable();
       const pythonScript = path.join(__dirname, 'verifier', 'verifier.py');
       const proc = child_process.spawn(pythonBin, [pythonScript], {
@@ -3642,7 +3651,22 @@ async function runPythonVerifierBatch(claimsBatch) {
       let stderr = '';
       let settled = false;
 
+      const onAbort = () => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          cleanupProcess(true);
+          resolve(claimsBatch.map(() => ({ verified: false, status: 'ABORTED', reason: 'Verification aborted by client' })));
+        }
+      };
+      if (abortSignal && typeof abortSignal.addEventListener === 'function') {
+        abortSignal.addEventListener('abort', onAbort, { once: true });
+      }
+
       function cleanupProcess(terminate = false) {
+        if (abortSignal && typeof abortSignal.removeEventListener === 'function') {
+          try { abortSignal.removeEventListener('abort', onAbort); } catch (_) {}
+        }
         try { if (proc.stdin && !proc.stdin.destroyed) proc.stdin.destroy(); } catch (_) {}
         try { if (proc.stdout && !proc.stdout.destroyed) proc.stdout.destroy(); } catch (_) {}
         try { if (proc.stderr && !proc.stderr.destroyed) proc.stderr.destroy(); } catch (_) {}
@@ -3785,7 +3809,7 @@ async function verifyResponseClaims(content, userQueryText, abortSignal) {
   }
 
   if (pythonPendingClaims.length > 0 && !(abortSignal && abortSignal.aborted)) {
-    const batchResults = await runPythonVerifierBatch(pythonPendingClaims);
+    const batchResults = await runPythonVerifierBatch(pythonPendingClaims, abortSignal);
     for (let bi = 0; bi < pythonPendingIndices.length; bi++) {
       resolvedByIndex[pythonPendingIndices[bi]] = batchResults[bi] || {
         verified: false,
@@ -3837,6 +3861,8 @@ function auditPromptClaimFidelity(claims, prompt, verificationResults = null) {
   const safeClaims = Array.isArray(claims) ? claims : [];
   const hasVerifications = Array.isArray(verificationResults);
 
+  const isVerifiedStatus = (v) => Boolean(v && v.verified === true && (v.status === 'VERIFIED' || v.status === 'CONDITIONALLY_EQUIVALENT'));
+
   const hasAffirmativelyVerifiedClaim = (predicate) => {
     const matchingIndices = [];
     for (let i = 0; i < safeClaims.length; i++) {
@@ -3850,10 +3876,7 @@ function auditPromptClaimFidelity(claims, prompt, verificationResults = null) {
     if (!hasVerifications) {
       return { ok: true, status: 'VERIFIED' };
     }
-    const anyVerified = matchingIndices.some(idx => {
-      const v = verificationResults[idx];
-      return Boolean(v && v.verified === true && v.status === 'VERIFIED');
-    });
+    const anyVerified = matchingIndices.some(idx => isVerifiedStatus(verificationResults[idx]));
     if (!anyVerified) {
       const anyUnknown = matchingIndices.some(idx => verificationResults[idx]?.status === 'UNKNOWN');
       return { ok: false, status: anyUnknown ? 'UNKNOWN' : 'INVALID' };
@@ -3990,10 +4013,7 @@ function auditPromptClaimFidelity(claims, prompt, verificationResults = null) {
       }
     }
     if (nonArithmeticIndices.length > 0) {
-      const anyDomainVerified = nonArithmeticIndices.some(idx => {
-        const v = verificationResults[idx];
-        return Boolean(v && v.verified === true && v.status === 'VERIFIED');
-      });
+      const anyDomainVerified = nonArithmeticIndices.some(idx => isVerifiedStatus(verificationResults[idx]));
       if (!anyDomainVerified) {
         return {
           valid: false,
@@ -4033,7 +4053,7 @@ function evaluateVerificationState({
   const safeClaims = Array.isArray(claims) ? claims : [];
   const safeResults = Array.isArray(verificationResults) ? verificationResults : [];
   const totalCount = safeResults.length;
-  const verifiedCount = safeResults.filter(v => v && v.verified === true && v.status === 'VERIFIED').length;
+  const verifiedCount = safeResults.filter(v => v && v.verified === true && (v.status === 'VERIFIED' || v.status === 'CONDITIONALLY_EQUIVALENT')).length;
   const unknownCount = safeResults.filter(v => v && v.verified === false && v.status === 'UNKNOWN').length;
   const rejectedCount = safeResults.filter(v => v && v.verified === false && v.status !== 'UNKNOWN').length;
   const contradictionCount = Array.isArray(internalContradictions) ? internalContradictions.length : 0;
@@ -4204,6 +4224,227 @@ async function verifyProposedShortcut({ originalExpr, shortcutExpr, variable = '
   }
 }
 
+/**
+ * Builds an authoritative, student-facing Verification Trust Report strictly from
+ * deterministic verifier metadata. Never infers verification from LLM prose or absence of errors.
+ * Explicitly distinguishes numerical confirmation from symbolic proof.
+ */
+function buildVerificationTrustReport({
+  claims = [],
+  verificationResults = [],
+  verificationEvaluation = null,
+  revisionPassCount = 0,
+  overrideReverified = false,
+  safeResponseRecovered = false,
+  recoverySource = null
+} = {}) {
+  const safeClaims = Array.isArray(claims) ? claims : [];
+  const safeResults = Array.isArray(verificationResults) ? verificationResults : [];
+  const state = verificationEvaluation?.state || 'WITHHELD';
+
+  const verifiedCount = typeof verificationEvaluation?.verifiedCount === 'number'
+    ? verificationEvaluation.verifiedCount
+    : safeResults.filter(v => v && v.verified === true).length;
+  const unknownCount = typeof verificationEvaluation?.unknownCount === 'number'
+    ? verificationEvaluation.unknownCount
+    : safeResults.filter(v => v && v.verified === false && v.status === 'UNKNOWN').length;
+  const rejectedCount = typeof verificationEvaluation?.rejectedCount === 'number'
+    ? verificationEvaluation.rejectedCount
+    : safeResults.filter(v => v && v.verified === false && v.status !== 'UNKNOWN').length;
+  const totalCount = typeof verificationEvaluation?.totalCount === 'number'
+    ? verificationEvaluation.totalCount
+    : safeResults.length;
+
+  const additionalPassesCount =
+    (Number(revisionPassCount) > 0 ? Number(revisionPassCount) : 0) +
+    (overrideReverified ? 1 : 0) +
+    (safeResponseRecovered ? 1 : 0);
+
+  if (state !== 'VERIFIED' && state !== 'PARTIALLY_VERIFIED') {
+    return {
+      badgeLevel: 'NONE',
+      showFullVerifiedBadge: false,
+      badgeLabel: null,
+      proofBasis: 'NONE',
+      isNumericalOnly: false,
+      isSymbolicProven: false,
+      checks: [],
+      domainRestrictions: [],
+      verifiedCount,
+      unknownCount,
+      rejectedCount,
+      totalCount,
+      additionalPassesCount
+    };
+  }
+
+  let hasExactRoots = false;
+  let hasNumericalConfirmation = false;
+  let hasSymbolicEquivalence = false;
+  let hasCalculusProof = false;
+  let hasArithmeticOrExactCheck = false;
+  const restrictionSet = new Set();
+
+  for (let i = 0; i < safeResults.length; i++) {
+    const v = safeResults[i];
+    const c = safeClaims[i] || {};
+    if (!v || v.verified !== true) continue;
+
+    if (Array.isArray(v.domain_restrictions)) {
+      v.domain_restrictions.forEach(r => {
+        if (r !== null && r !== undefined && String(r).trim()) restrictionSet.add(String(r));
+      });
+    }
+    if (Array.isArray(v.stated_restrictions)) {
+      v.stated_restrictions.forEach(r => {
+        if (r !== null && r !== undefined && String(r).trim()) restrictionSet.add(String(r));
+      });
+    }
+
+    const cType = c.claim_type || c.domain || '';
+    const isApprox = Boolean(
+      v.is_approximate === true ||
+      v.numerical === true ||
+      v.method === 'numerical' ||
+      c.data?.is_approximate === true ||
+      v.engine === 'numerical_root_solver'
+    );
+
+    if (cType === 'equation_solution') {
+      if (isApprox) {
+        hasNumericalConfirmation = true;
+      } else {
+        hasExactRoots = true;
+      }
+    } else if (cType === 'symbolic_equivalence') {
+      if (isApprox) {
+        hasNumericalConfirmation = true;
+      } else {
+        hasSymbolicEquivalence = true;
+      }
+    } else if (cType === 'derivative' || cType === 'antiderivative' || cType === 'definite_integral' || cType === 'limit') {
+      if (isApprox) {
+        hasNumericalConfirmation = true;
+      } else {
+        hasCalculusProof = true;
+      }
+    } else {
+      if (isApprox) {
+        hasNumericalConfirmation = true;
+      } else {
+        hasArithmeticOrExactCheck = true;
+      }
+    }
+  }
+
+  // Deterministic specialist / safe response recovery attribution when recovered cleanly
+  if (safeResponseRecovered && verifiedCount === 0 && !hasExactRoots && !hasNumericalConfirmation && !hasSymbolicEquivalence && !hasCalculusProof && !hasArithmeticOrExactCheck) {
+    if (recoverySource === 'ALGEBRA_ROOT_SOLVER') {
+      hasNumericalConfirmation = true;
+    } else {
+      hasArithmeticOrExactCheck = true;
+    }
+  }
+
+  const domainRestrictions = Array.from(restrictionSet);
+  const checks = [];
+
+  if (hasExactRoots) {
+    checks.push({
+      kind: 'EXACT_ROOTS',
+      label: 'Exact roots verified',
+      detail: 'All proposed equation roots were checked symbolically against the original equation.'
+    });
+  }
+  if (hasNumericalConfirmation) {
+    checks.push({
+      kind: 'NUMERICAL_CONFIRMATION',
+      label: 'Numerical values confirmed',
+      detail: 'Confirmed numerically within solver precision tolerance (numerical check, not an algebraic proof).'
+    });
+  }
+  if (hasSymbolicEquivalence) {
+    checks.push({
+      kind: 'SYMBOLIC_EQUIVALENCE',
+      label: 'Symbolic equivalence established',
+      detail: domainRestrictions.length > 0
+        ? 'Algebraic or trigonometric equivalence verified subject to stated domain restrictions.'
+        : 'Algebraic or trigonometric difference simplifies identically to zero.'
+    });
+  }
+  if (hasCalculusProof) {
+    checks.push({
+      kind: 'CALCULUS_PROOF',
+      label: 'Symbolic calculus verified',
+      detail: 'Derivative, integral, or limit result verified deterministically.'
+    });
+  }
+  if (hasArithmeticOrExactCheck && !hasExactRoots && !hasSymbolicEquivalence && !hasCalculusProof) {
+    checks.push({
+      kind: 'DETERMINISTIC_CHECK',
+      label: 'Deterministic calculation verified',
+      detail: `${verifiedCount} mathematical check${verifiedCount === 1 ? '' : 's'} verified deterministically.`
+    });
+  }
+  if (domainRestrictions.length > 0) {
+    checks.push({
+      kind: 'DOMAIN_RESTRICTIONS',
+      label: 'Domain restrictions checked',
+      detail: `Excluded values checked: ${domainRestrictions.join(', ')}.`,
+      restrictions: domainRestrictions
+    });
+  }
+  if (additionalPassesCount > 0) {
+    checks.push({
+      kind: 'ADDITIONAL_PASSES',
+      label: `Additional verification ${additionalPassesCount === 1 ? 'pass' : 'passes'} completed`,
+      detail: `${additionalPassesCount} follow-up verification ${additionalPassesCount === 1 ? 'pass was' : 'passes were'} completed before delivery.`
+    });
+  }
+
+  const hasSymbolicOrExact = hasExactRoots || hasSymbolicEquivalence || hasCalculusProof || hasArithmeticOrExactCheck;
+  const isNumericalOnly = hasNumericalConfirmation && !hasSymbolicOrExact;
+  const isSymbolicProven = hasSymbolicEquivalence || hasCalculusProof || hasExactRoots;
+  const proofBasis = isNumericalOnly
+    ? 'NUMERICAL'
+    : (hasSymbolicOrExact && hasNumericalConfirmation)
+      ? 'MIXED'
+      : isSymbolicProven
+        ? 'SYMBOLIC'
+        : (hasArithmeticOrExactCheck ? 'EXACT' : 'NONE');
+
+  const isFullVerified = state === 'VERIFIED' && rejectedCount === 0 && unknownCount === 0 && (verifiedCount > 0 || safeResponseRecovered);
+
+  let badgeLevel = 'NONE';
+  let badgeLabel = null;
+  if (isFullVerified) {
+    badgeLevel = 'VERIFIED';
+    if (isNumericalOnly) badgeLabel = 'Verified (Numerical)';
+    else if (hasSymbolicEquivalence || hasCalculusProof) badgeLabel = 'Verified (Symbolic)';
+    else if (hasExactRoots) badgeLabel = 'Verified (Exact Roots)';
+    else badgeLabel = 'Verified';
+  } else if (state === 'PARTIALLY_VERIFIED' && verifiedCount > 0 && rejectedCount === 0) {
+    badgeLevel = 'PARTIAL';
+    badgeLabel = `Partially Verified (${verifiedCount}/${totalCount} checks)`;
+  }
+
+  return {
+    badgeLevel,
+    showFullVerifiedBadge: badgeLevel === 'VERIFIED',
+    badgeLabel,
+    proofBasis,
+    isNumericalOnly,
+    isSymbolicProven,
+    checks,
+    domainRestrictions,
+    verifiedCount,
+    unknownCount,
+    rejectedCount,
+    totalCount,
+    additionalPassesCount
+  };
+}
+
 module.exports = {
   extractBoxedMatches,
   cleanLatexUnits,
@@ -4211,6 +4452,7 @@ module.exports = {
   evaluateCandidateDelivery,
   auditPromptClaimFidelity,
   evaluateVerificationState,
+  buildVerificationTrustReport,
   extractClaims,
   auditInternalConsistency,
   runDeterministicVerification,

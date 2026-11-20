@@ -54,19 +54,30 @@ async function runRationalEquationSuite() {
     const term1_correct = '(x-4)*(x-1)*(x-3)^2';
     const term1_faulty = '(x-4)*(x-1)*(x-3)';
 
-    // Verify correct simplification
-    const resCorrect = await vb.runDeterministicVerification({
+    // Strict check: omitting domain exclusions {2, 3} must flag DOMAIN_RESTRICTION_MISMATCH
+    const resUncond = await vb.runDeterministicVerification({
       domain: 'algebra',
       claim_type: 'symbolic_equivalence',
       data: { expr1: term1_orig, expr2: term1_correct }
     });
-    assert.strictEqual(resCorrect.verified, true, 'Correct Term 1 simplification must be verified');
+    assert.strictEqual(resUncond.verified, false, 'Unconditional cancellation without domain exclusions must be rejected');
+    assert.strictEqual(resUncond.error_type, 'DOMAIN_RESTRICTION_MISMATCH');
+    assert.deepStrictEqual(resUncond.domain_restrictions, [2, 3]);
 
-    // Verify faulty simplification is rejected
+    // Verify correct simplification WITH preserved domain restrictions
+    const resCorrect = await vb.runDeterministicVerification({
+      domain: 'algebra',
+      claim_type: 'symbolic_equivalence',
+      data: { expr1: term1_orig, expr2: term1_correct, condition: 'x != 2, 3' }
+    });
+    assert.strictEqual(resCorrect.verified, true, 'Correct Term 1 simplification with preserved exclusions must be verified');
+    assert.strictEqual(resCorrect.status, 'CONDITIONALLY_EQUIVALENT');
+
+    // Verify faulty simplification is rejected even when restrictions are preserved
     const resFaulty = await vb.runDeterministicVerification({
       domain: 'algebra',
       claim_type: 'symbolic_equivalence',
-      data: { expr1: term1_orig, expr2: term1_faulty }
+      data: { expr1: term1_orig, expr2: term1_faulty, condition: 'x != 2, 3' }
     });
     assert.strictEqual(resFaulty.verified, false, 'Faulty Term 1 simplification must be rejected');
     assert.strictEqual(resFaulty.status, 'NON_EQUIVALENT');
@@ -76,17 +87,27 @@ async function runRationalEquationSuite() {
     const term2_correct = '(x+3)*(x-2)*(x-3)^2';
     const term2_faulty = '(x+3)*(x-2)*(x-3)';
 
-    const res2Correct = await vb.runDeterministicVerification({
+    const res2Uncond = await vb.runDeterministicVerification({
       domain: 'algebra',
       claim_type: 'symbolic_equivalence',
       data: { expr1: term2_orig, expr2: term2_correct }
     });
-    assert.strictEqual(res2Correct.verified, true, 'Correct Term 2 simplification must be verified');
+    assert.strictEqual(res2Uncond.verified, false);
+    assert.strictEqual(res2Uncond.error_type, 'DOMAIN_RESTRICTION_MISMATCH');
+    assert.deepStrictEqual(res2Uncond.domain_restrictions, [1, 3]);
+
+    const res2Correct = await vb.runDeterministicVerification({
+      domain: 'algebra',
+      claim_type: 'symbolic_equivalence',
+      data: { expr1: term2_orig, expr2: term2_correct, condition: 'x != 1, 3' }
+    });
+    assert.strictEqual(res2Correct.verified, true, 'Correct Term 2 simplification with preserved exclusions must be verified');
+    assert.strictEqual(res2Correct.status, 'CONDITIONALLY_EQUIVALENT');
 
     const res2Faulty = await vb.runDeterministicVerification({
       domain: 'algebra',
       claim_type: 'symbolic_equivalence',
-      data: { expr1: term2_orig, expr2: term2_faulty }
+      data: { expr1: term2_orig, expr2: term2_faulty, condition: 'x != 1, 3' }
     });
     assert.strictEqual(res2Faulty.verified, false, 'Faulty Term 2 simplification must be rejected');
     assert.strictEqual(res2Faulty.status, 'NON_EQUIVALENT');
@@ -106,17 +127,26 @@ async function runRationalEquationSuite() {
     const termA_correct = '(x-5)*(x-2)*(x+1)';
     const termA_overcancelled = '(x-5)*(x+1)';
 
-    const resACorrect = await vb.runDeterministicVerification({
+    const resAUncond = await vb.runDeterministicVerification({
       domain: 'algebra',
       claim_type: 'symbolic_equivalence',
       data: { expr1: termA_orig, expr2: termA_correct }
     });
+    assert.strictEqual(resAUncond.verified, false);
+    assert.strictEqual(resAUncond.error_type, 'DOMAIN_RESTRICTION_MISMATCH');
+
+    const resACorrect = await vb.runDeterministicVerification({
+      domain: 'algebra',
+      claim_type: 'symbolic_equivalence',
+      data: { expr1: termA_orig, expr2: termA_correct, condition: 'x != 2' }
+    });
     assert.strictEqual(resACorrect.verified, true);
+    assert.strictEqual(resACorrect.status, 'CONDITIONALLY_EQUIVALENT');
 
     const resAOver = await vb.runDeterministicVerification({
       domain: 'algebra',
       claim_type: 'symbolic_equivalence',
-      data: { expr1: termA_orig, expr2: termA_overcancelled }
+      data: { expr1: termA_orig, expr2: termA_overcancelled, condition: 'x != 2' }
     });
     assert.strictEqual(resAOver.verified, false);
     assert.strictEqual(resAOver.status, 'NON_EQUIVALENT');
@@ -129,14 +159,15 @@ async function runRationalEquationSuite() {
     const resBCorrect = await vb.runDeterministicVerification({
       domain: 'algebra',
       claim_type: 'symbolic_equivalence',
-      data: { expr1: termB_orig, expr2: termB_correct }
+      data: { expr1: termB_orig, expr2: termB_correct, domain_restrictions: [2] }
     });
     assert.strictEqual(resBCorrect.verified, true);
+    assert.strictEqual(resBCorrect.status, 'CONDITIONALLY_EQUIVALENT');
 
     const resBUnder = await vb.runDeterministicVerification({
       domain: 'algebra',
       claim_type: 'symbolic_equivalence',
-      data: { expr1: termB_orig, expr2: termB_undercancelled }
+      data: { expr1: termB_orig, expr2: termB_undercancelled, domain_restrictions: [2] }
     });
     assert.strictEqual(resBUnder.verified, false);
     assert.strictEqual(resBUnder.status, 'NON_EQUIVALENT');
@@ -237,20 +268,29 @@ async function runRationalEquationSuite() {
     const correctPolyLhs = '(x-4)*(x-1)*(x-3)^2 + (x+3)*(x-2)*(x-3)^2';
     const faultyPolyLhs = '(x-4)*(x-1)*(x-3) + (x+3)*(x-2)*(x-3)';
 
-    // Correct polynomial LHS is equivalent
-    const resPolyCorrect = await vb.runDeterministicVerification({
+    // Without stated restrictions, rational LHS vs polynomial LHS must fail DOMAIN_RESTRICTION_MISMATCH
+    const resPolyUncond = await vb.runDeterministicVerification({
       domain: 'algebra',
       claim_type: 'symbolic_equivalence',
       data: { expr1: origRationalLhsTimesLCD, expr2: correctPolyLhs }
     });
-    assert.strictEqual(resPolyCorrect.verified, true);
-    assert.strictEqual(resPolyCorrect.status, 'VERIFIED');
+    assert.strictEqual(resPolyUncond.verified, false);
+    assert.strictEqual(resPolyUncond.error_type, 'DOMAIN_RESTRICTION_MISMATCH');
 
-    // Faulty polynomial LHS is NOT equivalent
+    // Correct polynomial LHS with preserved domain restrictions {1, 2, 3} is verified conditionally
+    const resPolyCorrect = await vb.runDeterministicVerification({
+      domain: 'algebra',
+      claim_type: 'symbolic_equivalence',
+      data: { expr1: origRationalLhsTimesLCD, expr2: correctPolyLhs, condition: 'x != 1, 2, 3' }
+    });
+    assert.strictEqual(resPolyCorrect.verified, true);
+    assert.strictEqual(resPolyCorrect.status, 'CONDITIONALLY_EQUIVALENT');
+
+    // Faulty polynomial LHS is NOT equivalent even with preserved exclusions
     const resPolyFaulty = await vb.runDeterministicVerification({
       domain: 'algebra',
       claim_type: 'symbolic_equivalence',
-      data: { expr1: origRationalLhsTimesLCD, expr2: faultyPolyLhs }
+      data: { expr1: origRationalLhsTimesLCD, expr2: faultyPolyLhs, condition: 'x != 1, 2, 3' }
     });
     assert.strictEqual(resPolyFaulty.verified, false);
     assert.strictEqual(resPolyFaulty.status, 'NON_EQUIVALENT');
@@ -268,24 +308,32 @@ async function runRationalEquationSuite() {
     const exprDoubleCancelled = '(x-1)^1';
     const exprSingleCancelled = '(x-1)^2';
 
-    const resCorrect = await vb.runDeterministicVerification({
+    const resUncond = await vb.runDeterministicVerification({
       domain: 'algebra',
       claim_type: 'symbolic_equivalence',
       data: { expr1: exprOrig, expr2: exprCorrect }
     });
-    assert.strictEqual(resCorrect.verified, true, '((x-1)^2 / (x-1)) * (x-1)^2 must simplify to (x-1)^3');
+    assert.strictEqual(resUncond.verified, false);
+    assert.strictEqual(resUncond.error_type, 'DOMAIN_RESTRICTION_MISMATCH');
+
+    const resCorrect = await vb.runDeterministicVerification({
+      domain: 'algebra',
+      claim_type: 'symbolic_equivalence',
+      data: { expr1: exprOrig, expr2: exprCorrect, condition: 'x != 1' }
+    });
+    assert.strictEqual(resCorrect.verified, true, '((x-1)^2 / (x-1)) * (x-1)^2 must simplify to (x-1)^3 for x != 1');
 
     const resDouble = await vb.runDeterministicVerification({
       domain: 'algebra',
       claim_type: 'symbolic_equivalence',
-      data: { expr1: exprOrig, expr2: exprDoubleCancelled }
+      data: { expr1: exprOrig, expr2: exprDoubleCancelled, condition: 'x != 1' }
     });
     assert.strictEqual(resDouble.verified, false, 'Double-cancellation to (x-1)^1 must be rejected');
 
     const resSingle = await vb.runDeterministicVerification({
       domain: 'algebra',
       claim_type: 'symbolic_equivalence',
-      data: { expr1: exprOrig, expr2: exprSingleCancelled }
+      data: { expr1: exprOrig, expr2: exprSingleCancelled, condition: 'x != 1' }
     });
     assert.strictEqual(resSingle.verified, false, 'Faulty cancellation to (x-1)^2 must be rejected');
   });
@@ -308,9 +356,113 @@ async function runRationalEquationSuite() {
     assert.strictEqual(result.status, 'VERIFIED');
   });
 
+  // -------------------------------------------------------------
+  // TEST 8: Partial Restrictions, Valid Rational Solutions & Extraneous Roots
+  // Ensures partial restrictions are still rejected and rational equation root checks match original domain.
+  // -------------------------------------------------------------
+  await test('Partial domain restriction rejection & rational equation root consistency', async () => {
+    const resPartial = await vb.runDeterministicVerification({
+      domain: 'algebra',
+      claim_type: 'symbolic_equivalence',
+      data: {
+        expr1: '((x-3)*(x-4))/((x-2)*(x-3)) * (x-1)*(x-2)*(x-3)^2',
+        expr2: '(x-4)*(x-1)*(x-3)^2',
+        condition: 'x != 2' // Incomplete: omits x != 3!
+      }
+    });
+    assert.strictEqual(resPartial.verified, false, 'Partial restriction must NOT certify omitted x != 3');
+    assert.strictEqual(resPartial.error_type, 'DOMAIN_RESTRICTION_MISMATCH');
+
+    // Rational equation where clearing denominator produces extraneous root x = 2 and valid root x = 1:
+    // x/(x-2) = 2/(x-2) + 1/2 -> valid solution set after excluding x=2
+    // Simpler check: (x^2 - 4)/(x - 2) = 4 -> x = 2 only makes original undefined -> extraneous
+    const resAllExtraneous = await vb.runDeterministicVerification({
+      domain: 'algebra',
+      claim_type: 'equation_solution',
+      data: {
+        equation: '(x^2 - 4)/(x - 2) = 4',
+        variable: 'x',
+        proposed_solutions: [2]
+      }
+    });
+    assert.strictEqual(resAllExtraneous.verified, false);
+    assert.strictEqual(resAllExtraneous.status, 'EXTRANEOUS_ROOT');
+
+    // Equation with valid root x = 5 alongside excluded denominator x = 2:
+    // (x - 1)/(x - 2) = 4/3 => 3(x-1) = 4(x-2) => 3x-3 = 4x-8 => x = 5
+    const resValidRoot = await vb.runDeterministicVerification({
+      domain: 'algebra',
+      claim_type: 'equation_solution',
+      data: {
+        equation: '(x - 1)/(x - 2) = 4/3',
+        variable: 'x',
+        proposed_solutions: [5]
+      }
+    });
+    assert.strictEqual(resValidRoot.verified, true);
+    assert.strictEqual(resValidRoot.status, 'VERIFIED');
+  });
+
+  // -------------------------------------------------------------
+  // TEST 9: Equivalent Rational Expressions Preserving Denominators Unconditionally
+  // When both expressions retain identical denominator restrictions, verification succeeds cleanly.
+  // -------------------------------------------------------------
+  await test('Equivalent rational expressions with preserved denominators verify unconditionally', async () => {
+    const resCommonDenom = await vb.runDeterministicVerification({
+      domain: 'algebra',
+      claim_type: 'symbolic_equivalence',
+      data: {
+        expr1: '(x + 2)/(x - 1) + 3/((x - 1)^2)',
+        expr2: '(x^2 + x + 1)/((x - 1)^2)'
+      }
+    });
+    assert.strictEqual(resCommonDenom.verified, true);
+    assert.strictEqual(resCommonDenom.status, 'VERIFIED');
+    assert(Array.isArray(resCommonDenom.domain_restrictions) && resCommonDenom.domain_restrictions.includes(1));
+
+    // Distinct restricted points must still fail
+    const resMismatchDenom = await vb.runDeterministicVerification({
+      domain: 'algebra',
+      claim_type: 'symbolic_equivalence',
+      data: {
+        expr1: '1/(x - 1)',
+        expr2: '1/(x - 2)'
+      }
+    });
+    assert.strictEqual(resMismatchDenom.verified, false);
+  });
+
+  // -------------------------------------------------------------
+  // TEST 10: Prose Extraction & Multi-Value Domain Exclusion Preservation
+  // -------------------------------------------------------------
+  await test('Prose claim extraction preserves multi-value domain restrictions (x != 2, 3 & notin set)', async () => {
+    const prose = 'Multiplying by the LCD gives \\(\\frac{(x-3)(x-4)}{(x-2)(x-3)}(x-1)(x-2)(x-3)^2 = (x-4)(x-1)(x-3)^2, \\text{ for } x \\neq 2, 3\\).';
+    const claims = vb.extractClaims(prose);
+    const eqClaim = claims.find(c => c.claim_type === 'symbolic_equivalence');
+    assert.ok(eqClaim, 'Should extract symbolic equivalence claim from conditional rational prose');
+    assert.ok(eqClaim.data.condition && eqClaim.data.condition.includes('3'), `Expected full multi-value condition, got: ${eqClaim.data.condition}`);
+
+    const res = await vb.runDeterministicVerification(eqClaim);
+    assert.strictEqual(res.verified, true, 'Conditional claim extracted from prose with x != 2, 3 must verify');
+    assert.strictEqual(res.status, 'CONDITIONALLY_EQUIVALENT');
+
+    const resNotIn = await vb.runDeterministicVerification({
+      domain: 'algebra',
+      claim_type: 'symbolic_equivalence',
+      data: {
+        expr1: '((x-3)*(x-4))/((x-2)*(x-3)) * (x-1)*(x-2)*(x-3)^2',
+        expr2: '(x-4)*(x-1)*(x-3)^2',
+        condition: 'x \\notin {2, 3}'
+      }
+    });
+    assert.strictEqual(resNotIn.verified, true);
+    assert.strictEqual(resNotIn.status, 'CONDITIONALLY_EQUIVALENT');
+  });
+
   console.log('\n================================================================');
   console.log(`✅ ALL ${passed}/${total} RATIONAL EQUATION REGRESSION TESTS PASSED (100%)`);
   console.log('================================================================\n');
+  await vb.closeVerifierDaemon();
 }
 
 runRationalEquationSuite().catch(err => {

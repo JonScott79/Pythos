@@ -372,8 +372,63 @@ function renderMath(element) {
   doRender();
 }
 
-// Track current rendered preview LaTeX string for copy button
+// Track current rendered preview LaTeX string for copy button & reversible formatting fix state
 let currentPreviewLatex = "";
+let formattingUndoSnapshot = null;
+
+function updateMathPreviewGuard(engine, raw) {
+  const guardEl = document.getElementById("mathPreviewGuard");
+  const msgEl = document.getElementById("mathPreviewGuardMsg");
+  const fixBtn = document.getElementById("mathPreviewFixBtn");
+  const undoBtn = document.getElementById("mathPreviewUndoBtn");
+  if (!guardEl || !msgEl) return { hasIssue: false };
+
+  if (formattingUndoSnapshot && raw !== formattingUndoSnapshot.fixed) {
+    formattingUndoSnapshot = null;
+  }
+
+  const issue = (engine && typeof engine.detectInputFormattingIssue === "function")
+    ? engine.detectInputFormattingIssue(raw)
+    : { hasIssue: false };
+
+  if (issue && issue.hasIssue) {
+    guardEl.classList.remove("is-fixed");
+    guardEl.style.display = "flex";
+    msgEl.textContent = `⚠ Formatting check: ${issue.message}`;
+    if (fixBtn) {
+      if (issue.suggestedFix && issue.suggestedFix !== raw.trim()) {
+        fixBtn.style.display = "inline-block";
+        fixBtn.dataset.suggestedFix = issue.suggestedFix;
+      } else {
+        fixBtn.style.display = "none";
+        delete fixBtn.dataset.suggestedFix;
+      }
+    }
+    if (undoBtn) {
+      undoBtn.style.display = formattingUndoSnapshot ? "inline-block" : "none";
+    }
+    return issue;
+  }
+
+  if (formattingUndoSnapshot && raw === formattingUndoSnapshot.fixed) {
+    guardEl.classList.add("is-fixed");
+    guardEl.style.display = "flex";
+    msgEl.textContent = "✓ Applied formatting suggestion (original preserved).";
+    if (fixBtn) fixBtn.style.display = "none";
+    if (undoBtn) undoBtn.style.display = "inline-block";
+    return { hasIssue: false, fixedApplied: true };
+  }
+
+  guardEl.classList.remove("is-fixed");
+  guardEl.style.display = "none";
+  msgEl.textContent = "";
+  if (fixBtn) {
+    fixBtn.style.display = "none";
+    delete fixBtn.dataset.suggestedFix;
+  }
+  if (undoBtn) undoBtn.style.display = "none";
+  return { hasIssue: false };
+}
 
 // Render a real-time KaTeX preview of the user's input above the input box
 function renderInputPreview() {
@@ -384,15 +439,18 @@ function renderInputPreview() {
 
   const engine = (typeof window !== "undefined" && window.PythosMathInputEngine) ? window.PythosMathInputEngine : ((typeof global !== "undefined" && global.window && global.window.PythosMathInputEngine) ? global.window.PythosMathInputEngine : null);
   if (!engine || !raw.trim()) {
+    formattingUndoSnapshot = null;
+    updateMathPreviewGuard(null, "");
     if (preview) preview.style.display = "none";
     currentPreviewLatex = "";
     return;
   }
 
+  const guardState = updateMathPreviewGuard(engine, raw);
   const segments = engine.MathIntentEngine.segmentInput(raw);
   const mathSegments = segments.filter(s => s.type === "math");
 
-  if (!mathSegments.length) {
+  if (!mathSegments.length && !guardState.hasIssue && !guardState.fixedApplied) {
     if (preview) preview.style.display = "none";
     currentPreviewLatex = "";
     return;
@@ -422,7 +480,7 @@ function renderInputPreview() {
     return;
   }
 
-  // Case 2: Conversational question with mathematical expressions
+  // Case 2: Conversational question with mathematical expressions (or structural warning without math score)
   // Render English prose in normal Inter font with preserved spaces, and ONLY render math segments in KaTeX!
   currentPreviewLatex = mathSegments.map(s => s.latex || s.raw).join(" \\quad ");
 
@@ -455,7 +513,7 @@ function renderInputPreview() {
   }
 }
 
-// Wire real-time preview LaTeX copy button
+// Wire real-time preview LaTeX copy button + pre-send formatting guard actions
 setTimeout(() => {
   const mathPreviewCopyBtn = document.getElementById("mathPreviewCopyBtn");
   if (mathPreviewCopyBtn) {
@@ -468,86 +526,35 @@ setTimeout(() => {
       }).catch(() => {});
     });
   }
+
+  const fixBtn = document.getElementById("mathPreviewFixBtn");
+  if (fixBtn) {
+    fixBtn.addEventListener("click", () => {
+      const suggested = fixBtn.dataset.suggestedFix;
+      if (!input || !suggested) return;
+      formattingUndoSnapshot = { original: input.value, fixed: suggested };
+      input.value = suggested;
+      if (typeof autoResizeInput === "function") autoResizeInput();
+      if (typeof syncInputOverlay === "function") syncInputOverlay();
+      renderInputPreview();
+      input.focus();
+    });
+  }
+
+  const undoBtn = document.getElementById("mathPreviewUndoBtn");
+  if (undoBtn) {
+    undoBtn.addEventListener("click", () => {
+      if (!input || !formattingUndoSnapshot) return;
+      const original = formattingUndoSnapshot.original;
+      formattingUndoSnapshot = null;
+      input.value = original;
+      if (typeof autoResizeInput === "function") autoResizeInput();
+      if (typeof syncInputOverlay === "function") syncInputOverlay();
+      renderInputPreview();
+      input.focus();
+    });
+  }
 }, 50);
-
-// =====================================
-// // DYNAMIC ROTATING WAIT-STATE SYSTEM
-//
-// =====================================
-
-const WAIT_STATE_MESSAGES = {
-  ARITHMETIC: [
-    "Crunching the numbers...",
-    "Checking the calculation...",
-    "Making sure the fractions behave..."
-  ],
-  ALGEBRA: [
-    "Untangling the equation...",
-    "Finding x...",
-    "Checking the algebra..."
-  ],
-  CALCULUS: [
-    "Working through the optimization...",
-    "Checking the critical point...",
-    "Making sure we found the maximum..."
-  ],
-  PROBABILITY: [
-    "Following the probabilities...",
-    "Checking the conditional relationships...",
-    "Making sure Bayes isn't sneaking around..."
-  ],
-  STATISTICS: [
-    "Looking at the data from another angle...",
-    "Checking the group sizes...",
-    "Making sure the averages aren't lying to us..."
-  ],
-  PHYSICS: [
-    "Setting up the physics...",
-    "Checking the units...",
-    "Making sure gravity is behaving...",
-    "Running the numbers..."
-  ],
-  CONCEPTUAL: [
-    "Working through the problem...",
-    "Thinking this one through...",
-    "Checking the details...",
-    "Putting the pieces together..."
-  ],
-  DEFAULT: [
-    "This one's making me think...",
-    "Taking a closer look...",
-    "Checking the problem from another angle...",
-    "Working through the details..."
-  ]
-};
-
-function inferClientDomain(text) {
-  if (!text) return 'DEFAULT';
-  const lower = text.toLowerCase();
-
-  if (lower.includes('probability') || lower.includes('bayes') || lower.includes('defect rate') || lower.includes('chance that')) {
-    return 'PROBABILITY';
-  }
-  if (lower.includes('simpson') || lower.includes('subgroup') || lower.includes('hospital') || lower.includes('statistics')) {
-    return 'STATISTICS';
-  }
-  if (lower.includes('fencing') || lower.includes('maximize') || lower.includes('minimize') || lower.includes('derivative') || lower.includes('integral') || lower.includes('tangent line') || lower.includes('optimization')) {
-    return 'CALCULUS';
-  }
-  if (lower.includes('projectile') || lower.includes('velocity') || lower.includes('gravity') || lower.includes('speed') || lower.includes('pendulum') || lower.includes('sphere') || lower.includes('angle of')) {
-    return 'PHYSICS';
-  }
-  if (lower.includes('solve for') || (lower.includes('=') && (lower.includes('x') || lower.includes('y')))) {
-    return 'ALGEBRA';
-  }
-  if (/^[-+*/^0-9.()\s,]+$/.test(text) || (text.includes('/') && /\d+\s*\/\s*\d+/.test(text) && !text.includes('x'))) {
-    return 'ARITHMETIC';
-  }
-  if (lower.includes('why') || lower.includes('explain') || lower.includes('meaning') || lower.includes('concept')) {
-    return 'CONCEPTUAL';
-  }
-  return 'DEFAULT';
-}
 
 // =====================================
 // // CHAT VIEWPORT & SCROLL POLICY MANAGER
@@ -619,36 +626,29 @@ function scrollToChatBottom(smooth = false) {
   }, 400);
 }
 
-function showThinking(userQuery = '') {
+function showThinking() {
   const div = document.createElement("div");
   div.className = "message thinking";
   div.setAttribute("data-clarity-mask", "true");
   div.setAttribute("role", "status");
   div.setAttribute("aria-live", "polite");
 
-  const domain = inferClientDomain(userQuery);
-  const messagesList = WAIT_STATE_MESSAGES[domain] || WAIT_STATE_MESSAGES.DEFAULT;
-  let idx = 0;
+  const statusText = "Connecting to Pythos verification pipeline...";
 
   div.innerHTML = `
     <div class="thinking-status-wrap">
       <span class="thinking-spinner" aria-hidden="true"></span>
-      <span class="thinking-text" aria-hidden="true">${messagesList[0]}</span>
-      <span class="sr-only">Pythos is processing your request. ${messagesList[0]}</span>
+      <span class="thinking-text">${statusText}</span>
+      <button type="button" class="thinking-stop-btn" aria-label="Stop active request">Stop</button>
     </div>
   `;
 
-  const textSpan = div.querySelector('.thinking-text');
-  div._waitInterval = setInterval(() => {
-    idx = (idx + 1) % messagesList.length;
-    if (textSpan) {
-      textSpan.style.opacity = '0';
-      setTimeout(() => {
-        textSpan.textContent = messagesList[idx];
-        textSpan.style.opacity = '1';
-      }, 200);
-    }
-  }, 3500);
+  const stopInlineBtn = div.querySelector(".thinking-stop-btn");
+  if (stopInlineBtn) {
+    stopInlineBtn.addEventListener("click", () => {
+      if (typeof stopGeneration === "function") stopGeneration();
+    });
+  }
 
   output.appendChild(div);
   output.scrollTop = output.scrollHeight;
@@ -656,12 +656,8 @@ function showThinking(userQuery = '') {
 }
 
 function removeThinking(el) {
-  if (el) {
-    if (el._waitInterval) {
-      clearInterval(el._waitInterval);
-      el._waitInterval = null;
-    }
-    if (el.parentNode) el.parentNode.removeChild(el);
+  if (el && el.parentNode) {
+    el.parentNode.removeChild(el);
   }
 }
 
@@ -2566,6 +2562,138 @@ function appendMessage(role, text, images = null, metadata = {}) {
     detailsEl.appendChild(summaryEl);
     detailsEl.appendChild(bodyEl);
     contentDiv.appendChild(detailsEl);
+
+    // Feature 1: One-Click Suggested Equation Actions when server provides safe suggestedFix
+    const rawSuggestedFix = typeof rawDetails.suggestedFix === "string" ? rawDetails.suggestedFix.trim() : "";
+    const isSafeSuggestedFix = Boolean(rawSuggestedFix && rawSuggestedFix.length <= 500 && !/[<>]/.test(rawSuggestedFix));
+    if (isSafeSuggestedFix) {
+      const fixActionsRow = document.createElement("div");
+      fixActionsRow.className = "pythos-suggested-fix-actions";
+
+      const solveBtn = document.createElement("button");
+      solveBtn.type = "button";
+      solveBtn.className = "pythos-suggested-fix-btn pythos-suggested-fix-solve";
+      solveBtn.textContent = "Solve Suggested Equation";
+      solveBtn.setAttribute("aria-label", `Solve suggested equation: ${rawSuggestedFix}`);
+      solveBtn.addEventListener("click", () => {
+        if (!input || isProcessing) return;
+        formattingUndoSnapshot = null;
+        input.value = rawSuggestedFix;
+        if (typeof autoResizeInput === "function") autoResizeInput();
+        if (typeof syncInputOverlay === "function") syncInputOverlay();
+        renderInputPreview();
+        if (typeof addToPromptHistory === "function") addToPromptHistory(rawSuggestedFix);
+        askPythos(rawSuggestedFix);
+      });
+
+      const editBtn = document.createElement("button");
+      editBtn.type = "button";
+      editBtn.className = "pythos-suggested-fix-btn pythos-suggested-fix-edit";
+      editBtn.textContent = "Edit in Input";
+      editBtn.setAttribute("aria-label", `Load suggested equation into editor: ${rawSuggestedFix}`);
+      editBtn.addEventListener("click", () => {
+        if (!input) return;
+        formattingUndoSnapshot = null;
+        input.value = rawSuggestedFix;
+        if (typeof autoResizeInput === "function") autoResizeInput();
+        if (typeof syncInputOverlay === "function") syncInputOverlay();
+        renderInputPreview();
+        input.focus();
+        if (typeof input.scrollIntoView === "function") {
+          input.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
+      });
+
+      fixActionsRow.appendChild(solveBtn);
+      fixActionsRow.appendChild(editBtn);
+      contentDiv.appendChild(fixActionsRow);
+    }
+  }
+
+  // Feature 4: Authoritative Expandable Verification Trust Indicator
+  const trustReport = metadata.verificationSummary && metadata.verificationSummary.trustReport;
+  if (
+    role === "assistant" &&
+    !isWithheld &&
+    metadata.verificationState !== "WITHHELD" &&
+    metadata.verificationState !== "UNVERIFIED_CONCEPTUAL" &&
+    trustReport &&
+    (trustReport.badgeLevel === "VERIFIED" || trustReport.badgeLevel === "PARTIAL") &&
+    Array.isArray(trustReport.checks) &&
+    trustReport.checks.length > 0
+  ) {
+    const isFullVerifiedTrust = trustReport.badgeLevel === "VERIFIED" && trustReport.showFullVerifiedBadge === true;
+    const trustDetails = document.createElement("details");
+    trustDetails.className = `pythos-trust-details ${isFullVerifiedTrust ? "is-verified" : "is-partial"}`;
+
+    const trustSummary = document.createElement("summary");
+    trustSummary.className = "pythos-trust-summary";
+    const summaryLabel = trustReport.badgeLabel || (isFullVerifiedTrust ? "Verified" : "Partially Verified");
+    trustSummary.innerHTML = `<span>${isFullVerifiedTrust ? "✓" : "🛡️"}</span> <span>${escapeHtml(summaryLabel)}</span>`;
+    trustDetails.appendChild(trustSummary);
+
+    const trustBody = document.createElement("div");
+    trustBody.className = "pythos-trust-body";
+    if (trustReport.isNumericalOnly) {
+      const basisNote = document.createElement("div");
+      basisNote.className = "pythos-trust-item-detail";
+      basisNote.textContent = "Verification level: Numerical confirmation within solver precision tolerance (not a symbolic proof).";
+      trustBody.appendChild(basisNote);
+    } else if (!isFullVerifiedTrust && metadata.verificationSummary?.disclosure) {
+      const discNote = document.createElement("div");
+      discNote.className = "pythos-trust-item-detail";
+      discNote.textContent = metadata.verificationSummary.disclosure;
+      trustBody.appendChild(discNote);
+    }
+
+    trustReport.checks.forEach((chk) => {
+      if (!chk || !chk.label) return;
+      const item = document.createElement("div");
+      item.className = "pythos-trust-item";
+      item.innerHTML = `<span class="pythos-trust-item-label">• ${escapeHtml(chk.label)}</span>` +
+        (chk.detail ? `<span class="pythos-trust-item-detail">${escapeHtml(chk.detail)}</span>` : "");
+      trustBody.appendChild(item);
+    });
+
+    trustDetails.appendChild(trustBody);
+    contentDiv.appendChild(trustDetails);
+  }
+
+  // Feature 3: Structured Contextual Tool Handoff Row
+  if (role === "assistant" && metadata.handoffContract && Array.isArray(metadata.handoffContract.tools) && metadata.handoffContract.tools.length > 0) {
+    renderContextualHandoffRow(contentDiv, metadata.handoffContract);
+  }
+
+  // Feature 7: Progressive Tutor Mode Follow-up Controls (Next Hint / Show Full Solution)
+  if (role === "assistant" && metadata.isTutorHint && !isWithheld) {
+    const tutorRow = document.createElement("div");
+    tutorRow.className = "pythos-tutor-actions";
+
+    const nextHintBtn = document.createElement("button");
+    nextHintBtn.type = "button";
+    nextHintBtn.className = "pythos-tutor-btn";
+    nextHintBtn.textContent = "💡 Next Hint";
+    nextHintBtn.addEventListener("click", () => {
+      if (isProcessing) return;
+      const hintPrompt = "Give me the next verified hint or single step without revealing the final answer yet.";
+      if (typeof addToPromptHistory === "function") addToPromptHistory(hintPrompt);
+      askPythos(hintPrompt);
+    });
+
+    const revealBtn = document.createElement("button");
+    revealBtn.type = "button";
+    revealBtn.className = "pythos-tutor-btn";
+    revealBtn.textContent = "🔓 Show Full Solution";
+    revealBtn.addEventListener("click", () => {
+      if (isProcessing) return;
+      const revealPrompt = "Reveal the complete verified solution and final answer.";
+      if (typeof addToPromptHistory === "function") addToPromptHistory(revealPrompt);
+      askPythos(revealPrompt);
+    });
+
+    tutorRow.appendChild(nextHintBtn);
+    tutorRow.appendChild(revealBtn);
+    contentDiv.appendChild(tutorRow);
   }
 
   div.appendChild(contentDiv);
@@ -2662,9 +2790,12 @@ function appendMessage(role, text, images = null, metadata = {}) {
     auditBtn.title = "Inspect derivation verification audit steps";
     auditBtn.setAttribute("aria-label", "Inspect derivation verification audit steps");
 
-    if (isFullyVerified) {
+            if (isFullyVerified) {
+      const trustLbl = metadata.verificationSummary?.trustReport?.badgeLabel;
       const stepLabel = totalCount === 1 ? "1 step" : `${totalCount} steps`;
-      auditBtn.innerHTML = `🛡️ <span>Verified (${stepLabel})</span>`;
+      auditBtn.innerHTML = trustLbl && trustLbl !== "Verified"
+        ? `🛡️ <span>${escapeHtml(trustLbl)} (${stepLabel})</span>`
+        : `🛡️ <span>Verified (${stepLabel})</span>`;
     } else if (isPartiallyVerified) {
       auditBtn.style.color = "#b45309";
       auditBtn.style.borderColor = "rgba(217, 119, 6, 0.35)";
@@ -4236,9 +4367,57 @@ let isProcessing = false;
 let activeAbortController = null;
 let activeStreamReader = null;
 let activeThinkingElement = null;
+let activeDraftBubble = null;
 let userStoppedGeneration = false;
+let activeRequestSeq = 0;
+const cancelledRequestSeqs = new Set();
 const MAX_INPUT_LENGTH = 1500;
 const charCounter = document.getElementById("charCounter");
+
+// Feature 7: Optional Tutor / Hint Mode (Default OFF = Normal Mode unchanged)
+const TUTOR_MODE_STORAGE_KEY = "pythos_tutor_mode";
+let isTutorModeEnabled = false;
+try {
+  isTutorModeEnabled = typeof localStorage !== "undefined" && localStorage.getItem(TUTOR_MODE_STORAGE_KEY) === "true";
+} catch (_) {}
+
+function updateTutorModeUI() {
+  const toggleBtn = document.getElementById("tutorModeToggleBtn");
+  const bannerEl = document.getElementById("tutorModeBanner");
+  if (toggleBtn) {
+    toggleBtn.classList.toggle("tutor-mode-active", isTutorModeEnabled);
+    toggleBtn.setAttribute("aria-pressed", isTutorModeEnabled ? "true" : "false");
+  }
+  if (bannerEl) {
+    bannerEl.style.display = isTutorModeEnabled ? "flex" : "none";
+  }
+}
+
+function setTutorModeEnabled(enabled) {
+  isTutorModeEnabled = Boolean(enabled);
+  try {
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(TUTOR_MODE_STORAGE_KEY, isTutorModeEnabled ? "true" : "false");
+    }
+  } catch (_) {}
+  updateTutorModeUI();
+}
+
+setTimeout(() => {
+  updateTutorModeUI();
+  const tutorToggleBtn = document.getElementById("tutorModeToggleBtn");
+  const tutorExitBtn = document.getElementById("tutorModeExitBtn");
+  if (tutorToggleBtn) {
+    tutorToggleBtn.addEventListener("click", () => {
+      setTutorModeEnabled(!isTutorModeEnabled);
+    });
+  }
+  if (tutorExitBtn) {
+    tutorExitBtn.addEventListener("click", () => {
+      setTutorModeEnabled(false);
+    });
+  }
+}, 50);
 
 const SEND_ICON_HTML = `<svg class="send-icon" viewBox="0 0 24 24" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>`;
 const STOP_ICON_HTML = `<svg class="stop-icon" viewBox="0 0 24 24" aria-hidden="true" width="14" height="14" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"></rect></svg>`;
@@ -4284,34 +4463,51 @@ function setInputLocked(locked) {
 }
 
 function stopGeneration() {
-  if (!isProcessing) return;
+  if (!isProcessing && !activeAbortController && !activeStreamReader && !activeThinkingElement && !activeDraftBubble) {
+    return;
+  }
   userStoppedGeneration = true;
+  if (activeRequestSeq > 0) {
+    cancelledRequestSeqs.add(activeRequestSeq);
+  }
+
+  const thinkingToRemove = activeThinkingElement;
+  const draftToFinalize = activeDraftBubble;
 
   if (activeStreamReader) {
     try {
       activeStreamReader.cancel();
     } catch (_) {}
+    activeStreamReader = null;
   }
 
   if (activeAbortController) {
     try {
       activeAbortController.abort();
     } catch (_) {}
+    activeAbortController = null;
   }
 
-  if (activeThinkingElement) {
-    removeThinking(activeThinkingElement);
-    activeThinkingElement = null;
-    const stoppedNotice = "*(Response stopped)*";
-    messages.push({ role: "assistant", content: stoppedNotice });
-    appendMessage("assistant", stoppedNotice);
-    setInputLocked(false);
-  } else if (!activeStreamReader) {
-    const stoppedNotice = "*(Response stopped)*";
-    messages.push({ role: "assistant", content: stoppedNotice });
-    appendMessage("assistant", stoppedNotice);
-    setInputLocked(false);
+  activeThinkingElement = null;
+  activeDraftBubble = null;
+
+  let stoppedContent = "*(Response stopped)* — client request canceled before upstream response arrived.";
+  if (thinkingToRemove) {
+    removeThinking(thinkingToRemove);
   }
+  if (draftToFinalize) {
+    const partialText = (draftToFinalize.querySelector(".message-content")?.textContent || "").trim();
+    if (draftToFinalize.parentNode) {
+      draftToFinalize.remove();
+    }
+    stoppedContent = partialText
+      ? `${partialText}\n\n*(Response stopped)* — client stream closed cleanly (in-flight upstream generation cannot always be recalled after tokens start).`
+      : "*(Response stopped)*";
+  }
+
+  messages.push({ role: "assistant", content: stoppedContent });
+  appendMessage("assistant", stoppedContent, null, { stoppedByUser: true });
+  setInputLocked(false);
 }
 
 /**
@@ -4407,10 +4603,14 @@ async function askPythos(userText) {
   }
   updatePendingImagesUI();
 
+  const requestSeq = ++activeRequestSeq;
+  const isStaleOrCancelled = () => requestSeq !== activeRequestSeq || cancelledRequestSeqs.has(requestSeq);
+
   userStoppedGeneration = false;
   activeAbortController = new AbortController();
   activeStreamReader = null;
   activeThinkingElement = null;
+  activeDraftBubble = null;
 
   setInputLocked(true);
 
@@ -4460,7 +4660,7 @@ async function askPythos(userText) {
     return;
   }
 
-  const thinking = showThinking(cleanText);
+  const thinking = showThinking();
   activeThinkingElement = thinking;
 
   // Pythos API Endpoint: Resilient local and production resolution
@@ -4496,11 +4696,17 @@ async function askPythos(userText) {
       body: JSON.stringify({
         messages: messages,
         stream: true,
+        tutorMode: Boolean(isTutorModeEnabled),
         options: { temperature: 0.3 },
         chatId: currentChatId || null,
         displayName: (currentUser && currentUser.displayName) ? currentUser.displayName : null
       })
     });
+
+    if (isStaleOrCancelled()) {
+      removeThinking(thinking);
+      return;
+    }
 
     const contentType = res.headers.get("content-type") || "";
 
@@ -4514,11 +4720,12 @@ async function askPythos(userText) {
       draftBubble.className = "message assistant drafting";
       draftBubble.dataset.role = "assistant";
       draftBubble.setAttribute("data-clarity-mask", "true");
+      activeDraftBubble = draftBubble;
 
       const statusBadge = document.createElement("div");
       statusBadge.className = "msg-stream-badge drafting-badge";
       statusBadge.style.cssText = "display:inline-flex; align-items:center; gap:6px; font-size:0.75rem; color:#64748b; margin-bottom:6px; font-style:italic;";
-      statusBadge.innerHTML = `<span class="stream-dot" style="width:6px; height:6px; border-radius:50%; background:#3b82f6; animation:pulse 1.5s infinite;"></span><span>Formulating step...</span>`;
+      statusBadge.innerHTML = `<span class="stream-dot" style="width:6px; height:6px; border-radius:50%; background:#3b82f6; animation:pulse 1.5s infinite;"></span><span>Connecting to stream...</span>`;
       draftBubble.appendChild(statusBadge);
 
       const contentDiv = document.createElement("div");
@@ -4546,6 +4753,8 @@ async function askPythos(userText) {
       let metaWithholdingDetails = null;
       let metaVerificationState = null;
       let metaVerificationSummary = null;
+      let metaHandoffContract = null;
+      let metaIsTutorHint = false;
 
       let isStreamDone = false;
       let isStreamError = false;
@@ -4592,15 +4801,34 @@ async function askPythos(userText) {
             if (!isUserScrolledUp && isNearBottom(output, 80)) {
               scrollToChatBottom(false);
             }
-          } else if (ev.type === "status" && ev.stage === "verifying") {
-            statusBadge.style.color = "#d97706";
-            statusBadge.innerHTML = `<span class="stream-dot" style="width:6px; height:6px; border-radius:50%; background:#d97706; animation:pulse 1.5s infinite;"></span><span>Verifying calculations...</span>`;
-            if (verificationTimer) clearTimeout(verificationTimer);
-            verificationTimer = setTimeout(() => {
-              if (reader) {
-                try { reader.cancel(); } catch (_) {}
-              }
-            }, 15000);
+          } else if (ev.type === "status") {
+            const stage = ev.stage || "";
+            if (stage === "drafting") {
+              statusBadge.style.color = "#3b82f6";
+              statusBadge.innerHTML = `<span class="stream-dot" style="width:6px; height:6px; border-radius:50%; background:#3b82f6; animation:pulse 1.5s infinite;"></span><span>${escapeHtml(ev.label || "Drafting mathematical solution...")}</span>`;
+            } else if (stage === "verifying" || stage === "checking_constraints" || stage === "revising" || stage === "finalizing") {
+              const colorMap = {
+                verifying: "#d97706",
+                checking_constraints: "#0284c7",
+                revising: "#9333ea",
+                finalizing: "#16a34a"
+              };
+              const fallbackLabelMap = {
+                verifying: "Running symbolic verification...",
+                checking_constraints: "Checking mathematical constraints...",
+                revising: "Revising solution...",
+                finalizing: "Finalizing verified response..."
+              };
+              const col = colorMap[stage] || "#d97706";
+              statusBadge.style.color = col;
+              statusBadge.innerHTML = `<span class="stream-dot" style="width:6px; height:6px; border-radius:50%; background:${col}; animation:pulse 1.5s infinite;"></span><span>${escapeHtml(ev.label || fallbackLabelMap[stage])}</span>`;
+              if (verificationTimer) clearTimeout(verificationTimer);
+              verificationTimer = setTimeout(() => {
+                if (reader) {
+                  try { reader.cancel(); } catch (_) {}
+                }
+              }, 35000);
+            }
           } else if (ev.type === "revision" && ev.revisedContent) {
             streamedText = ev.revisedContent;
             contentDiv.textContent = streamedText;
@@ -4639,6 +4867,8 @@ async function askPythos(userText) {
             if (ev.withholdingExplanation) metaWithholdingExplanation = ev.withholdingExplanation;
             if (ev.withholdingDetails) metaWithholdingDetails = ev.withholdingDetails;
             if (ev.verificationSummary) metaVerificationSummary = ev.verificationSummary;
+            if (ev.handoffContract) metaHandoffContract = ev.handoffContract;
+            if (ev.isTutorHint) metaIsTutorHint = true;
 
             // CRITICAL-01: Replace streamedText and visible DOM content when withheld, recovered, or finalContent differs
             if (typeof ev.finalContent === "string" && ev.finalContent.trim()) {
@@ -4676,6 +4906,10 @@ async function askPythos(userText) {
             if (ev.withheld || resolvedState === "WITHHELD") {
               statusBadge.style.color = "#d97706";
               statusBadge.innerHTML = `<span style="color:#d97706; font-weight:500;">Clarification Needed</span>`;
+            } else if (resolvedState === "VERIFIED" && !isTruncated && ev.verificationSummary?.trustReport?.showFullVerifiedBadge) {
+              statusBadge.style.color = "#16a34a";
+              const streamTrustLbl = ev.verificationSummary.trustReport.badgeLabel || "Verified";
+              statusBadge.innerHTML = `<span style="color:#16a34a; font-weight:500;">✓ ${escapeHtml(streamTrustLbl)}</span>`;
             } else if (resolvedState === "VERIFIED" && !isTruncated) {
               statusBadge.style.color = "#16a34a";
               statusBadge.innerHTML = `<span style="color:#16a34a; font-weight:500;">✓ Verified</span>`;
@@ -4734,6 +4968,8 @@ async function askPythos(userText) {
             if (ev.withholdingDetails) metaWithholdingDetails = ev.withholdingDetails;
             if (ev.verificationState) metaVerificationState = ev.verificationState;
             if (ev.verificationSummary) metaVerificationSummary = ev.verificationSummary;
+            if (ev.handoffContract) metaHandoffContract = ev.handoffContract;
+            if (ev.isTutorHint) metaIsTutorHint = true;
             if (typeof ev.finalContent === "string" && ev.finalContent.trim()) {
               streamedText = ev.finalContent;
             } else if (ev.withheld) {
@@ -4757,22 +4993,13 @@ async function askPythos(userText) {
       if (draftBubble.parentNode) {
         draftBubble.remove();
       }
+      if (activeDraftBubble === draftBubble) {
+        activeDraftBubble = null;
+      }
 
-      if (userStoppedGeneration) {
-        const partialReply = streamedText.trim();
-        const finalReply = partialReply || "*(Response stopped)*";
-        messages.push({ role: "assistant", content: finalReply });
-        appendMessage("assistant", finalReply, null, {
-          question: cleanText,
-          claims: metaClaims,
-          verification: metaVerification,
-          verificationAudit: metaVerificationAudit,
-          model: metaModel,
-          stoppedByUser: true
-        });
-        if (partialReply) {
-          await saveChatState(userText, finalReply);
-        }
+      if (isStaleOrCancelled() || userStoppedGeneration) {
+        // Already finalized & unlocked synchronously in stopGeneration() or superseded by a newer request
+        return;
       } else {
         let sanitizedReply = streamedText.trim()
           .replace(/([A-Za-z])\uFFFD+(s|t|re|ve|ll|d|m)\b/g, "$1'$2")
@@ -4810,7 +5037,9 @@ async function askPythos(userText) {
           withholdingExplanation: metaWithholdingExplanation,
           withholdingDetails: metaWithholdingDetails,
           verificationState: metaVerificationState,
-          verificationSummary: metaVerificationSummary
+          verificationSummary: metaVerificationSummary,
+          handoffContract: metaHandoffContract,
+          isTutorHint: metaIsTutorHint
         });
 
         // If user was reading scrolled up during streaming, preserve their exact reading position
@@ -4822,6 +5051,7 @@ async function askPythos(userText) {
       }
     } else if (!res.ok) {
       removeThinking(thinking);
+      if (isStaleOrCancelled()) return;
       removeFailedUserMessage();
       let errorMsg = `Server error (${res.status})`;
       try {
@@ -4851,6 +5081,7 @@ async function askPythos(userText) {
       // Legacy Synchronous JSON Fallback
       const data = await res.json();
       removeThinking(thinking);
+      if (isStaleOrCancelled()) return;
 
       if (data.message && data.message.content) {
         const botReply = data.message.content.trim();
@@ -4866,7 +5097,9 @@ async function askPythos(userText) {
           withholdingExplanation: data.withholdingExplanation || null,
           withholdingDetails: data.withholdingDetails || null,
           verificationState: data.verificationState || null,
-          verificationSummary: data.verificationSummary || null
+          verificationSummary: data.verificationSummary || null,
+          handoffContract: data.handoffContract || null,
+          isTutorHint: Boolean(data.isTutorHint)
         });
 
         // Save to Firebase
@@ -4883,14 +5116,8 @@ async function askPythos(userText) {
     }
 
   } catch (err) {
-    if (userStoppedGeneration || (err && (err.name === 'AbortError' || String(err.message || '').toLowerCase().includes('abort')))) {
-      if (activeThinkingElement) {
-        removeThinking(activeThinkingElement);
-        activeThinkingElement = null;
-        const stoppedNotice = "*(Response stopped)*";
-        messages.push({ role: "assistant", content: stoppedNotice });
-        appendMessage("assistant", stoppedNotice);
-      }
+    if (isStaleOrCancelled() || userStoppedGeneration || (err && (err.name === 'AbortError' || String(err.message || '').toLowerCase().includes('abort')))) {
+      removeThinking(thinking);
       return;
     }
     console.error(err);
@@ -4898,15 +5125,20 @@ async function askPythos(userText) {
     removeFailedUserMessage();
     appendMessage("assistant", "The connection to Athens has been lost. Is the inference server running?");
   } finally {
-    const wasStopped = userStoppedGeneration;
-    activeAbortController = null;
-    activeStreamReader = null;
-    activeThinkingElement = null;
-    userStoppedGeneration = false;
-    if (wasStopped) {
-      setInputLocked(false);
-    } else {
-      setTimeout(() => setInputLocked(false), 1000);
+    if (requestSeq === activeRequestSeq) {
+      const wasStopped = cancelledRequestSeqs.has(requestSeq) || userStoppedGeneration;
+      activeAbortController = null;
+      activeStreamReader = null;
+      activeThinkingElement = null;
+      activeDraftBubble = null;
+      userStoppedGeneration = false;
+      if (wasStopped) {
+        setInputLocked(false);
+      } else {
+        setTimeout(() => {
+          if (requestSeq === activeRequestSeq) setInputLocked(false);
+        }, 1000);
+      }
     }
   }
 }
@@ -5411,6 +5643,232 @@ setupFloatingTool("toolCheckBtn", "floatCheckWindow", "checkCloseBtn");
 setupFloatingTool("toolUnitsBtn", "floatUnitsWindow", "unitsCloseBtn");
 setupFloatingTool("toolMatrixBtn", "floatMatrixWindow", "matrixCloseBtn");
 setupFloatingTool("toolEditorBtn", "floatEditorWindow", "editorCloseBtn");
+
+// =====================================
+// PHASE 3: STRUCTURED CONTEXTUAL TOOL HANDOFF
+// =====================================
+function isSafeHandoffString(val, maxLen = 300) {
+  return typeof val === "string" && val.trim().length > 0 && val.length <= maxLen && !/[<>`]/.test(val);
+}
+
+function validateToolHandoffAction(action) {
+  if (!action || typeof action !== "object" || typeof action.id !== "string") {
+    return { valid: false, reason: "Invalid handoff action payload." };
+  }
+  const params = (action.params && typeof action.params === "object") ? action.params : {};
+  switch (action.id) {
+    case "graph":
+      return isSafeHandoffString(params.expression)
+        ? { valid: true }
+        : { valid: false, reason: "Invalid or missing graph expression." };
+    case "check_work":
+      return isSafeHandoffString(params.equation) && params.equation.includes("=")
+        ? { valid: true }
+        : { valid: false, reason: "Check Work requires a valid equation containing '='." };
+    case "matrix":
+      if (params.matrixA !== undefined) {
+        try {
+          const parsed = JSON.parse(params.matrixA);
+          if (!Array.isArray(parsed) || !parsed.length || !Array.isArray(parsed[0])) {
+            return { valid: false, reason: "Malformed matrix payload." };
+          }
+        } catch (_) {
+          return { valid: false, reason: "Unparseable matrix payload." };
+        }
+      }
+      return { valid: true };
+    case "units":
+      return (isSafeHandoffString(params.valueWithUnit, 100) && isSafeHandoffString(params.targetUnit, 60))
+        ? { valid: true }
+        : { valid: false, reason: "Invalid unit conversion parameters." };
+    case "sim_lab":
+      return isSafeHandoffString(params.simId, 80)
+        ? { valid: true }
+        : { valid: false, reason: "Missing simulation identifier." };
+    case "domain_restrictions":
+      return (Array.isArray(action.restrictions) && action.restrictions.length > 0)
+        ? { valid: true }
+        : { valid: false, reason: "No verified domain restrictions to display." };
+    case "try_another_method":
+      return isSafeHandoffString(action.prompt, 800)
+        ? { valid: true }
+        : { valid: false, reason: "Missing follow-up prompt." };
+    default:
+      return { valid: false, reason: `Unsupported tool handoff: ${action.id}` };
+  }
+}
+
+function closeToolboxPopoverIfOpen() {
+  const pop = document.getElementById("toolboxPopoverMenu");
+  const btn = document.getElementById("toolboxMenuBtn");
+  if (pop && pop.classList.contains("open")) {
+    pop.classList.remove("open");
+    if (btn) btn.setAttribute("aria-expanded", "false");
+  }
+}
+
+function executeContextualToolHandoff(action, contract, opts = {}) {
+  const check = validateToolHandoffAction(action);
+  if (!check.valid) {
+    console.warn("[TOOL HANDOFF REJECTED]:", check.reason);
+    return { ok: false, reason: check.reason };
+  }
+
+  closeToolboxPopoverIfOpen();
+  const engine = window.PythosMathInputEngine;
+  const params = action.params || {};
+
+  if (action.id === "graph") {
+    const graphInputEl = document.getElementById("graphFuncInput");
+    const expr = engine && typeof engine.normalizeMathInputForParser === "function"
+      ? engine.normalizeMathInputForParser(params.expression)
+      : params.expression.trim();
+    if (!isSafeHandoffString(expr)) return { ok: false, reason: "Unsupported expression for graphing." };
+    openFloatingWindowById("floatGraphWindow", "toolGraphBtn");
+    if (graphInputEl) {
+      graphInputEl.value = expr;
+      if (typeof drawGraph === "function") {
+        try { drawGraph(expr); } catch (_) {}
+      }
+      setTimeout(() => graphInputEl.focus(), 40);
+    }
+    return { ok: true, tool: "floatGraphWindow" };
+  }
+
+  if (action.id === "check_work") {
+    const checkEqEl = document.getElementById("checkEqInput");
+    const checkVarEl = document.getElementById("checkVarInput");
+    const checkAnsEl = document.getElementById("checkAnsInput");
+    const checkResEl = document.getElementById("checkResultArea");
+    const checkAskBtnEl = document.getElementById("checkAskPythosBtn");
+    const eq = engine && typeof engine.normalizeMathInputForParser === "function"
+      ? engine.normalizeMathInputForParser(params.equation)
+      : params.equation.trim();
+    if (!eq.includes("=")) return { ok: false, reason: "Equation must contain '='." };
+    openFloatingWindowById("floatCheckWindow", "toolCheckBtn");
+    if (checkEqEl) checkEqEl.value = eq;
+    if (checkVarEl && isSafeHandoffString(params.variable || "", 12)) {
+      checkVarEl.value = String(params.variable).trim();
+    }
+    // Always leave student's answer/work area empty so they solve/verify their own work
+    if (checkAnsEl) checkAnsEl.value = "";
+    if (checkResEl) checkResEl.style.display = "none";
+    if (checkAskBtnEl) checkAskBtnEl.style.display = "none";
+    if (checkAnsEl) setTimeout(() => checkAnsEl.focus(), 40);
+    return { ok: true, tool: "floatCheckWindow" };
+  }
+
+  if (action.id === "matrix") {
+    openFloatingWindowById("floatMatrixWindow", "toolMatrixBtn");
+    const matAEl = document.getElementById("matrixAInput");
+    const matBEl = document.getElementById("matrixBInput");
+    if (matAEl && params.matrixA) matAEl.value = params.matrixA;
+    if (matBEl && params.matrixB) matBEl.value = params.matrixB;
+    if (matAEl) setTimeout(() => matAEl.focus(), 40);
+    return { ok: true, tool: "floatMatrixWindow" };
+  }
+
+  if (action.id === "units") {
+    openFloatingWindowById("floatUnitsWindow", "toolUnitsBtn");
+    const uValEl = document.getElementById("unitsValueInput");
+    const uTgtEl = document.getElementById("unitsTargetInput");
+    if (uValEl && params.valueWithUnit) uValEl.value = params.valueWithUnit;
+    if (uTgtEl && params.targetUnit) uTgtEl.value = params.targetUnit;
+    if (typeof runUnitConversion === "function") {
+      try { runUnitConversion(); } catch (_) {}
+    }
+    return { ok: true, tool: "floatUnitsWindow" };
+  }
+
+  if (action.id === "sim_lab") {
+    const simApi = window.PythosSimLab;
+    if (!simApi || typeof simApi.open !== "function") {
+      return { ok: false, reason: "Simulation Lab is unavailable." };
+    }
+    const validCatalog = Array.isArray(simApi.catalog) && simApi.catalog.some(s => s.id === params.simId);
+    if (!validCatalog) {
+      return { ok: false, reason: "Unsupported simulation topic." };
+    }
+    simApi.open();
+    if (typeof simApi.launch === "function") {
+      simApi.launch(params.simId);
+    }
+    return { ok: true, tool: "simLabOverlay", simId: params.simId };
+  }
+
+  if (action.id === "domain_restrictions") {
+    const container = opts.containerEl;
+    if (!container) return { ok: false, reason: "No message container for restrictions." };
+    let panel = container.querySelector(".pythos-domain-restrictions-panel");
+    if (panel) {
+      const nextVisible = panel.style.display === "none";
+      panel.style.display = nextVisible ? "block" : "none";
+      if (opts.btnEl) opts.btnEl.classList.toggle("active", nextVisible);
+      return { ok: true, expanded: nextVisible };
+    }
+    panel = document.createElement("div");
+    panel.className = "pythos-domain-restrictions-panel";
+    const listHtml = action.restrictions.map(r => `<li><code>${escapeHtml(String(r))}</code></li>`).join("");
+    panel.innerHTML = `<strong>Domain Restrictions${contract?.normalizedExpression ? ` for <code>${escapeHtml(contract.normalizedExpression)}</code>` : ""}:</strong><ul>${listHtml}</ul>`;
+    container.appendChild(panel);
+    if (opts.btnEl) opts.btnEl.classList.add("active");
+    return { ok: true, expanded: true };
+  }
+
+  if (action.id === "try_another_method") {
+    if (isProcessing) return { ok: false, reason: "Busy processing another request." };
+    if (typeof addToPromptHistory === "function") addToPromptHistory(action.prompt);
+    askPythos(action.prompt);
+    return { ok: true, tool: "chat" };
+  }
+
+  return { ok: false, reason: "Unhandled handoff action." };
+}
+
+function getHandoffActionIcon(id) {
+  switch (id) {
+    case "graph": return "📈";
+    case "check_work": return "✓";
+    case "domain_restrictions": return "⚠️";
+    case "try_another_method": return "🔄";
+    case "matrix": return "⊞";
+    case "units": return "⚖️";
+    case "sim_lab": return "🧪";
+    default: return "↗";
+  }
+}
+
+function renderContextualHandoffRow(contentDiv, contract) {
+  if (!contentDiv || !contract || !Array.isArray(contract.tools) || contract.tools.length === 0) return;
+  const validActions = contract.tools.filter(a => validateToolHandoffAction(a).valid);
+  if (validActions.length === 0) return;
+
+  const row = document.createElement("div");
+  row.className = "pythos-handoff-row";
+  row.setAttribute("role", "group");
+  row.setAttribute("aria-label", "Open problem in Pythos tools");
+
+  validActions.forEach((action) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "pythos-handoff-btn";
+    btn.dataset.handoffId = action.id;
+    btn.innerHTML = `<span aria-hidden="true">${getHandoffActionIcon(action.id)}</span><span>${escapeHtml(action.label || action.id)}</span>`;
+    btn.addEventListener("click", () => {
+      executeContextualToolHandoff(action, contract, { containerEl: contentDiv, btnEl: btn });
+    });
+    row.appendChild(btn);
+  });
+
+  contentDiv.appendChild(row);
+}
+
+if (typeof window !== "undefined") {
+  window.PythosToolHandoff = {
+    validateToolHandoffAction,
+    executeContextualToolHandoff
+  };
+}
 
 // =====================================
 // // VISUAL EQUATION EDITOR & PEARSON BAR (MathLive — Lazy-Loaded on Demand)
