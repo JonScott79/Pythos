@@ -69,7 +69,7 @@
         "applicationCategory": "EducationalApplication",
         "operatingSystem": "All modern web browsers",
         "softwareVersion": "1.8.73",
-        "dateModified": "2026-11-19",
+        "dateModified": "2026-11-20",
         "description": "Free AI mathematics and physics tutor providing Socratic step-by-step guidance, deterministic computer algebra verification, 2D function plotting, and study tools.",
         "inLanguage": "en",
         "isAccessibleForFree": true,
@@ -756,6 +756,13 @@
       border: 2px solid var(--accent-orange);
       box-shadow: 0 0 8px rgba(244, 107, 69, 0.3);
       object-fit: cover;
+    }
+
+    .header-info .header-title-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
     }
 
     .header-info h1 {
@@ -2264,6 +2271,38 @@
       color: var(--primary-color);
       transform: translateY(-1px);
       box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    }
+
+    .welcome-study-links {
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      gap: 8px 14px;
+      font-size: 0.8rem;
+    }
+
+    .welcome-study-label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+    }
+
+    .welcome-study-links a {
+      color: var(--primary-color);
+      text-decoration: none;
+      font-weight: 500;
+      padding: 2px 4px;
+      border-radius: 4px;
+    }
+
+    .welcome-study-links a:hover {
+      text-decoration: underline;
     }
 
     /* Floating Windows */
@@ -5217,8 +5256,11 @@
         <header class="header">
           <img class="header-avatar" src="assets/pythos_avatar.jpg" alt="Pythos Oracle" width="40" height="40" />
           <div class="header-info">
-            <h1>PYTHOS <a href="changelog.html#pythos-1-8-73" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.73)" aria-label="v1.8.73 — Version 1.8.73 Release Notes">v1.8.73</a></h1>
-            <p>Mathematics & Physics Oracle</p>
+            <div class="header-title-row">
+              <h1>PYTHOS</h1>
+              <a href="changelog.html#pythos-1-8-73" style="font-size: 0.75rem; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.73)" aria-label="v1.8.73 — Version 1.8.73 Release Notes">v1.8.73</a>
+            </div>
+            <p>Mathematics &amp; Physics Oracle</p>
           </div>
           <button id="themeToggleBtn" class="theme-toggle-btn" title="Toggle Dark/Light Mode" aria-label="Toggle Dark and Light Theme">
             <svg id="themeIconSun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none;" aria-hidden="true"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="12" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
@@ -5248,11 +5290,11 @@
         <div id="output" role="log" aria-live="polite" aria-relevant="additions text" aria-atomic="false" aria-label="Conversation History with Pythos Oracle" tabindex="-1" data-clarity-mask="true">
           <div id="welcomeOracleCard" class="welcome-oracle-card" role="region" aria-label="Welcome to Pythos Oracle">
             <img src="assets/pythos_avatar.jpg" alt="Pythos Oracle" class="welcome-oracle-avatar" width="56" height="56" fetchpriority="high" />
-            <h2 class="welcome-oracle-title">Welcome to Pythos</h2>
+            <h2 class="welcome-oracle-title">Free AI Math &amp; Physics Tutor</h2>
             <p class="welcome-oracle-desc">
-              Free AI mathematics &amp; physics education backed by multiple checks for accuracy.
-              Work through derivations, check your homework, or explore concepts step-by-step.
-              <br><a href="validation/" style="color:var(--primary-color); text-decoration:underline; font-size:0.85rem;">View our public mathematical validation record &rarr;</a>
+              Step-by-step algebra, AP Calculus, trigonometry, and classical physics tutoring backed by deterministic symbolic verification.
+              Explore derivations, plot equations with the 2D Function Grapher, verify intermediate steps in Check Work, or run 17 interactive Physics Sim Lab experiments.
+              <br><a href="validation/" style="color:var(--primary-color); text-decoration:underline; font-size:0.85rem;">View our 50,000-problem mathematical validation record &rarr;</a>
             </p>
             <div class="starter-prompts-title">Try a starter problem:</div>
             <div class="starter-chips-wrap">
@@ -5269,6 +5311,15 @@
                 <span>📈 Graph f(x) = x³ - 3x</span>
               </button>
             </div>
+            <nav class="welcome-study-links" aria-label="Study Guides and Interactive Tools">
+              <span class="welcome-study-label">Guides &amp; Tools:</span>
+              <a href="algebra/">Algebra Guide</a>
+              <a href="calculus/">Calculus Guide</a>
+              <a href="physics/">Physics Guide</a>
+              <a href="tools/">Function Grapher &amp; Tools</a>
+              <a href="subjects/">All Subjects</a>
+              <a href="about/">About Pythos</a>
+            </nav>
           </div>
         </div>
 
