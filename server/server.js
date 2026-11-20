@@ -3328,7 +3328,12 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           hasImages,
           auditText,
           promptFidelity,
-          detectFormattingAnomaly
+          detectFormattingAnomaly,
+          invalidClaims: uncorrectedInvalidClaims,
+          unknownClaims,
+          internalContradictions,
+          classification,
+          studentIntent
         });
         const resolvedReason = decision.reason;
         const safeWithholding = getSafeWithholding(resolvedReason, decision.overrides);
