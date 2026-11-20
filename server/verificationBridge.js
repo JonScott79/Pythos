@@ -2285,7 +2285,12 @@ function getPythonExecutable() {
 
   const { spawnSync } = require('child_process');
   const candidates = process.platform === 'win32'
-    ? ['C:\\Users\\jonny\\AppData\\Local\\Python\\bin\\python.exe', 'python', 'python3']
+    ? [
+        'C:\\Users\\jonny\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe',
+        'C:\\Users\\jonny\\AppData\\Local\\Python\\bin\\python.exe',
+        'python',
+        'python3'
+      ]
     : ['python3', 'python'];
 
   for (const bin of candidates) {
@@ -3071,6 +3076,15 @@ class VerifierWorker {
 
   terminate() {
     this.isDead = true;
+    if (this.currentTask) {
+      const orphanedTask = this.currentTask;
+      this.currentTask = null;
+      this.busy = false;
+      if (orphanedTask.timer) clearTimeout(orphanedTask.timer);
+      if (verifierShuttingDown && typeof orphanedTask.resolve === 'function') {
+        orphanedTask.resolve(orphanedTask.makeErrorResult('CAS_SHUTDOWN', 'Verifier daemon closed'));
+      }
+    }
     if (this.proc) {
       const p = this.proc;
       this.proc = null;
@@ -3112,7 +3126,7 @@ function initVerifierDaemon(poolSize = VERIFIER_MAX_WORKERS) {
 }
 
 function onVerifierWorkerCrash(crashedWorker) {
-  if (verifierShuttingDown) return;
+  if (verifierShuttingDown || !verifierPool.includes(crashedWorker)) return;
   if (crashedWorker.consecutiveRapidCrashes >= VERIFIER_MAX_CONSECUTIVE_CRASHES) {
     verifierTelemetry.circuitOpenUntil = Date.now() + VERIFIER_CIRCUIT_COOLDOWN_MS;
     // Drain queued tasks with fail-closed error instead of spin-spawning broken workers
