@@ -284,6 +284,7 @@ function getSafeWithholding(reasonCode, overrides = null) {
       result.explanation = `${result.explanation}\n\n${followUpPrompt}`;
       const plainFix = sanitizePlainDetailsText(suggestedFix, 200);
       result.nextStep = `Try sending ${plainFix || suggestedFix} and I'll solve it right away.`;
+      result.suggestedFix = plainFix || suggestedFix;
     }
   }
 
