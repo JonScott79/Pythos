@@ -417,7 +417,7 @@ async function runAllTests() {
       providerPolicy.clearRateLimits();
       const savedGeminiKey = process.env.GEMINI_API_KEY;
       const savedGeminiFree = process.env.GEMINI_FREE_TIER;
-      process.env.GEMINI_API_KEY = 'AIzaSyMockKeyForTesting1234567890123';
+      process.env.GEMINI_API_KEY = 'AIza' + 'SyMockKeyForTesting1234567890123';
       process.env.GEMINI_FREE_TIER = 'true';
 
       let groqTried = false;

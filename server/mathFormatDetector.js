@@ -183,28 +183,36 @@ function detectFormattingAnomaly(input) {
   if (blockErr) return blockErr;
 
   // 3. Operators trapped inside braced exponents & misplaced trig power arguments
+  const trigArgRe = /^(\d+)((?:\\left\s*)?\(\s*([a-zA-Z])\s*(?:\\right\s*)?\))$/;
   for (let i = 0; i < s.length - 1; i++) {
-    if (s[i] === '^' && s[i + 1] === '{') {
-      const closeIdx = findMatchingBrace(s, i + 1);
+    if (s[i] === '^') {
+      let braceIdx = i + 1;
+      while (braceIdx < s.length && /\s/.test(s[braceIdx])) braceIdx++;
+      if (braceIdx >= s.length || s[braceIdx] !== '{') continue;
+      const closeIdx = findMatchingBrace(s, braceIdx);
       if (closeIdx === -1) continue;
-      const inner = s.slice(i + 2, closeIdx).trim();
+      // Strip trailing empty placeholder braces {} and LaTeX spacing tokens (\,, \;, \:, \!, \ , ~)
+      const inner = s
+        .slice(braceIdx + 1, closeIdx)
+        .replace(/(?:\{\s*\}|\\[,;:! ]|~|\s)+$/g, '')
+        .trim();
       const after = s.slice(closeIdx + 1).trimStart();
 
       if (/[+\-*/]$/.test(inner)) {
         const op = inner.slice(-1);
-        const beforeOp = inner.slice(0, -1).trim();
+        const beforeOp = inner.slice(0, -1).replace(/(?:\{\s*\}|\\[,;:! ]|~|\s)+$/g, '').trim();
         const fullExp = s.slice(i, closeIdx + 1);
 
         // High-confidence suggestion ONLY when a non-empty math operand follows the closing '}'
         // (never suggest a dangling expression like "x^{2} +" when nothing follows '}'!)
         const trigMatch = s.slice(0, i).match(/\\?(sin|cos|tan|csc|sec|cot)\s*$/);
-        const trigArgMatch = beforeOp.match(/^(\d+)\(([a-zA-Z])\)$/);
+        const trigArgMatch = beforeOp.match(trigArgRe);
         const hasValidFollowingTerm = /^(?:\\[a-zA-Z]+|[a-zA-Z0-9(])/.test(after);
         let suggestedFix;
         if (trigMatch && trigArgMatch && hasValidFollowingTerm) {
           const pow = trigArgMatch[1];
-          const arg = trigArgMatch[2];
-          const fixedExp = `^${pow}(${arg}) ${op} `;
+          const argWrap = trigArgMatch[2];
+          const fixedExp = `^${pow}${argWrap} ${op} `;
           suggestedFix = (s.slice(0, i) + fixedExp + after)
             .replace(/\s+/g, ' ')
             .trim();
@@ -225,19 +233,20 @@ function detectFormattingAnomaly(input) {
 
       // Trig power argument mismatch: e.g. \sin^{2(x)} where (x) is inside exponent
       const trigPrefix = s.slice(0, i).match(/\\?(sin|cos|tan|csc|sec|cot)\s*$/);
-      const innerTrigArg = inner.match(/^(\d+)\(([a-zA-Z])\)$/);
-      if (trigPrefix && innerTrigArg && !after.startsWith('(')) {
+      const innerTrigArg = inner.match(trigArgRe);
+      if (trigPrefix && innerTrigArg && !/^(?:\(|\\left\s*\()/.test(after)) {
         const pow = innerTrigArg[1];
-        const arg = innerTrigArg[2];
+        const argWrap = innerTrigArg[2];
+        const arg = innerTrigArg[3];
         // Only suggest rewrite when followed by nothing or an explicit binary/comparison operator
         const safeAfterForFix = !after || /^[+\-*/=<>]/.test(after);
         const suggestedFix = safeAfterForFix
-          ? `${s.slice(0, i)}^${pow}(${arg})${after ? ' ' + after : ''}`.trim()
+          ? `${s.slice(0, i)}^${pow}${argWrap}${after ? ' ' + after : ''}`.trim()
           : undefined;
         return {
           isWeird: true,
           kind: 'TRIG_POWER_ARG_MISMATCH',
-          snippet: `${trigPrefix[0]}^${'{'}${inner}${'}'}`,
+          snippet: `${trigPrefix[0]}${s.slice(i, closeIdx + 1)}`,
           explanation: `The formatting looks a little weird — \`(${arg})\` appears inside the exponent of \`${trigPrefix[0]}\` instead of as its argument.`,
           ...(suggestedFix ? { suggestedFix } : {})
         };

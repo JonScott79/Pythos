@@ -42,6 +42,32 @@ test('2A Positive: 2\\sin^{2(x)+}\\csc(x) - 9 = 0 -> TRAPPED_OPERATOR_IN_EXPONEN
   assert.strictEqual(res.suggestedFix, '2\\sin^2(x) + \\csc(x) - 9 = 0');
 });
 
+for (const latexEdge of [
+  {
+    input: '2\\sin^{2(x)+\\,}\\csc(x)-9=0',
+    expectedFix: '2\\sin^2(x) + \\csc(x)-9=0'
+  },
+  {
+    input: '2\\sin^{2(x)+{}}\\csc(x)-9=0',
+    expectedFix: '2\\sin^2(x) + \\csc(x)-9=0'
+  },
+  {
+    input: '2\\sin^ {2(x)+}\\csc(x)-9=0',
+    expectedFix: '2\\sin^2(x) + \\csc(x)-9=0'
+  },
+  {
+    input: '\\( 2\\sin^{2\\left(x\\right)+}\\csc\\left(x\\right)-9=0 \\)',
+    expectedFix: '\\( 2\\sin^2\\left(x\\right) + \\csc\\left(x\\right)-9=0 \\)'
+  }
+]) {
+  test(`2A Positive (LaTeX spacing / placeholder / \\left-\\right variant): ${latexEdge.input}`, () => {
+    const res = detectFormattingAnomaly(latexEdge.input);
+    assert.strictEqual(res.isWeird, true);
+    assert.strictEqual(res.kind, 'TRAPPED_OPERATOR_IN_EXPONENT');
+    assert.strictEqual(res.suggestedFix, latexEdge.expectedFix);
+  });
+}
+
 for (const incompleteExp of ['x^{2+}', 'x^{n-}', 'x^{2*}']) {
   test(`2A Positive (no dangling suggestedFix): ${incompleteExp}`, () => {
     const res = detectFormattingAnomaly(incompleteExp);

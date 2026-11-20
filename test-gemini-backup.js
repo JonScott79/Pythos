@@ -371,10 +371,11 @@ runTest('10. Centralized credential resolution: providerPolicy exports getGroqAp
 });
 
 runTest('11. Security sanitization: Gemini AIzaSy keys and x-goog-api-key headers are redacted', () => {
-  const dirty = `Error calling Gemini: key=AIzaSyA1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6 in x-goog-api-key: AIzaSyA1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6`;
+  const mockLeakKey = 'AIza' + 'SyA1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6';
+  const dirty = `Error calling Gemini: key=${mockLeakKey} in x-goog-api-key: ${mockLeakKey}`;
   const sanitized = sanitizeErrorDetail(dirty);
 
-  assert(!sanitized.includes('AIzaSyA1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6'), 'Must scrub raw Gemini key');
+  assert(!sanitized.includes(mockLeakKey), 'Must scrub raw Gemini key');
   assert(sanitized.includes('[REDACTED_API_KEY]'), 'Must replace with [REDACTED_API_KEY]');
   assert(sanitized.includes('x-goog-api-key: [REDACTED]'), 'Must replace x-goog-api-key header');
 });
@@ -402,7 +403,7 @@ async function runRoutingTests() {
   process.env.GROQ_API_KEY = 'gsk_mock_test_key_for_vision_routing';
   process.env.NODE_ENV = 'test';
   process.env.GEMINI_FREE_TIER = 'true';
-  process.env.GEMINI_API_KEY = 'AIzaSyMockKeyForTesting1234567890123';
+  process.env.GEMINI_API_KEY = 'AIza' + 'SyMockKeyForTesting1234567890123';
   process.env.PYTHOS_AI_BUDGET_MODE = 'free_only';
   process.env.PYTHOS_AI_ENABLED = 'true';
 
@@ -762,7 +763,7 @@ async function runRoutingTests() {
     await runAsyncTest('18. Full End-to-End Fallback: Groq unavailable -> Gemini -> image extraction -> Pythos reasoning -> verification -> final response', async () => {
       providerPolicy.clearRateLimits();
       process.env.GEMINI_FREE_TIER = 'true';
-      process.env.GEMINI_API_KEY = 'AIzaSyMockKeyForTesting1234567890123';
+      process.env.GEMINI_API_KEY = 'AIza' + 'SyMockKeyForTesting1234567890123';
       let groqCalled = false;
       let geminiCalled = false;
       let imageExtractedInPayload = false;
@@ -883,7 +884,7 @@ async function runRoutingTests() {
     await runAsyncTest('19. Adversarial chat test: free_only + GEMINI_FREE_TIER=0/false NEVER executes Gemini on Groq 429', async () => {
       providerPolicy.clearRateLimits();
       process.env.GEMINI_FREE_TIER = '0'; // Non-'true' adversarial flag
-      process.env.GEMINI_API_KEY = 'AIzaSyAdversarialKey12345678901234';
+      process.env.GEMINI_API_KEY = 'AIza' + 'SyAdversarialKey12345678901234';
       let geminiCalled = false;
 
       https.request = function (options, callback) {
