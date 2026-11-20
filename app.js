@@ -5685,7 +5685,9 @@ function validateToolHandoffAction(action) {
   const params = (action.params && typeof action.params === "object") ? action.params : {};
   switch (action.id) {
     case "graph":
-      return isSafeHandoffString(params.expression)
+      return isSafeHandoffString(params.expression) &&
+        !/^(?:it|this|that|these|those|the\s+(?:function|curve|graph|equation))$/i.test(params.expression.trim()) &&
+        (Boolean(getCompiledGraphExpr(params.expression)) || Boolean(parseCircleExpr(params.expression)))
         ? { valid: true }
         : { valid: false, reason: "Invalid or missing graph expression." };
     case "check_work":

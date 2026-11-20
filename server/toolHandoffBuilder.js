@@ -63,17 +63,37 @@ function normalizeMathForTools(raw) {
   return s;
 }
 
+const REFERENTIAL_PROSE_WORDS = new Set([
+  'it', 'this', 'that', 'these', 'those', 'them', 'me', 'my', 'you', 'your',
+  'here', 'there', 'please', 'kindly', 'function', 'curve', 'graph', 'plot',
+  'sketch', 'equation', 'formula', 'problem', 'answer', 'solution', 'work', 'step'
+]);
+
+const ALLOWED_MATH_MULTI_WORDS = new Set([
+  'sin', 'cos', 'tan', 'csc', 'sec', 'cot',
+  'asin', 'acos', 'atan', 'arcsin', 'arccos', 'arctan',
+  'sinh', 'cosh', 'tanh', 'asinh', 'acosh', 'atanh',
+  'ln', 'log', 'log10', 'log2', 'exp', 'sqrt', 'cbrt',
+  'abs', 'floor', 'round', 'ceil', 'pi', 'theta', 'alpha',
+  'beta', 'gamma', 'delta', 'omega', 'inf', 'infinity',
+  'mod', 'gcd', 'lcm', 'det', 'dim', 'deg', 'rad', 'diff', 'integrate',
+  'dx', 'dy', 'dt', 'dz'
+]);
+
 function isSafeAsciiMathExpression(expr) {
   if (!expr || typeof expr !== 'string') return false;
   const s = expr.trim();
   if (!s || s.length > 260) return false;
   if (/[<>`$;]/.test(s)) return false;
   if (!/[a-zA-Z0-9]/.test(s)) return false;
-  // Reject natural English sentences with too many long words
-  const nonMathWords = (s.match(/\b[a-zA-Z]{5,}\b/g) || []).filter(
-    w => !/^(?:arcsin|arccos|arctan|asinh|acosh|atanh|sqrt|cbrt|theta|alpha|beta|gamma|delta|omega|log10|floor|round|ceil)$/i.test(w)
-  );
-  if (nonMathWords.length > 2) return false;
+  if (/^(?:it|this|that|these|those|them|me|here|there|please|kindly)$/i.test(s)) return false;
+
+  // Reject any expression containing referential/prose English words or multiple unknown multi-letter tokens
+  const multiLetterWords = s.match(/\b[a-zA-Z]{2,}\b/g) || [];
+  const unknownWords = multiLetterWords.filter(w => !ALLOWED_MATH_MULTI_WORDS.has(w.toLowerCase()));
+  if (unknownWords.some(w => REFERENTIAL_PROSE_WORDS.has(w.toLowerCase()))) return false;
+  if (unknownWords.length > 1) return false;
+  if (unknownWords.length === 1 && !/[0-9+\-*/^()=.]/.test(s)) return false;
   return true;
 }
 
@@ -120,15 +140,20 @@ function extractFunctionExprFromPrompt(prompt) {
 
   const graphCmd = s.match(/\b(?:graph|plot|sketch)\s+(?:the\s+(?:function|curve|equation)\s+)?(?:y\s*=\s*|f\s*\(\s*x\s*\)\s*=\s*)?([^\n?!;]+)/i);
   if (graphCmd) {
-    const rawTarget = graphCmd[1].replace(/\s+(?:from|on|over|between|for)\s+.*$/i, '').trim();
+    const rawTarget = graphCmd[1]
+      .replace(/\s+(?:from|on|over|between|for)\s+.*$/i, '')
+      .replace(/\s+(?:please|kindly|on\s+a\s+graph|in\s+a\s+graph|on\s+the\s+graph)$/i, '')
+      .trim();
     const candidate = normalizeMathForTools(rawTarget);
-    if (candidate.includes('=')) {
-      const [lhs, rhs] = candidate.split('=').map(p => p.trim());
-      if (lhs && rhs && isSafeAsciiMathExpression(lhs) && isSafeAsciiMathExpression(rhs)) {
-        return rhs === '0' ? lhs : `(${lhs}) - (${rhs})`;
+    if (candidate && !/^(?:it|this|that|these|those|the\s+(?:function|curve|graph|equation))$/i.test(candidate)) {
+      if (candidate.includes('=')) {
+        const [lhs, rhs] = candidate.split('=').map(p => p.trim());
+        if (lhs && rhs && isSafeAsciiMathExpression(lhs) && isSafeAsciiMathExpression(rhs)) {
+          return rhs === '0' ? lhs : `(${lhs}) - (${rhs})`;
+        }
+      } else if (isSafeAsciiMathExpression(candidate)) {
+        return candidate;
       }
-    } else if (isSafeAsciiMathExpression(candidate)) {
-      return candidate;
     }
   }
 
@@ -276,10 +301,14 @@ function buildToolHandoffContract({
   const rawPrompt = typeof userPrompt === 'string' ? userPrompt.trim() : '';
   if (!rawPrompt) return null;
 
-  // If the user just submitted an incorrect/intermediate step or follow-up check
-  // against an active problem in conversation state, hand off the authoritative
-  // active problem rather than the student's discarded/erroneous step attempt.
+  // If the user submitted a step/validation follow-up OR a referential graph request
+  // (e.g. "graph it for me please") against an active problem in conversation state,
+  // anchor handoffs on the authoritative active problem rather than prose/discarded steps.
   const activeProbExpr = activeProblemState?.active?.activeExpression || activeProblemState?.active?.initialUserPrompt || '';
+  const hasExplicitRawMath = Boolean(
+    extractFunctionExprFromPrompt(rawPrompt) ||
+    extractEquationFromPrompt(rawPrompt)
+  );
   const isStepFeedbackTurn = Boolean(
     activeProbExpr &&
     studentIntent?.intent !== 'NEW_PROBLEM' &&
@@ -291,7 +320,17 @@ function buildToolHandoffContract({
       ['PROPOSED_STEP', 'PROPOSED_ANSWER', 'VALIDATION_REQUEST', 'HINT_REQUEST', 'CONTINUATION', 'TENTATIVE_HYPOTHESIS'].includes(studentIntent?.intent)
     )
   );
-  const prompt = isStepFeedbackTurn ? String(activeProbExpr).trim() : rawPrompt;
+  const isReferentialGraphTurn = Boolean(
+    !hasExplicitRawMath &&
+    (preflightToolResult?.parameters?.expression || activeProbExpr) &&
+    (
+      studentIntent?.intent === 'GRAPH_REQUEST' ||
+      /\b(?:graph|plot|sketch)\s+(?:it|this|that|the\s+(?:function|curve|equation))\b/i.test(rawPrompt)
+    )
+  );
+  const prompt = isStepFeedbackTurn
+    ? String(activeProbExpr).trim()
+    : (isReferentialGraphTurn ? String(preflightToolResult?.parameters?.expression || activeProbExpr).trim() : rawPrompt);
 
   // Never offer irrelevant calculation handoffs for off-topic, infra failures, or malformed syntax
   // (MALFORMED_SYNTAX already receives Feature 1 Suggested Equation actions).

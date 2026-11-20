@@ -1,6 +1,6 @@
 {
   "name": "pythos",
-  "version": "1.8.72",
+  "version": "1.8.73",
   "private": true,
   "description": "Pythos AI Mathematics & Physics Tutor workspace, verification engine, and browser regression suite.",
   "scripts": {

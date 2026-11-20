@@ -225,6 +225,13 @@ runTest(10, 'Mathematical labels in the visual must agree with the verified math
   assert.ok(!result.includes('/|'), 'Must NOT contain duplicate ASCII diagram');
 });
 
+runTest(11, 'Clarification prompt examples "(e.g., y = 7\\sin(x/4) or f(x) = x^2 - 4)" never inject [GRAPH: x^2 - 4]', () => {
+  const userText = 'graph it for me please';
+  const clarification = '📊 **Function Grapher**\n\nWhich function would you like me to graph? (e.g., $y = 7\\sin(x/4)$ or $f(x) = x^2 - 4$)';
+  const result = enforceVisualFidelity(clarification, userText, []);
+  assert.ok(!result.includes('[GRAPH:'), `Must NOT scrape example into [GRAPH:], got: ${result}`);
+});
+
 console.log('\n================================================================');
 console.log(`RESULTS: ${passedTests}/${totalTests} TESTS PASSED (${totalTests - passedTests} failures)`);
 console.log('================================================================');

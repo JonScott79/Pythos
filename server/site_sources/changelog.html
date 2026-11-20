@@ -22,14 +22,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" href="assets/favicon.png">
-  <title>Pythos Release History &amp; Changelog | v1.8.72</title>
+  <title>Pythos Release History &amp; Changelog | v1.8.73</title>
   <meta name="description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="author" content="Jon Scott / LANZAR">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://pythos.lanzar.me/changelog.html">
 
   <!-- OPEN GRAPH -->
-  <meta property="og:title" content="Pythos Release History &amp; Changelog | v1.8.72">
+  <meta property="og:title" content="Pythos Release History &amp; Changelog | v1.8.73">
   <meta property="og:description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta property="og:url" content="https://pythos.lanzar.me/changelog.html">
   <meta property="og:type" content="article">
@@ -41,7 +41,7 @@
 
   <!-- TWITTER CARD -->
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Pythos Release History &amp; Changelog | v1.8.72">
+  <meta name="twitter:title" content="Pythos Release History &amp; Changelog | v1.8.73">
   <meta name="twitter:description" content="Pythos release notes &amp; changelog: explore verification engine milestones, CAS ground-truth routing, accessibility, and mathematical updates.">
   <meta name="twitter:image" content="https://pythos.lanzar.me/assets/pythos_avatar.jpg">
 
@@ -532,7 +532,7 @@
         <a href="nonprofit.html" class="nav-link">Mission &amp; Roadmap</a>
         <a href="license.html" class="nav-link">License</a>
         <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" class="nav-link">Facebook</a>
-        <a href="changelog.html#pythos-1-8-72" class="nav-link active" aria-current="page">v1.8.72</a>
+        <a href="changelog.html#pythos-1-8-73" class="nav-link active" aria-current="page">v1.8.73</a>
       </div>
     </div>
 
@@ -556,6 +556,28 @@
       <h1>Pythos Changelog</h1>
       <p>Authoritative release notes, verification engine milestones, and mathematical system updates.</p>
     </header>
+
+                <!-- ==================== RELEASE 1.8.73 ==================== -->
+        <article class="release-card" id="pythos-1-8-73">
+            <header class="release-header">
+                <div>
+                    <h2 class="release-version">Pythos 1.8.73</h2>
+                    <div class="release-meta">
+                        <time datetime="2026-11-20"><i class="far fa-calendar-alt"></i> November 20, 2026</time>
+                        <span><i class="fas fa-check-double"></i> Referential Graph Routing &amp; Clarification Guard</span>
+                        <span><i class="fas fa-shield-alt"></i> Pronoun Handoff Rejection, Active Equation Resolution &amp; Example Scraping Fix</span>
+                    </div>
+                </div>
+                <span class="release-badge badge-major">Release</span>
+            </header>
+            <div class="release-body">
+                <p><strong>Pythos 1.8.73</strong> fixes referential graphing requests (such as <em>"graph it for me please"</em>) and prevents invalid pronoun prefilling in the Function Grapher:</p>
+                <ul>
+                    <li><strong>Referential Graph Resolution:</strong> Recognizes polite referential graph phrasing (e.g. <code>"graph it for me please"</code>), normalizes single-variable equations for 2D zero-finding plots, and anchors contextual <em>Graph this</em> buttons on the active conversation problem when no new formula is explicitly typed.</li>
+                    <li><strong>Clarification &amp; Pronoun Safety:</strong> Prevents English demonstratives/pronouns (<code>it</code>, <code>this</code>, <code>that</code>) from passing math expression extraction on either server tool handoffs or the client Function Grapher modal, and stops visual fidelity from scraping illustrative <code>(e.g., f(x) = x^2 - 4)</code> examples into unwanted inline graphs.</li>
+                </ul>
+            </div>
+        </article>
 
                 <!-- ==================== RELEASE 1.8.72 ==================== -->
         <article class="release-card" id="pythos-1-8-72">

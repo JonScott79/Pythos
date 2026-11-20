@@ -321,12 +321,17 @@ function enforceVisualFidelity(finalContent, userText, conversationHistory = [],
   cleanedContent = cleanedContent.replace(/!\[([^\]]*)\]\((?:https?:\/\/|www\.)[^\s)]+\)/gi, '');
   cleanedContent = cleanedContent.replace(/\[([^\]]*)\]\(https?:\/\/(?:i\.)?imgur\.com\/[^\s)]+\)/gi, '');
 
-  // If user requested a graph or assistant describes/shows a graph, ensure a [GRAPH: ...] token is present
-  const isGraphReq = /\b(?:graph|plot|curve|parabola)\b/i.test(userText) ||
-                     /\b(?:graph\s+of|plot\s+of|here\s+is\s+the\s+graph)\b/i.test(cleanedContent);
+  // If user requested a graph or assistant describes/shows a graph, ensure a [GRAPH: ...] token is present.
+  // Never synthesize a graph by scraping illustrative "(e.g., ...)" examples from clarification prompts.
+  const isClarificationPrompt = /\bwhich\s+function\s+would\s+you\s+like\s+me\s+to\s+graph\b/i.test(cleanedContent);
+  const isGraphReq = !isClarificationPrompt && (
+    /\b(?:graph|plot|curve|parabola)\b/i.test(userText) ||
+    /\b(?:graph\s+of|plot\s+of|here\s+is\s+the\s+graph)\b/i.test(cleanedContent)
+  );
   if (isGraphReq && !cleanedContent.includes('[GRAPH:')) {
     const { resolveReferentialContext } = require('../deterministicRouter');
-    const funcMatch = cleanedContent.match(/(?:(?:f\(x\)|y)\s*=\s*)([a-zA-Z0-9+\-*/^().\sπ_{}⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻]+?)(?:[$,;\n\.]|\s+for\b|\s+where\b|\s+on\b|$)/i);
+    const contentWithoutExamples = cleanedContent.replace(/\(\s*e\.g\.,[^)]*\)/gi, '');
+    const funcMatch = contentWithoutExamples.match(/(?:(?:f\(x\)|y)\s*=\s*)([a-zA-Z0-9+\-*/^().\sπ_{}⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻]+?)(?:[$,;\n\.]|\s+for\b|\s+where\b|\s+on\b|$)/i);
     let graphExpr = null;
     if (funcMatch) {
       graphExpr = resolveReferentialContext(funcMatch[0], [{ role: 'assistant', content: funcMatch[0] }]);

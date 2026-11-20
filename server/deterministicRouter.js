@@ -1042,6 +1042,18 @@ function normalizeGraphExpression(expr) {
 
   s = s.replace(/^(?:f\(x\)|g\(x\)|h\(x\)|y)\s*=\s*/i, '').trim();
 
+  // Normalize single-variable equations lhs = rhs for 2D zero-finding graph plotting
+  if (s.includes('=')) {
+    const eqParts = s.split('=');
+    if (eqParts.length === 2) {
+      const lhs = eqParts[0].trim();
+      const rhs = eqParts[1].trim();
+      if (lhs && rhs) {
+        s = rhs === '0' ? lhs : `(${lhs}) - (${rhs})`;
+      }
+    }
+  }
+
   const SUPERSCRIPT_MAP = {
     '⁰': '^0', '¹': '^1', '²': '^2', '³': '^3', '⁴': '^4',
     '⁵': '^5', '⁶': '^6', '⁷': '^7', '⁸': '^8', '⁹': '^9',
@@ -1727,10 +1739,10 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
     }
 
     // Only allow referential context lookup if user's prompt is genuinely referential
-    // (e.g. "graph it please", "show me on a graph", "how do i graph this", "try again"),
+    // (e.g. "graph it please", "graph it for me please", "show me on a graph", "how do i graph this", "try again"),
     // NEVER when the user typed a new explicit equation/formula that failed to parse!
     const isReferentialQuery = isGraphRetry || isGraphComplaintOrCorrection ||
-      /^(?:(?:can\s+you\s+|could\s+you\s+)?(?:please\s+)?(?:plot|graph|draw)|now\s+(?:plot|graph|draw)|plot|graph|draw)\s+(?:it|this|that|the\s+function|the\s+curve|the\s+graph)(?:\s+(?:on\s+a\s+graph|on\s+the\s+graph|in\s+a\s+graph|as\s+a\s+graph))?(?:\s+please)?$/i.test(clean) ||
+      /^(?:(?:can\s+you\s+|could\s+you\s+)?(?:please\s+)?(?:plot|graph|draw)|now\s+(?:plot|graph|draw)|plot|graph|draw)\s+(?:it|this|that|the\s+function|the\s+curve|the\s+graph)(?:\s+(?:for\s+me|on\s+a\s+graph|on\s+the\s+graph|in\s+a\s+graph|as\s+a\s+graph|out|again|please|kindly))*$/i.test(clean) ||
       /\b(?:show|display|see|view)\s+(?:me\s+)?(?:(?:it|this|that|the\s+function|the\s+curve)\s+)?(?:on\s+a\s+graph|in\s+a\s+graph|as\s+a\s+graph|on\s+the\s+graph)\b/i.test(clean) ||
       /\b(?:how\s+(?:do|can)\s+(?:i|we|you)\s+|how\s+to\s+)(?:plot|graph|draw)\s+(?:this|it|that|the\s+function|the\s+curve)\b/i.test(clean);
 
@@ -1752,7 +1764,7 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
       };
     }
 
-    if (/^(?:(?:can\s+you\s+)?(?:please\s+)?graph\s+it)(?:\s+please)?$/i.test(clean) && (!conversationHistory || !Array.isArray(conversationHistory) || conversationHistory.length === 0)) {
+    if (/^(?:(?:can\s+you\s+)?(?:please\s+)?graph\s+it)(?:\s+(?:for\s+me|please|kindly))*$/i.test(clean) && (!conversationHistory || !Array.isArray(conversationHistory) || conversationHistory.length === 0)) {
       // Explicit graphing intent with no active function in conversation
       return {
         type: 'GRAPH_CLARIFICATION',

@@ -166,6 +166,31 @@ check('Incorrect student step preserves active trig equation & trig power notati
   assert(!contract.graphExpression.includes('2x^2+x-5'), 'Must NOT graph student wrong discarded attempt');
 });
 
+check('Referential "graph it for me please" never emits "it" and anchors on active problem when present', () => {
+  const withoutContext = buildToolHandoffContract({
+    userPrompt: 'graph it for me please',
+    classification: { problemDomain: 'ALGEBRA', problemSubtype: 'GENERAL_REASONING' },
+    studentIntent: { intent: 'GRAPH_REQUEST' },
+    verificationState: 'VERIFIED'
+  });
+  assert(!withoutContext || !withoutContext.graphExpression, `Must NOT emit referential pronoun as graphExpression, got: ${withoutContext?.graphExpression}`);
+
+  const withContext = buildToolHandoffContract({
+    userPrompt: 'graph it for me please',
+    classification: { problemDomain: 'ALGEBRA', problemSubtype: 'QUADRATIC_EQUATION' },
+    activeProblemState: {
+      active: {
+        activeExpression: '(x+3)(x-1) = 0',
+        initialUserPrompt: '(x+3)(x-1) = 0'
+      }
+    },
+    studentIntent: { intent: 'GRAPH_REQUEST' },
+    verificationState: 'VERIFIED'
+  });
+  assert(withContext && withContext.graphExpression === '(x+3)(x-1)', `Expected active expression for referential graph, got: ${withContext?.graphExpression}`);
+  assert(withContext.tools.some(t => t.id === 'graph' && t.params.expression === '(x+3)(x-1)'));
+});
+
 console.log(`\n======================================================================`);
 console.log(`RESULTS: ${passed}/${passed} PASSED`);
 console.log(`======================================================================`);

@@ -548,7 +548,21 @@ test('TEST L9: Server deterministic gate authorizes GRAPH_CIRCLE and IMPLICIT_GR
   const serverJs = fs.readFileSync(path.join(__dirname, '..', 'server', 'server.js'), 'utf8');
 
   assert(serverJs.includes("deterministicIntent.type === 'GRAPH_CIRCLE'"), 'server.js must authorize GRAPH_CIRCLE in deterministic visual gate');
+  assert(serverJs.includes("deterministicIntent.type === 'GRAPH_CLARIFICATION'"), 'server.js must authorize GRAPH_CLARIFICATION in deterministic visual gate');
   assert(serverJs.includes("deterministicIntent.type === 'IMPLICIT_GRAPH_UNSUPPORTED'"), 'server.js must authorize IMPLICIT_GRAPH_UNSUPPORTED in deterministic visual gate');
+});
+
+test('TEST L10: Referential "graph it for me please" resolves active equation from history or clarifies cleanly', () => {
+  const history = [
+    { role: 'user', content: 'Solve (x+3)(x-1) = 0' },
+    { role: 'assistant', content: 'Your task: write the two solutions that follow from $(x+3)(x-1) = 0$.' }
+  ];
+  const resolved = analyzeDeterministicIntent('graph it for me please', history);
+  assert(resolved && resolved.type === 'GRAPH_PLOT', `Expected GRAPH_PLOT, got ${resolved?.type}`);
+  assert(resolved.expression.includes('(x+3)*(x-1)'), `Expected (x+3)*(x-1), got ${resolved.expression}`);
+
+  const clarified = analyzeDeterministicIntent('graph it for me please', []);
+  assert(clarified && clarified.type === 'GRAPH_CLARIFICATION');
 });
 
 console.log('\n================================================================');
