@@ -577,8 +577,13 @@ async function main() {
       assert.ok(revisionEv, 'Must emit { type: "revision" } event when streamed response is withheld');
       assert.strictEqual(revisionEv.withheld, true, 'Revision event must mark withheld: true');
       assert.ok(
-        revisionEv.revisedContent.includes('I need a little more information to solve this problem'),
-        'revision.revisedContent must contain the safe withholding message'
+        revisionEv.revisedContent.includes("couldn't confirm") &&
+        revisionEv.revisedContent.includes('coterminal angle'),
+        'revision.revisedContent must contain conversational CLAIM_NOT_VERIFIED withholding message'
+      );
+      assert.ok(
+        !/\b(?:equation_solution|coterminal_angle|CLAIM_NOT_VERIFIED)\b/.test(revisionEv.revisedContent),
+        'revision.revisedContent must not leak internal claim identifiers or withholding codes'
       );
       assert.ok(
         !revisionEv.revisedContent.includes('UNVERIFIED STREAMED HALLUCINATION'),
@@ -588,6 +593,7 @@ async function main() {
       assert.ok(verifiedEv, 'Must emit { type: "verified" } event');
       assert.strictEqual(verifiedEv.withheld, true);
       assert.strictEqual(verifiedEv.verificationState, 'WITHHELD');
+      assert.strictEqual(verifiedEv.withholdingReason, 'CLAIM_NOT_VERIFIED');
       assert.strictEqual(verifiedEv.finalContent, revisionEv.revisedContent, 'verified.finalContent must match revisedContent');
 
       // Simulate frontend state machine (both new frontend and legacy frontend)
@@ -800,6 +806,7 @@ async function main() {
     });
   } finally {
     clearActiveControllers();
+    try { verificationBridge.closeVerifierDaemon(); } catch (_) {}
     await new Promise(r => apiServer.close(r));
     await new Promise(r => mockOllamaServer.close(r));
   }

@@ -68,7 +68,7 @@
         "url": "https://pythos.lanzar.me/",
         "applicationCategory": "EducationalApplication",
         "operatingSystem": "All modern web browsers",
-        "softwareVersion": "1.8.70",
+        "softwareVersion": "1.8.71",
         "dateModified": "2026-11-19",
         "description": "Free AI mathematics and physics tutor providing Socratic step-by-step guidance, deterministic computer algebra verification, 2D function plotting, and study tools.",
         "inLanguage": "en",
@@ -4731,8 +4731,19 @@
       }
     }
 
-    /* Classical Sim Lab Landscape Side-by-Side Interactive Workbench */
+    /* Classical Sim Lab & Floating Tools Landscape Responsive Bounds */
     @media (orientation: landscape) and (max-height: 520px), (max-height: 500px) and (min-width: 520px) {
+      .floating-window:not(.docked-equation-drawer) {
+        top: 8px !important;
+        max-height: calc(100vh - 16px) !important;
+        max-height: calc(100dvh - 16px) !important;
+        overflow: hidden !important;
+      }
+      .floating-window:not(.docked-equation-drawer) .window-body {
+        overflow-y: auto !important;
+        max-height: calc(100vh - 64px) !important;
+        max-height: calc(100dvh - 64px) !important;
+      }
       .sim-lab-overlay {
         padding: 0 !important;
       }
@@ -5188,7 +5199,7 @@
           <a href="accessibility.html">Accessibility</a>
           <a href="license.html">License</a>
           <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" title="Official Facebook Page" aria-label="Facebook — Official Facebook Page">Facebook</a>
-          <a href="changelog.html#pythos-1-8-70" title="View Changelog" aria-label="v1.8.70 — Version 1.8.70 Release Notes">v1.8.70</a>
+          <a href="changelog.html#pythos-1-8-71" title="View Changelog" aria-label="v1.8.71 — Version 1.8.71 Release Notes">v1.8.71</a>
         </nav>
       </div>
     </aside>
@@ -5206,7 +5217,7 @@
         <header class="header">
           <img class="header-avatar" src="assets/pythos_avatar.jpg" alt="Pythos Oracle" width="40" height="40" />
           <div class="header-info">
-            <h1>PYTHOS <a href="changelog.html#pythos-1-8-70" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.70)" aria-label="v1.8.70 — Version 1.8.70 Release Notes">v1.8.70</a></h1>
+            <h1>PYTHOS <a href="changelog.html#pythos-1-8-71" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.71)" aria-label="v1.8.71 — Version 1.8.71 Release Notes">v1.8.71</a></h1>
             <p>Mathematics & Physics Oracle</p>
           </div>
           <button id="themeToggleBtn" class="theme-toggle-btn" title="Toggle Dark/Light Mode" aria-label="Toggle Dark and Light Theme">

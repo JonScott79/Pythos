@@ -5142,19 +5142,12 @@ async function askPythos(userText) {
     appendMessage("assistant", "The connection to Athens has been lost. Is the inference server running?");
   } finally {
     if (requestSeq === activeRequestSeq) {
-      const wasStopped = cancelledRequestSeqs.has(requestSeq) || userStoppedGeneration;
       activeAbortController = null;
       activeStreamReader = null;
       activeThinkingElement = null;
       activeDraftBubble = null;
       userStoppedGeneration = false;
-      if (wasStopped) {
-        setInputLocked(false);
-      } else {
-        setTimeout(() => {
-          if (requestSeq === activeRequestSeq) setInputLocked(false);
-        }, 1000);
-      }
+      setInputLocked(false);
     }
   }
 }

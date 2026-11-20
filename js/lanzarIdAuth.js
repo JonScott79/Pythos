@@ -212,7 +212,7 @@ export class LanzarIdAuthProvider {
     } catch (_) {}
 
     const host = window.location.hostname || '';
-    if (!host.endsWith('.lanzar.me') && host !== 'lanzar.me' && host !== 'localhost' && host !== '127.0.0.1') {
+    if (!host.endsWith('.lanzar.me') && host !== 'lanzar.me') {
       return null;
     }
 

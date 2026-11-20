@@ -1,0 +1,23 @@
+{
+  "name": "pythos",
+  "version": "1.8.71",
+  "private": true,
+  "description": "Pythos AI Mathematics & Physics Tutor workspace, verification engine, and browser regression suite.",
+  "scripts": {
+    "dev": "node dev-server.js",
+    "stage": "node scripts/stage-public.js",
+    "test:torture": "node test/runner.js",
+    "test:e2e": "playwright test tests/e2e/pythos-desktop.spec.js tests/e2e/pythos-mobile.spec.js",
+    "test:e2e:desktop": "playwright test tests/e2e/pythos-desktop.spec.js --project=desktop-chromium",
+    "test:e2e:mobile": "playwright test tests/e2e/pythos-mobile.spec.js --project=mobile-portrait --project=mobile-landscape",
+    "test:e2e:live": "playwright test tests/e2e/pythos-live-smoke.spec.js --project=live-smoke"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JonScott79/Pythos.git"
+  },
+  "license": "ISC",
+  "devDependencies": {
+    "@playwright/test": "^1.65.1"
+  }
+}

@@ -8,9 +8,15 @@ smoke-test-live.js
 firestore.rules
 ModelFile
 PYTHOS_FREE_URL
+package.json
+package-lock.json
+playwright.config.js
+playwright-report/
+test-results/
 
 # Test suites, benchmarks, and campaigns
 test/
+tests/
 test-*.js
 test_*.js
 test_sample.heic
