@@ -52,6 +52,9 @@ function normalizeMathForTools(raw) {
     .replace(/\\left\s*([(\[{|])/g, '$1')
     .replace(/\\right\s*([)\]}|])/g, '$1')
     .replace(/\\(sin|cos|tan|csc|sec|cot|arcsin|arccos|arctan|sinh|cosh|tanh|ln|log|exp|sqrt|abs)\b/g, '$1')
+    .replace(/(?<![a-zA-Z])(sin|cos|tan|csc|sec|cot|sinh|cosh|tanh)\s*\^\s*(?:\{([^{}]+)\}|\(([^()]+)\)|(-?\d+(?:\.\d+)?))\s*\(([^()]+)\)/g, '($1($5))^($2$3$4)')
+    .replace(/(?<![a-zA-Z])(sin|cos|tan|csc|sec|cot|sinh|cosh|tanh)\s*\^\s*(?:\{([^{}]+)\}|\(([^()]+)\)|(-?\d+(?:\.\d+)?))\s+([a-zA-Z])\b/g, '($1($5))^($2$3$4)')
+    .replace(/(?<![a-zA-Z])(sin|cos|tan|csc|sec|cot|arcsin|arccos|arctan|ln|log|exp|sqrt|abs)\s+([a-zA-Z])\b/g, '$1($2)')
     .replace(/\\(?:d|t)?frac\{([^{}]+)\}\{([^{}]+)\}/g, '(($1)/($2))')
     .replace(/\\sqrt\{([^{}]+)\}/g, 'sqrt($1)')
     .replace(/\^\s*\{([^{}]+)\}/g, '^($1)')
@@ -265,10 +268,30 @@ function buildToolHandoffContract({
   verificationResults = [],
   verificationState = 'UNVERIFIED_CONCEPTUAL',
   withheld = false,
-  withholdingReason = null
+  withholdingReason = null,
+  activeProblemState = null,
+  studentIntent = null,
+  studentEvaluation = null
 } = {}) {
-  const prompt = typeof userPrompt === 'string' ? userPrompt.trim() : '';
-  if (!prompt) return null;
+  const rawPrompt = typeof userPrompt === 'string' ? userPrompt.trim() : '';
+  if (!rawPrompt) return null;
+
+  // If the user just submitted an incorrect/intermediate step or follow-up check
+  // against an active problem in conversation state, hand off the authoritative
+  // active problem rather than the student's discarded/erroneous step attempt.
+  const activeProbExpr = activeProblemState?.active?.activeExpression || activeProblemState?.active?.initialUserPrompt || '';
+  const isStepFeedbackTurn = Boolean(
+    activeProbExpr &&
+    studentIntent?.intent !== 'NEW_PROBLEM' &&
+    studentIntent?.intent !== 'GRAPH_REQUEST' &&
+    (
+      studentEvaluation?.status === 'STEP_VERIFIED_INCORRECT' ||
+      studentEvaluation?.status === 'STEP_VERIFIED_CORRECT' ||
+      studentEvaluation?.status === 'ANSWER_VERIFIED_INCORRECT' ||
+      ['PROPOSED_STEP', 'PROPOSED_ANSWER', 'VALIDATION_REQUEST', 'HINT_REQUEST', 'CONTINUATION', 'TENTATIVE_HYPOTHESIS'].includes(studentIntent?.intent)
+    )
+  );
+  const prompt = isStepFeedbackTurn ? String(activeProbExpr).trim() : rawPrompt;
 
   // Never offer irrelevant calculation handoffs for off-topic, infra failures, or malformed syntax
   // (MALFORMED_SYNTAX already receives Feature 1 Suggested Equation actions).

@@ -150,8 +150,9 @@ test.describe('Pythos Desktop E2E User Journeys', () => {
     await expect(page.locator('#toolboxPopoverMenu')).toBeVisible();
     await page.locator('#toolGraphBtn').click();
     await expect(page.locator('#floatGraphWindow')).toBeVisible();
-    await page.locator('#graphFuncInput').fill('x^2 - 4');
+    await page.locator('#graphFuncInput').fill('2sin^2(x) + csc(x) - 9');
     await page.locator('#graphPlotBtn').click();
+    await expect(page.locator('#floatGraphWindow .graph-hint')).toContainText('Range: x ∈ [-10, 10], y ∈ [-10, 10].');
     const graphHasPixels = await page.evaluate(() => {
       const c = document.getElementById('graphCanvas');
       const ctx = c.getContext('2d');

@@ -3537,7 +3537,10 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
         verificationResults,
         verificationState: verificationEvaluation.state,
         withheld: Boolean(ollamaResponse.withheld),
-        withholdingReason: ollamaResponse.withholdingReason || null
+        withholdingReason: ollamaResponse.withholdingReason || null,
+        activeProblemState,
+        studentIntent,
+        studentEvaluation
       });
 
       // Attach non-intrusive verification & diagnostic metadata

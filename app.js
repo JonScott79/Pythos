@@ -761,7 +761,7 @@ function computeGraphViewport(compiled, exprString) {
   // Adaptive x-axis scaling for trigonometric functions with stretched or compressed period:
   // e.g. sin(x/4) has B = 1/4 -> period = 8*pi ≈ 25.13 -> window [-35, 35]
   const flattenedTrig = cleanExpr.replace(/[()\s]/g, '');
-  const trigPeriodMatch = flattenedTrig.match(/\b(?:sin|cos|tan)\*?(?:([0-9.]+)\*?x|x\*?\/([0-9.]+)|x)/i);
+  const trigPeriodMatch = flattenedTrig.match(/\b(?:sin|cos|tan|csc|sec|cot)\*?(?:([0-9.]+)\*?x|x\*?\/([0-9.]+)|x)/i);
   let bFactor = 1;
   if (trigPeriodMatch) {
     if (trigPeriodMatch[1]) {
@@ -895,7 +895,17 @@ function sanitizeGraphExpr(raw) {
   expr = expr
     .replace(/^f\(x\)\s*=\s*/i, "")
     .replace(/^y\s*=\s*/i, "")
-    .replace(/=\s*0$/i, "")
+    .replace(/=\s*0$/i, "");
+
+  // Support plotting general equations lhs = rhs as zero-finding curve (lhs) - (rhs)
+  if (expr.includes("=")) {
+    const eqParts = expr.split("=");
+    if (eqParts.length === 2 && eqParts[0].trim() && eqParts[1].trim()) {
+      expr = `(${eqParts[0].trim()}) - (${eqParts[1].trim()})`;
+    }
+  }
+
+  expr = expr
     .replace(/\\left\s*\(/g, "(")
     .replace(/\\right\s*\)/g, ")")
     .replace(/\\left\b/g, "")
@@ -913,9 +923,7 @@ function sanitizeGraphExpr(raw) {
   // Roots & Trig
   expr = expr
     .replace(/\\sqrt\{([^}]+)\}/g, "sqrt($1)")
-    .replace(/\\sin/g, "sin")
-    .replace(/\\cos/g, "cos")
-    .replace(/\\tan/g, "tan")
+    .replace(/\\(sin|cos|tan|csc|sec|cot|sinh|cosh|tanh)\b/g, "$1")
     .replace(/\\ln/g, "log")
     .replace(/\\log/g, "log10")
     .replace(/\\exp/g, "exp")
@@ -923,6 +931,12 @@ function sanitizeGraphExpr(raw) {
 
   // Clean any remaining stray LaTeX backslashes before mathjs parse
   expr = expr.replace(/\\/g, "");
+
+  // Convert trig power notation (sin^2(x), cos^{2}(x), csc^2 x) -> (sin(x))^(2)
+  expr = expr
+    .replace(/(?<![a-zA-Z])(sin|cos|tan|csc|sec|cot|sinh|cosh|tanh)\s*\^\s*(?:\{([^{}]+)\}|\(([^()]+)\)|(-?\d+(?:\.\d+)?))\s*\(([^()]+)\)/g, "($1($5))^($2$3$4)")
+    .replace(/(?<![a-zA-Z])(sin|cos|tan|csc|sec|cot|sinh|cosh|tanh)\s*\^\s*(?:\{([^{}]+)\}|\(([^()]+)\)|(-?\d+(?:\.\d+)?))\s+([a-zA-Z])\b/g, "($1($5))^($2$3$4)")
+    .replace(/(?<![a-zA-Z])(sin|cos|tan|csc|sec|cot|ln|log|exp|sqrt|abs)\s+([a-zA-Z])\b/g, "$1($2)");
 
   // Implicit multiplication
   expr = expr
@@ -949,6 +963,9 @@ function getCompiledGraphExpr(exprString) {
 
   // Safe fallback evaluator for single-variable Cartesian functions in x
   try {
+    const csc = (v) => 1 / Math.sin(v);
+    const sec = (v) => 1 / Math.cos(v);
+    const cot = (v) => 1 / Math.tan(v);
     let s = cleanExpr
       .replace(/\bpi\b/gi, "Math.PI")
       .replace(/\be\b/gi, "Math.E")
@@ -970,18 +987,19 @@ function getCompiledGraphExpr(exprString) {
 
     const checkIdent = s
       .replace(/Math\.(?:PI|E|sin|cos|tan|sqrt|cbrt|abs|log|log10|exp|pow)/g, "")
+      .replace(/\b(?:csc|sec|cot)\b/g, "")
       .replace(/\bx\b/g, "");
     if (/[a-zA-Z_$]/.test(checkIdent)) {
       return null;
     }
 
-    const fn = new Function("x", '"use strict"; return (' + s + ');');
-    const testVal = fn(1);
+    const fn = new Function("x", "csc", "sec", "cot", '"use strict"; return (' + s + ');');
+    const testVal = fn(1, csc, sec, cot);
     if (typeof testVal !== "number") return null;
 
     return {
       compiled: {
-        evaluate: (scope) => fn(scope && typeof scope.x === "number" ? scope.x : 0)
+        evaluate: (scope) => fn(scope && typeof scope.x === "number" ? scope.x : 0, csc, sec, cot)
       },
       cleanExpr
     };
@@ -6724,14 +6742,15 @@ function drawGraph(exprString) {
     graphCtx.strokeStyle = gridCol;
     graphCtx.lineWidth = 1;
 
-    for (let x = xMin; x <= xMax; x += 2) {
+    const xGridStep = Math.max(2, Math.round((xMax - xMin) / 10));
+    const yGridStep = Math.max(2, Math.round((yMax - yMin) / 10));
+    for (let x = Math.ceil(xMin / xGridStep) * xGridStep; x <= xMax; x += xGridStep) {
       graphCtx.beginPath();
       graphCtx.moveTo(toCanvasX(x), 0);
       graphCtx.lineTo(toCanvasX(x), height);
       graphCtx.stroke();
     }
-    const yGridStep = Math.max(2, Math.round((yMax - yMin) / 10));
-    for (let y = Math.floor(yMin); y <= Math.ceil(yMax); y += yGridStep) {
+    for (let y = Math.ceil(yMin / yGridStep) * yGridStep; y <= yMax; y += yGridStep) {
       graphCtx.beginPath();
       graphCtx.moveTo(0, toCanvasY(y));
       graphCtx.lineTo(width, toCanvasY(y));
@@ -6750,11 +6769,33 @@ function drawGraph(exprString) {
     graphCtx.lineTo(clampedX0, height);
     graphCtx.stroke();
 
-    // Axis Labels
+    // Axis Labels & Numeric Tick Markers
     graphCtx.fillStyle = labelCol;
     graphCtx.font = "10px Inter, sans-serif";
+    const fmtTick = (v) => Number.isInteger(v) ? String(v) : String(Math.round(v * 10) / 10);
+    for (let x = Math.ceil(xMin / xGridStep) * xGridStep; x <= xMax; x += xGridStep) {
+      if (Math.abs(x) < 1e-9) continue;
+      const px = toCanvasX(x);
+      if (px > 16 && px < width - 16) {
+        const ty = clampedY0 > height - 16 ? height - 4 : clampedY0 + 11;
+        graphCtx.fillText(fmtTick(x), px - 5, ty);
+      }
+    }
+    for (let y = Math.ceil(yMin / yGridStep) * yGridStep; y <= yMax; y += yGridStep) {
+      if (Math.abs(y) < 1e-9) continue;
+      const py = toCanvasY(y);
+      if (py > 12 && py < height - 8) {
+        const tx = clampedX0 < 24 ? clampedX0 + 4 : (clampedX0 > width - 28 ? width - 26 : clampedX0 + 4);
+        graphCtx.fillText(fmtTick(y), tx, py + 3);
+      }
+    }
     graphCtx.fillText("x", width - 12, clampedY0 > height - 15 ? clampedY0 - 15 : clampedY0 - 4);
     graphCtx.fillText("y", clampedX0 < 15 ? clampedX0 + 15 : clampedX0 + 4, 12);
+
+    const hintEl = document.querySelector("#floatGraphWindow .graph-hint");
+    if (hintEl) {
+      hintEl.textContent = `Range: x ∈ [${fmtTick(xMin)}, ${fmtTick(xMax)}], y ∈ [${fmtTick(yMin)}, ${fmtTick(yMax)}].`;
+    }
 
     // Plot Curve with Discontinuity & Asymptote Detection
     graphCtx.strokeStyle = curveCol;
@@ -6770,8 +6811,8 @@ function drawGraph(exprString) {
       const xVal = xMin + cx * step;
       try {
         const yVal = compiled.evaluate({ x: xVal });
-        if (typeof yVal === "number" && !isNaN(yVal) && isFinite(yVal)) {
-          const isJump = prevY !== null && Math.abs(yVal - prevY) > ySpan * 0.7 && (yVal * prevY < 0 || Math.abs(yVal) > ySpan || Math.abs(prevY) > ySpan);
+        if (typeof yVal === "number" && !isNaN(yVal) && isFinite(yVal) && Math.abs(yVal - (yMin + yMax) / 2) <= ySpan * 4) {
+          const isJump = prevY !== null && Math.abs(yVal - prevY) > ySpan * 0.65 && (yVal * prevY <= 0 || Math.abs(yVal) > ySpan || Math.abs(prevY) > ySpan);
           if (isJump) {
             graphCtx.stroke();
             graphCtx.beginPath();

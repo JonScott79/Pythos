@@ -146,6 +146,26 @@ check('app.js enforces receiving validation, empty Check Work answer field, and 
   assert(appJs.includes('closeToolboxPopoverIfOpen()'), 'Must close mobile/desktop toolbox popover on handoff');
 });
 
+check('Incorrect student step preserves active trig equation & trig power notation for Grapher', () => {
+  const contract = buildToolHandoffContract({
+    userPrompt: '2x^2+x-5=0?',
+    classification: { problemDomain: 'TRIGONOMETRY', problemSubtype: 'TRIG_EQUATION' },
+    activeProblemState: {
+      active: {
+        activeExpression: '2sin^2(x) + csc(x) - 9 = 0',
+        initialUserPrompt: '2sin²(x) + csc(x) - 9 = 0'
+      }
+    },
+    studentIntent: { intent: 'PROPOSED_STEP' },
+    studentEvaluation: { status: 'STEP_VERIFIED_INCORRECT' },
+    verificationState: 'PARTIALLY_VERIFIED'
+  });
+  assert(contract);
+  assert(contract.graphExpression && contract.graphExpression.includes('(sin(x))^(2)'), `Expected (sin(x))^(2) in graphExpression, got: ${contract.graphExpression}`);
+  assert(contract.graphExpression.includes('csc(x)'));
+  assert(!contract.graphExpression.includes('2x^2+x-5'), 'Must NOT graph student wrong discarded attempt');
+});
+
 console.log(`\n======================================================================`);
 console.log(`RESULTS: ${passed}/${passed} PASSED`);
 console.log(`======================================================================`);
