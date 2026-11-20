@@ -815,7 +815,8 @@
 
     .message:hover .msg-actions,
     .message:focus-within .msg-actions,
-    .msg-actions:focus-within {
+    .msg-actions:focus-within,
+    .msg-actions:has(.msg-audit-btn) {
       opacity: 1;
       pointer-events: auto;
     }
@@ -1241,6 +1242,46 @@
       transition: all 0.15s;
     }
 
+    .msg-audit-btn.is-verified {
+      color: #15803d;
+      border-color: rgba(22, 163, 74, 0.35);
+      background: rgba(22, 163, 74, 0.06);
+      font-weight: 600;
+    }
+
+    [data-theme="dark"] .msg-audit-btn.is-verified {
+      color: #4ade80;
+      border-color: rgba(74, 222, 128, 0.35);
+      background: rgba(22, 163, 74, 0.10);
+    }
+
+    .msg-audit-btn.is-partial {
+      color: #b45309;
+      border-color: rgba(217, 119, 6, 0.35);
+      background: rgba(245, 158, 11, 0.08);
+      font-weight: 600;
+    }
+
+    [data-theme="dark"] .msg-audit-btn.is-partial {
+      color: #fbbf24;
+      border-color: rgba(245, 158, 11, 0.38);
+      background: rgba(245, 158, 11, 0.10);
+    }
+
+    .msg-audit-btn.is-partial:hover,
+    .msg-audit-btn.is-partial.active {
+      color: #b45309;
+      border-color: rgba(217, 119, 6, 0.55);
+      background: rgba(245, 158, 11, 0.14);
+    }
+
+    [data-theme="dark"] .msg-audit-btn.is-partial:hover,
+    [data-theme="dark"] .msg-audit-btn.is-partial.active {
+      color: #fcd34d;
+      border-color: rgba(251, 191, 36, 0.55);
+      background: rgba(245, 158, 11, 0.18);
+    }
+
     .msg-audit-btn:hover,
     .msg-audit-btn.active {
       background: rgba(22, 163, 74, 0.08);
@@ -1265,9 +1306,42 @@
       transition: background 0.15s ease, border-color 0.15s ease;
     }
 
+    .pythos-audit-panel.is-partial {
+      border-color: rgba(217, 119, 6, 0.30);
+      background: rgba(245, 158, 11, 0.07);
+    }
+
     [data-theme="dark"] .pythos-audit-panel {
       background: rgba(20, 83, 45, 0.15);
       border-color: rgba(74, 222, 128, 0.2);
+    }
+
+    [data-theme="dark"] .pythos-audit-panel.is-partial {
+      background: rgba(180, 83, 9, 0.12);
+      border-color: rgba(245, 158, 11, 0.28);
+    }
+
+    .pythos-trust-checks {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      font-size: 0.78rem;
+      line-height: 1.4;
+      margin-bottom: 6px;
+    }
+
+    .pythos-audit-steps-details {
+      margin-top: 8px;
+      padding-top: 6px;
+      border-top: 1px dashed var(--border-color);
+    }
+
+    .pythos-audit-steps-details > summary {
+      cursor: pointer;
+      font-size: 0.74rem;
+      font-weight: 600;
+      color: var(--primary-color);
+      user-select: none;
     }
 
     .pythos-audit-body {

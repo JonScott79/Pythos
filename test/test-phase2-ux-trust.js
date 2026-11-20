@@ -139,9 +139,9 @@ check('server.js forwards withholdingDetails.suggestedFix and app.js wires Solve
   assert(serverJs.includes('buildVerificationTrustReport'), 'server.js must attach trustReport on verificationSummary');
   assert(appJs.includes('pythos-suggested-fix-solve'), 'app.js must render Solve Suggested Equation button');
   assert(appJs.includes('pythos-suggested-fix-edit'), 'app.js must render Edit in Input button');
-  assert(appJs.includes('pythos-trust-details'), 'app.js must render expandable Verification Trust Indicator');
+  assert(appJs.includes('msg-audit-btn') && appJs.includes('trustReport.badgeLabel') && appJs.includes('pythos-trust-checks'), 'app.js must upgrade original .msg-audit-btn and .pythos-audit-panel with trustReport wording and checks');
+  assert(!appJs.includes("createElement(\"details\")") || !appJs.includes('pythos-trust-details'), 'app.js must not duplicate verification with a separate pythos-trust-details top box');
   assert(appJs.includes('!/[<>]/.test(rawSuggestedFix)'), 'app.js must sanitize suggestedFix before creating controls');
-  assert(appJs.includes('if (trustBodyEl)') && appJs.includes('pythos-trust-audit-toggle'), 'app.js must consolidate audit drawer into trustBodyEl without duplicating badges or disclosure banners');
 });
 
 console.log(`\n======================================================================`);
