@@ -70,6 +70,14 @@ for (const latexEdge of [
   {
     input: '2\\sin^{2(x){+}}\\csc(x)-9=0',
     expectedFix: '2\\sin^2(x) + \\csc(x)-9=0'
+  },
+  {
+    input: '\\[\n2\\sin²⁽ˣ⁾⁺\\csc(x)-9=0\n\\]',
+    expectedFix: '\\[ 2\\sin^2(x) + \\csc(x)-9=0 \\]'
+  },
+  {
+    input: '2\\sin²⁽ˣ⁾⁺\\csc(x)-9=0',
+    expectedFix: '2\\sin^2(x) + \\csc(x)-9=0'
   }
 ]) {
   test(`2A Positive (LaTeX spacing / placeholder / \\left-\\right variant): ${latexEdge.input}`, () => {
@@ -89,7 +97,7 @@ for (const incompleteExp of ['x^{2+}', 'x^{n-}', 'x^{2*}']) {
   });
 }
 
-for (const validExp of ['x^{a+b}', 'x^{2+3}', 'x^{n-1}', 'e^{-x}', 'e^{x+1}', '\\sin^{2x}(x)', 'x^{-(n+1)}', '2^{3+4}']) {
+for (const validExp of ['x^{a+b}', 'x^{2+3}', 'x^{n-1}', 'e^{-x}', 'e^{x+1}', '\\sin^{2x}(x)', 'x^{-(n+1)}', '2^{3+4}', 'x² + 5 = 0', '\\sin²(x) + \\cos²(x) = 1', '\\sin⁻¹(x)', 'e⁻ˣ', '⁵⁄₄ x + 1 = 0', 'xⁿ⁻¹']) {
   test(`2A Negative (valid style preserved): ${validExp}`, () => {
     const res = detectFormattingAnomaly(validExp);
     assert.strictEqual(res.isWeird, false, `Falsely flagged '${validExp}' as ${res.kind}`);

@@ -163,12 +163,30 @@ function checkIncompleteLatexBlocks(str) {
 
 const TRAILING_EXP_NOISE_RE = /(?:\{\s*\}|\\[,;:! ]|\\(?:quad|qquad|enspace|thinspace|medspace|thickspace|negthinspace|strut|mathstrut)\b|\\(?:hspace\*?|phantom|placeholder)\{[^{}]*\}|~|\s)+$/g;
 
+const UNICODE_SUPER_TO_ASCII = {
+  '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4',
+  '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9',
+  '⁺': '+', '⁻': '-', '⁼': '=', '⁽': '(', '⁾': ')',
+  'ⁿ': 'n', 'ⁱ': 'i', 'ˣ': 'x', 'ʸ': 'y'
+};
+
+function decodeUnicodeSuperscripts(str) {
+  // Preserve inline Unicode slash fractions (e.g. ⁵⁄₄) while decoding Unicode superscript exponent runs (e.g. ²⁽ˣ⁾⁺ -> ^{2(x)+})
+  return str.replace(/([⁰¹²³⁴⁵⁶⁷⁸⁹]+\u2044[₀₁₂₃₄₅₆₇₈₉]+)|\^?([⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱˣʸ]+)/g, (full, frac, run) => {
+    if (frac) return frac;
+    const decoded = [...run].map(c => UNICODE_SUPER_TO_ASCII[c] || c).join('');
+    return `^{${decoded}}`;
+  });
+}
+
 function normalizeInvisibleMathChars(str) {
-  return str
-    .replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u2064\uFEFF\u00AD]/g, '')
-    .replace(/[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g, ' ')
-    .replace(/\u2212/g, '-')
-    .replace(/\uFF0B/g, '+');
+  return decodeUnicodeSuperscripts(
+    str
+      .replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u2064\uFEFF\u00AD]/g, '')
+      .replace(/[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g, ' ')
+      .replace(/\u2212/g, '-')
+      .replace(/\uFF0B/g, '+')
+  );
 }
 
 function cleanBracedExponentInner(raw) {
