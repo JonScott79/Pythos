@@ -182,16 +182,29 @@ function getSafeWithholding(reasonCode, overrides = null) {
     if (anomalyExplanation) {
       result.explanation = anomalyExplanation;
       result.cause = weirdSnippet
-        ? `${anomalyExplanation} (Spotted near \`${weirdSnippet}\`.)`
+        ? `${anomalyExplanation} (Spotted near ${weirdSnippet}.)`
         : anomalyExplanation;
     } else if (weirdSnippet && !diagnosticExplanation) {
-      result.explanation = `${cfg.explanation} Specifically, \`${weirdSnippet}\` looks misformatted.`;
-      result.cause = `Misplaced or incomplete formatting near \`${weirdSnippet}\`.`;
+      result.explanation = `${cfg.explanation} Specifically, ${weirdSnippet} looks misformatted.`;
+      result.cause = `Misplaced or incomplete formatting near ${weirdSnippet}.`;
     }
 
     if (suggestedFix) {
-      result.explanation = `${result.explanation}\n\nDid you mean \`${suggestedFix}\`?`;
-      result.nextStep = `Try re-submitting with \`${suggestedFix}\`.`;
+      const hasMathDelimiters = /^(?:\\\(|\\\[|\$\$?)/.test(suggestedFix);
+      const renderedFix = hasMathDelimiters
+        ? suggestedFix
+        : (/[\\^_{}]/.test(suggestedFix) ? `\\( ${suggestedFix} \\)` : suggestedFix);
+      const isDisplayBlock = /^(?:\\\[|\$\$)/.test(renderedFix);
+      const followUpPrompt = isDisplayBlock
+        ? `Did you mean:\n\n${renderedFix}\n\nGo ahead and send that (or tweak your equation), and I'll solve it right away.`
+        : `Did you mean ${renderedFix}? Go ahead and send that (or tweak your equation), and I'll solve it right away.`;
+      result.explanation = `${result.explanation}\n\n${followUpPrompt}`;
+      const plainFix = suggestedFix
+        .replace(/^(?:\\\[|\\\(|\\?\$\$?)\s*|\s*(?:\\\]|\\\)|\\?\$\$?)$/g, '')
+        .replace(/\\left\s*([([])/g, '$1')
+        .replace(/\\right\s*([)\]])/g, '$1')
+        .trim();
+      result.nextStep = `Try sending ${plainFix || suggestedFix} and I'll solve it right away.`;
     }
   }
 

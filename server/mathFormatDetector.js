@@ -64,11 +64,12 @@ function checkUnbalancedDelimiters(str) {
       if (stack.length === 0) {
         const start = Math.max(0, i - 10);
         const end = Math.min(str.length, i + 10);
+        const snip = str.slice(start, end).trim();
         return {
           isWeird: true,
           kind: 'UNBALANCED_DELIMITERS',
-          snippet: str.slice(start, end).trim(),
-          explanation: `The formatting looks a little weird — there is an unmatched closing \`${ch}\` near \`${str.slice(start, end).trim()}\`.`
+          snippet: snip,
+          explanation: `It looks like there's an extra closing ${ch} near ${snip} without an opening match.`
         };
       }
       const top = stack[stack.length - 1];
@@ -81,11 +82,12 @@ function checkUnbalancedDelimiters(str) {
         if (!isHalfOpenInterval) {
           const start = Math.max(0, i - 10);
           const end = Math.min(str.length, i + 10);
+          const snip = str.slice(start, end).trim();
           return {
             isWeird: true,
             kind: 'UNBALANCED_DELIMITERS',
-            snippet: str.slice(start, end).trim(),
-            explanation: `The formatting looks a little weird — \`${top.ch}\` and \`${ch}\` do not match near \`${str.slice(start, end).trim()}\`.`
+            snippet: snip,
+            explanation: `It looks like ${top.ch} and ${ch} don't match up near ${snip}.`
           };
         }
       }
@@ -97,11 +99,12 @@ function checkUnbalancedDelimiters(str) {
     const top = stack[stack.length - 1];
     const start = Math.max(0, top.idx - 6);
     const end = Math.min(str.length, top.idx + 16);
+    const snip = str.slice(start, end).trim();
     return {
       isWeird: true,
       kind: 'UNBALANCED_DELIMITERS',
-      snippet: str.slice(start, end).trim(),
-      explanation: `The formatting looks a little weird — \`${top.ch}\` near \`${str.slice(start, end).trim()}\` is missing its closing partner.`
+      snippet: snip,
+      explanation: `It looks like the ${top.ch} near ${snip} is missing a closing partner.`
     };
   }
   return null;
@@ -117,7 +120,7 @@ function checkIncompleteLatexBlocks(str) {
       isWeird: true,
       kind: 'EMPTY_LATEX_BLOCK',
       snippet: emptySqrt[0],
-      explanation: `The formatting looks a little weird — \`${emptySqrt[0]}\` is missing its value inside the braces.`
+      explanation: `It looks like ${emptySqrt[0]} is missing the expression inside the root.`
     };
   }
 
@@ -140,7 +143,7 @@ function checkIncompleteLatexBlocks(str) {
         isWeird: true,
         kind: 'EMPTY_LATEX_BLOCK',
         snippet: snip,
-        explanation: `The formatting looks a little weird — \`${snip}\` is missing its denominator block.`
+        explanation: `It looks like the fraction ${snip} is missing its denominator.`
       };
     }
 
@@ -153,7 +156,7 @@ function checkIncompleteLatexBlocks(str) {
         isWeird: true,
         kind: 'EMPTY_LATEX_BLOCK',
         snippet: snip,
-        explanation: `The formatting looks a little weird — \`${snip}\` has an empty numerator or denominator.`
+        explanation: `It looks like part of the fraction ${snip} was left blank.`
       };
     }
   }
@@ -254,11 +257,15 @@ function detectFormattingAnomaly(input) {
             .trim();
         }
 
+        const trappedExplanation = (trigMatch && trigArgMatch)
+          ? `It looks like (${trigArgMatch[3]}) and the ${op} sign got pulled into the exponent of ${trigMatch[1]} instead of staying outside on the main line.`
+          : `It looks like the ${op} operator got stuck inside the exponent ${fullExp} instead of separating the next term.`;
+
         return {
           isWeird: true,
           kind: 'TRAPPED_OPERATOR_IN_EXPONENT',
           snippet: fullExp,
-          explanation: `The formatting looks a little weird — the \`${op}\` operator appears to be trapped inside the exponent \`${fullExp}\`.`,
+          explanation: trappedExplanation,
           ...(suggestedFix ? { suggestedFix } : {})
         };
       }
@@ -279,7 +286,7 @@ function detectFormattingAnomaly(input) {
           isWeird: true,
           kind: 'TRIG_POWER_ARG_MISMATCH',
           snippet: `${trigPrefix[0]}${s.slice(i, closeIdx + 1)}`,
-          explanation: `The formatting looks a little weird — \`(${arg})\` appears inside the exponent of \`${trigPrefix[0]}\` instead of as its argument.`,
+          explanation: `It looks like (${arg}) ended up inside the exponent of ${trigPrefix[1]} instead of acting as its angle argument.`,
           ...(suggestedFix ? { suggestedFix } : {})
         };
       }
@@ -294,7 +301,7 @@ function detectFormattingAnomaly(input) {
         isWeird: true,
         kind: 'DANGLING_OPERATOR',
         snippet: dblEq[0],
-        explanation: `The formatting looks a little weird — there is a repeated \`=\` sign (\`${dblEq[0]}\`).`
+        explanation: `It looks like there's an extra = sign (${dblEq[0]}) in the middle of the equation.`
       };
     }
 
@@ -304,7 +311,7 @@ function detectFormattingAnomaly(input) {
         isWeird: true,
         kind: 'DANGLING_OPERATOR',
         snippet: opBeforeEq[1],
-        explanation: `The formatting looks a little weird — there is a dangling operator before \`=\` (\`${opBeforeEq[1]}\`).`
+        explanation: `It looks like there's an unfinished ${opBeforeEq[1]} right before the equals sign.`
       };
     }
 
@@ -314,7 +321,7 @@ function detectFormattingAnomaly(input) {
         isWeird: true,
         kind: 'DANGLING_OPERATOR',
         snippet: dblOp[1],
-        explanation: `The formatting looks a little weird — there are consecutive operators (\`${dblOp[1]}\`).`
+        explanation: `It looks like two operators (${dblOp[1]}) ended up right next to each other.`
       };
     }
 
@@ -324,7 +331,7 @@ function detectFormattingAnomaly(input) {
         isWeird: true,
         kind: 'DANGLING_OPERATOR',
         snippet: s.slice(Math.max(0, trailingOp.index - 8)).trim(),
-        explanation: `The formatting looks a little weird — the expression ends with a dangling \`${trailingOp[1]}\` operator.`
+        explanation: `It looks like the equation cuts off right after a trailing ${trailingOp[1]} sign.`
       };
     }
   }

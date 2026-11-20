@@ -256,6 +256,9 @@ test('Section 3/4: MALFORMED_SYNTAX dynamic rendering, sanitization & priority h
   const rendered = getSafeWithholding(mal.reason, mal.overrides);
   assert.strictEqual(rendered.headline, 'The formatting on this problem looks a little weird.');
   assert(rendered.formattedContent.includes('2\\sin^2(x) + \\csc(x) - 9 = 0'));
+  assert(!rendered.explanation.includes('looks a little weird'), 'Explanation should not repeat headline phrasing');
+  assert(!rendered.formattedContent.includes('`'), 'Must render suggestedFix as KaTeX math rather than raw inline code backticks');
+  assert(!rendered.cause.includes('`'), 'Plain-text cause field should not expose raw markdown backticks');
   assert(rendered.cause.includes('^{2(x)+}'));
 
   // Multi-turn Sequence A/C: latest clean or follow-up message never inherits previous weird input
