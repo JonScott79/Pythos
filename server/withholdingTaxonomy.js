@@ -20,7 +20,8 @@ const WITHHOLDING_REASONS = {
   PROMPT_CLAIM_MISMATCH: 'PROMPT_CLAIM_MISMATCH',
   INFRASTRUCTURE_FAILURE: 'INFRASTRUCTURE_FAILURE',
   DUAL_PROVIDER_FAILURE: 'DUAL_PROVIDER_FAILURE',
-  UNSUPPORTED_PROBLEM: 'UNSUPPORTED_PROBLEM'
+  UNSUPPORTED_PROBLEM: 'UNSUPPORTED_PROBLEM',
+  MALFORMED_SYNTAX: 'MALFORMED_SYNTAX'
 };
 
 const SAFE_WITHHOLDING_CONFIG = {
@@ -95,14 +96,55 @@ const SAFE_WITHHOLDING_CONFIG = {
     cause: "This problem involves topics or formats that fall outside our deterministic verification coverage.",
     help: "Asking about algebra, calculus, geometry, trigonometry, physics, or probability problems.",
     nextStep: "Feel free to ask a question in one of Pythos's supported math or physics subjects."
+  },
+  MALFORMED_SYNTAX: {
+    code: 'MALFORMED_SYNTAX',
+    headline: "The formatting on this problem looks a little weird.",
+    explanation: "A symbol, exponent, delimiter, or operator appears misplaced or incomplete, so I can't parse it reliably without guessing.",
+    cause: "The submitted mathematical expression has a structural formatting issue (such as a dangling operator, misplaced exponent argument, or unmatched delimiter).",
+    help: "Check for stray operators inside exponents, missing closing parentheses or braces, or incomplete fractions.",
+    nextStep: "Fix the formatting and send the problem again."
   }
 };
 
-function getSafeWithholding(reasonCode) {
+function sanitizeDynamicText(val, maxLen = 220) {
+  if (typeof val !== 'string') return '';
+  return val
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/[<>]/g, '')
+    .replace(/`/g, "'")
+    .trim()
+    .slice(0, maxLen);
+}
+
+function getSafeWithholding(reasonCode, overrides = null) {
   const cfg = SAFE_WITHHOLDING_CONFIG[reasonCode] || SAFE_WITHHOLDING_CONFIG.CLAIM_NOT_VERIFIED;
+  const result = { ...cfg };
+
+  if (overrides && typeof overrides === 'object') {
+    const weirdSnippet = sanitizeDynamicText(overrides.weirdSnippet, 120);
+    const suggestedFix = sanitizeDynamicText(overrides.suggestedFix, 200);
+    const anomalyExplanation = sanitizeDynamicText(overrides.anomalyExplanation, 260);
+
+    if (anomalyExplanation) {
+      result.explanation = anomalyExplanation;
+      result.cause = weirdSnippet
+        ? `${anomalyExplanation} (Spotted near \`${weirdSnippet}\`.)`
+        : anomalyExplanation;
+    } else if (weirdSnippet) {
+      result.explanation = `${cfg.explanation} Specifically, \`${weirdSnippet}\` looks misformatted.`;
+      result.cause = `Misplaced or incomplete formatting near \`${weirdSnippet}\`.`;
+    }
+
+    if (suggestedFix) {
+      result.explanation = `${result.explanation}\n\nDid you mean \`${suggestedFix}\`?`;
+      result.nextStep = `Try re-submitting with \`${suggestedFix}\`.`;
+    }
+  }
+
   return {
-    ...cfg,
-    formattedContent: `${cfg.headline}\n\n${cfg.explanation}`
+    ...result,
+    formattedContent: `${result.headline}\n\n${result.explanation}`
   };
 }
 

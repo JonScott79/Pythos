@@ -821,6 +821,7 @@ const { enforceVisualFidelity } = require('./vizEngine/visualFidelity');
 const toolController = require('./toolController');
 const specialistAssist = require('./specialistAssist');
 const { getSafeWithholding, WITHHOLDING_REASONS } = require('./withholdingTaxonomy');
+const { detectFormattingAnomaly } = require('./mathFormatDetector');
 const { constructSafeVerifiedResponse } = require('./safeResponseConstructor');
 
 // Mount Admin Routes
@@ -3317,11 +3318,16 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
         let resolvedReason = WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED;
         const hasImages = candidateResult?.hasImages || (req.body.messages && req.body.messages.some(m => m.images && m.images.length > 0)) || (req.body.image);
         const auditText = failureAudit.join(' ').toLowerCase();
+        const formattingAnomaly = (lastUserMsg && typeof lastUserMsg.content === 'string')
+          ? detectFormattingAnomaly(lastUserMsg.content)
+          : { isWeird: false };
 
         if (hasImages) {
           resolvedReason = WITHHOLDING_REASONS.IMAGE_UNVERIFIABLE;
         } else if (auditText.includes('division by zero') || auditText.includes('mathematically undefined') || auditText.includes('domain violation')) {
           resolvedReason = WITHHOLDING_REASONS.UNDEFINED_EXPRESSION;
+        } else if (formattingAnomaly.isWeird) {
+          resolvedReason = WITHHOLDING_REASONS.MALFORMED_SYNTAX;
         } else if (auditText.includes('missing') || auditText.includes('insufficient') || auditText.includes('undefined variable') || auditText.includes('not enough info')) {
           resolvedReason = WITHHOLDING_REASONS.MISSING_INFORMATION;
         } else if (auditText.includes('ambiguous') || auditText.includes('multiple interpretation')) {
@@ -3332,7 +3338,16 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           resolvedReason = WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED;
         }
 
-        const safeWithholding = getSafeWithholding(resolvedReason);
+        const safeWithholding = getSafeWithholding(
+          resolvedReason,
+          resolvedReason === WITHHOLDING_REASONS.MALFORMED_SYNTAX
+            ? {
+                weirdSnippet: formattingAnomaly.snippet,
+                suggestedFix: formattingAnomaly.suggestedFix,
+                anomalyExplanation: formattingAnomaly.explanation
+              }
+            : null
+        );
 
         finalContent = safeWithholding.formattedContent;
         ollamaResponse.withheld = true;
