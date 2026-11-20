@@ -789,7 +789,7 @@ app.get('/health/ready', async (req, res) => {
 });
 
 const learningStore = require('./learningStore');
-const { verifyResponseClaims, extractCandidateAnswer, evaluateCandidateDelivery, auditPromptClaimFidelity, evaluateVerificationState, extractBoxedMatches, cleanLatexUnits } = require('./verificationBridge');
+const { verifyResponseClaims, extractCandidateAnswer, evaluateCandidateDelivery, auditPromptClaimFidelity, evaluateVerificationState, buildVerificationTrustReport, extractBoxedMatches, cleanLatexUnits } = require('./verificationBridge');
 const {
   analyzeDeterministicIntent,
   extractPreflightDeterministicFacts,
@@ -823,6 +823,7 @@ const specialistAssist = require('./specialistAssist');
 const { getSafeWithholding, WITHHOLDING_REASONS, resolveWithholdingDecision } = require('./withholdingTaxonomy');
 const { detectFormattingAnomaly } = require('./mathFormatDetector');
 const { constructSafeVerifiedResponse } = require('./safeResponseConstructor');
+const { buildToolHandoffContract } = require('./toolHandoffBuilder');
 
 // Mount Admin Routes
 app.use('/admin', adminRoutes);
@@ -1765,6 +1766,11 @@ function executeOllamaTextCall({ targetModel, ollamaMessages, effectiveOptions, 
           res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
           res.setHeader('Transfer-Encoding', 'chunked');
           res.setHeader('Cache-Control', 'no-cache, no-transform');
+          res.write(JSON.stringify({
+            type: 'status',
+            stage: 'drafting',
+            label: 'Drafting mathematical solution...'
+          }) + '\n');
         }
 
         const chunkText = typeof chunk === 'string' ? chunk : upstreamDecoder.write(chunk);
@@ -2114,26 +2120,54 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
     });
   }
 
-  // Extract latest user query
+  // Extract latest user query & optional Tutor Mode flag (Normal Mode by default)
   const lastUserMsg = [...messages].reverse().find(m => m && m.role === 'user');
+  const tutorMode = req.body.tutorMode === true;
+  const revealSolutionRequested = Boolean(
+    lastUserMsg && typeof lastUserMsg.content === 'string' &&
+    /\b(?:reveal|show|give)\s+(?:me\s+)?(?:the\s+)?(?:(?:full|complete|entire|verified|step-by-step)\s+)*(?:solution|answer)\b/i.test(lastUserMsg.content)
+  );
   // Setup per-request AbortController for cancellation with automatic lifecycle cleanup (Phase 1.2)
   const abortController = new AbortController();
   activeControllers.add(abortController);
   let acquiredSemaphore = false;
+  const clientCloseHandler = () => {
+    if (!res.writableEnded && !res.destroyed) {
+      abortController.abort();
+    }
+  };
+  if (req.socket) {
+    req.socket.on('close', clientCloseHandler);
+  }
+  res.on('close', clientCloseHandler);
   const cleanupActiveController = () => {
     activeControllers.delete(abortController);
+    if (req.socket && typeof req.socket.removeListener === 'function') {
+      req.socket.removeListener('close', clientCloseHandler);
+    }
+    if (typeof res.removeListener === 'function') {
+      res.removeListener('close', clientCloseHandler);
+    }
   };
   res.once('finish', cleanupActiveController);
   res.once('close', cleanupActiveController);
 
+  const emitPipelineStage = (stage, label) => {
+    if (!isStreaming || res.writableEnded || !res.headersSent || abortController.signal.aborted) return;
+    try {
+      res.write(JSON.stringify({ type: 'status', stage, label }) + '\n');
+    } catch (_) {}
+  };
+
   // Fast-Path: Deterministic Candidate Generation & Mandatory Verification Gate
   // Note: Evaluated BEFORE acquiring concurrency slots, but deterministic candidates
   // MUST pass through the mandatory verification and delivery gate architecture.
+  // Skipped in Tutor Mode (unless student explicitly requested the full solution) so hints stay progressive.
   const turnRequiresVisionEarly = lastUserMsg
     ? visionExtractor.isVisionRequiredForTurn(lastUserMsg, messages).requiresVision
     : false;
 
-  if (lastUserMsg && !turnRequiresVisionEarly) {
+  if (lastUserMsg && !turnRequiresVisionEarly && !(tutorMode && !revealSolutionRequested)) {
     const deterministicIntent = analyzeDeterministicIntent(lastUserMsg.content, messages);
     if (deterministicIntent) {
       const directResponse = buildDeterministicResponse(deterministicIntent);
@@ -2271,15 +2305,8 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
     }
   }
 
-  const clientCloseHandler = () => {
-    if (!res.writableEnded && !res.destroyed) {
-      abortController.abort();
-    }
-  };
-  if (req.socket) {
-    req.socket.on('close', clientCloseHandler);
-  } else {
-    res.on('close', clientCloseHandler);
+  if (req.body.chatId && req.socket) {
+    // Late close safeguard preserved; listener already attached at request start
   }
 
   // Extract optional student identity from Authorization Bearer token (supports both LANZAR ID and Firebase ID tokens)
@@ -2505,11 +2532,19 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
     : { contextString: '' };
   const specialistContext = specialistEval?.contextString || '';
 
+  const tutorModeContext = teachingIntelligence.buildTutorModeDirective({
+    tutorMode,
+    userText: lastUserMsg?.content || '',
+    messages,
+    studentIntent,
+    studentEvaluation
+  });
+
   // Ensure system instructions are always present, up-to-date, and enriched with deterministic ground truth
   let preparedMessages = [...boundedContext.messagesForModel];
   preparedMessages.unshift({
     role: 'system',
-    content: PYTHOS_SYSTEM_PROMPT + identityContext + preflightContext + studentWorkContext + learnerStateContext + adaptiveTeachingContext + activeProblemContext + learningContext + memoryContext + projectKnowledgeContext + toolResultContext + specialistContext
+    content: PYTHOS_SYSTEM_PROMPT + identityContext + preflightContext + studentWorkContext + learnerStateContext + adaptiveTeachingContext + tutorModeContext + activeProblemContext + learningContext + memoryContext + projectKnowledgeContext + toolResultContext + specialistContext
   });
 
   // Clean vision messages in conversation history
@@ -2914,6 +2949,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
             res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
             res.setHeader('Transfer-Encoding', 'chunked');
             res.setHeader('Cache-Control', 'no-cache, no-transform');
+            emitPipelineStage('drafting', 'Drafting mathematical solution...');
             const sanitizedGroqContent = stripModelScratchpad(resGroq.content);
             res.write(JSON.stringify({ type: 'token', content: sanitizedGroqContent }) + '\n');
           }
@@ -2951,6 +2987,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
             res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
             res.setHeader('Transfer-Encoding', 'chunked');
             res.setHeader('Cache-Control', 'no-cache, no-transform');
+            emitPipelineStage('drafting', 'Drafting mathematical solution...');
             const sanitizedGeminiContent = stripModelScratchpad(resGemini.content);
             res.write(JSON.stringify({ type: 'token', content: sanitizedGeminiContent }) + '\n');
           }
@@ -2994,9 +3031,8 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
     // =====================================
     // Deterministic Verification & Revision Loop
     // =====================================
-    if (isStreaming && !res.writableEnded && res.headersSent) {
-      res.write(JSON.stringify({ type: 'status', stage: 'verifying' }) + '\n');
-    }
+    if (abortController.signal.aborted || res.writableEnded) return;
+    emitPipelineStage('verifying', 'Running symbolic verification...');
 
     // Model-driven Tool Request Interception & Execution
     if (candidateResult && candidateResult.content) {
@@ -3059,9 +3095,13 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
       effectiveVerificationPrompt,
       abortController.signal
     );
+    if (abortController.signal.aborted || res.writableEnded) return;
 
+    let revisionPassCount = 0;
+    let overrideReverified = false;
     if (invalidClaims.length > 0 || internalContradictions.length > 0) {
       console.warn(`[VERIFIER] Detected ${invalidClaims.length} invalid claims and ${internalContradictions.length} internal contradictions. Requesting revision...`);
+      emitPipelineStage('revising', 'Revising solution...');
 
       try {
         const feedbackLines = [];
@@ -3096,6 +3136,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
         });
 
         if (revisedResponse && revisedResponse.trim()) {
+          revisionPassCount++;
           console.log('[VERIFIER] Solution revised by Pythos. Performing full re-verification of revision...');
           finalContent = revisedResponse.trim();
           candidateResult.content = finalContent;
@@ -3199,12 +3240,16 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
 
       // DEFECT-02: If any arithmetic override was applied, perform complete re-verification of finalContent
       if (anyArithmeticOverrideApplied) {
+        if (abortController.signal.aborted || res.writableEnded) return;
+        overrideReverified = true;
         console.log('[VERIFIER] Arithmetic overrides applied. Performing full re-verification of final content...');
+        emitPipelineStage('verifying', 'Re-verifying updated steps...');
         const overrideAudit = await verifyResponseClaims(
           finalContent,
           effectiveVerificationPrompt,
           abortController.signal
         );
+        if (abortController.signal.aborted || res.writableEnded) return;
         claims = overrideAudit.claims;
         internalContradictions = overrideAudit.internalContradictions;
         verificationResults = overrideAudit.verificationResults;
@@ -3214,6 +3259,9 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
         console.log(`[VERIFIER] Post-override re-verification: ${claims.length} claims, ${invalidClaims.length} invalid, ${internalContradictions.length} contradictions.`);
       }
     }
+
+    if (abortController.signal.aborted || res.writableEnded) return;
+    emitPipelineStage('checking_constraints', 'Checking mathematical constraints...');
 
     // =====================================
     // DELIVERY GATE: Safe Withholding vs Certified Delivery (CRITICAL-01 & CRITICAL-02)
@@ -3234,6 +3282,9 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
 
     // CRITICAL-02: Enforce auditPromptClaimFidelity and primary-claim verification on the main LLM delivery path.
     // Neither intermediate arithmetic alone nor UNKNOWN primary claims may pass as verified.
+    // In Tutor Mode (progressive hints before full reveal), un-boxed valid hints remain exempt from requiring final-root completion,
+    // while ANY invalid claim or internal contradiction in a hint STILL fails verification!
+    const isTutorHintTurn = Boolean(tutorMode && !revealSolutionRequested && !finalContent.includes('\\boxed'));
     const isGuidedTutoringPrompt = Boolean(
       studentIntent && (
         studentIntent.intent === 'EXPLANATION_REQUEST' ||
@@ -3243,13 +3294,13 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
         studentIntent.type === 'CONCEPTUAL_QUESTION' ||
         studentIntent.type === 'PRACTICE_REQUEST'
       )
-    ) || (!finalContent.includes('\\boxed') && /\?\s*$/.test(finalContent.trim()) && claims.length === 0);
+    ) || isTutorHintTurn || (!finalContent.includes('\\boxed') && /\?\s*$/.test(finalContent.trim()) && claims.length === 0);
 
     const promptFidelity = isGuidedTutoringPrompt
       ? { valid: true, primaryClaimVerified: true }
       : auditPromptClaimFidelity(claims, effectiveVerificationPrompt, verificationResults);
 
-    const verifiedClaimCount = (verificationResults || []).filter(v => v && v.verified === true && v.status === 'VERIFIED').length;
+    const verifiedClaimCount = (verificationResults || []).filter(v => v && v.verified === true && (v.status === 'VERIFIED' || v.status === 'CONDITIONALLY_EQUIVALENT')).length;
     const unknownClaimCount = (verificationResults || []).filter(v => v && v.verified === false && v.status === 'UNKNOWN').length;
     const isConceptualSimLabPrompt = /\bin\s+the\s+sim\s+lab\b/i.test(effectiveVerificationPrompt || '');
     const allExtractedClaimsUnknown = !isConceptualSimLabPrompt && claims.length > 0 && verifiedClaimCount === 0 && unknownClaimCount > 0;
@@ -3360,7 +3411,8 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           explanation: safeWithholding.explanation,
           cause: safeWithholding.cause,
           help: safeWithholding.help,
-          nextStep: safeWithholding.nextStep
+          nextStep: safeWithholding.nextStep,
+          ...(safeWithholding.suggestedFix ? { suggestedFix: safeWithholding.suggestedFix } : {})
         };
         ollamaResponse.message.content = finalContent;
         ollamaResponse.withholdingReasons = failureAudit; // Preserved internally for auditing
@@ -3455,6 +3507,16 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
         safeResponseRecovered: Boolean(ollamaResponse.safeResponseRecovered)
       });
 
+      const trustReport = buildVerificationTrustReport({
+        claims,
+        verificationResults,
+        verificationEvaluation,
+        revisionPassCount,
+        overrideReverified,
+        safeResponseRecovered: Boolean(ollamaResponse.safeResponseRecovered),
+        recoverySource: ollamaResponse.recoverySource || null
+      });
+
       const verificationSummary = {
         state: verificationEvaluation.state,
         verifiedCount: verificationEvaluation.verifiedCount,
@@ -3462,8 +3524,21 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
         rejectedCount: verificationEvaluation.rejectedCount,
         totalCount: verificationEvaluation.totalCount,
         primaryClaimVerified: verificationEvaluation.primaryClaimVerified,
-        disclosure: verificationEvaluation.disclosure
+        disclosure: verificationEvaluation.disclosure,
+        trustReport
       };
+
+      const handoffContract = buildToolHandoffContract({
+        userPrompt: lastUserMsg?.content || '',
+        classification,
+        specialistAssistResult: specialistEval,
+        preflightToolResult,
+        claims,
+        verificationResults,
+        verificationState: verificationEvaluation.state,
+        withheld: Boolean(ollamaResponse.withheld),
+        withholdingReason: ollamaResponse.withholdingReason || null
+      });
 
       // Attach non-intrusive verification & diagnostic metadata
       ollamaResponse.requestId = requestId;
@@ -3474,6 +3549,9 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
       ollamaResponse.verificationAudit = verificationAudit || [];
       ollamaResponse.verificationState = verificationEvaluation.state;
       ollamaResponse.verificationSummary = verificationSummary;
+      ollamaResponse.handoffContract = handoffContract;
+      ollamaResponse.tutorMode = Boolean(tutorMode);
+      ollamaResponse.isTutorHint = Boolean(isTutorHintTurn && !ollamaResponse.withheld);
       ollamaResponse.finalContent = finalContent;
       if (classification) {
         ollamaResponse.classification = {
@@ -3513,6 +3591,8 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
             safeResponseRecovered: Boolean(ollamaResponse.safeResponseRecovered)
           }) + '\n');
         }
+        if (abortController.signal.aborted || res.writableEnded) return;
+        emitPipelineStage('finalizing', 'Finalizing verified response...');
         res.write(JSON.stringify({
           type: 'verified',
           requestId,
@@ -3521,6 +3601,9 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           finalContent,
           verificationState: verificationEvaluation.state,
           verificationSummary,
+          handoffContract,
+          tutorMode: Boolean(tutorMode),
+          isTutorHint: Boolean(isTutorHintTurn && !ollamaResponse.withheld),
           domain: classification?.problemDomain || null,
           subtype: classification?.problemSubtype || null,
           intent: studentIntent?.intent || studentIntent?.type || null,

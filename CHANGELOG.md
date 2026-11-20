@@ -1,3 +1,19 @@
+## Pythos 1.8.69
+**Release Date:** November 20, 2026
+
+### Comprehensive UX, Interactive Tool Handoff & Mathematical Reliability Upgrade
+- **Rational Equation LCD Domain Preservation (`server/verifier/algebra_verifier.py`, `server/verificationBridge.js`, `test-rational-equation-verification.js`):** Added multi-value restriction parsing (`x != 1, 2, 3`, `x \notin {2, 3}`), preserved inline qualifier keywords inside `\text{...}`, and ingested structured exclusions cleanly while keeping unconditioned removable-singularity rejection strict (`10/10` passing).
+- **Pre-Send Formatting Guard (`js/mathInputEngine.js`, `app.js`, `index.html`):** Added `detectInputFormattingIssue()` reusing `MathIntentEngine` to warn before submission on trapped superscript operators, trig power mismatches, unbalanced brackets (preserving half-open intervals), suspicious exponents, and incomplete LaTeX blocks with reversible **Fix Formatting** + **Undo Fix**.
+- **One-Click Suggested Equation Actions & Authoritative Trust Badges (`server/server.js`, `server/verificationBridge.js`, `app.js`):** Forwarded `withholdingDetails.suggestedFix` into **Solve Suggested Equation** / **Edit in Input** buttons; added `buildVerificationTrustReport()` distinguishing symbolic proofs, exact roots, numerical confirmations, checked domain restrictions, and additional verification passes.
+- **Structured Contextual Tool Handoff (`server/toolHandoffBuilder.js`, `app.js`):** Connected chat deterministically to Function Grapher, Check Work (clearing student answer area), Unit Converter, Matrix Calculator, Sim Lab, inline Domain Restrictions, and **Try Another Method** across desktop and mobile.
+- **Real Verification Pipeline Progress, Cancellation & Tutor Mode (`server/server.js`, `server/teachingIntelligence.js`, `app.js`, `index.html`):** Streamed real backend stage events (`drafting`, `verifying`, `revising`, `checking_constraints`, `finalizing`), added `activeRequestSeq` stale-response suppression and subprocess/stream abort propagation, and added an optional **Tutor Mode** toggle for progressive verified hints without weakening verification.
+
+## Pythos 1.8.68
+**Release Date:** November 19, 2026
+
+### Response Fidelity Diagnostics, Unicode Root Solving & Reciprocal Trig Domain Validation
+- Translated verification uncertainty into student-safe language via `classifyAndTranslateFidelityOutcome`, added Unicode superscript normalization in `specialistAssist.js` / `verificationBridge.js` / `algebra_verifier.py`, aligned reciprocal trig singularities (`csc`, `sec`, `cot`, `tan`), and enforced `MALFORMED_SYNTAX` delivery gating when malformed prompts produce verified subclaims.
+
 ## Pythos 1.8.65
 **Release Date:** November 18, 2026
 

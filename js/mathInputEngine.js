@@ -554,6 +554,342 @@
     return segments.some(function (s) { return s.type === "math"; });
   }
 
+  // Matches trailing spacing/empty brace artifacts inside exponents during live typing
+  const TRAILING_EXP_NOISE_RE = /(?:\{\s*\}|\\[,;:! ]|\\(?:quad|qquad|enspace|thinspace|medspace|thickspace|negthinspace|strut|mathstrut)\b|~|\s)+$/g;
+
+  function findMatchingBraceClient(str, openIdx) {
+    let depth = 0;
+    for (let i = openIdx; i < str.length; i++) {
+      if (str[i] === "\\" && i + 1 < str.length) { i++; continue; }
+      if (str[i] === "{") depth++;
+      else if (str[i] === "}") {
+        depth--;
+        if (depth === 0) return i;
+      }
+    }
+    return -1;
+  }
+
+  function decodeSuperscriptsForFormatCheck(raw) {
+    // Reuse REVERSE_SUPERSCRIPT_MAP while preserving valid slash fractions like ⁵⁄₄
+    return String(raw || "")
+      .replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u2064\uFEFF\u00AD]/g, "")
+      .replace(/[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g, " ")
+      .replace(/\u2212/g, "-")
+      .replace(/\uFF0B/g, "+")
+      .replace(/([⁰¹²³⁴⁵⁶⁷⁸⁹]+\u2044[₀₁₂₃₄₅₆₇₈₉]+)|\^?([⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱˣʸ]+)/g, function (full, frac, run) {
+        if (frac) return frac;
+        let out = "";
+        for (let i = 0; i < run.length; i++) {
+          out += REVERSE_SUPERSCRIPT_MAP[run[i]] || run[i];
+        }
+        return "^{" + out + "}";
+      });
+  }
+
+  function checkDelimitersConservative(s) {
+    const stack = [];
+    const pairs = { ")": "(", "}": "{", "]": "[" };
+    const opens = { "(": true, "{": true, "[": true };
+    const closes = { ")": true, "}": true, "]": true };
+
+    for (let i = 0; i < s.length; i++) {
+      const ch = s[i];
+      if (ch === "\\" && i + 1 < s.length) {
+        const next = s[i + 1];
+        if (opens[next] || closes[next] || next === "." || next === "|") {
+          i++;
+          continue;
+        }
+      }
+      if (opens[ch]) {
+        stack.push({ ch: ch, idx: i });
+      } else if (closes[ch]) {
+        if (!stack.length) {
+          // Ignore numbered list markers like "1) solve ..." when near start of prose
+          if (ch === ")" && i <= 4 && /^\s*(?:\d+|[a-zA-Z])\)/.test(s)) continue;
+          const snip = s.slice(Math.max(0, i - 10), Math.min(s.length, i + 10)).trim();
+          return {
+            hasIssue: true,
+            kind: "UNBALANCED_DELIMITERS",
+            message: "Extra closing '" + ch + "' near \"" + snip + "\" without a matching opener.",
+            snippet: snip,
+            suggestedFix: null,
+            uncertain: false
+          };
+        }
+        const top = stack[stack.length - 1];
+        if (top.ch !== pairs[ch]) {
+          const isHalfOpenInterval =
+            stack.length === 1 &&
+            ((top.ch === "[" && ch === ")") || (top.ch === "(" && ch === "]")) &&
+            s.slice(top.idx + 1, i).includes(",");
+          if (!isHalfOpenInterval) {
+            const snip = s.slice(Math.max(0, i - 10), Math.min(s.length, i + 10)).trim();
+            return {
+              hasIssue: true,
+              kind: "UNBALANCED_DELIMITERS",
+              message: "Mismatched brackets '" + top.ch + "' and '" + ch + "' near \"" + snip + "\".",
+              snippet: snip,
+              suggestedFix: null,
+              uncertain: false
+            };
+          }
+        }
+        stack.pop();
+      }
+    }
+    if (stack.length > 0) {
+      const top = stack[stack.length - 1];
+      const snip = s.slice(Math.max(0, top.idx - 6), Math.min(s.length, top.idx + 16)).trim();
+      const closer = top.ch === "(" ? ")" : (top.ch === "{" ? "}" : "]");
+      return {
+        hasIssue: true,
+        kind: "UNBALANCED_DELIMITERS",
+        message: "Unclosed '" + top.ch + "' near \"" + snip + "\" — missing '" + closer + "'.",
+        snippet: snip,
+        suggestedFix: null,
+        uncertain: true
+      };
+    }
+    return null;
+  }
+
+  /**
+   * Lightweight pre-send formatting guard for #mathPreview.
+   * Reuses segmentation and Unicode superscript mappings without creating a competing parser.
+   * Never throws and never rewrites ambiguous expressions automatically.
+   */
+  function detectInputFormattingIssue(raw) {
+    const cleanNone = { hasIssue: false, kind: "NONE", message: "", snippet: "", suggestedFix: null, uncertain: false };
+    if (!raw || typeof raw !== "string") return cleanNone;
+    const trimmed = decodeSuperscriptsForFormatCheck(raw).trim();
+    if (!trimmed || trimmed.length > 4000) return cleanNone;
+
+    const hasMathSignal = detectMathInInput(raw) || /\\(?:frac|dfrac|tfrac|sqrt|sin|cos|tan|csc|sec|cot|log|ln)\b|[=^√∛⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁽⁾]/.test(raw);
+    if (!hasMathSignal) return cleanNone;
+
+    let s = trimmed;
+    if (/^\$\$[\s\S]*\$\$$/.test(s)) s = s.slice(2, -2).trim();
+    else if (/^\$[\s\S]*\$$/.test(s)) s = s.slice(1, -1).trim();
+    else if (/^\\\[[\s\S]*\\\]$/.test(s)) s = s.slice(2, -2).trim();
+    else if (/^\\\([\s\S]*\\\)$/.test(s)) s = s.slice(2, -2).trim();
+    if (!s) return cleanNone;
+
+    // 1. Unbalanced parentheses / brackets / braces
+    const delimErr = checkDelimitersConservative(s);
+    if (delimErr) return delimErr;
+
+    // 2. Empty/incomplete LaTeX blocks (\sqrt{}, \frac{}{}, \frac{2x}{}, \frac{2x})
+    const emptySqrt = s.match(/\\sqrt\s*(?:\[\s*\]\s*(?:\{[^}]*\})?|\{\s*\})/);
+    if (emptySqrt) {
+      return {
+        hasIssue: true,
+        kind: "EMPTY_LATEX_BLOCK",
+        message: "Your root " + emptySqrt[0] + " looks empty inside.",
+        snippet: emptySqrt[0],
+        suggestedFix: null,
+        uncertain: false
+      };
+    }
+    const fracRe = /\\(?:frac|tfrac|dfrac)\b/g;
+    let fm;
+    while ((fm = fracRe.exec(s)) !== null) {
+      let idx = fm.index + fm[0].length;
+      while (idx < s.length && /\s/.test(s[idx])) idx++;
+      if (s[idx] !== "{") continue;
+      const numClose = findMatchingBraceClient(s, idx);
+      if (numClose === -1) continue;
+      const numBody = s.slice(idx + 1, numClose).trim();
+      let denStart = numClose + 1;
+      while (denStart < s.length && /\s/.test(s[denStart])) denStart++;
+      if (s[denStart] !== "{") {
+        const snip = s.slice(fm.index, numClose + 1);
+        return {
+          hasIssue: true,
+          kind: "EMPTY_LATEX_BLOCK",
+          message: "Fraction " + snip + " is missing its denominator.",
+          snippet: snip,
+          suggestedFix: null,
+          uncertain: false
+        };
+      }
+      const denClose = findMatchingBraceClient(s, denStart);
+      if (denClose === -1) continue;
+      const denBody = s.slice(denStart + 1, denClose).trim();
+      if (!numBody || !denBody) {
+        const snip = s.slice(fm.index, denClose + 1);
+        return {
+          hasIssue: true,
+          kind: "EMPTY_LATEX_BLOCK",
+          message: "Part of the fraction " + snip + " was left empty.",
+          snippet: snip,
+          suggestedFix: null,
+          uncertain: false
+        };
+      }
+    }
+
+    // 3. Suspicious exponents, trapped operators in superscripts, and trig exponent-arg mismatch
+    const emptyExp = s.match(/\^\s*(?:\{\s*\}|(?=$|[\s),;]))/);
+    if (emptyExp) {
+      return {
+        hasIssue: true,
+        kind: "SUSPICIOUS_EXPONENT",
+        message: "Exponent operator '^' looks unfinished — add a power or remove '^'.",
+        snippet: emptyExp[0],
+        suggestedFix: null,
+        uncertain: true
+      };
+    }
+
+    // Double/chained exponent like x^2^3 or x^{2}^{3} (ambiguous precedence)
+    const chainedExp = s.match(/(\^(?:\{[^{}]+\}|[a-zA-Z0-9]+)\s*\^(?:\{[^{}]+\}|[a-zA-Z0-9]+))/);
+    if (chainedExp) {
+      return {
+        hasIssue: true,
+        kind: "SUSPICIOUS_EXPONENT",
+        message: "Chained exponents (" + chainedExp[1] + ") can be ambiguous — add parentheses to clarify grouping.",
+        snippet: chainedExp[1],
+        suggestedFix: null,
+        uncertain: true
+      };
+    }
+
+    const trigArgRe = /^(\d+)((?:\\left\s*)?\(\s*([a-zA-Z])\s*(?:\\right\s*)?\))$/;
+    for (let i = 0; i < s.length - 1; i++) {
+      if (s[i] !== "^") continue;
+      let braceIdx = i + 1;
+      while (braceIdx < s.length && /\s/.test(s[braceIdx])) braceIdx++;
+      if (braceIdx >= s.length || s[braceIdx] !== "{") continue;
+      const closeIdx = findMatchingBraceClient(s, braceIdx);
+      if (closeIdx === -1) continue;
+
+      const inner = s.slice(braceIdx + 1, closeIdx)
+        .replace(TRAILING_EXP_NOISE_RE, "")
+        .replace(/\{\s*([+\-*/])\s*\}$/, "$1")
+        .replace(TRAILING_EXP_NOISE_RE, "")
+        .trim();
+      const after = s.slice(closeIdx + 1).trimStart();
+
+      if (/[+\-*/]$/.test(inner)) {
+        const op = inner.slice(-1);
+        const beforeOp = inner.slice(0, -1).replace(TRAILING_EXP_NOISE_RE, "").trim();
+        const fullExp = s.slice(i, closeIdx + 1);
+        const trigMatch = s.slice(0, i).match(/\\?(sin|cos|tan|csc|sec|cot)\s*$/);
+        const trigArgMatch = beforeOp.match(trigArgRe);
+        const hasValidFollowingTerm = /^(?:\\[a-zA-Z]+|[a-zA-Z0-9(])/.test(after);
+        let suggestedFix = null;
+
+        if (trigMatch && trigArgMatch && hasValidFollowingTerm) {
+          const fixedExp = "^" + trigArgMatch[1] + trigArgMatch[2] + " " + op + " ";
+          suggestedFix = (s.slice(0, i) + fixedExp + after).replace(/\s+/g, " ").trim();
+        } else if (beforeOp && hasValidFollowingTerm) {
+          suggestedFix = (s.slice(0, i) + "^{" + beforeOp + "} " + op + " " + after).replace(/\s+/g, " ").trim();
+        }
+
+        const msg = (trigMatch && trigArgMatch)
+          ? "(" + trigArgMatch[3] + ") and '" + op + "' look trapped inside the exponent of " + trigMatch[1] + "."
+          : "Operator '" + op + "' looks trapped inside the exponent " + fullExp + ".";
+        return {
+          hasIssue: true,
+          kind: "TRAPPED_OPERATOR_IN_EXPONENT",
+          message: msg,
+          snippet: fullExp,
+          suggestedFix: suggestedFix,
+          uncertain: !suggestedFix
+        };
+      }
+
+      const trigPrefix = s.slice(0, i).match(/\\?(sin|cos|tan|csc|sec|cot)\s*$/);
+      const innerTrigArg = inner.match(trigArgRe);
+      if (trigPrefix && innerTrigArg && !/^(?:\(|\\left\s*\()/.test(after)) {
+        const safeAfter = !after || /^[+\-*/=<>]/.test(after);
+        const suggestedFix = safeAfter
+          ? (s.slice(0, i) + "^" + innerTrigArg[1] + innerTrigArg[2] + (after ? " " + after : "")).trim()
+          : null;
+        return {
+          hasIssue: true,
+          kind: "TRIG_POWER_ARG_MISMATCH",
+          message: "(" + innerTrigArg[3] + ") looks stuck inside the exponent of " + trigPrefix[1] + " instead of acting as its argument.",
+          snippet: trigPrefix[0] + s.slice(i, closeIdx + 1),
+          suggestedFix: suggestedFix,
+          uncertain: !suggestedFix
+        };
+      }
+    }
+
+    // 4. Empty function argument like sin() or log() or sqrt()
+    const emptyFnArg = s.match(/\\?(arcsin|arccos|arctan|sinh|cosh|tanh|sin|cos|tan|sec|csc|cot|asin|acos|atan|log|ln|exp|sqrt|cbrt)\s*\(\s*\)/i);
+    if (emptyFnArg) {
+      return {
+        hasIssue: true,
+        kind: "MALFORMED_FUNCTION_ARG",
+        message: "Function " + emptyFnArg[1] + "() has an empty argument inside parentheses.",
+        snippet: emptyFnArg[0],
+        suggestedFix: null,
+        uncertain: false
+      };
+    }
+
+    // 5. Dangling / doubled operators on pure/hybrid math segments (check math segments to skip natural English punctuation)
+    const segments = segmentInput(raw);
+    const scanTargets = segments.some(function (seg) { return seg.type === "math"; })
+      ? segments.filter(function (seg) { return seg.type === "math"; }).map(function (seg) { return decodeSuperscriptsForFormatCheck(seg.raw).trim(); })
+      : [s];
+
+    for (let k = 0; k < scanTargets.length; k++) {
+      const t = scanTargets[k].replace(/^\$\$?|\$\$?$/g, "").trim();
+      if (!t || !/[0-9a-zA-Z\\^]/.test(t)) continue;
+      const dblEq = t.match(/=\s*=/);
+      if (dblEq) {
+        return {
+          hasIssue: true,
+          kind: "DANGLING_OPERATOR",
+          message: "Double '=' sign detected near \"" + dblEq[0] + "\".",
+          snippet: dblEq[0],
+          suggestedFix: null,
+          uncertain: false
+        };
+      }
+      const opBeforeEq = t.match(/([+\-*/^]\s*=)/);
+      if (opBeforeEq) {
+        return {
+          hasIssue: true,
+          kind: "DANGLING_OPERATOR",
+          message: "Unfinished '" + opBeforeEq[1] + "' right before the equals sign.",
+          snippet: opBeforeEq[1],
+          suggestedFix: null,
+          uncertain: false
+        };
+      }
+      const dblOp = t.match(/([*\/]\s*[*\/]|[+]\s*[+*\/])/);
+      if (dblOp) {
+        return {
+          hasIssue: true,
+          kind: "DANGLING_OPERATOR",
+          message: "Adjacent operators (" + dblOp[1] + ") detected.",
+          snippet: dblOp[1],
+          suggestedFix: null,
+          uncertain: true
+        };
+      }
+      const trailingOp = t.match(/([+\-*/^])\s*$/);
+      if (trailingOp && /[0-9a-zA-Z)\]}]/.test(t.slice(0, trailingOp.index))) {
+        return {
+          hasIssue: true,
+          kind: "DANGLING_OPERATOR",
+          message: "Expression ends with a trailing '" + trailingOp[1] + "' operator.",
+          snippet: t.slice(Math.max(0, trailingOp.index - 8)).trim(),
+          suggestedFix: null,
+          uncertain: true
+        };
+      }
+    }
+
+    return cleanNone;
+  }
+
   function applyAutoFormatToInputElement(inputEl, options) {
     if (!inputEl || typeof inputEl.value !== "string") return;
     const oldVal = inputEl.value;
@@ -581,6 +917,7 @@
     autoFormatMathText: autoFormatMathText,
     applyAutoFormatToInputElement: applyAutoFormatToInputElement,
     detectMathInInput: detectMathInInput,
+    detectInputFormattingIssue: detectInputFormattingIssue,
     escapeHtml: escapeHtml
   };
 
@@ -591,6 +928,7 @@
     syncInputBackdrop: syncInputBackdrop,
     autoFormatMathText: autoFormatMathText,
     applyAutoFormatToInputElement: applyAutoFormatToInputElement,
-    detectMathInInput: detectMathInInput
+    detectMathInInput: detectMathInInput,
+    detectInputFormattingIssue: detectInputFormattingIssue
   };
 });

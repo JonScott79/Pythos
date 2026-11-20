@@ -225,19 +225,23 @@ def _has_ambiguous_division_binding(raw_s: str) -> bool:
 
 
 def _parse_inequality_restrictions(cond_str: str) -> list:
-    """Extracts explicit domain restrictions (e.g. x != 2, x != pi/2, sin(x) != 0)."""
+    """Extracts explicit domain restrictions (e.g. x != 2, x != 1, 2, 3, x != pi/2, sin(x) != 0)."""
     found = []
     if not isinstance(cond_str, str) or not cond_str:
         return found
-    for pair in _re.finditer(r'([a-zA-Z_][a-zA-Z0-9_]*(?:\([^()]+\))?)\s*(?:!=|\\neq|≠|<>)\s*([-+]?[a-zA-Z0-9_./*\\]+)', cond_str):
-        lhs_v, rhs_v = pair.group(1).strip(), pair.group(2).strip()
+
+    def _record_lhs_rhs(lhs_v: str, rhs_v: str):
+        lhs_v = lhs_v.strip()
+        rhs_v = rhs_v.strip().rstrip('.,;:)')
+        if not lhs_v or not rhs_v:
+            return
         lhs_clean = _re.sub(r'\\(sin|cos|tan|sec|csc|cot)\b', r'\1', lhs_v)
         if '(' not in lhs_clean:
             try:
                 num_v = round(float(rhs_v), 10)
                 found.append(num_v)
                 found.append(f"{lhs_v} != {num_v:g}")
-                continue
+                return
             except Exception:
                 pass
         found.append(f"{lhs_v} != {rhs_v}")
@@ -249,6 +253,8 @@ def _parse_inequality_restrictions(cond_str: str) -> list:
                 rhs_val = complex(sp.N(safe_sympify(rhs_clean, locals=local_env)))
                 if abs(rhs_val.imag) < 1e-12:
                     found.append(round(rhs_val.real, 10))
+                else:
+                    found.append(f"{lhs_clean} != {sp.simplify(safe_sympify(rhs_clean, locals=local_env))}")
             else:
                 x_sym = sp.Symbol("x", real=True)
                 local_env["x"] = x_sym
@@ -262,6 +268,28 @@ def _parse_inequality_restrictions(cond_str: str) -> list:
                         found.append(round(val_c.real, 10))
         except Exception:
             pass
+
+    # 1. Standard inequality forms, including comma-separated lists like "x != 1, 2, 3"
+    ineq_re = _re.compile(
+        r'((?:\\?(?:sin|cos|tan|sec|csc|cot)\s*\([^()]+\)|[a-zA-Z_][a-zA-Z0-9_]*(?:\([^()]+\))?))\s*'
+        r'(?:!=|\\neq|≠|<>)\s*'
+        r'([-+]?(?:\\?pi|[a-zA-Z0-9_./*\\]+)(?:\s*(?:,|\band\b)\s*(?![a-zA-Z_][a-zA-Z0-9_]*\s*(?:!=|\\neq|≠|<>))[-+]?(?:\\?pi|[a-zA-Z0-9_./*\\]+))*)'
+    )
+    for pair in ineq_re.finditer(cond_str):
+        lhs_v = pair.group(1).strip()
+        rhs_items = _re.split(r'\s*(?:,|\band\b)\s*', pair.group(2).strip())
+        for item in rhs_items:
+            if item.strip():
+                _record_lhs_rhs(lhs_v, item)
+
+    # 2. Set-exclusion forms like "x \notin {1, 2, 3}" or "x not in {1, 2}"
+    notin_re = _re.compile(r'([a-zA-Z_][a-zA-Z0-9_]*)\s*(?:\\notin|\\not\\in|not\s+in)\s*\\?\{([^}]+)\\?\}', _re.IGNORECASE)
+    for m_set in notin_re.finditer(cond_str):
+        lhs_v = m_set.group(1).strip()
+        for item in m_set.group(2).split(','):
+            if item.strip():
+                _record_lhs_rhs(lhs_v, item)
+
     return found
 
 
@@ -582,6 +610,30 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
             src = " ".join(str(x) for x in src)
         if isinstance(src, str) and src:
             for item in _parse_inequality_restrictions(src):
+                stated_restrictions.add(item)
+
+    for struct_key in ("domain_restrictions", "restrictions", "excluded_values"):
+        struct_val = claim.get(struct_key)
+        if isinstance(struct_val, (list, tuple, set)):
+            for item in struct_val:
+                if isinstance(item, (int, float)):
+                    num_v = round(float(item), 10)
+                    stated_restrictions.add(num_v)
+                    stated_restrictions.add(f"{primary_var_name} != {num_v:g}")
+                elif isinstance(item, str) and item.strip():
+                    parsed = _parse_inequality_restrictions(item)
+                    if parsed:
+                        stated_restrictions.update(parsed)
+                    else:
+                        s_item = item.strip()
+                        try:
+                            num_v = round(float(s_item), 10)
+                            stated_restrictions.add(num_v)
+                            stated_restrictions.add(f"{primary_var_name} != {num_v:g}")
+                        except Exception:
+                            stated_restrictions.add(f"{primary_var_name} != {s_item}")
+        elif isinstance(struct_val, str) and struct_val.strip():
+            for item in _parse_inequality_restrictions(struct_val):
                 stated_restrictions.add(item)
 
     domain_mode = str(claim.get("domain_mode", "real")).lower()

@@ -68,7 +68,7 @@
         "url": "https://pythos.lanzar.me/",
         "applicationCategory": "EducationalApplication",
         "operatingSystem": "All modern web browsers",
-        "softwareVersion": "1.8.68",
+        "softwareVersion": "1.8.69",
         "dateModified": "2026-11-19",
         "description": "Free AI mathematics and physics tutor providing Socratic step-by-step guidance, deterministic computer algebra verification, 2D function plotting, and study tools.",
         "inLanguage": "en",
@@ -954,6 +954,255 @@
       color: var(--text-main);
     }
 
+    .pythos-suggested-fix-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .pythos-suggested-fix-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .pythos-suggested-fix-solve {
+      background: var(--primary-color);
+      color: #ffffff;
+      border: 1px solid var(--primary-color);
+    }
+
+    .pythos-suggested-fix-solve:hover {
+      filter: brightness(1.08);
+    }
+
+    .pythos-suggested-fix-edit {
+      background: var(--surface-color);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+    }
+
+    .pythos-suggested-fix-edit:hover {
+      border-color: var(--primary-color);
+      color: var(--primary-color);
+    }
+
+    /* Expandable Authoritative Verification Trust Indicator */
+    .pythos-trust-details {
+      margin-top: 10px;
+      padding: 6px 11px;
+      border-radius: 7px;
+      font-size: 0.80rem;
+      border: 1px solid var(--border-color);
+      background: var(--chat-ai-bg);
+    }
+
+    .pythos-trust-details.is-verified {
+      border-color: rgba(22, 163, 74, 0.35);
+      background: rgba(22, 163, 74, 0.06);
+    }
+
+    .pythos-trust-details.is-partial {
+      border-color: rgba(217, 119, 6, 0.35);
+      background: rgba(245, 158, 11, 0.07);
+    }
+
+    .pythos-trust-summary {
+      cursor: pointer;
+      font-weight: 600;
+      user-select: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      outline: none;
+    }
+
+    .pythos-trust-details.is-verified .pythos-trust-summary {
+      color: #16a34a;
+    }
+
+    .pythos-trust-details.is-partial .pythos-trust-summary {
+      color: #d97706;
+    }
+
+    .pythos-trust-body {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px dashed var(--border-color);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      color: var(--text-main);
+      font-size: 0.79rem;
+      line-height: 1.45;
+    }
+
+    .pythos-trust-item {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .pythos-trust-item-label {
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .pythos-trust-item-detail {
+      color: var(--text-muted);
+    }
+
+    /* Phase 3: Contextual Floating Tool Handoff Strip */
+    .pythos-handoff-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 7px;
+      margin-top: 10px;
+    }
+
+    .pythos-handoff-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: 0.77rem;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      color: var(--primary-color);
+      background: rgba(42, 114, 143, 0.08);
+      border: 1px solid rgba(42, 114, 143, 0.28);
+      transition: all 0.15s ease;
+    }
+
+    .pythos-handoff-btn:hover {
+      background: rgba(42, 114, 143, 0.16);
+      border-color: var(--primary-color);
+    }
+
+    .pythos-handoff-btn.active {
+      background: var(--primary-color);
+      color: #ffffff;
+      border-color: var(--primary-color);
+    }
+
+    .pythos-domain-restrictions-panel {
+      margin-top: 8px;
+      padding: 8px 12px;
+      border-radius: 7px;
+      background: rgba(245, 158, 11, 0.07);
+      border: 1px solid rgba(217, 119, 6, 0.30);
+      font-size: 0.81rem;
+      color: var(--text-main);
+      line-height: 1.45;
+    }
+
+    .pythos-domain-restrictions-panel ul {
+      margin: 5px 0 0 18px;
+      padding: 0;
+    }
+
+    /* Phase 4: Tutor / Hint Mode Toggle & Action Strip */
+    .tutor-mode-toggle-btn {
+      margin-left: auto;
+      border-style: dashed;
+    }
+
+    .tutor-mode-toggle-btn.tutor-mode-active {
+      background: rgba(16, 185, 129, 0.14) !important;
+      border-color: #10b981 !important;
+      border-style: solid !important;
+      color: #059669 !important;
+      font-weight: 600;
+    }
+
+    [data-theme="dark"] .tutor-mode-toggle-btn.tutor-mode-active {
+      color: #34d399 !important;
+    }
+
+    .tutor-mode-banner {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 6px;
+      padding: 5px 11px;
+      border-radius: 6px;
+      background: rgba(16, 185, 129, 0.08);
+      border: 1px solid rgba(16, 185, 129, 0.30);
+      font-size: 0.76rem;
+      color: var(--text-main);
+    }
+
+    .tutor-mode-exit-btn {
+      background: transparent;
+      border: 1px solid rgba(16, 185, 129, 0.45);
+      color: #059669;
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    [data-theme="dark"] .tutor-mode-exit-btn {
+      color: #34d399;
+    }
+
+    .thinking-stop-btn {
+      margin-left: 10px;
+      background: rgba(239, 68, 68, 0.10);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      color: #dc2626;
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .pythos-tutor-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-top: 10px;
+    }
+
+    .pythos-tutor-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 11px;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      background: rgba(16, 185, 129, 0.10);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      color: #047857;
+    }
+
+    [data-theme="dark"] .pythos-tutor-btn {
+      color: #34d399;
+    }
+
+    .pythos-tutor-btn:hover {
+      background: rgba(16, 185, 129, 0.20);
+    }
+
     /* Verified Derivation Audit Contract UX */
     .msg-audit-btn {
       background: transparent;
@@ -1309,6 +1558,58 @@
     }
     .math-preview-rendered .katex-display {
       margin: 4px 0 !important;
+    }
+    .math-preview-guard {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 6px;
+      padding: 6px 10px;
+      border-radius: 6px;
+      background: rgba(245, 158, 11, 0.10);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      color: var(--text-main);
+      font-size: 0.78rem;
+      line-height: 1.35;
+    }
+    .math-preview-guard-msg {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex: 1;
+      min-width: 0;
+    }
+    .math-preview-guard-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .math-preview-fix-btn,
+    .math-preview-undo-btn {
+      background: rgba(245, 158, 11, 0.18);
+      border: 1px solid rgba(245, 158, 11, 0.48);
+      color: var(--text-main);
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.15s ease;
+    }
+    .math-preview-fix-btn:hover,
+    .math-preview-undo-btn:hover {
+      background: rgba(245, 158, 11, 0.32);
+    }
+    .math-preview-guard.is-fixed {
+      background: rgba(16, 185, 129, 0.08);
+      border-color: rgba(16, 185, 129, 0.35);
+    }
+    .math-preview-guard.is-fixed .math-preview-undo-btn {
+      background: var(--sidebar-hover);
+      border-color: var(--border-color);
     }
 
     .input-wrapper {
@@ -4853,7 +5154,7 @@
           <a href="accessibility.html">Accessibility</a>
           <a href="license.html">License</a>
           <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" title="Official Facebook Page" aria-label="Facebook — Official Facebook Page">Facebook</a>
-          <a href="changelog.html#pythos-1-8-68" title="View Changelog" aria-label="v1.8.68 — Version 1.8.68 Release Notes">v1.8.68</a>
+          <a href="changelog.html#pythos-1-8-69" title="View Changelog" aria-label="v1.8.69 — Version 1.8.69 Release Notes">v1.8.69</a>
         </nav>
       </div>
     </aside>
@@ -4871,7 +5172,7 @@
         <header class="header">
           <img class="header-avatar" src="assets/pythos_avatar.jpg" alt="Pythos Oracle" width="40" height="40" />
           <div class="header-info">
-            <h1>PYTHOS <a href="changelog.html#pythos-1-8-68" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.68)" aria-label="v1.8.68 — Version 1.8.68 Release Notes">v1.8.68</a></h1>
+            <h1>PYTHOS <a href="changelog.html#pythos-1-8-69" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.69)" aria-label="v1.8.69 — Version 1.8.69 Release Notes">v1.8.69</a></h1>
             <p>Mathematics & Physics Oracle</p>
           </div>
           <button id="themeToggleBtn" class="theme-toggle-btn" title="Toggle Dark/Light Mode" aria-label="Toggle Dark and Light Theme">
@@ -4976,6 +5277,15 @@
                 </button>
               </div>
             </div>
+
+            <button id="tutorModeToggleBtn" type="button" class="tool-btn tutor-mode-toggle-btn" aria-pressed="false" title="Tutor Mode: Guide me one verified hint at a time instead of showing the full solution immediately" aria-label="Tutor Mode — Toggle progressive step-by-step hints">
+              <span>🎓 Tutor Mode</span>
+            </button>
+          </div>
+
+          <div id="tutorModeBanner" class="tutor-mode-banner" role="status" aria-live="polite" style="display:none;">
+            <span>🎓 <strong>Tutor Mode ON</strong> — Pythos will guide you one verified hint at a time without spoiling the answer.</span>
+            <button type="button" id="tutorModeExitBtn" class="tutor-mode-exit-btn">Switch to Normal Mode</button>
           </div>
 
           <!-- PENDING IMAGE ATTACHMENTS STRIP -->
@@ -5008,6 +5318,13 @@
               </div>
             </div>
             <div class="math-preview-rendered" id="mathPreviewRendered"></div>
+            <div id="mathPreviewGuard" class="math-preview-guard" role="status" aria-live="polite" style="display:none;">
+              <span id="mathPreviewGuardMsg" class="math-preview-guard-msg"></span>
+              <span class="math-preview-guard-actions">
+                <button type="button" id="mathPreviewFixBtn" class="math-preview-fix-btn" style="display:none;">Fix Formatting</button>
+                <button type="button" id="mathPreviewUndoBtn" class="math-preview-undo-btn" style="display:none;">Undo Fix</button>
+              </span>
+            </div>
           </div>
 
           <form class="input-wrapper" role="search">

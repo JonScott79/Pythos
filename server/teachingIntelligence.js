@@ -1454,11 +1454,58 @@ async function auditProposedShortcutAsync({ userText = '', activeProblemState = 
   return syncResult;
 }
 
+/**
+ * Builds progressive, verification-preserving instructions when UI Tutor Mode is enabled.
+ * Normal Mode (tutorMode !== true) receives empty string (unchanged baseline behavior).
+ */
+function buildTutorModeDirective({ tutorMode = false, userText = '', messages = [], studentIntent = null, studentEvaluation = null } = {}) {
+  if (!tutorMode) return '';
+
+  const clean = typeof userText === 'string' ? userText.trim() : '';
+  const revealRequested =
+    studentIntent?.intent === INTENTS.DIRECT_ANSWER_REQUEST ||
+    /\b(?:reveal|show|give)\s+(?:me\s+)?(?:the\s+)?(?:(?:full|complete|entire|verified|step-by-step)\s+)*(?:solution|answer)\b/i.test(clean);
+
+  // Preserve the earliest substantive problem statement in the thread so hints never drift
+  const userTurns = Array.isArray(messages) ? messages.filter(m => m && m.role === 'user' && typeof m.content === 'string') : [];
+  const originalProblem = userTurns.length > 0 ? userTurns[0].content.trim().slice(0, 400) : clean;
+
+  if (revealRequested) {
+    return [
+      '\n\n[TUTOR MODE: REVEAL FULL SOLUTION REQUESTED]',
+      `Original problem: "${originalProblem}"`,
+      '1. The student explicitly requested the complete solution.',
+      '2. Deliver the complete, deterministically verified step-by-step derivation and conclude with the verified final answer inside \\boxed{...}.',
+      '3. Maintain full mathematical rigor and verification standards.'
+    ].join('\n');
+  }
+
+  const isFollowUpHint = /\b(?:next\s+hint|another\s+hint|more\s+help|still\s+stuck|hint)\b/i.test(clean);
+  const stepContext = studentEvaluation && studentEvaluation.status === 'STEP_VERIFIED_INCORRECT'
+    ? 'The student submitted an incorrect intermediate step. Address their specific step kindly using the deterministic correction, without giving away the final answer.'
+    : (studentEvaluation && studentEvaluation.status === 'STEP_VERIFIED_CORRECT'
+      ? 'The student completed the previous step correctly! Confirm their step warmly and give only the next single hint or step.'
+      : (isFollowUpHint
+        ? 'The student requested one more progressive hint. Advance by ONE verified step from where the session left off, without revealing the final answer yet.'
+        : 'Give an initial targeted hint or ONLY the first verified setup step (never solve the whole problem or output \\boxed{...} yet).'));
+
+  return [
+    '\n\n[TUTOR MODE ACTIVE — PROGRESSIVE VERIFIED GUIDANCE]',
+    `Original problem to preserve throughout: "${originalProblem}"`,
+    stepContext,
+    'STRICT TUTOR MODE RULES:',
+    '1. Do NOT reveal the final answer or write \\boxed{...} unless the student explicitly requests "Show Full Solution" or "just give me the answer".',
+    '2. Every mathematical formula, identity, or intermediate equation you state in your hint MUST be mathematically exact and consistent with verified ground truth.',
+    '3. Keep the response concise: one clear verified hint/step, explain briefly WHY that step helps, and invite the student to try the next step (using chat or Check Work).'
+  ].join('\n');
+}
+
 module.exports = {
   LEARNING_MODES,
   MASTERY_LEVELS,
   SHORTCUT_STATUS,
   resolveStudentAgencyMode,
+  buildTutorModeDirective,
   analyzeConceptMastery,
   persistConceptMastery,
   evaluateTransformationSequence,
