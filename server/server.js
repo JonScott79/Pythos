@@ -3254,17 +3254,29 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
     const isConceptualSimLabPrompt = /\bin\s+the\s+sim\s+lab\b/i.test(effectiveVerificationPrompt || '');
     const allExtractedClaimsUnknown = !isConceptualSimLabPrompt && claims.length > 0 && verifiedClaimCount === 0 && unknownClaimCount > 0;
 
+    const hasTurnImages = Boolean(
+      candidateResult?.hasImages ||
+      (req.body.messages && req.body.messages.some(m => m.images && m.images.length > 0)) ||
+      req.body.image
+    );
+    const preDeliveryFormattingAnomaly = !hasTurnImages
+      ? detectFormattingAnomaly(lastUserMsg?.content || '')
+      : { isWeird: false };
+
     const hasUnresolvableFailure =
       uncorrectedInvalidClaims.length > 0 ||
       internalContradictions.length > 0 ||
       isCandidateIncomplete ||
       !promptFidelity.valid ||
-      allExtractedClaimsUnknown;
+      allExtractedClaimsUnknown ||
+      Boolean(preDeliveryFormattingAnomaly?.isWeird);
 
     if (hasUnresolvableFailure) {
-      console.warn(`[DELIVERY GATE] Candidate failed verification gate (invalid=${uncorrectedInvalidClaims.length}, contradictions=${internalContradictions.length}, fidelity=${promptFidelity.valid}, allUnknown=${allExtractedClaimsUnknown}). Enforcing safe withholding gate...`);
+      console.warn(`[DELIVERY GATE] Candidate failed verification gate (invalid=${uncorrectedInvalidClaims.length}, contradictions=${internalContradictions.length}, fidelity=${promptFidelity.valid}, allUnknown=${allExtractedClaimsUnknown}, malformed=${Boolean(preDeliveryFormattingAnomaly?.isWeird)}). Enforcing safe withholding gate...`);
 
-      const latestFormattingAnomaly = detectFormattingAnomaly(lastUserMsg?.content || '');
+      const latestFormattingAnomaly = preDeliveryFormattingAnomaly?.isWeird
+        ? preDeliveryFormattingAnomaly
+        : detectFormattingAnomaly(lastUserMsg?.content || '');
       let safeRecovery = null;
       if (!latestFormattingAnomaly.isWeird) {
         try {
