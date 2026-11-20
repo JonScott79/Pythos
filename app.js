@@ -1713,6 +1713,13 @@ const CLIENT_WITHHOLDING_EXPLANATIONS = {
     cause: "This problem involves topics or formats that fall outside our deterministic verification coverage.",
     help: "Asking about algebra, calculus, geometry, trigonometry, physics, or probability problems.",
     nextStep: "Feel free to ask a question in one of Pythos's supported math or physics subjects."
+  },
+  MALFORMED_SYNTAX: {
+    headline: "The formatting on this problem looks a little weird.",
+    explanation: "A symbol, exponent, delimiter, or operator appears misplaced or incomplete, so I can't parse it reliably without guessing.",
+    cause: "The submitted mathematical expression has a structural formatting issue (such as a dangling operator, misplaced exponent argument, or unmatched delimiter).",
+    help: "Check for stray operators inside exponents, missing closing parentheses or braces, or incomplete fractions.",
+    nextStep: "Fix the formatting and send the problem again."
   }
 };
 
@@ -2499,6 +2506,9 @@ function appendMessage(role, text, images = null, metadata = {}) {
     } else if (reasonKey === "INFRASTRUCTURE_FAILURE" || reasonKey === "DUAL_PROVIDER_FAILURE") {
       summaryTitle = "Why was verification interrupted?";
       secondSectionLabel = "Service status";
+    } else if (reasonKey === "MALFORMED_SYNTAX") {
+      summaryTitle = "Why did the formatting look weird?";
+      secondSectionLabel = "How to fix the notation";
     }
 
     detailsEl.setAttribute("aria-label", summaryTitle);

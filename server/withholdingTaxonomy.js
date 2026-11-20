@@ -20,7 +20,8 @@ const WITHHOLDING_REASONS = {
   PROMPT_CLAIM_MISMATCH: 'PROMPT_CLAIM_MISMATCH',
   INFRASTRUCTURE_FAILURE: 'INFRASTRUCTURE_FAILURE',
   DUAL_PROVIDER_FAILURE: 'DUAL_PROVIDER_FAILURE',
-  UNSUPPORTED_PROBLEM: 'UNSUPPORTED_PROBLEM'
+  UNSUPPORTED_PROBLEM: 'UNSUPPORTED_PROBLEM',
+  MALFORMED_SYNTAX: 'MALFORMED_SYNTAX'
 };
 
 const SAFE_WITHHOLDING_CONFIG = {
@@ -95,19 +96,119 @@ const SAFE_WITHHOLDING_CONFIG = {
     cause: "This problem involves topics or formats that fall outside our deterministic verification coverage.",
     help: "Asking about algebra, calculus, geometry, trigonometry, physics, or probability problems.",
     nextStep: "Feel free to ask a question in one of Pythos's supported math or physics subjects."
+  },
+  MALFORMED_SYNTAX: {
+    code: 'MALFORMED_SYNTAX',
+    headline: "The formatting on this problem looks a little weird.",
+    explanation: "A symbol, exponent, delimiter, or operator appears misplaced or incomplete, so I can't parse it reliably without guessing.",
+    cause: "The submitted mathematical expression has a structural formatting issue (such as a dangling operator, misplaced exponent argument, or unmatched delimiter).",
+    help: "Check for stray operators inside exponents, missing closing parentheses or braces, or incomplete fractions.",
+    nextStep: "Fix the formatting and send the problem again."
   }
 };
 
-function getSafeWithholding(reasonCode) {
+function sanitizeDynamicText(val, maxLen = 220) {
+  if (typeof val !== 'string') return '';
+  return val
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/[<>]/g, '')
+    .replace(/`/g, "'")
+    .trim()
+    .slice(0, maxLen);
+}
+
+function getSafeWithholding(reasonCode, overrides = null) {
   const cfg = SAFE_WITHHOLDING_CONFIG[reasonCode] || SAFE_WITHHOLDING_CONFIG.CLAIM_NOT_VERIFIED;
+  const result = { ...cfg };
+
+  if (overrides && typeof overrides === 'object') {
+    const weirdSnippet = sanitizeDynamicText(overrides.weirdSnippet, 120);
+    const suggestedFix = sanitizeDynamicText(overrides.suggestedFix, 200);
+    const anomalyExplanation = sanitizeDynamicText(overrides.anomalyExplanation, 260);
+
+    if (anomalyExplanation) {
+      result.explanation = anomalyExplanation;
+      result.cause = weirdSnippet
+        ? `${anomalyExplanation} (Spotted near \`${weirdSnippet}\`.)`
+        : anomalyExplanation;
+    } else if (weirdSnippet) {
+      result.explanation = `${cfg.explanation} Specifically, \`${weirdSnippet}\` looks misformatted.`;
+      result.cause = `Misplaced or incomplete formatting near \`${weirdSnippet}\`.`;
+    }
+
+    if (suggestedFix) {
+      result.explanation = `${result.explanation}\n\nDid you mean \`${suggestedFix}\`?`;
+      result.nextStep = `Try re-submitting with \`${suggestedFix}\`.`;
+    }
+  }
+
   return {
-    ...cfg,
-    formattedContent: `${cfg.headline}\n\n${cfg.explanation}`
+    ...result,
+    formattedContent: `${result.headline}\n\n${result.explanation}`
   };
+}
+
+function resolveWithholdingDecision({
+  lastUserText = '',
+  hasImages = false,
+  auditText = '',
+  promptFidelity = { valid: true },
+  detectFormattingAnomaly = null
+} = {}) {
+  const lowerAudit = String(auditText || '').toLowerCase();
+
+  // Higher-priority safety/security/auth/resource-limit/availability/domain failures must NEVER be masked by MALFORMED_SYNTAX
+  if (lowerAudit.includes('safety') || lowerAudit.includes('security') || lowerAudit.includes('unauthorized') || lowerAudit.includes('forbidden')) {
+    return { reason: WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED, overrides: null };
+  }
+  if (hasImages) {
+    return { reason: WITHHOLDING_REASONS.IMAGE_UNVERIFIABLE, overrides: null };
+  }
+  if (
+    lowerAudit.includes('rate limit') ||
+    lowerAudit.includes('quota') ||
+    lowerAudit.includes('service unavailable') ||
+    lowerAudit.includes('cas_queue_saturated') ||
+    lowerAudit.includes('cas_circuit_open') ||
+    lowerAudit.includes('timed out')
+  ) {
+    return { reason: WITHHOLDING_REASONS.INFRASTRUCTURE_FAILURE, overrides: null };
+  }
+  if (lowerAudit.includes('division by zero') || lowerAudit.includes('mathematically undefined') || lowerAudit.includes('domain violation')) {
+    return { reason: WITHHOLDING_REASONS.UNDEFINED_EXPRESSION, overrides: null };
+  }
+
+  if (typeof detectFormattingAnomaly === 'function' && typeof lastUserText === 'string' && lastUserText.trim()) {
+    const anomaly = detectFormattingAnomaly(lastUserText);
+    if (anomaly && anomaly.isWeird === true) {
+      return {
+        reason: WITHHOLDING_REASONS.MALFORMED_SYNTAX,
+        overrides: {
+          weirdSnippet: anomaly.snippet,
+          suggestedFix: anomaly.suggestedFix,
+          anomalyExplanation: anomaly.explanation
+        },
+        anomaly
+      };
+    }
+  }
+
+  if (lowerAudit.includes('missing') || lowerAudit.includes('insufficient') || lowerAudit.includes('undefined variable') || lowerAudit.includes('not enough info')) {
+    return { reason: WITHHOLDING_REASONS.MISSING_INFORMATION, overrides: null };
+  }
+  if (lowerAudit.includes('ambiguous') || lowerAudit.includes('multiple interpretation')) {
+    return { reason: WITHHOLDING_REASONS.AMBIGUOUS_PROBLEM, overrides: null };
+  }
+  if ((!promptFidelity.valid && promptFidelity.primaryClaimStatus !== 'UNKNOWN') || lowerAudit.includes('fidelity') || lowerAudit.includes('mismatch') || lowerAudit.includes('different equation')) {
+    return { reason: WITHHOLDING_REASONS.PROMPT_CLAIM_MISMATCH, overrides: null };
+  }
+
+  return { reason: WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED, overrides: null };
 }
 
 module.exports = {
   WITHHOLDING_REASONS,
   SAFE_WITHHOLDING_CONFIG,
-  getSafeWithholding
+  getSafeWithholding,
+  resolveWithholdingDecision
 };

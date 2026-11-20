@@ -820,7 +820,8 @@ const teachingIntelligence = require('./teachingIntelligence');
 const { enforceVisualFidelity } = require('./vizEngine/visualFidelity');
 const toolController = require('./toolController');
 const specialistAssist = require('./specialistAssist');
-const { getSafeWithholding, WITHHOLDING_REASONS } = require('./withholdingTaxonomy');
+const { getSafeWithholding, WITHHOLDING_REASONS, resolveWithholdingDecision } = require('./withholdingTaxonomy');
+const { detectFormattingAnomaly } = require('./mathFormatDetector');
 const { constructSafeVerifiedResponse } = require('./safeResponseConstructor');
 
 // Mount Admin Routes
@@ -2808,12 +2809,15 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
         // or because the conversational LLM is unavailable.
         // If Pythos possesses a trusted, independently verified solution, the delivery system must attempt to construct
         // a safe response from that solution rather than discarding it.
-        const safeRecovery = constructSafeVerifiedResponse({
-          userPrompt: lastUserMsg?.content || '',
-          preflightToolResult,
-          activeProblemState,
-          messages: req.body?.messages || []
-        });
+        const upstreamAnomaly = detectFormattingAnomaly(lastUserMsg?.content || '');
+        const safeRecovery = upstreamAnomaly.isWeird
+          ? null
+          : constructSafeVerifiedResponse({
+              userPrompt: lastUserMsg?.content || '',
+              preflightToolResult,
+              activeProblemState,
+              messages: req.body?.messages || []
+            });
 
         if (safeRecovery && safeRecovery.content) {
           console.log(`[DELIVERY GATE] Upstream LLMs unavailable, but Pythos possesses trusted verified solution from ${safeRecovery.source} (${safeRecovery.title}). Delivering verified truth directly!`);
@@ -3260,17 +3264,20 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
     if (hasUnresolvableFailure) {
       console.warn(`[DELIVERY GATE] Candidate failed verification gate (invalid=${uncorrectedInvalidClaims.length}, contradictions=${internalContradictions.length}, fidelity=${promptFidelity.valid}, allUnknown=${allExtractedClaimsUnknown}). Enforcing safe withholding gate...`);
 
+      const latestFormattingAnomaly = detectFormattingAnomaly(lastUserMsg?.content || '');
       let safeRecovery = null;
-      try {
-        safeRecovery = constructSafeVerifiedResponse({
-          userPrompt: lastUserMsg?.content || '',
-          preflightToolResult,
-          activeProblemState,
-          messages: req.body.messages,
-          verificationResults: uncorrectedInvalidClaims
-        });
-      } catch (recoverErr) {
-        console.error('[DELIVERY GATE] Error constructing safe verified response:', recoverErr.message);
+      if (!latestFormattingAnomaly.isWeird) {
+        try {
+          safeRecovery = constructSafeVerifiedResponse({
+            userPrompt: lastUserMsg?.content || '',
+            preflightToolResult,
+            activeProblemState,
+            messages: req.body.messages,
+            verificationResults: uncorrectedInvalidClaims
+          });
+        } catch (recoverErr) {
+          console.error('[DELIVERY GATE] Error constructing safe verified response:', recoverErr.message);
+        }
       }
 
       if (safeRecovery && safeRecovery.content && typeof safeRecovery.content === 'string') {
@@ -3314,25 +3321,17 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
         }
 
         // Determine structured reason code from context & failures
-        let resolvedReason = WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED;
         const hasImages = candidateResult?.hasImages || (req.body.messages && req.body.messages.some(m => m.images && m.images.length > 0)) || (req.body.image);
-        const auditText = failureAudit.join(' ').toLowerCase();
-
-        if (hasImages) {
-          resolvedReason = WITHHOLDING_REASONS.IMAGE_UNVERIFIABLE;
-        } else if (auditText.includes('division by zero') || auditText.includes('mathematically undefined') || auditText.includes('domain violation')) {
-          resolvedReason = WITHHOLDING_REASONS.UNDEFINED_EXPRESSION;
-        } else if (auditText.includes('missing') || auditText.includes('insufficient') || auditText.includes('undefined variable') || auditText.includes('not enough info')) {
-          resolvedReason = WITHHOLDING_REASONS.MISSING_INFORMATION;
-        } else if (auditText.includes('ambiguous') || auditText.includes('multiple interpretation')) {
-          resolvedReason = WITHHOLDING_REASONS.AMBIGUOUS_PROBLEM;
-        } else if ((!promptFidelity.valid && promptFidelity.primaryClaimStatus !== 'UNKNOWN') || auditText.includes('fidelity') || auditText.includes('mismatch') || auditText.includes('different equation')) {
-          resolvedReason = WITHHOLDING_REASONS.PROMPT_CLAIM_MISMATCH;
-        } else {
-          resolvedReason = WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED;
-        }
-
-        const safeWithholding = getSafeWithholding(resolvedReason);
+        const auditText = failureAudit.join(' ');
+        const decision = resolveWithholdingDecision({
+          lastUserText: lastUserMsg?.content || '',
+          hasImages,
+          auditText,
+          promptFidelity,
+          detectFormattingAnomaly
+        });
+        const resolvedReason = decision.reason;
+        const safeWithholding = getSafeWithholding(resolvedReason, decision.overrides);
 
         finalContent = safeWithholding.formattedContent;
         ollamaResponse.withheld = true;
