@@ -245,16 +245,71 @@ def _parse_inequality_restrictions(cond_str: str) -> list:
             except Exception:
                 pass
         found.append(f"{lhs_v} != {rhs_v}")
-        # Resolve function constraints (e.g. sin(x) != 0 -> x != 0, pi) or symbolic constants (x != pi/2)
+        # Canonical periodic trig restriction helper: never collapse infinite trig pole families
+        # (e.g. sin(x)=0 -> x != n*pi) into finite principal-period decimal floats like [0, 3.1415926536].
+        def _extract_periodic_trig_restrictions(trig_expr, target_s, out_set):
+            expr_simp = sp.simplify(trig_expr)
+            if isinstance(expr_simp, sp.sin):
+                arg = sp.simplify(expr_simp.args[0])
+                out_set.add(f"sin({arg}) != 0")
+                if target_s is not None and arg == target_s:
+                    out_set.add(f"{target_s} != n*pi, n \u2208 Z")
+                elif target_s is not None and target_s in arg.free_symbols:
+                    try:
+                        poly = sp.Poly(arg, target_s)
+                        if poly.degree() == 1:
+                            a_coef, b_coef = poly.all_coeffs()
+                            n_sym = sp.Symbol('n')
+                            fam = sp.simplify((n_sym * sp.pi - b_coef) / a_coef)
+                            out_set.add(f"{target_s} != {fam}, n \u2208 Z")
+                        else:
+                            out_set.add(f"{arg} != n*pi, n \u2208 Z")
+                    except Exception:
+                        out_set.add(f"{arg} != n*pi, n \u2208 Z")
+                return True
+            if isinstance(expr_simp, sp.cos):
+                arg = sp.simplify(expr_simp.args[0])
+                out_set.add(f"cos({arg}) != 0")
+                if target_s is not None and arg == target_s:
+                    out_set.add(f"{target_s} != pi/2 + n*pi, n \u2208 Z")
+                elif target_s is not None and target_s in arg.free_symbols:
+                    try:
+                        poly = sp.Poly(arg, target_s)
+                        if poly.degree() == 1:
+                            a_coef, b_coef = poly.all_coeffs()
+                            n_sym = sp.Symbol('n')
+                            fam = sp.simplify((sp.pi / 2 + n_sym * sp.pi - b_coef) / a_coef)
+                            out_set.add(f"{target_s} != {fam}, n \u2208 Z")
+                        else:
+                            out_set.add(f"{arg} != pi/2 + n*pi, n \u2208 Z")
+                    except Exception:
+                        out_set.add(f"{arg} != pi/2 + n*pi, n \u2208 Z")
+                return True
+            return False
+
+        # Resolve function constraints (e.g. sin(x) != 0 or x != n*pi) or symbolic constants
         try:
             rhs_clean = _re.sub(r'\\pi\b', 'pi', rhs_v).replace('π', 'pi')
             local_env = {"pi": sp.pi, "sin": sp.sin, "cos": sp.cos, "tan": sp.tan, "sec": sp.sec, "csc": sp.csc, "cot": sp.cot}
             if '(' not in lhs_clean:
-                rhs_val = complex(sp.N(safe_sympify(rhs_clean, locals=local_env)))
-                if abs(rhs_val.imag) < 1e-12:
-                    found.append(round(rhs_val.real, 10))
+                if _re.search(r'\b[nk]\s*\*?\s*pi\b', rhs_clean):
+                    found.append(f"{lhs_clean} != {rhs_clean}")
+                    if _re.search(r'pi\s*/\s*2', rhs_clean):
+                        found.append(f"cos({lhs_clean}) != 0")
+                        found.append(f"{lhs_clean} != pi/2 + n*pi, n \u2208 Z")
+                    else:
+                        found.append(f"sin({lhs_clean}) != 0")
+                        found.append(f"{lhs_clean} != n*pi, n \u2208 Z")
                 else:
-                    found.append(f"{lhs_clean} != {sp.simplify(safe_sympify(rhs_clean, locals=local_env))}")
+                    rhs_sym_parsed = safe_sympify(rhs_clean, locals=local_env)
+                    rhs_val = complex(sp.N(rhs_sym_parsed))
+                    if abs(rhs_val.imag) < 1e-12:
+                        if rhs_sym_parsed.is_Rational or abs(rhs_val.real - round(rhs_val.real)) < 1e-12:
+                            found.append(round(rhs_val.real, 10))
+                        else:
+                            found.append(f"{lhs_clean} != {sp.simplify(rhs_sym_parsed)}")
+                    else:
+                        found.append(f"{lhs_clean} != {sp.simplify(rhs_sym_parsed)}")
             else:
                 x_sym = sp.Symbol("x", real=True)
                 local_env["x"] = x_sym
@@ -262,10 +317,16 @@ def _parse_inequality_restrictions(cond_str: str) -> list:
                 rhs_sym = safe_sympify(rhs_clean, locals=local_env)
                 free = sorted(lhs_sym.free_symbols, key=str)
                 target = free[0] if free else x_sym
-                for z in sp.solve(lhs_sym - rhs_sym, target):
-                    val_c = complex(z.evalf())
-                    if abs(val_c.imag) < 1e-12:
-                        found.append(round(val_c.real, 10))
+                tmp_set = set()
+                if rhs_sym == 0 and _extract_periodic_trig_restrictions(lhs_sym, target, tmp_set):
+                    found.extend(sorted(tmp_set))
+                else:
+                    for z in sp.solve(lhs_sym - rhs_sym, target):
+                        val_c = complex(z.evalf())
+                        if abs(val_c.imag) < 1e-12 and (z.is_Rational or abs(val_c.real - round(val_c.real)) < 1e-12):
+                            found.append(round(val_c.real, 10))
+                        else:
+                            found.append(f"{target} != {sp.simplify(z)}")
         except Exception:
             pass
 
@@ -727,6 +788,59 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
                     if not free_syms:
                         continue
                     target_sym = free_syms[0]
+
+                    # Preserve general periodic families for trigonometric denominators
+                    if denom_base.has(sp.sin, sp.cos, sp.tan, sp.cot, sp.sec, sp.csc):
+                        handled_periodic = False
+                        for factor_node in sp.Mul.make_args(sp.factor(denom_base)):
+                            f_base = factor_node.base if isinstance(factor_node, sp.Pow) else factor_node
+                            arg_src = None
+                            if isinstance(f_base, (sp.csc, sp.cot)):
+                                f_base = sp.sin(f_base.args[0])
+                            elif isinstance(f_base, (sp.sec, sp.tan)):
+                                f_base = sp.cos(f_base.args[0])
+                            if isinstance(f_base, sp.sin):
+                                arg_src = f_base.args[0]
+                                restr.add(f"sin({sp.simplify(arg_src)}) != 0")
+                                if arg_src == target_sym:
+                                    restr.add(f"{target_sym} != n*pi, n \u2208 Z")
+                                elif target_sym in arg_src.free_symbols:
+                                    try:
+                                        poly = sp.Poly(arg_src, target_sym)
+                                        if poly.degree() == 1:
+                                            a_c, b_c = poly.all_coeffs()
+                                            n_sym = sp.Symbol('n')
+                                            fam = sp.simplify((n_sym * sp.pi - b_c) / a_c)
+                                            restr.add(f"{target_sym} != {fam}, n \u2208 Z")
+                                        else:
+                                            restr.add(f"{sp.simplify(arg_src)} != n*pi, n \u2208 Z")
+                                    except Exception:
+                                        restr.add(f"{sp.simplify(arg_src)} != n*pi, n \u2208 Z")
+                                handled_periodic = True
+                            elif isinstance(f_base, sp.cos):
+                                arg_src = f_base.args[0]
+                                restr.add(f"cos({sp.simplify(arg_src)}) != 0")
+                                if arg_src == target_sym:
+                                    restr.add(f"{target_sym} != pi/2 + n*pi, n \u2208 Z")
+                                elif target_sym in arg_src.free_symbols:
+                                    try:
+                                        poly = sp.Poly(arg_src, target_sym)
+                                        if poly.degree() == 1:
+                                            a_c, b_c = poly.all_coeffs()
+                                            n_sym = sp.Symbol('n')
+                                            fam = sp.simplify((sp.pi / 2 + n_sym * sp.pi - b_c) / a_c)
+                                            restr.add(f"{target_sym} != {fam}, n \u2208 Z")
+                                        else:
+                                            restr.add(f"{sp.simplify(arg_src)} != pi/2 + n*pi, n \u2208 Z")
+                                    except Exception:
+                                        restr.add(f"{sp.simplify(arg_src)} != pi/2 + n*pi, n \u2208 Z")
+                                handled_periodic = True
+                            elif f_base.has(target_sym):
+                                restr.add(f"{sp.simplify(f_base)} != 0")
+                                handled_periodic = True
+                        if handled_periodic:
+                            continue
+
                     zeros = sp.solve(denom_base, target_sym)
                     if not zeros:
                         restr.add(f"{sp.simplify(denom_base)} != 0")
@@ -735,7 +849,10 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
                             try:
                                 val_c = complex(z.evalf())
                                 if abs(val_c.imag) < 1e-12:
-                                    restr.add(round(val_c.real, 10))
+                                    if z.is_Rational or abs(val_c.real - round(val_c.real)) < 1e-12:
+                                        restr.add(round(val_c.real, 10))
+                                    else:
+                                        restr.add(f"{target_sym} != {sp.simplify(z)}")
                                 elif not use_real_domain:
                                     restr.add(str(sp.simplify(z)))
                             except Exception:

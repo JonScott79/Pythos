@@ -4387,10 +4387,25 @@ function buildVerificationTrustReport({
     });
   }
   if (domainRestrictions.length > 0) {
+    const formatRestriction = (r) => {
+      const s = String(r).trim();
+      if (/^-?\d+(?:\.\d+)?$/.test(s)) return s;
+      return s
+        .replace(/!=/g, '≠')
+        .replace(/>=/g, '≥')
+        .replace(/<=/g, '≤')
+        .replace(/\bn\*pi\b/g, 'nπ')
+        .replace(/\bpi\b/g, 'π')
+        .replace(/n\s*(?:in|∈)\s*Z\b/g, 'n ∈ ℤ');
+    };
+    const formattedRestrictions = domainRestrictions.map(formatRestriction);
+    const hasSymbolicOrPeriodic = domainRestrictions.some(r => typeof r === 'string' && !/^-?\d+(?:\.\d+)?$/.test(r.trim()));
     checks.push({
       kind: 'DOMAIN_RESTRICTIONS',
       label: 'Domain restrictions checked',
-      detail: `Excluded values checked: ${domainRestrictions.join(', ')}.`,
+      detail: hasSymbolicOrPeriodic
+        ? `Domain constraints checked: ${formattedRestrictions.join('; ')}.`
+        : `Excluded values checked: ${formattedRestrictions.join(', ')}.`,
       restrictions: domainRestrictions
     });
   }

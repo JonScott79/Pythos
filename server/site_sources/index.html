@@ -68,7 +68,7 @@
         "url": "https://pythos.lanzar.me/",
         "applicationCategory": "EducationalApplication",
         "operatingSystem": "All modern web browsers",
-        "softwareVersion": "1.8.69",
+        "softwareVersion": "1.8.70",
         "dateModified": "2026-11-19",
         "description": "Free AI mathematics and physics tutor providing Socratic step-by-step guidance, deterministic computer algebra verification, 2D function plotting, and study tools.",
         "inLanguage": "en",
@@ -546,7 +546,8 @@
       flex-shrink: 0;
     }
 
-    .chat-item-wrapper:hover .chat-actions {
+    .chat-item-wrapper:hover .chat-actions,
+    .chat-item-wrapper:focus-within .chat-actions {
       display: flex;
     }
 
@@ -996,56 +997,7 @@
       color: var(--primary-color);
     }
 
-    /* Expandable Authoritative Verification Trust Indicator */
-    .pythos-trust-details {
-      margin-top: 10px;
-      padding: 6px 11px;
-      border-radius: 7px;
-      font-size: 0.80rem;
-      border: 1px solid var(--border-color);
-      background: var(--chat-ai-bg);
-    }
-
-    .pythos-trust-details.is-verified {
-      border-color: rgba(22, 163, 74, 0.35);
-      background: rgba(22, 163, 74, 0.06);
-    }
-
-    .pythos-trust-details.is-partial {
-      border-color: rgba(217, 119, 6, 0.35);
-      background: rgba(245, 158, 11, 0.07);
-    }
-
-    .pythos-trust-summary {
-      cursor: pointer;
-      font-weight: 600;
-      user-select: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      outline: none;
-    }
-
-    .pythos-trust-details.is-verified .pythos-trust-summary {
-      color: #16a34a;
-    }
-
-    .pythos-trust-details.is-partial .pythos-trust-summary {
-      color: #d97706;
-    }
-
-    .pythos-trust-body {
-      margin-top: 8px;
-      padding-top: 8px;
-      border-top: 1px dashed var(--border-color);
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      color: var(--text-main);
-      font-size: 0.79rem;
-      line-height: 1.45;
-    }
-
+    /* Verification Trust Check Items (rendered inside .pythos-audit-panel) */
     .pythos-trust-item {
       display: flex;
       flex-direction: column;
@@ -1059,25 +1011,6 @@
 
     .pythos-trust-item-detail {
       color: var(--text-muted);
-    }
-
-    .pythos-trust-audit-toggle {
-      align-self: flex-start;
-      margin-top: 4px;
-      padding: 4px 10px;
-      border-radius: 5px;
-      border: 1px solid var(--border-color);
-      background: transparent;
-      color: var(--primary-color);
-      font-size: 0.74rem;
-      font-weight: 600;
-      font-family: inherit;
-      cursor: pointer;
-    }
-
-    .pythos-trust-audit-toggle:hover {
-      background: rgba(42, 114, 143, 0.08);
-      border-color: var(--primary-color);
     }
 
     /* Phase 3: Contextual Floating Tool Handoff Strip */
@@ -1548,6 +1481,15 @@
     @keyframes streamPulse {
       0%, 100% { transform: scale(0.85); opacity: 0.5; }
       50% { transform: scale(1.2); opacity: 1; }
+    }
+
+    /* Prevent wide display equations from overflowing message containers on any viewport */
+    .message-content .katex-display {
+      overflow-x: auto;
+      overflow-y: hidden;
+      max-width: 100%;
+      padding: 4px 2px;
+      -webkit-overflow-scrolling: touch;
     }
 
     /* Visual Emphasis: Circled / Boxed Final Answers */
@@ -4282,16 +4224,15 @@
         gap: 8px;
         align-items: center;
       }
+      .chat-actions {
+        display: flex;
+      }
       .toolbox-bar {
         overflow: visible !important;
-        -webkit-overflow-scrolling: touch;
-        flex-wrap: nowrap;
+        flex-wrap: wrap;
+        gap: 6px;
         padding-bottom: 2px;
         margin-bottom: 3px;
-        scrollbar-width: none;
-      }
-      .toolbox-bar::-webkit-scrollbar {
-        display: none;
       }
       .toolbox-popover-menu {
         right: 0 !important;
@@ -5247,7 +5188,7 @@
           <a href="accessibility.html">Accessibility</a>
           <a href="license.html">License</a>
           <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" title="Official Facebook Page" aria-label="Facebook — Official Facebook Page">Facebook</a>
-          <a href="changelog.html#pythos-1-8-69" title="View Changelog" aria-label="v1.8.69 — Version 1.8.69 Release Notes">v1.8.69</a>
+          <a href="changelog.html#pythos-1-8-70" title="View Changelog" aria-label="v1.8.70 — Version 1.8.70 Release Notes">v1.8.70</a>
         </nav>
       </div>
     </aside>
@@ -5265,7 +5206,7 @@
         <header class="header">
           <img class="header-avatar" src="assets/pythos_avatar.jpg" alt="Pythos Oracle" width="40" height="40" />
           <div class="header-info">
-            <h1>PYTHOS <a href="changelog.html#pythos-1-8-69" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.69)" aria-label="v1.8.69 — Version 1.8.69 Release Notes">v1.8.69</a></h1>
+            <h1>PYTHOS <a href="changelog.html#pythos-1-8-70" style="font-size: 0.75rem; vertical-align: middle; padding: 2px 8px; border-radius: 12px; border: 1px solid var(--border-color); text-decoration: none; color: var(--text-muted); font-family: 'Inter', sans-serif; font-weight: 500;" title="Release Notes (v1.8.70)" aria-label="v1.8.70 — Version 1.8.70 Release Notes">v1.8.70</a></h1>
             <p>Mathematics & Physics Oracle</p>
           </div>
           <button id="themeToggleBtn" class="theme-toggle-btn" title="Toggle Dark/Light Mode" aria-label="Toggle Dark and Light Theme">
@@ -5797,10 +5738,10 @@
         </div>
         <div style="flex:2;">
           <label for="checkAnsInput">Your Answer:</label>
-          <input type="text" id="checkAnsInput" class="check-input" placeholder="e.g. 6" value="6" />
+          <input type="text" id="checkAnsInput" class="check-input" placeholder="e.g. 6, 3/2, or pi/6" value="6" />
         </div>
       </div>
-      <button id="checkRunBtn" class="check-run-btn" aria-label="Verify Deterministically">Verify Deterministically</button>
+      <button id="checkRunBtn" class="check-run-btn" aria-label="Check Answer — Verify equation substitution">Check Answer</button>
       <div id="checkResultArea" class="check-result-area" style="display:none;" role="status" aria-live="polite"></div>
       <button id="checkAskPythosBtn" class="win-btn win-send" style="display:none; width:100%; margin-top:8px;" title="Have Pythos explain the error" aria-label="Ask Pythos to Explain Step">Ask Pythos to Explain Step ↵</button>
     </div>
@@ -6306,7 +6247,7 @@
           </div>
           <div class="study-faq-item">
             <h3>How do I use the Workspace Tools and LANZAR ID?</h3>
-            <p>Use the primary toolbar for <strong>Check Work</strong> (deterministic step verifier), <strong>Graph</strong> (2D function plotter), and <strong>Sim Lab</strong> (17 interactive experiments), or open the <strong>Toolbox</strong> popover for the Scientific Calculator, Unit Converter, Matrix Calculator, and Visual Equation Builder. You can use Pythos anonymously by default or sign in with Google or LANZAR ID to sync conversations and personal memory across devices.</p>
+            <p>Use the primary toolbar for <strong>Check Work</strong> (step verifier), <strong>Calc</strong> (scientific calculator), <strong>Sim Lab</strong> (17 interactive experiments), and <strong>Tutor Mode</strong>, or open the <strong>Toolbox</strong> menu for the 2D Function Grapher, Unit Converter, Matrix Calculator, and Visual Equation Builder. You can use Pythos anonymously by default or sign in with Google or LANZAR ID to sync conversations and personal memory across devices.</p>
           </div>
         </div>
       </div>

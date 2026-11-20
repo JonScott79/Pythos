@@ -210,11 +210,11 @@ function extractLinearDenominatorRestrictions(expr, variable = 'x') {
   }
 
   // Natural trig denominator singularities for reciprocal/quotient trig functions
-  if (/\b(?:csc|cot)\s*\(/i.test(expr)) {
-    restrictions.add('sin(angle) != 0 (e.g., x != n*pi)');
+  if (/\b(?:csc|cot)\s*\(/i.test(expr) || /\/\s*(?:sin)\s*\(/i.test(expr)) {
+    restrictions.add(`sin(${safeVar}) != 0 (${safeVar} != n*pi, n \u2208 Z)`);
   }
-  if (/\b(?:sec|tan)\s*\(/i.test(expr)) {
-    restrictions.add('cos(angle) != 0 (e.g., x != pi/2 + n*pi)');
+  if (/\b(?:sec|tan)\s*\(/i.test(expr) || /\/\s*(?:cos)\s*\(/i.test(expr)) {
+    restrictions.add(`cos(${safeVar}) != 0 (${safeVar} != pi/2 + n*pi, n \u2208 Z)`);
   }
   if (/\b(?:ln|log\d*)\s*\(/i.test(expr)) {
     restrictions.add('logarithm argument > 0');
@@ -243,7 +243,11 @@ function collectDeterministicRestrictions(verificationResults = [], normalizedEx
     }
   }
 
+  const hasPeriodicSin = Array.from(out).some(r => /sin\(|n\*pi/i.test(r));
+  const hasPeriodicCos = Array.from(out).some(r => /cos\(|pi\/2\s*\+\s*n\*pi/i.test(r));
   for (const r of extractLinearDenominatorRestrictions(normalizedExpr, varName)) {
+    if (hasPeriodicSin && /^sin\(/i.test(r)) continue;
+    if (hasPeriodicCos && /^cos\(/i.test(r)) continue;
     out.add(r);
   }
   return Array.from(out);
