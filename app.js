@@ -2612,6 +2612,7 @@ function appendMessage(role, text, images = null, metadata = {}) {
 
   // Feature 4: Authoritative Expandable Verification Trust Indicator
   const trustReport = metadata.verificationSummary && metadata.verificationSummary.trustReport;
+  let trustBodyEl = null;
   if (
     role === "assistant" &&
     !isWithheld &&
@@ -2657,6 +2658,7 @@ function appendMessage(role, text, images = null, metadata = {}) {
 
     trustDetails.appendChild(trustBody);
     contentDiv.appendChild(trustDetails);
+    trustBodyEl = trustBody;
   }
 
   // Feature 3: Structured Contextual Tool Handoff Row
@@ -2774,7 +2776,7 @@ function appendMessage(role, text, images = null, metadata = {}) {
     actionRow.appendChild(thumbsDownBtn);
   }
 
-  // Verified Derivation Step Audit Button – reports actual verified, unknown, and rejected counts (CRITICAL-02)
+  // Verified Derivation Step Audit – consolidated inside Trust Indicator when present, fallback to actionRow otherwise
   if (role === "assistant" && Array.isArray(metadata.verificationAudit) && metadata.verificationAudit.length > 0) {
     const auditSteps = metadata.verificationAudit;
     const verifiedCount = auditSteps.filter(s => s.verdict === "VERIFIED").length;
@@ -2785,37 +2787,7 @@ function appendMessage(role, text, images = null, metadata = {}) {
     const isFullyVerified = !isWithheld && totalCount > 0 && verifiedCount === totalCount && unknownCount === 0 && rejectedCount === 0 && metadata.verificationState !== "PARTIALLY_VERIFIED" && metadata.verificationState !== "WITHHELD";
     const isPartiallyVerified = !isWithheld && !isFullyVerified && verifiedCount > 0 && unknownCount > 0 && rejectedCount === 0 && metadata.verificationState !== "WITHHELD";
 
-    const auditBtn = document.createElement("button");
-    auditBtn.className = "msg-audit-btn";
-    auditBtn.title = "Inspect derivation verification audit steps";
-    auditBtn.setAttribute("aria-label", "Inspect derivation verification audit steps");
-
-            if (isFullyVerified) {
-      const trustLbl = metadata.verificationSummary?.trustReport?.badgeLabel;
-      const stepLabel = totalCount === 1 ? "1 step" : `${totalCount} steps`;
-      auditBtn.innerHTML = trustLbl && trustLbl !== "Verified"
-        ? `🛡️ <span>${escapeHtml(trustLbl)} (${stepLabel})</span>`
-        : `🛡️ <span>Verified (${stepLabel})</span>`;
-    } else if (isPartiallyVerified) {
-      auditBtn.style.color = "#b45309";
-      auditBtn.style.borderColor = "rgba(217, 119, 6, 0.35)";
-      auditBtn.style.background = "rgba(245, 158, 11, 0.08)";
-      auditBtn.innerHTML = `⚠️ <span>Partially Verified (${verifiedCount} verified, ${unknownCount} unknown)</span>`;
-
-      const disclosureEl = document.createElement("div");
-      disclosureEl.className = "pythos-partial-verification-disclosure";
-      disclosureEl.style.cssText = "margin-top:8px; padding:6px 10px; border-radius:6px; font-size:0.76rem; color:#b45309; background:rgba(245,158,11,0.08); border:1px solid rgba(217,119,6,0.28);";
-      const disclosureText = metadata.verificationSummary?.disclosure ||
-        `Primary result verified (${verifiedCount} of ${totalCount} steps verified; ${unknownCount} supporting ${unknownCount === 1 ? "step" : "steps"} could not be independently verified by CAS).`;
-      disclosureEl.textContent = disclosureText;
-      contentDiv.appendChild(disclosureEl);
-    } else {
-      auditBtn.style.color = "#b45309";
-      auditBtn.style.borderColor = "rgba(217, 119, 6, 0.35)";
-      auditBtn.innerHTML = `⚠️ <span>Verification Audit (${verifiedCount} verified, ${unknownCount} unknown, ${rejectedCount} rejected)</span>`;
-    }
-
-    // Audit Panel (rendered below actionRow, toggled on click)
+    // Audit Panel (step-by-step derivation breakdown)
     const auditPanel = document.createElement("div");
     auditPanel.className = "pythos-audit-panel";
     auditPanel.style.display = "none";
@@ -2855,15 +2827,62 @@ function appendMessage(role, text, images = null, metadata = {}) {
     const headerTitle = isFullyVerified ? "🛡️ Verified Derivation Audit" : (isPartiallyVerified ? "⚠️ Partially Verified Derivation Audit" : "⚠️ Derivation Verification Audit");
     auditPanel.innerHTML = `<div style="font-size:0.75rem; font-weight:600; color:${headerColor}; margin-bottom:6px; display:flex; flex-wrap:wrap; align-items:center; gap:4px 6px;"><span>${headerTitle}</span><span style="font-size:0.7rem; color:var(--text-muted); font-weight:normal;">(${verifiedCount} verified, ${unknownCount} unknown, ${rejectedCount} rejected of ${totalCount})</span></div><div class="pythos-audit-body">${stepsHtml}</div>`;
 
-    auditBtn.addEventListener("click", () => {
-      const isVisible = auditPanel.style.display !== "none";
-      auditPanel.style.display = isVisible ? "none" : "block";
-      auditBtn.classList.toggle("active", !isVisible);
-    });
+    if (trustBodyEl) {
+      // Trust Indicator already owns the primary badge & partial disclosure; attach step audit drawer inside it
+      const stepLabel = totalCount === 1 ? "1 step" : `${totalCount} steps`;
+      const stepToggleBtn = document.createElement("button");
+      stepToggleBtn.type = "button";
+      stepToggleBtn.className = "pythos-trust-audit-toggle";
+      stepToggleBtn.setAttribute("aria-expanded", "false");
+      stepToggleBtn.textContent = `Inspect step-by-step audit (${stepLabel})`;
+      stepToggleBtn.addEventListener("click", () => {
+        const isVisible = auditPanel.style.display !== "none";
+        auditPanel.style.display = isVisible ? "none" : "block";
+        stepToggleBtn.setAttribute("aria-expanded", isVisible ? "false" : "true");
+        stepToggleBtn.textContent = isVisible
+          ? `Inspect step-by-step audit (${stepLabel})`
+          : `Hide step-by-step audit (${stepLabel})`;
+      });
+      trustBodyEl.appendChild(stepToggleBtn);
+      trustBodyEl.appendChild(auditPanel);
+    } else {
+      // Fallback when no Trust Indicator is rendered (e.g. legacy or unverified/withheld audit payload)
+      const auditBtn = document.createElement("button");
+      auditBtn.className = "msg-audit-btn";
+      auditBtn.title = "Inspect derivation verification audit steps";
+      auditBtn.setAttribute("aria-label", "Inspect derivation verification audit steps");
 
-    // Place Audit button on the left of actionRow
-    actionRow.insertBefore(auditBtn, actionRow.firstChild);
-    div.appendChild(auditPanel);
+      if (isFullyVerified) {
+        const stepLabel = totalCount === 1 ? "1 step" : `${totalCount} steps`;
+        auditBtn.innerHTML = `🛡️ <span>Verified (${stepLabel})</span>`;
+      } else if (isPartiallyVerified) {
+        auditBtn.style.color = "#b45309";
+        auditBtn.style.borderColor = "rgba(217, 119, 6, 0.35)";
+        auditBtn.style.background = "rgba(245, 158, 11, 0.08)";
+        auditBtn.innerHTML = `⚠️ <span>Partially Verified (${verifiedCount} verified, ${unknownCount} unknown)</span>`;
+
+        const disclosureEl = document.createElement("div");
+        disclosureEl.className = "pythos-partial-verification-disclosure";
+        disclosureEl.style.cssText = "margin-top:8px; padding:6px 10px; border-radius:6px; font-size:0.76rem; color:#b45309; background:rgba(245,158,11,0.08); border:1px solid rgba(217,119,6,0.28);";
+        const disclosureText = metadata.verificationSummary?.disclosure ||
+          `Primary result verified (${verifiedCount} of ${totalCount} steps verified; ${unknownCount} supporting ${unknownCount === 1 ? "step" : "steps"} could not be independently verified by CAS).`;
+        disclosureEl.textContent = disclosureText;
+        contentDiv.appendChild(disclosureEl);
+      } else {
+        auditBtn.style.color = "#b45309";
+        auditBtn.style.borderColor = "rgba(217, 119, 6, 0.35)";
+        auditBtn.innerHTML = `⚠️ <span>Verification Audit (${verifiedCount} verified, ${unknownCount} unknown, ${rejectedCount} rejected)</span>`;
+      }
+
+      auditBtn.addEventListener("click", () => {
+        const isVisible = auditPanel.style.display !== "none";
+        auditPanel.style.display = isVisible ? "none" : "block";
+        auditBtn.classList.toggle("active", !isVisible);
+      });
+
+      actionRow.insertBefore(auditBtn, actionRow.firstChild);
+      div.appendChild(auditPanel);
+    }
   }
 
   div.appendChild(actionRow);

@@ -141,6 +141,7 @@ check('server.js forwards withholdingDetails.suggestedFix and app.js wires Solve
   assert(appJs.includes('pythos-suggested-fix-edit'), 'app.js must render Edit in Input button');
   assert(appJs.includes('pythos-trust-details'), 'app.js must render expandable Verification Trust Indicator');
   assert(appJs.includes('!/[<>]/.test(rawSuggestedFix)'), 'app.js must sanitize suggestedFix before creating controls');
+  assert(appJs.includes('if (trustBodyEl)') && appJs.includes('pythos-trust-audit-toggle'), 'app.js must consolidate audit drawer into trustBodyEl without duplicating badges or disclosure banners');
 });
 
 console.log(`\n======================================================================`);
