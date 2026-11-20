@@ -129,7 +129,9 @@ function sanitizeDynamicText(val, maxLen = 220) {
   return val
     .replace(/[\r\n\t]+/g, ' ')
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<\/?[a-zA-Z][^>]*>/g, '')
+    .replace(/<\/?[a-zA-Z!][a-zA-Z0-9-]*(?:[\s/][^>]*)?>/g, '')
+    .replace(/\bon[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/javascript\s*:/gi, '')
     .replace(/`/g, "'")
     .replace(/\s+/g, ' ')
     .trim()
@@ -238,8 +240,12 @@ function resolveWithholdingDecision({
   studentIntent = null,
   providerError = null
 } = {}) {
-  const safeInvalid = Array.isArray(invalidClaims) ? invalidClaims : [];
-  const safeUnknown = Array.isArray(unknownClaims) ? unknownClaims : [];
+  const safeInvalid = (Array.isArray(invalidClaims) ? invalidClaims : []).filter(
+    e => !e?.verification || e.verification.verified !== true
+  );
+  const safeUnknown = (Array.isArray(unknownClaims) ? unknownClaims : []).filter(
+    e => !e?.verification || e.verification.verified !== true
+  );
   const safeContradictions = Array.isArray(internalContradictions) ? internalContradictions : [];
 
   const allEntries = [...safeInvalid, ...safeUnknown];
@@ -251,11 +257,20 @@ function resolveWithholdingDecision({
   const lowerAudit = combinedReasons.toLowerCase();
 
   // 1. Security / safety / auth / authorization retain top priority
-  if (lowerAudit.includes('safety') || lowerAudit.includes('security') || lowerAudit.includes('unauthorized') || lowerAudit.includes('forbidden')) {
+  if (
+    lowerAudit.includes('safety') ||
+    lowerAudit.includes('security') ||
+    lowerAudit.includes('unauthorized') ||
+    lowerAudit.includes('forbidden') ||
+    lowerAudit.includes('authentication') ||
+    lowerAudit.includes('unauthenticated') ||
+    lowerAudit.includes('permission denied') ||
+    lowerAudit.includes('access denied')
+  ) {
     return { reason: WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED, overrides: null };
   }
 
-  // 2. Dual-provider / infrastructure / rate-limit failures
+  // 2. Dual-provider / infrastructure / resource-limit / rate-limit failures
   if (lowerAudit.includes('dual provider') || lowerAudit.includes('all providers unavailable')) {
     return { reason: WITHHOLDING_REASONS.DUAL_PROVIDER_FAILURE, overrides: null };
   }
@@ -264,6 +279,9 @@ function resolveWithholdingDecision({
     lowerAudit.includes('rate limit') ||
     lowerAudit.includes('rate_limit') ||
     lowerAudit.includes('quota') ||
+    lowerAudit.includes('resource limit') ||
+    lowerAudit.includes('memory limit') ||
+    lowerAudit.includes('token limit') ||
     lowerAudit.includes('service unavailable') ||
     lowerAudit.includes('econnrefused') ||
     lowerAudit.includes('etimedout') ||
@@ -382,6 +400,7 @@ function resolveWithholdingDecision({
   }
 
   // 6c. Unresolved symbols: distinguish numeric-value-needed vs domain-assumption-needed vs symbolic parameter
+  const missingInfoRegex = /missing\s+(?:information|data|details|value|bound|limit|variable)|insufficient\s+(?:information|data|details|values|measurements)|undefined variable|not enough info/i;
   const unresolvedEntry = allEntries.find(e =>
     e?.verification?.status === 'UNRESOLVED' ||
     /unresolved\s+symbols?/i.test(`${e?.verification?.reason || ''} ${e?.verification?.details || ''}`)
@@ -395,17 +414,17 @@ function resolveWithholdingDecision({
       Array.isArray(eqClaim?.data?.proposed_solutions) &&
       eqClaim.data.proposed_solutions.some(v => Number.isFinite(Number(v)))
     );
-    const asksAssumptionOnly = /assumption|positive|real\s+domain|domain_assumptions|branch/i.test(lowerAudit);
+    const asksAssumptionOnly = /assumption|positive|real\s+domain|domain_assumptions|branch|sign|non-?negative|non-?zero|integer|natural|special case|!=|>=|<=|>|</i.test(lowerAudit);
 
     if (asksAssumptionOnly) {
-      const targetStr = symListStr || 'the variable';
+      const targetStr = symListStr || 'the parameter';
       return {
         reason: WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED,
         overrides: {
           diagnosticHeadline: "This step depends on a missing domain assumption.",
-          diagnosticExplanation: `A transformation here only holds under an explicit sign or domain assumption on ${targetStr} (for example, assuming it is positive or nonzero).`,
+          diagnosticExplanation: `A transformation or special case here depends on an explicit sign or domain assumption on ${targetStr} (for example, assuming it is positive, nonzero, or not an excluded edge value).`,
           diagnosticCause: `Unverified transformation due to missing domain assumption on ${targetStr}.`,
-          diagnosticHelp: `State whether ${targetStr} is positive, nonzero, real, or complex so I can apply the exact rule.`,
+          diagnosticHelp: `State whether ${targetStr} is positive, nonzero, an integer, or avoids special edge cases so I can apply the exact rule.`,
           diagnosticNextStep: `Add your assumption on ${targetStr} (for example, 'assume ${syms[0] || 'x'} > 0') and resend.`
         }
       };
@@ -423,13 +442,13 @@ function resolveWithholdingDecision({
       };
     }
 
-    if (lowerAudit.includes('missing') || lowerAudit.includes('insufficient') || lowerAudit.includes('undefined variable') || lowerAudit.includes('not enough info')) {
+    if (missingInfoRegex.test(lowerAudit)) {
       return {
         reason: WITHHOLDING_REASONS.MISSING_INFORMATION,
         overrides: null
       };
     }
-  } else if (lowerAudit.includes('missing') || lowerAudit.includes('insufficient') || lowerAudit.includes('undefined variable') || lowerAudit.includes('not enough info')) {
+  } else if (missingInfoRegex.test(lowerAudit)) {
     return { reason: WITHHOLDING_REASONS.MISSING_INFORMATION, overrides: null };
   }
 

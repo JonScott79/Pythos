@@ -2500,7 +2500,14 @@ function appendMessage(role, text, images = null, metadata = {}) {
       ? CLIENT_WITHHOLDING_EXPLANATIONS[reasonKey]
       : CLIENT_WITHHOLDING_EXPLANATIONS.CLAIM_NOT_VERIFIED;
 
-    const details = metadata.withholdingDetails || fallbackConfig;
+    const rawDetails = (metadata.withholdingDetails && typeof metadata.withholdingDetails === "object" && !Array.isArray(metadata.withholdingDetails))
+      ? metadata.withholdingDetails
+      : {};
+    const details = {
+      cause: (typeof rawDetails.cause === "string" && rawDetails.cause.trim()) ? rawDetails.cause : fallbackConfig.cause,
+      help: (typeof rawDetails.help === "string" && rawDetails.help.trim()) ? rawDetails.help : fallbackConfig.help,
+      nextStep: (typeof rawDetails.nextStep === "string" && rawDetails.nextStep.trim()) ? rawDetails.nextStep : fallbackConfig.nextStep
+    };
 
     // Context-appropriate summary and section titles
     let summaryTitle = "Why couldn't this be verified?";

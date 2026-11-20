@@ -297,6 +297,92 @@ test('Priority & Multi-Turn: security/infra/undefined outrank malformed; prior c
   assert.strictEqual(cleanTurn.reason, WITHHOLDING_REASONS.INFRASTRUCTURE_FAILURE);
 });
 
+// 7. Adversarial Audit Extensions: inequalities, XSS handlers, auth/resource priority, provenance & concurrency
+test('Math inequalities survive sanitization while HTML/event-handler/javascript XSS payloads are neutralized', () => {
+  const mathSafe = sanitizePublicDetail('Condition holds for x < 2, x > 0, and a <= b (x != 2)');
+  assert(mathSafe.includes('x < 2'));
+  assert(mathSafe.includes('x > 0'));
+  assert(mathSafe.includes('a <= b'));
+
+  const xssSafe = getSafeWithholding(WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED, {
+    diagnosticExplanation: 'Check <img src=x onerror="alert(1)"> <svg/onload=alert(2)> javascript:alert(3) x > 0',
+    diagnosticCause: '<details open ontoggle="fetch(1)">Bad</details>'
+  });
+  assert(!xssSafe.explanation.includes('<img'));
+  assert(!xssSafe.explanation.includes('onerror='));
+  assert(!xssSafe.explanation.includes('<svg'));
+  assert(!xssSafe.explanation.includes('javascript:'));
+  assert(xssSafe.explanation.includes('x > 0'));
+  assert(!xssSafe.cause.includes('<details'));
+});
+
+test('Honesty & Priority: insufficient evidence stays CLAIM_NOT_VERIFIED; auth & resource limits beat malformed', () => {
+  const insuff = resolveWithholdingDecision({
+    auditText: 'Verification returned UNKNOWN due to insufficient evidence'
+  });
+  assert.strictEqual(insuff.reason, WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED);
+
+  const auth = resolveWithholdingDecision({
+    lastUserText: '2\\sin^{2(x)+}\\csc(x) - 9 = 0',
+    auditText: 'Authentication failed: unauthorized session',
+    detectFormattingAnomaly
+  });
+  assert.strictEqual(auth.reason, WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED);
+
+  const resLim = resolveWithholdingDecision({
+    lastUserText: '2\\sin^{2(x)+}\\csc(x) - 9 = 0',
+    auditText: 'Memory limit / resource limit exceeded',
+    detectFormattingAnomaly
+  });
+  assert.strictEqual(resLim.reason, WITHHOLDING_REASONS.INFRASTRUCTURE_FAILURE);
+});
+
+test('Provenance & Concurrency: verified claims never emit false extraneous-root notes; concurrent calls stay isolated', async () => {
+  const staleVerified = resolveWithholdingDecision({
+    invalidClaims: [{
+      claim: { claim_type: 'equation_solution', data: { equation: 'x - 1 = 0' } },
+      verification: { verified: true, status: 'VERIFIED', extraneous_roots: [999] }
+    }],
+    auditText: 'Could not verify step'
+  });
+  const wStale = getSafeWithholding(staleVerified.reason, staleVerified.overrides);
+  assert(!wStale.explanation.includes('999'), 'Verified claim entry must never leak extraneous_roots');
+
+  const concurrent = await Promise.all([
+    Promise.resolve(resolveWithholdingDecision({
+      lastUserText: '2t^3 - 9t + 1 = 0',
+      invalidClaims: [{
+        claim: { claim_type: 'equation_solution', data: { equation: '2*t^3 - 9*t + 1 = 0' } },
+        verification: { verified: false, status: 'EXTRANEOUS_ROOT', extraneous_roots: [0.1129] }
+      }]
+    })),
+    Promise.resolve(resolveWithholdingDecision({
+      lastUserText: '2\\sin^{2(x)+}\\csc(x) - 9 = 0',
+      detectFormattingAnomaly
+    })),
+    Promise.resolve(resolveWithholdingDecision({
+      lastUserText: 'Solve x + k = 0, x = 5',
+      unknownClaims: [{
+        claim: { claim_type: 'equation_solution', data: { equation: 'x + k = 0', proposed_solutions: [5] } },
+        verification: { verified: false, status: 'UNKNOWN', reason: "Equation contains unresolved symbols ['k']" }
+      }]
+    }))
+  ]);
+  assert.strictEqual(concurrent[0].reason, WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED);
+  assert(getSafeWithholding(concurrent[0].reason, concurrent[0].overrides).explanation.includes('0.1129'));
+  assert.strictEqual(concurrent[1].reason, WITHHOLDING_REASONS.MALFORMED_SYNTAX);
+  assert(!getSafeWithholding(concurrent[1].reason, concurrent[1].overrides).explanation.includes('0.1129'));
+  assert.strictEqual(concurrent[2].reason, WITHHOLDING_REASONS.MISSING_INFORMATION);
+  assert(getSafeWithholding(concurrent[2].reason, concurrent[2].overrides).explanation.includes("'k'"));
+  assert(!getSafeWithholding(concurrent[2].reason, concurrent[2].overrides).explanation.includes('0.1129'));
+});
+
+test('Legacy & Unknown reason compatibility', () => {
+  const unknown = getSafeWithholding('NON_EXISTENT_REASON');
+  assert.strictEqual(unknown.code, 'CLAIM_NOT_VERIFIED');
+  assert(unknown.formattedContent.includes(unknown.headline));
+});
+
 console.log(`\n======================================================================`);
 console.log(`RESULTS: ${passed}/${total} PASSED`);
 console.log('======================================================================');

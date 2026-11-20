@@ -3535,7 +3535,9 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
       }
 
       if (!res.headersSent) {
-        return res.status(200).json(ollamaResponse);
+        // Never serialize internal failureAudit array (`withholdingReasons`) in public JSON responses
+        const { withholdingReasons: _internalReasons, ...publicResponse } = ollamaResponse;
+        return res.status(200).json(publicResponse);
       }
     }
 
