@@ -22,7 +22,12 @@ def _finalize(payload: dict) -> dict:
 
 import re as _re
 
-_SUPERSCRIPTS = {"²": "^2", "³": "^3", "⁴": "^4", "⁻¹": "^-1"}
+_SUPERSCRIPTS = {
+    "⁰": "0", "¹": "1", "²": "2", "³": "3", "⁴": "4",
+    "⁵": "5", "⁶": "6", "⁷": "7", "⁸": "8", "⁹": "9",
+    "⁺": "+", "⁻": "-", "⁽": "(", "⁾": ")"
+}
+_SUPER_RUN_RE = _re.compile(r"([⁰¹²³⁴⁵⁶⁷⁸⁹]+\u2044[₀₁₂₃₄₅₆₇₈₉]+)|\^?([⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁽⁾]+)")
 _INVERSE_MAP = {"sin": "asin", "cos": "acos", "tan": "atan"}
 _RENAME = {"arcsin": "asin", "arccos": "acos", "arctan": "atan", "ln": "log"}
 # Longer names first so "sinh" is never read as "sin" + "h"
@@ -33,6 +38,20 @@ _IMPLICIT_FN = _re.compile(
 )
 
 
+def _normalize_unicode_superscripts(expr: str) -> str:
+    if not isinstance(expr, str):
+        return expr
+    s = expr.replace("\u2212", "-")
+    def _repl(m):
+        if m.group(1):
+            return m.group(1)
+        decoded = "".join(_SUPERSCRIPTS.get(c, c) for c in m.group(2))
+        if _re.fullmatch(r"-?\d+", decoded):
+            return f"^{decoded}"
+        return f"^({decoded})"
+    return _SUPER_RUN_RE.sub(_repl, s)
+
+
 def _normalize_implicit_functions(expr: str) -> str:
     """
     Rewrite implicit function application into explicit SymPy syntax so that
@@ -41,9 +60,7 @@ def _normalize_implicit_functions(expr: str) -> str:
     """
     if not isinstance(expr, str):
         return expr
-    s = expr
-    for k, v in _SUPERSCRIPTS.items():
-        s = s.replace(k, v)
+    s = _normalize_unicode_superscripts(expr)
 
     def _sub(m):
         fn, power, arg = m.group(1), m.group(2), m.group(3)
@@ -207,6 +224,47 @@ def _has_ambiguous_division_binding(raw_s: str) -> bool:
     return bool(_re.search(r'(?<![a-zA-Z0-9_])(?:[a-zA-Z0-9.]+\s*/\s*(?:\d+(?:\.\d+)?[a-zA-Z]|[a-zA-Z]{2,}))\b', cleaned))
 
 
+def _parse_inequality_restrictions(cond_str: str) -> list:
+    """Extracts explicit domain restrictions (e.g. x != 2, x != pi/2, sin(x) != 0)."""
+    found = []
+    if not isinstance(cond_str, str) or not cond_str:
+        return found
+    for pair in _re.finditer(r'([a-zA-Z_][a-zA-Z0-9_]*(?:\([^()]+\))?)\s*(?:!=|\\neq|≠|<>)\s*([-+]?[a-zA-Z0-9_./*\\]+)', cond_str):
+        lhs_v, rhs_v = pair.group(1).strip(), pair.group(2).strip()
+        lhs_clean = _re.sub(r'\\(sin|cos|tan|sec|csc|cot)\b', r'\1', lhs_v)
+        if '(' not in lhs_clean:
+            try:
+                num_v = round(float(rhs_v), 10)
+                found.append(num_v)
+                found.append(f"{lhs_v} != {num_v:g}")
+                continue
+            except Exception:
+                pass
+        found.append(f"{lhs_v} != {rhs_v}")
+        # Resolve function constraints (e.g. sin(x) != 0 -> x != 0, pi) or symbolic constants (x != pi/2)
+        try:
+            rhs_clean = _re.sub(r'\\pi\b', 'pi', rhs_v).replace('π', 'pi')
+            local_env = {"pi": sp.pi, "sin": sp.sin, "cos": sp.cos, "tan": sp.tan, "sec": sp.sec, "csc": sp.csc, "cot": sp.cot}
+            if '(' not in lhs_clean:
+                rhs_val = complex(sp.N(safe_sympify(rhs_clean, locals=local_env)))
+                if abs(rhs_val.imag) < 1e-12:
+                    found.append(round(rhs_val.real, 10))
+            else:
+                x_sym = sp.Symbol("x", real=True)
+                local_env["x"] = x_sym
+                lhs_sym = safe_sympify(lhs_clean, locals=local_env)
+                rhs_sym = safe_sympify(rhs_clean, locals=local_env)
+                free = sorted(lhs_sym.free_symbols, key=str)
+                target = free[0] if free else x_sym
+                for z in sp.solve(lhs_sym - rhs_sym, target):
+                    val_c = complex(z.evalf())
+                    if abs(val_c.imag) < 1e-12:
+                        found.append(round(val_c.real, 10))
+        except Exception:
+            pass
+    return found
+
+
 def _split_inline_restrictions(raw_s: str):
     if not raw_s or not isinstance(raw_s, str):
         return "", []
@@ -216,14 +274,7 @@ def _split_inline_restrictions(raw_s: str):
     if m:
         cond_str = m.group(1).strip()
         s = s[:m.start()].strip()
-        for pair in _re.finditer(r'([a-zA-Z_][a-zA-Z0-9_]*)\s*(?:!=|\\neq|≠|<>)\s*([-+]?[a-zA-Z0-9_.]+)', cond_str):
-            lhs_v, rhs_v = pair.group(1).strip(), pair.group(2).strip()
-            try:
-                num_v = round(float(rhs_v), 10)
-                found.append(num_v)
-                found.append(f"{lhs_v} != {num_v:g}")
-            except Exception:
-                found.append(f"{lhs_v} != {rhs_v}")
+        found.extend(_parse_inequality_restrictions(cond_str))
     return s, found
 
 
@@ -530,14 +581,8 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
         if isinstance(src, list):
             src = " ".join(str(x) for x in src)
         if isinstance(src, str) and src:
-            for pair in _re.finditer(r'([a-zA-Z_][a-zA-Z0-9_]*)\s*(?:!=|\\neq|≠|<>)\s*([-+]?[a-zA-Z0-9_.]+)', src):
-                lhs_v, rhs_v = pair.group(1).strip(), pair.group(2).strip()
-                try:
-                    num_v = round(float(rhs_v), 10)
-                    stated_restrictions.add(num_v)
-                    stated_restrictions.add(f"{lhs_v} != {num_v:g}")
-                except Exception:
-                    stated_restrictions.add(f"{lhs_v} != {rhs_v}")
+            for item in _parse_inequality_restrictions(src):
+                stated_restrictions.add(item)
 
     domain_mode = str(claim.get("domain_mode", "real")).lower()
     use_real_domain = domain_mode != "complex" and not bool(_re.search(r'\bcomplex\b', str(claim.get("userPrompt", "")), _re.IGNORECASE))
@@ -611,33 +656,40 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
         if primary_sym is None and all_identifiers:
             primary_sym = local_syms[sorted(all_identifiers)[0]]
 
-        # Check domain restrictions from denominators separately for expr1 and expr2
+        # Check domain restrictions from denominators and reciprocal/quotient trig functions separately for expr1 and expr2
         def _extract_denom_restrictions(norm_s):
             restr = set()
             try:
                 raw_expr = safe_sympify(norm_s, locals=local_syms, evaluate=False)
+                denom_bases = []
                 for atom in sp.preorder_traversal(raw_expr):
                     if isinstance(atom, sp.Pow) and (atom.exp.is_negative or (atom.exp.is_Number and float(atom.exp) < 0)):
-                        denom_base = atom.base
-                        free_syms = sorted(denom_base.free_symbols, key=lambda s: (0 if s == primary_sym else 1, str(s)))
-                        if not free_syms:
-                            continue
-                        target_sym = free_syms[0]
-                        zeros = sp.solve(denom_base, target_sym)
-                        if not zeros:
-                            restr.add(f"{sp.simplify(denom_base)} != 0")
-                        for z in zeros:
-                            if z.is_number:
-                                try:
-                                    val_c = complex(z.evalf())
-                                    if abs(val_c.imag) < 1e-12:
-                                        restr.add(round(val_c.real, 10))
-                                    elif not use_real_domain:
-                                        restr.add(str(sp.simplify(z)))
-                                except Exception:
-                                    restr.add(f"{target_sym} != {sp.simplify(z)}")
-                            else:
+                        denom_bases.append(atom.base)
+                    elif isinstance(atom, (sp.csc, sp.cot)):
+                        denom_bases.append(sp.sin(atom.args[0]))
+                    elif isinstance(atom, (sp.sec, sp.tan)):
+                        denom_bases.append(sp.cos(atom.args[0]))
+
+                for denom_base in denom_bases:
+                    free_syms = sorted(denom_base.free_symbols, key=lambda s: (0 if s == primary_sym else 1, str(s)))
+                    if not free_syms:
+                        continue
+                    target_sym = free_syms[0]
+                    zeros = sp.solve(denom_base, target_sym)
+                    if not zeros:
+                        restr.add(f"{sp.simplify(denom_base)} != 0")
+                    for z in zeros:
+                        if z.is_number:
+                            try:
+                                val_c = complex(z.evalf())
+                                if abs(val_c.imag) < 1e-12:
+                                    restr.add(round(val_c.real, 10))
+                                elif not use_real_domain:
+                                    restr.add(str(sp.simplify(z)))
+                            except Exception:
                                 restr.add(f"{target_sym} != {sp.simplify(z)}")
+                        else:
+                            restr.add(f"{target_sym} != {sp.simplify(z)}")
             except Exception:
                 pass
             return restr

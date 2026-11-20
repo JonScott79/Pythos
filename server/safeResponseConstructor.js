@@ -48,7 +48,7 @@ function constructSafeVerifiedResponse({
       const angleStr = argument ? `${argument.value}${argument.unit === 'degrees' ? '°' : ' rad'}` : '';
 
       const lines = [
-        `Here is the step-by-step verified derivation:`,
+        `Here's the step-by-step derivation I verified:`,
         '',
         `### 1. Inner Function Evaluation:`,
         `- Problem: Evaluate $${innerFunction}(${angleStr})$`,
@@ -63,7 +63,7 @@ function constructSafeVerifiedResponse({
         '',
         `[GEOMETRY: triangle, a=${referenceTriangle.opp}, b=${referenceTriangle.adj}, c=${referenceTriangle.hyp}, right_angle=C, opp=${referenceTriangle.opp}, adj=${referenceTriangle.adj}, hyp=${referenceTriangle.hyp}, theta=true]`,
         '',
-        `*Orientation note:* Reference triangle side lengths are strictly positive Euclidean distances ($adjacent = ${referenceTriangle.adj}$, $opposite = ${referenceTriangle.opp}$, $hypotenuse = ${referenceTriangle.hyp}$). Any negative signs indicate quadrant orientation.`,,
+        `*Orientation note:* Reference triangle side lengths are strictly positive Euclidean distances ($adjacent = ${referenceTriangle.adj}$, $opposite = ${referenceTriangle.opp}$, $hypotenuse = ${referenceTriangle.hyp}$). Any negative signs indicate quadrant orientation.`,
         '',
         `### 3. Outer Function Evaluation:`,
         `- Problem: Evaluate $${outerFunction}(${evaluatedInner.numericValue})$`,
@@ -161,7 +161,7 @@ function constructSafeVerifiedResponse({
       }
 
       const lines = [
-        `Here is the verified calculation:`,
+        `Here's the verified calculation:`,
         '',
         `$$\\begin{aligned}`,
         `  \\text{Expression:} &\\quad ${expression} \\[4pt]`,
@@ -219,7 +219,7 @@ function constructSafeVerifiedResponse({
     if (preflightToolResult.tool === 'solve_calculus' || preflightToolResult.tool === 'solve_geometry') {
       const { operation, result, formattedResult, derivationSteps = [] } = preflightToolResult;
       const lines = [
-        'Here is the verified derivation:',
+        "Here's the verified step-by-step solution:",
         '',
         ...(Array.isArray(derivationSteps) && derivationSteps.length > 0 ? derivationSteps.map(s => `- ${s}`) : []),
         '',
