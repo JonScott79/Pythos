@@ -198,7 +198,12 @@ async function runTests() {
   console.log(`\nSUMMARY: ${passed}/${total} adaptive multi-turn scenarios passed.`);
 }
 
-runTests().catch(err => {
-  console.error('Fatal adaptive test error:', err);
-  process.exit(1);
-});
+runTests()
+  .catch(err => {
+    console.error('Fatal adaptive test error:', err);
+    process.exitCode = 1;
+  })
+  .finally(() => {
+    try { require('../server/verificationBridge').closeVerifierDaemon(); } catch (_) {}
+    try { if (serverGateway && serverGateway.server) serverGateway.server.close(); } catch (_) {}
+  });

@@ -1,15 +1,31 @@
 # PYTHOS — PRODUCTION DEPLOYMENT REPORT (v1.8.65)
 
 **Release Version:** `1.8.65`  
-**Source Branch:** `staging/specialist-engines-integration`  
-**Production Branch:** `master`  
+**Final Staging Commit Merged:** `ad090e3` (`staging/specialist-engines-integration`)  
+**Production Branch (`master`) Commit:** `c3563ba`  
 **Production Railway Project:** `Pythos` (`1f379db1-fd37-4125-b512-045d14dc056d`)  
-**Production Service:** `Pythos` (`0c0b7257-6de4-404d-a404-2f57c3328c80`)  
-**Production Environment:** `production` (`3004439b-7de9-425f-bc2c-d86351feff65`)
+**Production Service / Environment:** `0c0b7257-6de4-404d-a404-2f57c3328c80` / `production` (`3004439b-7de9-425f-bc2c-d86351feff65`)  
+**Production Deployment ID:** `cae70c9d-8be3-436f-b520-752f44774981` **`[SUCCESS]`**  
+**Production Domains:** `https://pythos-api.lanzar.me`, `https://pythos.lanzar.me`
 
 ---
 
-## Pre-Production Staging Verification Summary
-- Staging Deployment `9ca4c655-ec86-482b-b8f2-223817ae9698` (`47bda47`) passed `/health` (`1.8.65`), `/health/ready` (`groq` + `sympy`), live LANZAR ID registration/verification/erasure, live Groq inference across 9 categories, and 4 concurrent `/api/chat` requests (`496.9ms`).
-- Local regression: `211/211` Python verifier tests, `443/443` Node.js tests, `59/59` `test-project-knowledge.js`, and `6/6` stress/20s soak.
-- Production deployment and smoke-test results are appended after `git push origin master`.
+## 1. Production Startup & Namespace Verification
+- Container started cleanly on `pythos-backend@1.8.65`.
+- `[FIREBASE ADMIN] Admin SDK initialized successfully.`
+- `[FIRESTORE] Pythos namespace initialized → pythos/app` (production namespace preserved with `PYTHOS_ENV` unset).
+
+---
+
+## 2. Non-Destructive Production Smoke Tests (Observed Live)
+
+| Check | Endpoint / Input | Observed Result |
+| :--- | :--- | :--- |
+| Frontend availability | `GET https://pythos.lanzar.me/` | **200 OK** |
+| API health | `GET https://pythos-api.lanzar.me/health` | **200 OK** (`"version":"1.8.65"`) |
+| API readiness | `GET https://pythos-api.lanzar.me/health/ready` | **200 OK** (`llm: groq`, `cas: sympy`) |
+| Protected memory guard | `GET https://pythos-api.lanzar.me/api/memory` (no auth) | **401 Unauthorized** |
+| Deterministic chat route | `POST /api/chat` (`What is 72/120 as a percentage?`) | **200 OK** (`pythos-deterministic-router`, `60%`) |
+| Live Groq + SymPy chat route | `POST /api/chat` (`Find the derivative of x^3 + 2x at x = 2.`) | **200 OK** (`openai/gpt-oss-120b`, `3*x**2 + 2`, `Evaluated at x = 2: 14`) |
+
+*(No real student records were created, modified, or deleted during production smoke testing.)*

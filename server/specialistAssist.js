@@ -15,6 +15,7 @@
 
 const calculusEngine = require('./engines/calculusEngine');
 const geometryEngine = require('./engines/geometryEngine');
+const rootSolver = require('./engines/rootSolver');
 
 const SPECIALIST_TIMEOUT_MS = parseInt(process.env.SPECIALIST_TIMEOUT_MS, 10) || 6000;
 const MAX_TELEMETRY_LOG = 200;
@@ -364,7 +365,75 @@ function extractSpecialistTask(userText) {
     }
   }
 
+  // 8. Polynomial & Trig-Polynomial Root Solving (degree >= 2 or trig substitution equations)
+  const rootTask = extractRootSolvingTask(clean);
+  if (rootTask) {
+    return rootTask;
+  }
+
   return null;
+}
+
+function normalizeEquationForRootSolver(rawEq) {
+  let s = String(rawEq || '').trim();
+  s = s.replace(/^\$\$?|\$\$?$/g, '').trim();
+  s = s.replace(/\\left|\\right/g, '');
+  s = s.replace(/\\boxed\{([^}]*)\}/g, '$1');
+  // Replace LaTeX fractions \frac{a}{b} -> ((a)/(b))
+  s = s.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, '(($1)/($2))');
+  // Replace \sin^2 x, sin^2 x, \sin^{2}(x) -> (sin(x))^2
+  s = s.replace(/\\?(sin|cos|tan|csc|sec|cot)\s*\^\s*\{?\s*(\d+)\s*\}?\s*\(?\s*([a-zA-Z])\s*\)?/g, '($1($3))^$2');
+  // Replace \sin x, \csc x, sin x -> sin(x)
+  s = s.replace(/\\?(sin|cos|tan|csc|sec|cot)\s+([a-zA-Z])\b/g, '$1($2)');
+  s = s.replace(/\\(sin|cos|tan|csc|sec|cot)\b/g, '$1');
+  // Clean braces around exponents ^{3} -> ^3
+  s = s.replace(/\^\{\s*([^}]+)\s*\}/g, '^($1)');
+  s = s.replace(/[.,;?!]+$/, '').trim();
+  return s;
+}
+
+function extractRootSolvingTask(cleanText) {
+  if (!cleanText || !cleanText.includes('=')) return null;
+  // Avoid hijacking inequality or multi-equation systems unless single equation
+  if (/[<>≤≥]/.test(cleanText)) return null;
+
+  // Find candidate equation substring containing '='
+  // Strip leading prose like "Solve ", "Find the roots of ", "Solve for x: "
+  let eqCandidate = cleanText;
+  const mathBlock = cleanText.match(/\$\$([^$]+)\$\$|\$([^$]+)\$|\\\[([^\]]+)\\\]|\\\(([^)]+)\\\)/);
+  if (mathBlock) {
+    eqCandidate = (mathBlock[1] || mathBlock[2] || mathBlock[3] || mathBlock[4] || '').trim();
+  } else {
+    const colonSplit = cleanText.match(/(?:solve(?:\s+for\s+[a-zA-Z])?|roots?\s+of|zeros?\s+of|equation)\s*[:\-]?\s*([^\n.;?!]+=[^\n.;?!]+)/i);
+    if (colonSplit) {
+      eqCandidate = colonSplit[1].trim();
+    } else {
+      const bareEq = cleanText.match(/([0-9a-zA-Z\\()^{}+\-*/.\s]+=[0-9a-zA-Z\\()^{}+\-*/.\s]+)/);
+      if (bareEq) eqCandidate = bareEq[1].trim();
+    }
+  }
+
+  if (!eqCandidate || !eqCandidate.includes('=')) return null;
+  const normalized = normalizeEquationForRootSolver(eqCandidate);
+  const parts = normalized.split('=');
+  if (parts.length !== 2 || !parts[0].trim() || !parts[1].trim()) return null;
+
+  const hasTrig = /\b(sin|cos|tan|csc|sec|cot)\s*\(/i.test(normalized);
+  const hasHighDegPoly = /\^[2-9]|\*\*[2-9]/.test(normalized);
+  if (!hasTrig && !hasHighDegPoly) return null;
+
+  // Detect primary variable (strip function names first)
+  const strippedFns = normalized.replace(/\b(sin|cos|tan|csc|sec|cot|arcsin|arccos|arctan|asin|acos|atan|sqrt|log|ln|exp)\b/gi, '');
+  const varMatches = strippedFns.match(/(?<![a-zA-Z])([a-zA-Z])(?![a-zA-Z])/g) || [];
+  const filteredVars = varMatches.filter(v => !['e', 'i', 'k', 'n'].includes(v));
+  const variable = filteredVars[0] || (varMatches[0] || 'x');
+
+  return {
+    domain: 'algebra',
+    operation: 'ROOT_SOLVING',
+    equation: normalized,
+    variable
+  };
 }
 
 /**
@@ -413,6 +482,13 @@ async function runTask(task, timeoutMs = SPECIALIST_TIMEOUT_MS) {
     if (task.operation === 'TRIANGLE_SIDES') {
       return geometryEngine.solveTriangleSides(task.a, task.b, task.c);
     }
+  }
+
+  if (task.domain === 'algebra' && task.operation === 'ROOT_SOLVING') {
+    return await rootSolver.solveEquationRoots(task.equation, {
+      variable: task.variable,
+      timeoutMs
+    });
   }
 
   return null;
@@ -545,6 +621,28 @@ function formatGroundTruthContext(task, result, userText = '') {
 
   if (outcome.outcomeCategory === SPECIALIST_OUTCOMES.VERIFIED) {
     const header = `\n\n# PRE-COMPUTED DETERMINISTIC GROUND TRUTH (${task.domain.toUpperCase()}: ${task.operation})`;
+    if (task.operation === 'ROOT_SOLVING') {
+      if (result.operation === 'TRIG_POLYNOMIAL_ROOTS') {
+        const allRootsStr = Array.isArray(result.all_polynomial_roots) ? result.all_polynomial_roots.join(', ') : '';
+        const admStr = Array.isArray(result.admissible_t_roots) ? result.admissible_t_roots.join(', ') : '';
+        const exclStr = Array.isArray(result.excluded_t_roots) ? result.excluded_t_roots.join(', ') : '';
+        return `${header}
+- Operation: ${result.operation}
+- Substitution: ${result.substitution}
+- Polynomial Equation: ${result.polynomial}
+- Domain Exclusions: ${(result.exclusions || []).join(', ') || 'None'}
+- All Real Polynomial Roots (verified): ${allRootsStr}
+- Admissible Substitution Roots: ${admStr}
+- Excluded Substitution Roots (outside [-1, 1] or singular): ${exclStr || 'None'}
+- Authoritative General Solutions: ${result.exactResult}
+- Pedagogical Directive: Use ONLY these deterministically computed and verified numerical roots and general solutions. NEVER substitute, round-guess, or invent different numerical approximations.\n`;
+      }
+      return `${header}
+- Operation: ${result.operation}
+- Polynomial Equation: ${result.polynomial}
+- Authoritative Verified Real Roots: ${result.exactResult}
+- Pedagogical Directive: Use ONLY these deterministically computed and verified numerical roots. NEVER substitute, round-guess, or invent different numerical approximations.\n`;
+    }
     const steps = Array.isArray(result.derivationSteps) && result.derivationSteps.length > 0
       ? `\n- Derivation Steps:\n${result.derivationSteps.map(s => `  * ${s}`).join('\n')}`
       : '';
