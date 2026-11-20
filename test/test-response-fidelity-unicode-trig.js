@@ -232,6 +232,7 @@ async function run() {
       '  "sec_id": verify_symbolic_equivalence({"expr1": "sec(x)", "expr2": "1/cos(x)", "variable": "x"}),',
       '  "cot_id": verify_symbolic_equivalence({"expr1": "cot(x)", "expr2": "cos(x)/sin(x)", "variable": "x"}),',
       '  "sin_cancel_uncond": verify_symbolic_equivalence({"expr1": "sin(x)/sin(x)", "expr2": "1", "variable": "x"}),',
+      '  "sin_cancel_partial_pt": verify_symbolic_equivalence({"expr1": "sin(x)/sin(x), where x != 0", "expr2": "1", "variable": "x"}),',
       '  "sin_cancel_cond": verify_symbolic_equivalence({"expr1": "sin(x)/sin(x), where sin(x) != 0", "expr2": "1", "variable": "x"}),',
       '  "diff_domain": verify_symbolic_equivalence({"expr1": "1/(x-2)", "expr2": "1/x", "variable": "x"}),',
       '  "sqrt_sq": verify_symbolic_equivalence({"expr1": "sqrt(x²)", "expr2": "x", "variable": "x"}),',
@@ -250,6 +251,8 @@ async function run() {
     assert.strictEqual(out.csc_id.verified, true, 'csc(x) = 1/sin(x) must verify');
     assert.strictEqual(out.csc_id.status, 'VERIFIED');
     assert(Array.isArray(out.csc_id.domain_restrictions) && out.csc_id.domain_restrictions.length >= 2, 'Natural trig singularities must be preserved');
+    assert(out.csc_id.domain_restrictions.some(r => String(r).includes('n*pi')), 'Trig singularities must use general periodic family x != n*pi');
+    assert(!out.csc_id.domain_restrictions.some(r => String(r).includes('3.14159')), 'Trig singularities must never be truncated to finite decimal pi approximations');
 
     assert.strictEqual(out.csc_latex.verified, true, '\\csc x = \\frac{1}{\\sin x} must verify');
     assert.strictEqual(out.sec_id.verified, true, 'sec(x) = 1/cos(x) must verify');
@@ -257,6 +260,8 @@ async function run() {
 
     assert.strictEqual(out.sin_cancel_uncond.verified, false, 'sin(x)/sin(x) = 1 without domain exclusion must preserve restriction');
     assert.strictEqual(out.sin_cancel_uncond.error_type, 'DOMAIN_RESTRICTION_MISMATCH');
+    assert.strictEqual(out.sin_cancel_partial_pt.verified, false, 'Single point x != 0 must NOT satisfy infinite periodic sin(x) != 0 domain');
+    assert.strictEqual(out.sin_cancel_partial_pt.error_type, 'DOMAIN_RESTRICTION_MISMATCH');
 
     assert.strictEqual(out.sin_cancel_cond.verified, true, 'sin(x)/sin(x) = 1 where sin(x) != 0 must verify conditionally');
     assert.strictEqual(out.sin_cancel_cond.status, 'CONDITIONALLY_EQUIVALENT');

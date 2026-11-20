@@ -142,6 +142,17 @@ check('server.js forwards withholdingDetails.suggestedFix and app.js wires Solve
   assert(appJs.includes('msg-audit-btn') && appJs.includes('trustReport.badgeLabel') && appJs.includes('pythos-trust-checks'), 'app.js must upgrade original .msg-audit-btn and .pythos-audit-panel with trustReport wording and checks');
   assert(!appJs.includes("createElement(\"details\")") || !appJs.includes('pythos-trust-details'), 'app.js must not duplicate verification with a separate pythos-trust-details top box');
   assert(appJs.includes('!/[<>]/.test(rawSuggestedFix)'), 'app.js must sanitize suggestedFix before creating controls');
+  assert(appJs.includes('parseCheckWorkAnswerValue'), 'app.js Check Work must support fractions/radicals/constants cleanly');
+});
+
+check('Periodic trig domain restrictions preserve general n*pi form cleanly in trustReport', () => {
+  const claims = [{ domain: 'trigonometry', claim_type: 'symbolic_equivalence', data: { expr1: 'csc(x)', expr2: '1/sin(x)' } }];
+  const results = [{ verified: true, status: 'VERIFIED', domain_restrictions: ['sin(x) != 0', 'x != n*pi, n \u2208 Z'] }];
+  const evalState = vb.evaluateVerificationState({ claims, verificationResults: results, prompt: 'Verify csc(x) = 1/sin(x)' });
+  const trust = vb.buildVerificationTrustReport({ claims, verificationResults: results, verificationEvaluation: evalState });
+  const domCheck = trust.checks.find(c => c.kind === 'DOMAIN_RESTRICTIONS');
+  assert(domCheck && domCheck.detail.includes('nπ') && domCheck.detail.includes('n ∈ ℤ'), `Expected formatted periodic restriction, got ${domCheck && domCheck.detail}`);
+  assert(!domCheck.detail.includes('3.14159'), 'Trust detail must never show truncated finite float pi values');
 });
 
 console.log(`\n======================================================================`);

@@ -638,7 +638,8 @@ function showThinking() {
   div.innerHTML = `
     <div class="thinking-status-wrap">
       <span class="thinking-spinner" aria-hidden="true"></span>
-      <span class="thinking-text">${statusText}</span>
+      <span class="sr-only">Pythos is working on your solution.</span>
+      <span class="thinking-text" aria-hidden="true">${statusText}</span>
       <button type="button" class="thinking-stop-btn" aria-label="Stop active request">Stop</button>
     </div>
   `;
@@ -4740,7 +4741,7 @@ async function askPythos(userText) {
       const statusBadge = document.createElement("div");
       statusBadge.className = "msg-stream-badge drafting-badge";
       statusBadge.style.cssText = "display:inline-flex; align-items:center; gap:6px; font-size:0.75rem; color:#64748b; margin-bottom:6px; font-style:italic;";
-      statusBadge.innerHTML = `<span class="stream-dot" style="width:6px; height:6px; border-radius:50%; background:#3b82f6; animation:pulse 1.5s infinite;"></span><span>Connecting to stream...</span>`;
+      statusBadge.innerHTML = `<span class="stream-dot" style="width:6px; height:6px; border-radius:50%; background:#3b82f6;"></span><span>Connecting to stream...</span>`;
       draftBubble.appendChild(statusBadge);
 
       const contentDiv = document.createElement("div");
@@ -4820,7 +4821,7 @@ async function askPythos(userText) {
             const stage = ev.stage || "";
             if (stage === "drafting") {
               statusBadge.style.color = "#3b82f6";
-              statusBadge.innerHTML = `<span class="stream-dot" style="width:6px; height:6px; border-radius:50%; background:#3b82f6; animation:pulse 1.5s infinite;"></span><span>${escapeHtml(ev.label || "Drafting mathematical solution...")}</span>`;
+              statusBadge.innerHTML = `<span class="stream-dot" style="width:6px; height:6px; border-radius:50%; background:#3b82f6;"></span><span>${escapeHtml(ev.label || "Drafting mathematical solution...")}</span>`;
             } else if (stage === "verifying" || stage === "checking_constraints" || stage === "revising" || stage === "finalizing") {
               const colorMap = {
                 verifying: "#d97706",
@@ -4836,7 +4837,7 @@ async function askPythos(userText) {
               };
               const col = colorMap[stage] || "#d97706";
               statusBadge.style.color = col;
-              statusBadge.innerHTML = `<span class="stream-dot" style="width:6px; height:6px; border-radius:50%; background:${col}; animation:pulse 1.5s infinite;"></span><span>${escapeHtml(ev.label || fallbackLabelMap[stage])}</span>`;
+              statusBadge.innerHTML = `<span class="stream-dot" style="width:6px; height:6px; border-radius:50%; background:${col};"></span><span>${escapeHtml(ev.label || fallbackLabelMap[stage])}</span>`;
               if (verificationTimer) clearTimeout(verificationTimer);
               verificationTimer = setTimeout(() => {
                 if (reader) {
@@ -5818,15 +5819,30 @@ function executeContextualToolHandoff(action, contract, opts = {}) {
     if (panel) {
       const nextVisible = panel.style.display === "none";
       panel.style.display = nextVisible ? "block" : "none";
-      if (opts.btnEl) opts.btnEl.classList.toggle("active", nextVisible);
+      if (opts.btnEl) {
+        opts.btnEl.classList.toggle("active", nextVisible);
+        opts.btnEl.setAttribute("aria-expanded", nextVisible ? "true" : "false");
+      }
       return { ok: true, expanded: nextVisible };
     }
+    const formatDomainMath = (rawText) => String(rawText)
+      .replace(/!=/g, "≠")
+      .replace(/>=/g, "≥")
+      .replace(/<=/g, "≤")
+      .replace(/\bn\*pi\b/g, "nπ")
+      .replace(/\bpi\b/g, "π")
+      .replace(/n\s*(?:in|∈)\s*Z\b/g, "n ∈ ℤ");
     panel = document.createElement("div");
     panel.className = "pythos-domain-restrictions-panel";
-    const listHtml = action.restrictions.map(r => `<li><code>${escapeHtml(String(r))}</code></li>`).join("");
+    panel.setAttribute("role", "region");
+    panel.setAttribute("aria-label", "Verified domain restrictions");
+    const listHtml = action.restrictions.map(r => `<li><code>${escapeHtml(formatDomainMath(r))}</code></li>`).join("");
     panel.innerHTML = `<strong>Domain Restrictions${contract?.normalizedExpression ? ` for <code>${escapeHtml(contract.normalizedExpression)}</code>` : ""}:</strong><ul>${listHtml}</ul>`;
     container.appendChild(panel);
-    if (opts.btnEl) opts.btnEl.classList.add("active");
+    if (opts.btnEl) {
+      opts.btnEl.classList.add("active");
+      opts.btnEl.setAttribute("aria-expanded", "true");
+    }
     return { ok: true, expanded: true };
   }
 
@@ -6291,17 +6307,38 @@ const matrixResultArea = document.getElementById("matrixResultArea");
 const matrixSendToPythos = document.getElementById("matrixSendToPythos");
 
 function parseMatrix(inputStr) {
+  let raw = String(inputStr || "").trim();
+  // Support pasted LaTeX \begin{bmatrix}...\end{bmatrix} / pmatrix / vmatrix
+  const matMatch = raw.match(/\\begin\{[bpv]?matrix\}([\s\S]*?)\\end\{[bpv]?matrix\}/);
+  if (matMatch) {
+    const rows = matMatch[1].trim().split(/\\\\/).map(r =>
+      r.trim().split("&").map(cell => cell.trim()).filter(Boolean)
+    ).filter(r => r.length > 0);
+    if (rows.length > 0) {
+      raw = `[${rows.map(r => `[${r.join(", ")}]`).join(", ")}]`;
+    }
+  }
+  raw = raw.replace(/[−–—]/g, "-").replace(/[×·]/g, "*");
   try {
-    return JSON.parse(inputStr);
+    return JSON.parse(raw);
   } catch (e) {
-    return window.math.evaluate(inputStr);
+    return window.math.evaluate(raw);
   }
 }
 
 function displayMatrixResult(res, opName) {
   matrixResultArea.style.display = "block";
   matrixResultArea.className = "check-result-area check-result-pass";
-  matrixResultArea.innerHTML = `<strong>${escapeHtml(opName)}:</strong><br><code>${escapeHtml(JSON.stringify(res))}</code>`;
+  const arr = (res && typeof res === "object" && typeof res.toArray === "function") ? res.toArray() : res;
+  if (Array.isArray(arr) && arr.length > 0 && Array.isArray(arr[0])) {
+    const rowsHtml = arr.map(row =>
+      `<div>[${row.map(v => typeof v === "number" ? cleanFloat(v) : escapeHtml(String(v))).join(",  ")}]</div>`
+    ).join("");
+    matrixResultArea.innerHTML = `<strong>${escapeHtml(opName)}:</strong><div style="font-family:monospace; margin-top:4px; line-height:1.45;">${rowsHtml}</div>`;
+    return;
+  }
+  const formatted = typeof arr === "number" ? cleanFloat(arr) : JSON.stringify(arr);
+  matrixResultArea.innerHTML = `<strong>${escapeHtml(opName)}:</strong><br><code>${escapeHtml(String(formatted))}</code>`;
 }
 
 document.getElementById("matDetBtn").addEventListener("click", () => {
@@ -6824,8 +6861,40 @@ if (checkEqInput) {
     }
   });
 }
+if (checkAnsInput) {
+  checkAnsInput.addEventListener("input", () => {
+    if (window.PythosMathInputEngine) {
+      window.PythosMathInputEngine.applyAutoFormatToInputElement(checkAnsInput, { disableFractions: true });
+    }
+  });
+}
 
-checkRunBtn.addEventListener("click", () => {
+function parseCheckWorkAnswerValue(rawVal) {
+  const s = String(rawVal || "").trim();
+  if (!s) return NaN;
+  const engine = window.PythosMathInputEngine;
+  const normalized = (engine && typeof engine.normalizeMathInputForParser === "function")
+    ? engine.normalizeMathInputForParser(s)
+    : s;
+  const clean = normalized
+    .replace(/÷/g, "/")
+    .replace(/[×·]/g, "*")
+    .replace(/[−–—]/g, "-")
+    .replace(/π/g, "pi");
+  if (/^[+-]?\d+(?:\.\d+)?$/.test(clean)) {
+    return parseFloat(clean);
+  }
+  try {
+    if (window.math && typeof window.math.evaluate === "function") {
+      const evaluated = window.math.evaluate(clean);
+      const num = typeof evaluated === "number" ? evaluated : Number(evaluated);
+      if (Number.isFinite(num)) return num;
+    }
+  } catch (_) {}
+  return NaN;
+}
+
+function runCheckWorkVerification() {
   const rawEq = checkEqInput.value.trim();
   const variable = checkVarInput.value.trim() || "x";
   const proposedVal = checkAnsInput.value.trim();
@@ -6839,39 +6908,53 @@ checkRunBtn.addEventListener("click", () => {
   }
 
   const [leftExpr, rightExpr] = rawEq.split("=").map(s => s.trim());
-  const parsedVal = parseFloat(proposedVal);
+  const parsedVal = parseCheckWorkAnswerValue(proposedVal);
 
-  if (isNaN(parsedVal)) {
+  if (!Number.isFinite(parsedVal)) {
     checkResultArea.style.display = "block";
     checkResultArea.className = "check-result-area check-result-fail";
-    checkResultArea.innerHTML = "Please enter a valid numerical answer for the variable.";
+    checkResultArea.innerHTML = "Please enter a valid numerical answer, fraction (e.g. <code>3/2</code>), or expression (e.g. <code>pi/6</code>).";
     checkAskPythosBtn.style.display = "none";
     return;
   }
 
   const res = window.DeterministicMath.verifyEquationSolution(leftExpr, rightExpr, variable, parsedVal);
+  const displayLeft = res && typeof res.leftVal === "number" ? cleanFloat(res.leftVal) : res?.leftVal;
+  const displayRight = res && typeof res.rightVal === "number" ? cleanFloat(res.rightVal) : res?.rightVal;
 
   checkResultArea.style.display = "block";
   if (res && res.isCorrect) {
     checkResultArea.className = "check-result-area check-result-pass";
-    checkResultArea.innerHTML = `<strong>✓ Correct!</strong> Substituting ${escapeHtml(variable)} = ${escapeHtml(String(parsedVal))} gives: <br>Left Side = ${escapeHtml(String(res.leftVal))} | Right Side = ${escapeHtml(String(res.rightVal))} (Matches!)`;
+    checkResultArea.innerHTML = `<strong>✓ Correct!</strong> Substituting ${escapeHtml(variable)} = ${escapeHtml(proposedVal)} gives: <br>Left Side = ${escapeHtml(String(displayLeft))} | Right Side = ${escapeHtml(String(displayRight))} (Matches!)`;
     checkAskPythosBtn.style.display = "none";
     lastFailedVerification = null;
   } else if (res) {
     checkResultArea.className = "check-result-area check-result-fail";
-    checkResultArea.innerHTML = `<strong>✗ Incorrect.</strong> Substituting ${escapeHtml(variable)} = ${escapeHtml(String(parsedVal))} gives: <br>Left Side: <code>${escapeHtml(String(res.leftVal))}</code> ≠ Right Side: <code>${escapeHtml(String(res.rightVal))}</code>`;
+    checkResultArea.innerHTML = `<strong>✗ Incorrect.</strong> Substituting ${escapeHtml(variable)} = ${escapeHtml(proposedVal)} gives: <br>Left Side: <code>${escapeHtml(String(displayLeft))}</code> ≠ Right Side: <code>${escapeHtml(String(displayRight))}</code>`;
     checkAskPythosBtn.style.display = "block";
     lastFailedVerification = {
       equation: rawEq,
       variable,
       proposedVal,
-      leftVal: res.leftVal,
-      rightVal: res.rightVal
+      leftVal: displayLeft,
+      rightVal: displayRight
     };
   } else {
     checkResultArea.className = "check-result-area check-result-fail";
     checkResultArea.innerHTML = "Could not parse or verify this expression. Check formatting.";
     checkAskPythosBtn.style.display = "none";
+  }
+}
+
+checkRunBtn.addEventListener("click", runCheckWorkVerification);
+[checkEqInput, checkVarInput, checkAnsInput].forEach(inp => {
+  if (inp) {
+    inp.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        runCheckWorkVerification();
+      }
+    });
   }
 });
 
@@ -7027,7 +7110,7 @@ document.querySelectorAll(".skip-link").forEach(link => {
 // ACCESSIBILITY: INTERACTIVE LANGUAGE SELECTOR
 // =====================================
 const LANG_LOCALES = {
-  en: { code: "en-US", name: "English", placeholder: "Speak to the Oracle, dictate, or ask a math question..." },
+  en: { code: "en-US", name: "English", placeholder: "Ask a math or physics question, or attach a photo..." },
   es: { code: "es-MX", name: "Español", placeholder: "Habla con el Oráculo o haz una pregunta de matemáticas..." },
   fr: { code: "fr-FR", name: "Français", placeholder: "Parlez à l'Oracle ou posez une question de maths..." },
   de: { code: "de-DE", name: "Deutsch", placeholder: "Sprich mit dem Orakel oder stelle eine Matheaufgabe..." },
