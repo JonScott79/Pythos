@@ -148,8 +148,67 @@ function getSafeWithholding(reasonCode, overrides = null) {
   };
 }
 
+function resolveWithholdingDecision({
+  lastUserText = '',
+  hasImages = false,
+  auditText = '',
+  promptFidelity = { valid: true },
+  detectFormattingAnomaly = null
+} = {}) {
+  const lowerAudit = String(auditText || '').toLowerCase();
+
+  // Higher-priority safety/security/auth/resource-limit/availability/domain failures must NEVER be masked by MALFORMED_SYNTAX
+  if (lowerAudit.includes('safety') || lowerAudit.includes('security') || lowerAudit.includes('unauthorized') || lowerAudit.includes('forbidden')) {
+    return { reason: WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED, overrides: null };
+  }
+  if (hasImages) {
+    return { reason: WITHHOLDING_REASONS.IMAGE_UNVERIFIABLE, overrides: null };
+  }
+  if (
+    lowerAudit.includes('rate limit') ||
+    lowerAudit.includes('quota') ||
+    lowerAudit.includes('service unavailable') ||
+    lowerAudit.includes('cas_queue_saturated') ||
+    lowerAudit.includes('cas_circuit_open') ||
+    lowerAudit.includes('timed out')
+  ) {
+    return { reason: WITHHOLDING_REASONS.INFRASTRUCTURE_FAILURE, overrides: null };
+  }
+  if (lowerAudit.includes('division by zero') || lowerAudit.includes('mathematically undefined') || lowerAudit.includes('domain violation')) {
+    return { reason: WITHHOLDING_REASONS.UNDEFINED_EXPRESSION, overrides: null };
+  }
+
+  if (typeof detectFormattingAnomaly === 'function' && typeof lastUserText === 'string' && lastUserText.trim()) {
+    const anomaly = detectFormattingAnomaly(lastUserText);
+    if (anomaly && anomaly.isWeird === true) {
+      return {
+        reason: WITHHOLDING_REASONS.MALFORMED_SYNTAX,
+        overrides: {
+          weirdSnippet: anomaly.snippet,
+          suggestedFix: anomaly.suggestedFix,
+          anomalyExplanation: anomaly.explanation
+        },
+        anomaly
+      };
+    }
+  }
+
+  if (lowerAudit.includes('missing') || lowerAudit.includes('insufficient') || lowerAudit.includes('undefined variable') || lowerAudit.includes('not enough info')) {
+    return { reason: WITHHOLDING_REASONS.MISSING_INFORMATION, overrides: null };
+  }
+  if (lowerAudit.includes('ambiguous') || lowerAudit.includes('multiple interpretation')) {
+    return { reason: WITHHOLDING_REASONS.AMBIGUOUS_PROBLEM, overrides: null };
+  }
+  if ((!promptFidelity.valid && promptFidelity.primaryClaimStatus !== 'UNKNOWN') || lowerAudit.includes('fidelity') || lowerAudit.includes('mismatch') || lowerAudit.includes('different equation')) {
+    return { reason: WITHHOLDING_REASONS.PROMPT_CLAIM_MISMATCH, overrides: null };
+  }
+
+  return { reason: WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED, overrides: null };
+}
+
 module.exports = {
   WITHHOLDING_REASONS,
   SAFE_WITHHOLDING_CONFIG,
-  getSafeWithholding
+  getSafeWithholding,
+  resolveWithholdingDecision
 };

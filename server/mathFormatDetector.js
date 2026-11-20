@@ -3,9 +3,9 @@
  *
  * Deliberately conservative deterministic formatting-anomaly detector.
  * Identifies structural impossibilities (dangling operators in exponents,
- * misplaced trig power arguments, empty LaTeX blocks, unbalanced delimiters,
- * and dangling/doubled operators) without policing valid mathematical style
- * (e.g. e^{-x}, x^{a+b}, x^{2+3}, x^{n-1}, \sin^{2x}(x) are never flagged).
+ * misplaced trig power arguments, empty/incomplete LaTeX blocks, unbalanced
+ * delimiters, and dangling/doubled operators) without policing valid mathematical
+ * style (e.g. e^{-x}, x^{a+b}, x^{2+3}, x^{n-1}, \sin^{2x}(x), [0, 1)).
  */
 
 const MAX_SCAN_LEN = 4000;
@@ -21,7 +21,7 @@ function noAnomaly() {
 
 /**
  * Finds the matching closing brace '}' for an opening '{' at openIdx.
- * Returns -1 if unbalanced.
+ * Returns -1 if unbalanced. Linear O(N) scan.
  */
 function findMatchingBrace(str, openIdx) {
   let depth = 0;
@@ -40,7 +40,8 @@ function findMatchingBrace(str, openIdx) {
 }
 
 /**
- * Checks for unbalanced (), {}, [] while respecting escaped delimiters (\(, \{, \[).
+ * Checks for unbalanced (), {}, [] while respecting escaped delimiters (\(, \{, \[)
+ * and standard top-level half-open interval notation like [0, 1) or (a, b].
  */
 function checkUnbalancedDelimiters(str) {
   const stack = [];
@@ -53,7 +54,6 @@ function checkUnbalancedDelimiters(str) {
     if (ch === '\\' && i + 1 < str.length) {
       const next = str[i + 1];
       if (opens.has(next) || closes.has(next)) {
-        // Escaped literal brace \{ \} or LaTeX math mode \( \) \[ \]
         i++;
         continue;
       }
@@ -61,7 +61,7 @@ function checkUnbalancedDelimiters(str) {
     if (opens.has(ch)) {
       stack.push({ ch, idx: i });
     } else if (closes.has(ch)) {
-      if (stack.length === 0 || stack[stack.length - 1].ch !== pairs[ch]) {
+      if (stack.length === 0) {
         const start = Math.max(0, i - 10);
         const end = Math.min(str.length, i + 10);
         return {
@@ -70,6 +70,24 @@ function checkUnbalancedDelimiters(str) {
           snippet: str.slice(start, end).trim(),
           explanation: `The formatting looks a little weird — there is an unmatched closing \`${ch}\` near \`${str.slice(start, end).trim()}\`.`
         };
+      }
+      const top = stack[stack.length - 1];
+      if (top.ch !== pairs[ch]) {
+        // Allow top-level comma-separated half-open intervals such as [0, 1) or (0, 1]
+        const isHalfOpenInterval =
+          stack.length === 1 &&
+          ((top.ch === '[' && ch === ')') || (top.ch === '(' && ch === ']')) &&
+          str.slice(top.idx + 1, i).includes(',');
+        if (!isHalfOpenInterval) {
+          const start = Math.max(0, i - 10);
+          const end = Math.min(str.length, i + 10);
+          return {
+            isWeird: true,
+            kind: 'UNBALANCED_DELIMITERS',
+            snippet: str.slice(start, end).trim(),
+            explanation: `The formatting looks a little weird — \`${top.ch}\` and \`${ch}\` do not match near \`${str.slice(start, end).trim()}\`.`
+          };
+        }
       }
       stack.pop();
     }
@@ -90,6 +108,60 @@ function checkUnbalancedDelimiters(str) {
 }
 
 /**
+ * Checks for empty or single-argument incomplete LaTeX blocks (\frac{}{}, \frac{2x}{}, \frac{2x}, \sqrt{}, \sqrt[]{}).
+ */
+function checkIncompleteLatexBlocks(str) {
+  const emptySqrt = str.match(/\\sqrt\s*(?:\[\s*\]\s*(?:\{[^}]*\})?|\{\s*\})/);
+  if (emptySqrt) {
+    return {
+      isWeird: true,
+      kind: 'EMPTY_LATEX_BLOCK',
+      snippet: emptySqrt[0],
+      explanation: `The formatting looks a little weird — \`${emptySqrt[0]}\` is missing its value inside the braces.`
+    };
+  }
+
+  const fracCmdRe = /\\(?:frac|tfrac|dfrac)\b/g;
+  let m;
+  while ((m = fracCmdRe.exec(str)) !== null) {
+    let idx = m.index + m[0].length;
+    while (idx < str.length && /\s/.test(str[idx])) idx++;
+    if (str[idx] !== '{') continue; // Single-token shorthand like \frac12 is left alone
+
+    const numClose = findMatchingBrace(str, idx);
+    if (numClose === -1) continue; // Caught by unbalanced delimiter check
+    const numContent = str.slice(idx + 1, numClose).trim();
+
+    let denStart = numClose + 1;
+    while (denStart < str.length && /\s/.test(str[denStart])) denStart++;
+    if (str[denStart] !== '{') {
+      const snip = str.slice(m.index, numClose + 1);
+      return {
+        isWeird: true,
+        kind: 'EMPTY_LATEX_BLOCK',
+        snippet: snip,
+        explanation: `The formatting looks a little weird — \`${snip}\` is missing its denominator block.`
+      };
+    }
+
+    const denClose = findMatchingBrace(str, denStart);
+    if (denClose === -1) continue;
+    const denContent = str.slice(denStart + 1, denClose).trim();
+    if (!numContent || !denContent) {
+      const snip = str.slice(m.index, denClose + 1);
+      return {
+        isWeird: true,
+        kind: 'EMPTY_LATEX_BLOCK',
+        snippet: snip,
+        explanation: `The formatting looks a little weird — \`${snip}\` has an empty numerator or denominator.`
+      };
+    }
+  }
+
+  return null;
+}
+
+/**
  * Detects structural formatting anomalies in mathematical input.
  * @param {string} input
  * @returns {{ isWeird: boolean, kind: string, snippet: string, explanation: string, suggestedFix?: string }}
@@ -99,49 +171,45 @@ function detectFormattingAnomaly(input) {
   const trimmed = input.trim();
   if (!trimmed || trimmed.length > MAX_SCAN_LEN) return noAnomaly();
 
-  // Strip surrounding $ / $$ for cleaner inspection while preserving original for suggestions
   const s = trimmed.replace(/^\$\$?|\$\$?$/g, '').trim();
   if (!s) return noAnomaly();
 
-  // 1. Empty LaTeX fraction blocks: \frac{}{} or \frac{...}{} or \frac{}{...}
-  const emptyFrac = s.match(/\\(?:frac|tfrac|dfrac)\s*(?:\{\s*\}\s*\{[^}]*\}|\{[^}]*\}\s*\{\s*\})/);
-  if (emptyFrac) {
-    return {
-      isWeird: true,
-      kind: 'EMPTY_LATEX_BLOCK',
-      snippet: emptyFrac[0],
-      explanation: `The formatting looks a little weird — \`${emptyFrac[0]}\` has an empty numerator or denominator.`
-    };
-  }
-
-  // 2. Unbalanced delimiters (check before brace-based exponent scans)
+  // 1. Unbalanced delimiters first (linear scan)
   const delimErr = checkUnbalancedDelimiters(s);
   if (delimErr) return delimErr;
 
-  // 3. Operators trapped inside braced exponents (e.g. \sin^{2(x)+}, x^{2+})
+  // 2. Empty or incomplete LaTeX fraction / radical blocks
+  const blockErr = checkIncompleteLatexBlocks(s);
+  if (blockErr) return blockErr;
+
+  // 3. Operators trapped inside braced exponents & misplaced trig power arguments
   for (let i = 0; i < s.length - 1; i++) {
     if (s[i] === '^' && s[i + 1] === '{') {
       const closeIdx = findMatchingBrace(s, i + 1);
       if (closeIdx === -1) continue;
       const inner = s.slice(i + 2, closeIdx).trim();
+      const after = s.slice(closeIdx + 1).trimStart();
+
       if (/[+\-*/]$/.test(inner)) {
         const op = inner.slice(-1);
         const beforeOp = inner.slice(0, -1).trim();
         const fullExp = s.slice(i, closeIdx + 1);
 
-        // Check for trig power typo like \sin^{2(x)+}\csc(x) -> \sin^2(x) + \csc(x)
+        // High-confidence suggestion ONLY when a non-empty math operand follows the closing '}'
+        // (never suggest a dangling expression like "x^{2} +" when nothing follows '}'!)
         const trigMatch = s.slice(0, i).match(/\\?(sin|cos|tan|csc|sec|cot)\s*$/);
         const trigArgMatch = beforeOp.match(/^(\d+)\(([a-zA-Z])\)$/);
+        const hasValidFollowingTerm = /^(?:\\[a-zA-Z]+|[a-zA-Z0-9(])/.test(after);
         let suggestedFix;
-        if (trigMatch && trigArgMatch) {
+        if (trigMatch && trigArgMatch && hasValidFollowingTerm) {
           const pow = trigArgMatch[1];
           const arg = trigArgMatch[2];
           const fixedExp = `^${pow}(${arg}) ${op} `;
-          suggestedFix = (s.slice(0, i) + fixedExp + s.slice(closeIdx + 1).trimStart())
+          suggestedFix = (s.slice(0, i) + fixedExp + after)
             .replace(/\s+/g, ' ')
             .trim();
-        } else if (beforeOp) {
-          suggestedFix = (s.slice(0, i) + `^{${beforeOp}} ${op} ` + s.slice(closeIdx + 1).trimStart())
+        } else if (beforeOp && hasValidFollowingTerm) {
+          suggestedFix = (s.slice(0, i) + `^{${beforeOp}} ${op} ` + after)
             .replace(/\s+/g, ' ')
             .trim();
         }
@@ -155,26 +223,29 @@ function detectFormattingAnomaly(input) {
         };
       }
 
-      // 4. Trig power argument mismatch without trailing operator: e.g. \sin^{2(x)} not followed by (x)
+      // Trig power argument mismatch: e.g. \sin^{2(x)} where (x) is inside exponent
       const trigPrefix = s.slice(0, i).match(/\\?(sin|cos|tan|csc|sec|cot)\s*$/);
       const innerTrigArg = inner.match(/^(\d+)\(([a-zA-Z])\)$/);
-      const after = s.slice(closeIdx + 1).trimStart();
       if (trigPrefix && innerTrigArg && !after.startsWith('(')) {
         const pow = innerTrigArg[1];
         const arg = innerTrigArg[2];
-        const suggestedFix = `${s.slice(0, i)}^${pow}(${arg})${after ? ' ' + after : ''}`.trim();
+        // Only suggest rewrite when followed by nothing or an explicit binary/comparison operator
+        const safeAfterForFix = !after || /^[+\-*/=<>]/.test(after);
+        const suggestedFix = safeAfterForFix
+          ? `${s.slice(0, i)}^${pow}(${arg})${after ? ' ' + after : ''}`.trim()
+          : undefined;
         return {
           isWeird: true,
           kind: 'TRIG_POWER_ARG_MISMATCH',
           snippet: `${trigPrefix[0]}^${'{'}${inner}${'}'}`,
           explanation: `The formatting looks a little weird — \`(${arg})\` appears inside the exponent of \`${trigPrefix[0]}\` instead of as its argument.`,
-          suggestedFix
+          ...(suggestedFix ? { suggestedFix } : {})
         };
       }
     }
   }
 
-  // 5. Dangling or doubled operators (only when mathematical symbols/digits are present)
+  // 4. Dangling or doubled operators (only when mathematical symbols/digits are present)
   if (/[0-9a-zA-Z\\^]/.test(s)) {
     const dblEq = s.match(/=\s*=/);
     if (dblEq) {
@@ -206,7 +277,6 @@ function detectFormattingAnomaly(input) {
       };
     }
 
-    // Trailing binary/exponent operator at end of expression (e.g. "2x +")
     const trailingOp = s.match(/([+\-*/^])\s*$/);
     if (trailingOp && /[0-9a-zA-Z)\]}]/.test(s.slice(0, trailingOp.index))) {
       return {
