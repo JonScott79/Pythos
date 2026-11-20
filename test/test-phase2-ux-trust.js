@@ -120,6 +120,18 @@ check('CONDITIONAL equivalence counts as verified in evaluateVerificationState',
   assert(trust.checks.some(c => c.kind === 'DOMAIN_RESTRICTIONS'));
 });
 
+check('resolveWithholdingDecision + getSafeWithholding preserves suggestedFix for MALFORMED_SYNTAX actions', () => {
+  const { detectFormattingAnomaly } = require('../server/mathFormatDetector');
+  const { resolveWithholdingDecision, getSafeWithholding } = require('../server/withholdingTaxonomy');
+  const decision = resolveWithholdingDecision({
+    lastUserText: '\\[\n2\\sin²⁽ˣ⁾⁺\\csc(x)-9=0\n\\]',
+    detectFormattingAnomaly
+  });
+  const sw = getSafeWithholding(decision.reason, decision.overrides);
+  assert.strictEqual(decision.reason, 'MALFORMED_SYNTAX');
+  assert(typeof sw.suggestedFix === 'string' && sw.suggestedFix.includes('2\\sin^2(x)'), `Expected suggestedFix on getSafeWithholding, got ${JSON.stringify(sw.suggestedFix)}`);
+});
+
 check('server.js forwards withholdingDetails.suggestedFix and app.js wires Solve + Edit + Trust card cleanly', () => {
   const serverJs = fs.readFileSync(path.join(__dirname, '..', 'server', 'server.js'), 'utf8');
   const appJs = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
