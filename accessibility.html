@@ -169,34 +169,34 @@
     <section class="card">
       <h2>1. Commitment to Accessible STEM Education</h2>
       <p>
-        Pythos is built on the principle that every student deserves free, rigorous mathematics and physics instruction regardless of disability or assistive technology. We engineer our workspace to conform to the <strong>Web Content Accessibility Guidelines (WCAG) 2.2 Level AA</strong>.
+        Pythos is built on the principle that every student deserves free, step-by-step math and physics help regardless of disability or assistive technology. Whether you use a screen reader, keyboard-only navigation, voice control, or high-contrast dark mode, we design our workspace to meet <strong>Web Content Accessibility Guidelines (WCAG) 2.2 Level AA</strong>.
       </p>
     </section>
 
     <section class="card">
       <h2>2. Screen Reader &amp; Mathematical Notation Support</h2>
       <ul>
-        <li><strong>Semantic MathML + TeX Annotations:</strong> Every equation rendered via KaTeX includes embedded MathML (`katex-mathml`) and semantic speech-order extraction so fractions (`numerator/denominator`), roots, integrals, and boxed final answers (`role="math"`) are read accurately by NVDA, JAWS, and VoiceOver.</li>
-        <li><strong>Live Regions Without Chatter:</strong> The conversation log (`#output`) uses `role="log"` and `aria-live="polite"`, while rotating thinking animations use `aria-hidden="true"` with a single polite status announcement to prevent screen-reader chatter.</li>
-        <li><strong>WCAG 2.5.3 Label-in-Name Compliance:</strong> All interactive buttons and links with `aria-label` attributes preserve their visible text label for speech-input users (Dragon NaturallySpeaking, Voice Control).</li>
+        <li><strong>Semantic MathML + TeX Annotations:</strong> Every equation rendered via KaTeX includes embedded MathML (<code>katex-mathml</code>) and semantic speech-order extraction so fractions (<code>numerator/denominator</code>), roots, integrals, and boxed final answers (<code>role="math"</code>) are read accurately by NVDA, JAWS, and VoiceOver.</li>
+        <li><strong>Live Regions Without Chatter:</strong> The conversation log (<code>#output</code>) uses <code>role="log"</code> and <code>aria-live="polite"</code>, while rotating thinking animations use <code>aria-hidden="true"</code> with a single polite status announcement to prevent screen-reader chatter.</li>
+        <li><strong>WCAG 2.5.3 Label-in-Name Compliance:</strong> All interactive buttons and links with <code>aria-label</code> attributes preserve their visible text label for speech-input users (Dragon NaturallySpeaking, Voice Control).</li>
       </ul>
     </section>
 
     <section class="card">
       <h2>3. Keyboard Navigation &amp; Focus Management</h2>
       <ul>
-        <li><strong>Skip Links:</strong> Press `Tab` on page load to jump directly to the math input (`#userInput`) or conversation log (`#output`).</li>
-        <li><strong>Keyboard-Accessible Message Actions:</strong> Message action toolbars (Read Aloud, Copy, Report, Feedback) automatically appear when any button inside a message receives keyboard focus (`:focus-within`).</li>
-        <li><strong>Modal Focus Containment &amp; Escape Dismissal:</strong> All floating calculators, graphers, simulation labs, and dialogs support `Escape` key dismissal and restore focus to the invoking trigger button.</li>
+        <li><strong>Skip Links:</strong> Press <code>Tab</code> on page load to jump directly to the math input (<code>#userInput</code>) or conversation log (<code>#output</code>).</li>
+        <li><strong>Keyboard-Accessible Message Actions:</strong> Message action toolbars (Read Aloud, Copy, Report, Feedback) automatically appear when any button inside a message receives keyboard focus (<code>:focus-within</code>).</li>
+        <li><strong>Modal Focus Containment &amp; Escape Dismissal:</strong> All floating calculators, graphers, simulation labs, and dialogs support <code>Escape</code> key dismissal and restore focus to the invoking trigger button.</li>
       </ul>
     </section>
 
     <section class="card">
       <h2>4. Visual Contrast, Motion &amp; Touch Targets</h2>
       <ul>
-        <li><strong>High-Contrast Light &amp; Dark Modes:</strong> Text and interactive controls exceed WCAG AA contrast ratios (`4.5:1` normal text, `8.54:1` on primary dark-mode CTAs).</li>
-        <li><strong>Reduced Motion:</strong> Respects `@media (prefers-reduced-motion: reduce)` across all transitions and animations.</li>
-        <li><strong>Touch Targets:</strong> Interactive controls and mobile range sliders meet or exceed the WCAG 2.5.8 minimum target size (`24x24` CSS pixels).</li>
+        <li><strong>High-Contrast Light &amp; Dark Modes:</strong> Text and interactive controls exceed WCAG AA contrast ratios (<code>4.5:1</code> normal text, <code>8.54:1</code> on primary dark-mode CTAs).</li>
+        <li><strong>Reduced Motion:</strong> Respects <code>@media (prefers-reduced-motion: reduce)</code> across all transitions and animations.</li>
+        <li><strong>Touch Targets:</strong> Interactive controls and mobile range sliders meet or exceed the WCAG 2.5.8 minimum target size (<code>24x24</code> CSS pixels).</li>
       </ul>
     </section>
   </main>

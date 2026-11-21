@@ -483,7 +483,7 @@
         <a href="../nonprofit.html" class="nav-link">Mission &amp; Roadmap</a>
         <a href="../license.html" class="nav-link">License</a>
         <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" class="nav-link">Facebook</a>
-        <a href="../changelog.html#pythos-1-8-27" class="nav-link">v1.8.27</a>
+        <a href="../changelog.html#pythos-1-8-73" class="nav-link">v1.8.73</a>
       </div>
     </div>
 
@@ -522,57 +522,54 @@
         <strong>The Pythos Initiative:</strong> Pythos is an independent education initiative dedicated to making high-quality mathematics and physics education freely accessible. Pythos is being developed as a nonprofit educational organization focused on helping students deeply understand problems, develop critical thinking, and verify their reasoning—not simply receive unverified answers. At its core is a simple principle: no kid should be charged to learn.
       </p>
 
-      <h2>Built to Verify, Not Just Answer</h2>
+      <h2>Built to Check Its Own Work</h2>
       <p>
-        Unlike a traditional chatbot that generates a statistical guess and moves on, Pythos is engineered with a strict <strong>three-layer verification architecture</strong> designed specifically for educational rigor:
+        A regular AI chatbot just predicts words that sound right—which is why it can confidently give the wrong math answer. Pythos works differently: it checks every number and algebra step using real math software before showing it to you:
       </p>
       <div class="features-grid">
         <div class="feature-card">
-          <h3>🧮 Layer 1: Deterministic Math.js Engine</h3>
-          <p>Evaluates exact arithmetic, roots, fractions, unit conversions, and geometric constraints in-process without relying on generative approximations.</p>
+          <h3>🧮 Fast Math Check (Math.js)</h3>
+          <p>Double-checks numbers, fractions, roots, unit conversions, and geometry values using exact math rules instead of guessing.</p>
         </div>
         <div class="feature-card">
-          <h3>🐍 Layer 2: Deterministic SymPy CAS</h3>
-          <p>Provides deep symbolic computer algebra for calculus (limits, derivatives, integrals), differential equations, and algebraic equivalence.</p>
+          <h3>🐍 Symbolic Algebra Check (SymPy)</h3>
+          <p>Checks equations, factoring, derivatives, integrals, and limits step-by-step using a dedicated Computer Algebra System (CAS).</p>
         </div>
         <div class="feature-card">
-          <h3>🛡️ Layer 3: Proprietary Pythos Verifier</h3>
-          <p>Orchestrates claim extraction, prompt-to-claim fidelity, automated revision with re-verification, deterministic supremacy, vision verification of student diagrams, and the delivery decision gate.</p>
+          <h3>🛡️ Automatic Revision Gate</h3>
+          <p>Checks that every step matches your actual question and makes sure no wrong intermediate step slips past without being caught and fixed.</p>
         </div>
         <div class="feature-card">
-          <h3>🧠 Safe Withholding & Socratic Dialogue</h3>
-          <p>If a mathematical claim cannot be independently established, Pythos safely withholds the answer (returning UNKNOWN) rather than guessing. Students are guided with progressive Socratic hints.</p>
+          <h3>🧠 Honest When Unsure + Tutor Mode</h3>
+          <p>If Pythos cannot prove an answer is right, it tells you honestly instead of making something up—and <strong>Tutor Mode</strong> gives one hint at a time so you learn at your own pace.</p>
         </div>
           <div class="feature-card highlight-card" style="grid-column: 1 / -1; background: rgba(22, 101, 52, 0.05); border: 1px solid rgba(22, 101, 52, 0.25);">
-            <h3>🛡️ Inspectable Derivations: Moving Beyond the "Black Box"</h3>
-            <p>Every step-by-step mathematical derivation emitted by Pythos is paired with an inspectable <strong>🛡️ Verified</strong> audit badge. Rather than asking students, parents, or teachers to blindly trust generative AI outputs, anyone can click the badge on the bottom-right of an answer to inspect the exact expressions evaluated, the symbolic computer algebra engine that certified each step (<code>SymPy CAS</code> or <code>Math.js</code>), the mathematical domain assumptions checked ($x \in \mathbb{R}$, branch cuts, tolerances), and the exact verified numerical/algebraic state.</p>
+            <h3>🛡️ Clickable Proof Badges — Not a "Black Box"</h3>
+            <p>You never have to take an answer on blind faith. Every verified response shows a clickable verification badge (like <strong>Verified (Symbolic)</strong>, <strong>Verified (Exact Roots)</strong>, or <strong>Partially Verified</strong>) where students, parents, and teachers can open the exact math checks and domain rules behind each step.</p>
           </div>
       </div>
 
 
-      <h2>Verified-Truth Recovery</h2>
+      <h2>Catching &amp; Fixing Mistakes Before You See Them</h2>
       <p>
-        Verification is not merely a rejection mechanism; it is also a recovery point. In traditional AI tutoring architectures, verification operates strictly as an all-or-nothing rejection filter: if an upstream model hallucinates an intermediate step or outputs contradictory conversational prose, the entire response is discarded and safely withheld. While safe withholding prevents false information from reaching students, it creates an educational inefficiency: <strong>rejecting a flawed explanation does not require throwing away a good, verified answer.</strong>
-      </p>
-      <p>
-        Pythos addresses this with its <strong>Verified-Truth Recovery System</strong>. When candidate generation fails verification, the delivery layer inspects whether authoritative mathematical truth is already established through preflight deterministic calculations, computer algebra systems (CAS), or verified geometric and trigonometric models. If trusted truth exists, Pythos constructs a clean, authoritative derivation directly from that verified foundation:
+        If a draft explanation has an arithmetic or algebra slip, Pythos catches it at the verification gate. Rather than giving up when the exact answer is already known from our math engines, Pythos rebuilds a clean, accurate explanation from verified math:
       </p>
       <div class="features-grid">
         <div class="feature-card">
-          <h3>1. Reject the Candidate</h3>
-          <p>Invalid, unverifiable, or flawed conversational claims are stopped before they can reach the student as an answer.</p>
+          <h3>1. Catch the Mistake</h3>
+          <p>Any unverified or contradictory step is blocked before it can appear as your answer.</p>
         </div>
         <div class="feature-card">
-          <h3>2. Recover Trusted Truth</h3>
-          <p>When an independently verified result already exists from deterministic solvers or preflight tools, Pythos reconstructs the response from that authoritative result.</p>
+          <h3>2. Rebuild from Real Math</h3>
+          <p>When our math engines already proved the right answer, Pythos builds a clean explanation directly from that verified result.</p>
         </div>
         <div class="feature-card">
-          <h3>3. Mandatory Re-Verification</h3>
-          <p>Recovered responses still pass through mathematical verification and delivery gates to confirm prompt fidelity, finite bounds, and proper formatting before delivery.</p>
+          <h3>3. Re-Check Everything</h3>
+          <p>Even recovered answers go back through the full math verification gate before reaching your screen.</p>
         </div>
         <div class="feature-card">
-          <h3>4. Fail-Closed Withholding</h3>
-          <p>If Pythos cannot establish independent trusted truth (such as uncomputable, ambiguous, or contradictory premises), it safely withholds rather than inventing an answer.</p>
+          <h3>4. Never Guess</h3>
+          <p>If the problem is unclear or cannot be verified independently, Pythos asks for clarification or safely withholds the answer instead of guessing.</p>
         </div>
       </div>
 
@@ -588,11 +585,11 @@
         We understand why parents and teachers are cautious about AI. Traditional chatbots can hallucinate numbers, encourage passive copy-pasting, and undermine real learning. Pythos is built from the ground up to solve those exact concerns:
       </p>
       <ul style="padding-left: 20px; color: var(--text-main); font-size: 0.95rem; line-height: 1.8;">
-        <li><strong>Active Socratic Guidance:</strong> If a student gets stuck, Pythos provides progressive scaffolding rather than robbing them of insight.</li>
-          <li><strong>Auditable Derivation Proof Receipts:</strong> Students and educators don't have to take the model's word for it. Every derivation carries a clickable <strong>🛡️ Verified</strong> badge at the bottom-right showing the underlying CAS proofs and domain checks in real time.</li>
+        <li><strong>Guided Practice (Tutor Mode):</strong> Students can toggle <strong>Tutor Mode</strong> to get one hint at a time instead of copying a full answer right away.</li>
+        <li><strong>Inspectable Verification Badges:</strong> Every verified answer carries a clickable verification badge showing what was checked and any domain rules (like avoiding division by zero).</li>
         <li><strong>Built to Be Challenged:</strong> Pythos encourages healthy critical skepticism: <em>"If you think I'm wrong, challenge me."</em></li>
         <li><strong>No Paywalls, Ads, or Subscriptions:</strong> Free and open for all learners. Supported by LANZAR with a commitment that no student should ever be charged to learn.</li>
-        <li><strong>Integrated Visual Tools:</strong> 2D function graphing, interactive equation palette, scientific calculation, unit conversion, and diagram analysis are built right in.</li>
+        <li><strong>Hands-On Study Tools &amp; 17 Simulations:</strong> Includes a 2D Function Grapher, Check Work step verifier, Equation Builder, Scientific Calculator, Unit Converter, Matrix tool, photo help, and 17 interactive Sim Lab experiments.</li>
       </ul>
 
       <h2>Built by a Student Who Refused to Settle for Hallucinations</h2>
@@ -667,7 +664,7 @@
   <!-- Footer -->
   <footer>
     <div>🏛️ Pythos — Free AI Mathematics &amp; Physics Education Initiative. Developed by LANZAR.</div>
-    <div style="margin-top: 6px; opacity: 0.75;">Pythos &copy; 2026 <a href="https://lanzar.me" target="_blank" rel="noopener" style="color:var(--primary-color); text-decoration:none;">LANZAR</a>. All rights reserved. &bull; <a href="../subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="../validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="../about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="../nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="https://github.com/JonScott79/Pythos" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">GitHub</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="../changelog.html#pythos-1-8-27" style="color:var(--primary-color); text-decoration:none;">v1.8.27</a></div>
+    <div style="margin-top: 6px; opacity: 0.75;">Pythos &copy; 2026 <a href="https://lanzar.me" target="_blank" rel="noopener" style="color:var(--primary-color); text-decoration:none;">LANZAR</a>. All rights reserved. &bull; <a href="../subjects/" style="color:var(--primary-color); text-decoration:none;">Subjects</a> &bull; <a href="../validation/" style="color:var(--primary-color); text-decoration:none;">Validation</a> &bull; <a href="../about/" style="color:var(--primary-color); text-decoration:none;">About</a> &bull; <a href="../nonprofit.html" style="color:var(--primary-color); text-decoration:none;">Mission &amp; Roadmap</a> &bull; <a href="https://github.com/JonScott79/Pythos" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">GitHub</a> &bull; <a href="https://www.facebook.com/PythosAI/" target="_blank" rel="noopener noreferrer" style="color:var(--primary-color); text-decoration:none;">Facebook</a> &bull; <a href="../changelog.html#pythos-1-8-73" style="color:var(--primary-color); text-decoration:none;">v1.8.73</a></div>
   </footer>
 
   <script>
