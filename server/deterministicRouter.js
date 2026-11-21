@@ -3580,11 +3580,11 @@ If you ever want a tool that isn't here yet, just hit the **🚩 Report** button
   }
 
   if (intent.type === 'PHYSICS_KINETIC_ENERGY') {
-    return `✅ Kinetic Energy calculation:\n\n$\nKE = \\frac{1}{2} m v^2 = \\frac{1}{2}(${intent.m})(${intent.v})^2 = ${intent.formatted}\n$\n\n\\boxed{${intent.result}}`;
+    return `✅ Kinetic Energy calculation:\n\nUsing $KE = \\frac{1}{2} m v^2$ (Joules):\n\n$$\n\\frac{1}{2}(${intent.m})(${intent.v})^2 = ${intent.result}\n$$\n\n**Result:** ${intent.formatted}\n\n\\boxed{${intent.result}}`;
   }
 
   if (intent.type === 'PHYSICS_VELOCITY') {
-    return `✅ Velocity calculation:\n\n$\nv = \\frac{d}{t} = \\frac{${intent.d}}{${intent.t}} = ${intent.formatted}\n$\n\n\\boxed{${intent.result}}`;
+    return `✅ Velocity calculation:\n\nUsing $v = \\frac{d}{t}$ (m/s):\n\n$$\n\\frac{${intent.d}}{${intent.t}} = ${intent.result}\n$$\n\n**Result:** ${intent.formatted}\n\n\\boxed{${intent.result}}`;
   }
 
   if (intent.type === 'COTERMINAL_ANGLE') {
@@ -3596,7 +3596,7 @@ If you ever want a tool that isn't here yet, just hit the **🚩 Report** button
   }
 
   if (intent.type === 'PERCENTAGE_OF') {
-    return `✅ Percentage calculation:\n\n$$\n${intent.pct}\\% \\times ${intent.base} = ${intent.formatted}\n$$\n\n\\boxed{${intent.formatted}}`;
+    return `✅ Percentage calculation (${intent.pct}% of ${intent.base}):\n\n$$\n\\frac{${intent.pct}}{100} \\times ${intent.base} = ${intent.formatted}\n$$\n\n\\boxed{${intent.formatted}}`;
   }
 
   if (intent.type === 'SIMPSONS_PARADOX_CONCEPTUAL') {

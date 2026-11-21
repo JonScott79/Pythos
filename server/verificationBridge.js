@@ -1576,9 +1576,11 @@ function extractClaims(text, userPrompt = '') {
       .replace(/\\(?:left|right)/g, '')
       .replace(/\\(sin|cos|tan|sec|csc|cot)\b/gi, '$1');
 
-    // 6a. LaTeX Fraction: \frac{A}{B} \approx C or = C (including leading sign -\frac{A}{B})
+    // 6a. LaTeX Fraction: \frac{A}{B} \approx C or = C (only when standalone or after an assignment '=' / prose, never mid-expression after + - * / ^ )
     const fracMatches = line.matchAll(/([-+]?)\s*\\frac\{([\d.]+|\bpi\b)\}\{([\d.]+|\bpi\b)\}\s*(?:\\approx|\\thickapprox|~|=)\s*([-+]?[\d.]+)\s*(%)?/gi);
     for (const m of fracMatches) {
+      const beforeFrac = line.slice(0, m.index).trimEnd();
+      if (/[-+*/^})\d]$/.test(beforeFrac)) continue;
       const sign = m[1].trim() === '-' ? '-' : '';
       const num = m[2];
       const den = m[3];
@@ -1603,17 +1605,28 @@ function extractClaims(text, userPrompt = '') {
       });
     }
 
+    // Expand LaTeX fractions and numeric/parenthesized implicit multiplication for 6b compound arithmetic extraction
+    let lineFor6b = line;
+    let fracExpandGuard = 0;
+    while (/\\(?:d|t)?frac\{([^{}]+)\}\{([^{}]+)\}/.test(lineFor6b) && fracExpandGuard < 12) {
+      lineFor6b = lineFor6b.replace(/\\(?:d|t)?frac\{([^{}]+)\}\{([^{}]+)\}/g, '(($1)/($2))');
+      fracExpandGuard++;
+    }
+    lineFor6b = lineFor6b
+      .replace(/\)\s*\(/g, ')*(')
+      .replace(/(\d)\s*\(/g, '$1*(');
+
     // 6b. General Infix Operations & Equations: A op B = C, (A op B) / C = D, = A / B = C, A(B/C) = D
     // Backward scans from relation symbol to safely capture leading negative numbers and parenthesized operations without mid-expression truncation
     const eqRegex = /(?:\\approx|\\thickapprox|≈|~|=)\s*([-+]?[\d.]+(?:\s*\/\s*[\d.]+)?)\s*(%)?/g;
     let match;
-    while ((match = eqRegex.exec(line)) !== null) {
+    while ((match = eqRegex.exec(lineFor6b)) !== null) {
       const eqIndex = match.index;
 
       // Guard against intermediate numbers in chained equality (e.g. "= 2 - 8 = -6" or "= 2(1)^2..."):
       // If the characters following match[0] continue an arithmetic expression before the next '=' or end-of-line,
       // this matched number was only a leading operand, NOT the RHS result.
-      const afterMatch = line.slice(eqIndex + match[0].length);
+      const afterMatch = lineFor6b.slice(eqIndex + match[0].length);
       const nextEq = afterMatch.search(/(?:\\approx|\\thickapprox|%^|~|=)/);
       const segmentAfter = nextEq !== -1 ? afterMatch.slice(0, nextEq) : afterMatch;
       if (!/^\s*\.\s+/.test(segmentAfter) && !/^\s*\.?\s*\b/.test(segmentAfter) && /^\s*[-+*/^()\[\]]/.test(segmentAfter)) {
@@ -1635,7 +1648,7 @@ function extractClaims(text, userPrompt = '') {
       if (isNaN(val)) continue;
       if (isPct) val = val / 100.0;
 
-      const beforeEq = line.slice(0, eqIndex);
+      const beforeEq = lineFor6b.slice(0, eqIndex);
       let clauseBefore = beforeEq;
       const lastSentenceMatch = [...beforeEq.matchAll(/[.?!]\s+(?=[A-Za-z])/g)].pop();
       if (lastSentenceMatch && lastSentenceMatch.index !== undefined) {
@@ -2109,6 +2122,11 @@ function extractClaims(text, userPrompt = '') {
       if (Number.isFinite(boxedNum) && typeof c.data?.proposed_value === 'number' && Math.abs(c.data.proposed_value - boxedNum) < 1e-4) return true;
       if (Number.isFinite(boxedNum) && c.claim_type === 'equation_solution' && Array.isArray(c.data?.proposed_solutions)) {
         return c.data.proposed_solutions.some(s => Math.abs(Number(s) - boxedNum) < 1e-4);
+      }
+      if (Number.isFinite(boxedNum) && c.claim_type === 'right_triangle_geometry') {
+        return [c.data?.hypotenuse, c.data?.opposite, c.data?.adjacent].some(
+          v => typeof v === 'number' && Math.abs(v - boxedNum) < 1e-4
+        );
       }
       return false;
     });

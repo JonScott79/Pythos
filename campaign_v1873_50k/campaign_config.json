@@ -1,0 +1,19 @@
+{
+  "campaign": "PYTHOS_v1873_50K",
+  "version": "1.8.73",
+  "commit": "c9d5cf9",
+  "seed": 1414213562,
+  "totalProblems": 50000,
+  "domains": [
+    "ARITHMETIC",
+    "FRACTIONS_DECIMALS",
+    "LINEAR_EQUATIONS",
+    "SYSTEMS_OF_EQUATIONS",
+    "QUADRATICS_POLYNOMIALS",
+    "GRAPHING_AND_TRIG",
+    "GEOMETRY_TRIG",
+    "CALCULUS",
+    "UNITS_MATRICES_HANDOFFS",
+    "PHYSICS_AND_SAFETY_GATE"
+  ]
+}

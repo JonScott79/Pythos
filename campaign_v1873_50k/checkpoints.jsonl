@@ -1,0 +1,10 @@
+{"completed":5000,"verifiedCorrect":5000,"safelyWithheld":0,"incorrectDelivered":0,"catches":0,"escapes":0,"elapsedSec":"1.20","peakHeapMb":126.7}
+{"completed":10000,"verifiedCorrect":10000,"safelyWithheld":0,"incorrectDelivered":0,"catches":0,"escapes":0,"elapsedSec":"3.02","peakHeapMb":129.1}
+{"completed":15000,"verifiedCorrect":15000,"safelyWithheld":0,"incorrectDelivered":0,"catches":0,"escapes":0,"elapsedSec":"4.62","peakHeapMb":130.9}
+{"completed":20000,"verifiedCorrect":20000,"safelyWithheld":0,"incorrectDelivered":0,"catches":0,"escapes":0,"elapsedSec":"6.73","peakHeapMb":132.4}
+{"completed":25000,"verifiedCorrect":25000,"safelyWithheld":0,"incorrectDelivered":0,"catches":0,"escapes":0,"elapsedSec":"8.14","peakHeapMb":134.1}
+{"completed":30000,"verifiedCorrect":30000,"safelyWithheld":0,"incorrectDelivered":0,"catches":0,"escapes":0,"elapsedSec":"8.30","peakHeapMb":135.9}
+{"completed":35000,"verifiedCorrect":35000,"safelyWithheld":0,"incorrectDelivered":0,"catches":0,"escapes":0,"elapsedSec":"10.39","peakHeapMb":137.7}
+{"completed":40000,"verifiedCorrect":40000,"safelyWithheld":0,"incorrectDelivered":0,"catches":0,"escapes":0,"elapsedSec":"21.92","peakHeapMb":137.7}
+{"completed":45000,"verifiedCorrect":45000,"safelyWithheld":0,"incorrectDelivered":0,"catches":0,"escapes":0,"elapsedSec":"21.96","peakHeapMb":137.7}
+{"completed":50000,"verifiedCorrect":50000,"safelyWithheld":2500,"incorrectDelivered":0,"catches":5000,"escapes":0,"elapsedSec":"23.23","peakHeapMb":137.7}

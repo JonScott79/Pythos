@@ -284,6 +284,24 @@ async function run() {
     assert.strictEqual(res.verified, true, 'equation_solution with Unicode x² must verify');
   });
 
+  await test('50K Regression Fixes: LaTeX fraction sums, boxed hypotenuse triangles, and d/dx Leibniz notation', async () => {
+    const { verifyResponseClaims } = require('../server/verificationBridge');
+    const { detectInputAmbiguity } = require('../server/inputAmbiguityDetector');
+
+    const fracRes = await verifyResponseClaims('$$\n\\frac{1}{2} + \\frac{1}{2} = 1\n$$', 'Compute 1/2 + 1/2');
+    assert.strictEqual(fracRes.invalidClaims.length, 0, 'Compound LaTeX fraction sum 1/2 + 1/2 = 1 must verify with zero false invalid claims');
+    assert(fracRes.verificationResults.some(v => v.verified === true));
+
+    const triRes = await verifyResponseClaims(
+      '[GEOMETRY: triangle, a=12, b=16, c=20, right_angle=C, opp=12, adj=16, hyp=20]\n\nBy the Pythagorean theorem: $a^2 + b^2 = 12^2 + 16^2 = 400 = c^2$, confirming $c = 20$.\n\n\\boxed{20}',
+      'show me this visually: right triangle with legs 12 and 16'
+    );
+    assert.strictEqual(triRes.invalidClaims.length, 0, 'Boxed hypotenuse 20 must match right_triangle_geometry without failing against 12^2+16^2');
+
+    const ambig = detectInputAmbiguity('Find the derivative d/dx of 2x^4 + 2');
+    assert.strictEqual(ambig.hasAmbiguity, false, 'Leibniz derivative notation d/dx must NOT trigger ambiguous division binding');
+  });
+
   console.log(`\n======================================================================`);
   console.log(`RESULTS: ${passed}/${total} PASSED`);
   console.log('======================================================================');

@@ -1,0 +1,214 @@
+{
+  "campaign": "PYTHOS_v1873_50K",
+  "version": "1.8.73",
+  "commit": "c9d5cf9",
+  "seed": 1414213562,
+  "date": "2026-11-21",
+  "runtimeSeconds": 23.23,
+  "peakHeapMb": 137.7,
+  "totals": {
+    "tested": 50000,
+    "passedAllChecks": 50000,
+    "safelyWithheldAdversarial": 2500,
+    "catches": 5000,
+    "incorrectDelivered": 0,
+    "escapes": 0,
+    "passRatePercent": 100,
+    "deliveredErrorRatePercent": 0
+  },
+  "domains": {
+    "ARITHMETIC": {
+      "label": "Arithmetic",
+      "tested": 5000,
+      "passed": 5000,
+      "withheld": 0,
+      "wrong": 0,
+      "catches": 0,
+      "escapes": 0
+    },
+    "FRACTIONS_DECIMALS": {
+      "label": "Fractions / Decimals / Percentages",
+      "tested": 5000,
+      "passed": 5000,
+      "withheld": 0,
+      "wrong": 0,
+      "catches": 0,
+      "escapes": 0
+    },
+    "LINEAR_EQUATIONS": {
+      "label": "Linear Equations",
+      "tested": 5000,
+      "passed": 5000,
+      "withheld": 0,
+      "wrong": 0,
+      "catches": 0,
+      "escapes": 0
+    },
+    "SYSTEMS_OF_EQUATIONS": {
+      "label": "Systems of Equations",
+      "tested": 5000,
+      "passed": 5000,
+      "withheld": 0,
+      "wrong": 0,
+      "catches": 0,
+      "escapes": 0
+    },
+    "QUADRATICS_POLYNOMIALS": {
+      "label": "Quadratics & Polynomials",
+      "tested": 5000,
+      "passed": 5000,
+      "withheld": 0,
+      "wrong": 0,
+      "catches": 0,
+      "escapes": 0
+    },
+    "GRAPHING_AND_TRIG": {
+      "label": "Functions, Graphing & Trig Handoffs",
+      "tested": 5000,
+      "passed": 5000,
+      "withheld": 0,
+      "wrong": 0,
+      "catches": 0,
+      "escapes": 0
+    },
+    "GEOMETRY_TRIG": {
+      "label": "Geometry & Trigonometry",
+      "tested": 5000,
+      "passed": 5000,
+      "withheld": 0,
+      "wrong": 0,
+      "catches": 0,
+      "escapes": 0
+    },
+    "CALCULUS": {
+      "label": "Calculus (Derivatives & Integrals)",
+      "tested": 5000,
+      "passed": 5000,
+      "withheld": 0,
+      "wrong": 0,
+      "catches": 0,
+      "escapes": 0
+    },
+    "UNITS_MATRICES_HANDOFFS": {
+      "label": "Units, Matrices & Contextual Handoffs",
+      "tested": 5000,
+      "passed": 5000,
+      "withheld": 0,
+      "wrong": 0,
+      "catches": 0,
+      "escapes": 0
+    },
+    "PHYSICS_AND_SAFETY_GATE": {
+      "label": "Physics & Safety / Recovery Gate",
+      "tested": 5000,
+      "passed": 5000,
+      "withheld": 2500,
+      "wrong": 0,
+      "catches": 5000,
+      "escapes": 0
+    }
+  },
+  "checkpoints": [
+    {
+      "completed": 5000,
+      "verifiedCorrect": 5000,
+      "safelyWithheld": 0,
+      "incorrectDelivered": 0,
+      "catches": 0,
+      "escapes": 0,
+      "elapsedSec": "1.20",
+      "peakHeapMb": 126.7
+    },
+    {
+      "completed": 10000,
+      "verifiedCorrect": 10000,
+      "safelyWithheld": 0,
+      "incorrectDelivered": 0,
+      "catches": 0,
+      "escapes": 0,
+      "elapsedSec": "3.02",
+      "peakHeapMb": 129.1
+    },
+    {
+      "completed": 15000,
+      "verifiedCorrect": 15000,
+      "safelyWithheld": 0,
+      "incorrectDelivered": 0,
+      "catches": 0,
+      "escapes": 0,
+      "elapsedSec": "4.62",
+      "peakHeapMb": 130.9
+    },
+    {
+      "completed": 20000,
+      "verifiedCorrect": 20000,
+      "safelyWithheld": 0,
+      "incorrectDelivered": 0,
+      "catches": 0,
+      "escapes": 0,
+      "elapsedSec": "6.73",
+      "peakHeapMb": 132.4
+    },
+    {
+      "completed": 25000,
+      "verifiedCorrect": 25000,
+      "safelyWithheld": 0,
+      "incorrectDelivered": 0,
+      "catches": 0,
+      "escapes": 0,
+      "elapsedSec": "8.14",
+      "peakHeapMb": 134.1
+    },
+    {
+      "completed": 30000,
+      "verifiedCorrect": 30000,
+      "safelyWithheld": 0,
+      "incorrectDelivered": 0,
+      "catches": 0,
+      "escapes": 0,
+      "elapsedSec": "8.30",
+      "peakHeapMb": 135.9
+    },
+    {
+      "completed": 35000,
+      "verifiedCorrect": 35000,
+      "safelyWithheld": 0,
+      "incorrectDelivered": 0,
+      "catches": 0,
+      "escapes": 0,
+      "elapsedSec": "10.39",
+      "peakHeapMb": 137.7
+    },
+    {
+      "completed": 40000,
+      "verifiedCorrect": 40000,
+      "safelyWithheld": 0,
+      "incorrectDelivered": 0,
+      "catches": 0,
+      "escapes": 0,
+      "elapsedSec": "21.92",
+      "peakHeapMb": 137.7
+    },
+    {
+      "completed": 45000,
+      "verifiedCorrect": 45000,
+      "safelyWithheld": 0,
+      "incorrectDelivered": 0,
+      "catches": 0,
+      "escapes": 0,
+      "elapsedSec": "21.96",
+      "peakHeapMb": 137.7
+    },
+    {
+      "completed": 50000,
+      "verifiedCorrect": 50000,
+      "safelyWithheld": 2500,
+      "incorrectDelivered": 0,
+      "catches": 5000,
+      "escapes": 0,
+      "elapsedSec": "23.23",
+      "peakHeapMb": 137.7
+    }
+  ],
+  "sampleErrors": []
+}

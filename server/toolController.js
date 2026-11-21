@@ -630,7 +630,9 @@ async function executeTool(toolName, args, sessionContext = {}) {
 
       case TOOL_ALLOWLIST.SOLVE_CALCULUS: {
         const specialistAssist = require('./specialistAssist');
-        const calcRes = await specialistAssist.runTask({ domain: 'calculus', ...args });
+        const opRaw = String(args.operation || '').toUpperCase();
+        const normalizedOp = opRaw === 'DIFFERENTIATE' ? 'DIFFERENTIATION' : (opRaw === 'INTEGRATE' ? 'INTEGRATION' : (args.operation || 'DIFFERENTIATION'));
+        const calcRes = await specialistAssist.runTask({ domain: 'calculus', ...args, operation: normalizedOp });
         if (!calcRes || calcRes.status === 'FAILED') {
           return { success: false, tool: toolName, error: calcRes?.error || 'Calculus evaluation failed' };
         }
@@ -998,7 +1000,13 @@ function selectAppropriateTool(studentIntent, userText, conversationHistory = []
     const calcExprMatch = clean.match(/(?:calculate|compute|evaluate|value\s+of)\s+([$a-zA-Z0-9.+\-*\/^()_\s\\]+)/i);
     const candidateExpr = calcExprMatch ? calcExprMatch[1].replace(/[$?]/g, '').trim() : null;
 
-    if (candidateExpr && candidateExpr.length > 0 && /[-+*\/^0-9()]/.test(candidateExpr)) {
+    const candidateNonMathWords = candidateExpr
+      ? (candidateExpr.match(/\b[a-zA-Z]{2,}\b/g) || []).filter(
+          w => !/^(?:sin|cos|tan|csc|sec|cot|arcsin|arccos|arctan|asin|acos|atan|sinh|cosh|tanh|sqrt|cbrt|ln|log|log10|exp|abs|pi|frac|left|right)$/i.test(w)
+        )
+      : [];
+
+    if (candidateExpr && candidateExpr.length > 0 && /[-+*\/^0-9()]/.test(candidateExpr) && candidateNonMathWords.length < 2) {
       recordTelemetry(TELEMETRY_EVENTS.TOOL_SELECTED, {
         tool: TOOL_ALLOWLIST.CALCULATE_DETERMINISTIC,
         reason: 'Student requested deterministic/CAS calculation',

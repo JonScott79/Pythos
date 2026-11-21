@@ -181,12 +181,17 @@ function detectInputAmbiguity(promptStr) {
     .replace(/[?.!]+$/, '')
     .trim();
   if (!strippedCmd.includes('\\frac') && !strippedCmd.includes('=')) {
-    const cleanedTokens = strippedCmd.replace(/\b(?:sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|sinh|cosh|tanh|ln|log10|log2|log|exp|sqrt|cbrt|abs|pi|m|s|kg|ft|cm|km|hr|sec|deg|rad)\b/gi, 'F');
+    // Exclude Leibniz differential operators (e.g. d/dx, d/dt, d^2/dx^2) from algebraic division ambiguity
+    const cleanedTokens = strippedCmd
+      .replace(/\bd(?:\s*\^\s*\d+)?\s*\/\s*d[a-zA-Z](?:\s*\^\s*\d+)?\b/g, 'F')
+      .replace(/\b(?:sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|sinh|cosh|tanh|ln|log10|log2|log|exp|sqrt|cbrt|abs|pi|m|s|kg|ft|cm|km|hr|sec|deg|rad)\b/gi, 'F');
     const divAmbigMatch = cleanedTokens.match(/^(?:[-+*/^0-9a-zA-Z.()\s]*?)\b([a-zA-Z0-9.]+)\s*\/\s*(\d+(?:\.\d+)?[a-zA-Z][a-zA-Z0-9^]*|[a-zA-Z]{2,})\b/);
     if (divAmbigMatch && /^[a-zA-Z0-9.+\-*/^()\s]+$/.test(strippedCmd)) {
-      const rawMatch = strippedCmd.match(/\b([a-zA-Z0-9.]+)\s*\/\s*(\d+(?:\.\d+)?[a-zA-Z][a-zA-Z0-9^]*|[a-zA-Z]{2,})\b/);
-      const numStr = rawMatch ? rawMatch[1] : divAmbigMatch[1];
-      const denStr = rawMatch ? rawMatch[2] : divAmbigMatch[2];
+      const strippedNoDiff = strippedCmd.replace(/\bd(?:\s*\^\s*\d+)?\s*\/\s*d[a-zA-Z](?:\s*\^\s*\d+)?\b/g, ' ');
+      const rawMatch = strippedNoDiff.match(/\b([a-zA-Z0-9.]+)\s*\/\s*(\d+(?:\.\d+)?[a-zA-Z][a-zA-Z0-9^]*|[a-zA-Z]{2,})\b/);
+      if (rawMatch || divAmbigMatch) {
+        const numStr = rawMatch ? rawMatch[1] : divAmbigMatch[1];
+        const denStr = rawMatch ? rawMatch[2] : divAmbigMatch[2];
       const splitIdx = /^\d/.test(denStr) ? denStr.search(/[a-zA-Z]/) : 1;
       const denFirst = denStr.slice(0, splitIdx);
       const denRest = denStr.slice(splitIdx);
@@ -199,6 +204,7 @@ function detectInputAmbiguity(promptStr) {
         clarificationMessage: clar,
         details: { numerator: numStr, denominatorToken: denStr }
       };
+      }
     }
   }
 
