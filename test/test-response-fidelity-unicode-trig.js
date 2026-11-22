@@ -324,6 +324,38 @@ async function run() {
     assert(res.verificationResults.every(v => v.verified === true), 'Every extracted claim (equation_solution, ln(a^b)=b*ln(a), arithmetic checks) must verify');
   });
 
+  await test('Conceptual Derivative & Spelling Typo Resilience ("explain what a derivitive is")', async () => {
+    const { verifyResponseClaims } = require('../server/verificationBridge');
+    const { classifyProblem } = require('../server/problemClassifier');
+    const { analyzeDeterministicIntent } = require('../server/deterministicRouter');
+
+    const conceptualReply = [
+      'A derivative measures the instantaneous rate of change of a function $f(x)$.',
+      '$$\\frac{d}{dx}[f(x)] = f\'(x)$$',
+      'Formally, it is defined by the limit of the difference quotient as $h \\to 0$:',
+      '$$\\lim_{h \\to 0} \\frac{f(x+h) - f(x)}{h} = f\'(x)$$',
+      '$$\\boxed{f\'(x) = \\lim_{h \\to 0} \\frac{f(x+h) - f(x)}{h}}$$'
+    ].join('\n');
+
+    const res = await verifyResponseClaims(conceptualReply, 'explain what a derivitive is');
+    assert.strictEqual(res.invalidClaims.length, 0, 'Conceptual derivative definition must not produce invalid claims');
+    assert.strictEqual(res.unknownClaims.length, 0, 'Abstract f(x) limit definition and boxed formula must not produce UNKNOWN claims');
+
+    // Concrete limit verification via SymPy verify_limit
+    const concreteLimitReply = 'For $f(x) = x^2$, the limit is $$\\lim_{x \\to 0} \\frac{\\sin(x)}{x} = 1$$';
+    const limRes = await verifyResponseClaims(concreteLimitReply, 'explain limits');
+    assert.strictEqual(limRes.invalidClaims.length, 0);
+    assert.strictEqual(limRes.unknownClaims.length, 0);
+    assert(limRes.verificationResults.some(v => v.verified === true && v.status === 'VERIFIED'), 'Concrete limit lim_{x->0} sin(x)/x = 1 must verify via SymPy verify_limit');
+
+    // Spelling resilience on "derivitive"
+    const cls1 = classifyProblem('explain what a derivitive is');
+    const cls2 = classifyProblem('explain what a derivative is');
+    assert.strictEqual(cls1.problemDomain, cls2.problemDomain, 'Misspelled "derivitive" must classify identically to "derivative"');
+    const det = analyzeDeterministicIntent('find the derivitive of 3x^2');
+    assert(det && det.type === 'CALCULUS_DERIVATIVE' && det.result === '6*x', 'Misspelled "find the derivitive of 3x^2" must route deterministically to 6*x');
+  });
+
   console.log(`\n======================================================================`);
   console.log(`RESULTS: ${passed}/${total} PASSED`);
   console.log('======================================================================');

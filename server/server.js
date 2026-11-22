@@ -3303,7 +3303,9 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
 
     const verifiedClaimCount = (verificationResults || []).filter(v => v && v.verified === true && (v.status === 'VERIFIED' || v.status === 'CONDITIONALLY_EQUIVALENT')).length;
     const unknownClaimCount = (verificationResults || []).filter(v => v && v.verified === false && v.status === 'UNKNOWN').length;
-    const isConceptualSimLabPrompt = /\bin\s+the\s+sim\s+lab\b/i.test(effectiveVerificationPrompt || '');
+    const isConceptualSimLabPrompt =
+      /\bin\s+the\s+sim\s+lab\b/i.test(effectiveVerificationPrompt || '') ||
+      (isGuidedTutoringPrompt && !/[=\d]/.test(effectiveVerificationPrompt || '') && /\b(?:explain|what\s+is\s+(?:a|an|the)|what\s+does|define|difference\s+between)\b/i.test(effectiveVerificationPrompt || ''));
     const allExtractedClaimsUnknown = !isConceptualSimLabPrompt && claims.length > 0 && verifiedClaimCount === 0 && unknownClaimCount > 0;
 
     const hasTurnImages = Boolean(

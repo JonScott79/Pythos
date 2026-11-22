@@ -372,3 +372,68 @@ def verify_change_of_variables(claim: dict) -> dict:
             }
     except Exception as e:
         return {"verified": False, "status": "UNKNOWN", "reason": str(e)}
+
+
+def verify_limit(claim: dict) -> dict:
+    """
+    Verifies claimed limit: lim_{var -> target} [ expression ] = proposed_value
+    """
+    expr_str = claim.get("expression") or claim.get("function")
+    proposed_str = claim.get("proposed_value") or claim.get("proposed_limit")
+    var_str = str(claim.get("variable", "x")).strip()
+    target_str = str(claim.get("target", "")).strip()
+
+    if not expr_str or proposed_str is None or not target_str:
+        return {"verified": False, "status": "UNKNOWN", "reason": "Missing limit parameters"}
+
+    # Abstract function placeholders like f(x+h) or g(x) are definitional templates, not concrete limits
+    if re.search(r"\b[fFgGhH]\s*'+|\b[fFgGhH]\s*\(|\\Delta\b|Δ", f"{expr_str} {proposed_str}"):
+        return {"verified": False, "status": "UNKNOWN", "reason": "Abstract function placeholder in limit definition"}
+
+    try:
+        limit_dir = "+-"
+        t_clean = target_str.replace(r"\infty", "oo").replace("∞", "oo").strip()
+        m_dir = re.match(r"^(.+?)\s*(?:\^\s*\{?\s*([+-])\s*\}?|([+-]))$", t_clean)
+        if m_dir and m_dir.group(1).strip() not in ("", "+", "-"):
+            t_clean = m_dir.group(1).strip()
+            limit_dir = m_dir.group(2) or m_dir.group(3)
+
+        expr_clean = _normalize_calculus_expr(str(expr_str), strip_constant=False)
+        prop_clean = _normalize_calculus_expr(str(proposed_str), strip_constant=False)
+        target_clean = _normalize_calculus_expr(t_clean, strip_constant=False)
+        if not expr_clean or not prop_clean or not target_clean:
+            return {"verified": False, "status": "UNKNOWN", "reason": "Empty normalized limit expression"}
+
+        all_idents = set(re.findall(r"\b([a-zA-Z_][a-zA-Z0-9_]*)\b", f"{expr_clean} {prop_clean} {target_clean}"))
+        reserved = {"sin", "cos", "tan", "sec", "csc", "cot", "asin", "acos", "atan", "sinh", "cosh", "tanh", "log", "ln", "exp", "sqrt", "Abs", "abs", "pi", "e", "oo"}
+        local_syms = {"e": sp.E, "pi": sp.pi, "ln": sp.log, "oo": sp.oo, "Abs": sp.Abs, "abs": sp.Abs}
+        for ident in all_idents - reserved:
+            local_syms[ident] = sp.Symbol(ident, real=True)
+        x = local_syms.get(var_str) or sp.Symbol(var_str, real=True)
+        local_syms[var_str] = x
+
+        expr = safe_sympify(expr_clean, locals=local_syms)
+        target_val = safe_sympify(target_clean, locals=local_syms)
+        proposed = safe_sympify(prop_clean, locals=local_syms)
+
+        actual_limit = sp.limit(expr, x, target_val, dir=limit_dir)
+        if isinstance(actual_limit, sp.Limit) or actual_limit == sp.nan:
+            return {"verified": False, "status": "UNKNOWN", "reason": "Limit could not be evaluated deterministically"}
+
+        if actual_limit == proposed or sp.simplify(sp.trigsimp(actual_limit - proposed)) == 0:
+            return {
+                "verified": True,
+                "status": "VERIFIED",
+                "actual_limit": str(actual_limit),
+                "details": f"lim_{{{var_str}->{target_str}}}[{expr_str}] = {actual_limit} matches proposed limit."
+            }
+        return {
+            "verified": False,
+            "status": "INCORRECT_LIMIT",
+            "error_type": "INCORRECT_LIMIT",
+            "actual_limit": str(actual_limit),
+            "proposed_limit": str(proposed_str),
+            "details": f"Actual limit lim_{{{var_str}->{target_str}}}[{expr_str}] is {actual_limit}, not {proposed_str}"
+        }
+    except Exception as e:
+        return {"verified": False, "status": "UNKNOWN", "reason": str(e)}

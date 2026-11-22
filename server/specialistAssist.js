@@ -130,9 +130,9 @@ function extractSpecialistTask(userText) {
 
   // 2. Symbolic Derivative (with optional evaluation point 'at x = 2' or domain restriction 'for x > 0')
   // e.g. "derivative of sin(x^2)", "differentiate x^3 - 4x", "d/dx (e^(2x))", "Find the derivative of x^3 + 2x at x = 2"
-  const isSecondDeriv = /\b(?:second\s+derivative|d\^2\/d[a-zA-Z]\^2|f''\([a-zA-Z]\))\b/i.test(clean);
-  const derivMatch = clean.match(/(?:differentiate(?!\s+between\b)|derivative\s+of|find\s+the\s+derivative\s+of|calculate\s+the\s+derivative\s+of|compute\s+the\s+derivative\s+of|d\/d[a-zA-Z]|dy\/d[a-zA-Z])\s+(?:[fgh]\([a-zA-Z]\)\s*=\s*|y\s*=\s*)?([$a-zA-Z0-9.+\-*\/^()_\s\\{}]+)/i) ||
-                     clean.match(/(?:d\^2\/d[a-zA-Z]\^2|second\s+derivative\s+of)\s+([$a-zA-Z0-9.+\-*\/^()_\s\\{}]+)/i);
+  const isSecondDeriv = /\b(?:second\s+deriv[ai]tive|d\^2\/d[a-zA-Z]\^2|f''\([a-zA-Z]\))\b/i.test(clean);
+  const derivMatch = clean.match(/(?:differen[tc]iate(?!\s+between\b)|deriv[ai]tive\s+of|find\s+the\s+deriv[ai]tive\s+of|calculate\s+the\s+deriv[ai]tive\s+of|compute\s+the\s+deriv[ai]tive\s+of|d\/d[a-zA-Z]|dy\/d[a-zA-Z])\s+(?:[fgh]\([a-zA-Z]\)\s*=\s*|y\s*=\s*)?([$a-zA-Z0-9.+\-*\/^()_\s\\{}]+)/i) ||
+                     clean.match(/(?:d\^2\/d[a-zA-Z]\^2|second\s+deriv[ai]tive\s+of)\s+([$a-zA-Z0-9.+\-*\/^()_\s\\{}]+)/i);
   if (derivMatch) {
     const wrtMatch = clean.match(/\bwith\s+respect\s+to\s+([a-zA-Z])\b/i) || clean.match(/\bd(?:\^2)?\/d([a-zA-Z])(?:\^2)?\b/i);
     const evalPointMatch = clean.match(/\bat\s+(?:[a-zA-Z]\s*=\s*)?([-+]?\d+(?:\.\d+)?)\b/i);

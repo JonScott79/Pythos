@@ -18,7 +18,7 @@ from arithmetic_verifier import verify_arithmetic
 from algebra_verifier import verify_algebra, verify_symbolic_equivalence
 from probability_verifier import verify_birthday_problem
 from physics_verifier import verify_conical_pendulum, verify_free_fall_kinematics
-from calculus_verifier import verify_derivative, verify_antiderivative, verify_change_of_variables
+from calculus_verifier import verify_derivative, verify_antiderivative, verify_change_of_variables, verify_limit
 from calculus_improper_verifier import verify_improper_integral
 from calculus_singularity_verifier import verify_singularity_classification
 from physics_universal_verifier import verify_dimensions, verify_conservation_law
@@ -68,6 +68,8 @@ def dispatch_verification(payload: dict) -> dict:
                 return verify_improper_integral(data)
             elif claim_type == "singularity_classification" or claim_type == "singularity":
                 return verify_singularity_classification(data)
+            elif claim_type == "limit":
+                return verify_limit(data)
             else:
                 return {"verified": False, "status": "UNKNOWN", "reason": f"Unsupported calculus claim_type: {claim_type}"}
         

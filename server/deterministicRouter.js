@@ -2699,7 +2699,7 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   }
 
   // 3f. Calculus: Derivative, Definite Integral, Limit, Improper Integral
-  const derivMatch = clean.match(/^(?:(?:calculate|compute|find)\s+(?:the\s+)?derivative\s+of|differentiate)\s+([-+]?\d*(?:\.\d+)?)\s*\*?\s*([a-zA-Z])(?:\^(\d+))?$/i);
+  const derivMatch = clean.match(/^(?:(?:calculate|compute|find)\s+(?:the\s+)?deriv[ai]tive\s+of|differen[tc]iate)\s+([-+]?\d*(?:\.\d+)?)\s*\*?\s*([a-zA-Z])(?:\^(\d+))?$/i);
   if (derivMatch) {
     const a = derivMatch[1] === '' || derivMatch[1] === '+' ? 1 : (derivMatch[1] === '-' ? -1 : parseFloat(derivMatch[1]));
     const v = derivMatch[2];

@@ -756,11 +756,15 @@ function extractClaims(text, userPrompt = '') {
     : (userPrompt?.prompt && typeof userPrompt.prompt === 'string' ? userPrompt.prompt.trim() : '');
 
   const lower = text.toLowerCase();
+  const hasAbstractFunctionPlaceholder = (s) =>
+    typeof s === 'string' &&
+    (/\\Delta\b|Δ|\b[fFgGhH]\s*'+|\b(?:df|dg|dy)\s*\/\s*d[a-zA-Z]|\b[fFgGhH]\s*\(\s*[a-zA-Z0-9+\-*/\s\\Δ,]+\)/.test(s));
 
   // 1. Definite & Improper Integrals (e.g. \int_0^\infty e^{-x} dx = 1)
   const integralRegex = /\\int_\{?([^}]+)\}?\^\{?([^}]+)\}?\s*(?:\\left\(|\()?\s*([^=]+?)\s*(?:\\right\))?\s*d([a-zA-Z])\s*=\s*([^$\n]+)/g;
   let match;
   while ((match = integralRegex.exec(text)) !== null) {
+    if (hasAbstractFunctionPlaceholder(match[0])) continue;
     claims.push({
       domain: 'calculus',
       claim_type: 'definite_integral',
@@ -778,6 +782,7 @@ function extractClaims(text, userPrompt = '') {
   // 1b. Indefinite Integrals / Antiderivatives (e.g. \int 2x\,dx = x^2 + C or ∫ 3t^2 dt = t^3 + C)
   const indefIntegralRegex = /(?:\\int(?!\s*_)|∫(?!\s*_))\s*([^=$\n]+?)\s*(?:\\,|\\;|\\!|\s|\*)*d([a-zA-Z])\s*=\s*([^$\n]+?)(?=\$|\\\]|\\quad|\\\\|\.\s+(?:Final|Therefore|Thus|So|Hence|[A-Z])|\n|$)/g;
   while ((match = indefIntegralRegex.exec(text)) !== null) {
+    if (hasAbstractFunctionPlaceholder(match[0])) continue;
     let rawIntegrand = match[1].trim()
       .replace(/^\\left\((.+)\\right\)$/, '$1')
       .replace(/^\((.+)\)$/, '$1')
@@ -795,7 +800,7 @@ function extractClaims(text, userPrompt = '') {
         rawRhsChain = rhsSegments[rhsSegments.length - 1];
       }
     }
-    if (rawIntegrand && rawRhsChain && !/\\int|∫/.test(rawRhsChain)) {
+    if (rawIntegrand && rawRhsChain && !/\\int|∫/.test(rawRhsChain) && !hasAbstractFunctionPlaceholder(rawRhsChain)) {
       claims.push({
         domain: 'calculus',
         claim_type: 'antiderivative',
@@ -813,10 +818,11 @@ function extractClaims(text, userPrompt = '') {
   const derivRegex = /\\frac\{d\}\{d([a-zA-Z])\}\s*(?:\\,|\\;|\\s)*(?:\[([^\]]+)\]|\\left\((.+?)\\right\)|\(([^)]+)\)|([a-zA-Z0-9^+\-*/.{}\s\\]+?))\s*=\s*([^$\n]+?)(?=\s*(?:\\quad|\$|\\\\|\n|\\end|\]|$))/g;
   while ((match = derivRegex.exec(text)) !== null) {
     let rawExpr = (match[2] || match[3] || match[4] || match[5] || '').trim();
-    let cleanExpr = normalizeSymbolicSide(rawExpr)
-      .replace(/^(?:differentiate|find\s+the\s+derivative\s+of|calculate\s+the\s+derivative\s+of|what\s+is\s+the\s+derivative\s+of|compute\s+the\s+derivative\s+of)\s+/i, '')
-      .trim();
     const rawPropVal = match[6].trim().replace(/[.,;:]+$/, '');
+    if (hasAbstractFunctionPlaceholder(rawExpr) || hasAbstractFunctionPlaceholder(rawPropVal) || /\\lim\b/i.test(rawPropVal)) continue;
+    let cleanExpr = normalizeSymbolicSide(rawExpr)
+      .replace(/^(?:differentiate|find\s+the\s+deriv[ai]tive\s+of|calculate\s+the\s+deriv[ai]tive\s+of|what\s+is\s+the\s+deriv[ai]tive\s+of|compute\s+the\s+deriv[ai]tive\s+of)\s+/i, '')
+      .trim();
     const propVal = normalizeSymbolicSide(rawPropVal) || rawPropVal;
 
     claims.push({
@@ -835,15 +841,18 @@ function extractClaims(text, userPrompt = '') {
 // 3. Limits (e.g. \lim_{x \to 0} \frac{\sin x}{x} = 1)
   const limitRegex = /\\lim_\{?([a-zA-Z])\s*\\to\s*([^}]+)\}?\s*([^=]+)\s*=\s*([^$\n]+)/g;
   while ((match = limitRegex.exec(text)) !== null) {
+    const limExpr = match[3].trim();
+    const limProp = match[4].trim().replace(/[.,;:]+$/, '');
+    if (hasAbstractFunctionPlaceholder(limExpr) || hasAbstractFunctionPlaceholder(limProp)) continue;
     claims.push({
       domain: 'calculus',
       claim_type: 'limit',
       raw_match: match[0],
       data: {
-        expression: match[3].trim(),
+        expression: limExpr,
         variable: match[1].trim(),
         target: match[2].trim(),
-        proposed_value: match[4].trim().replace(/[.,;:]+$/, '')
+        proposed_value: limProp
       }
     });
   }
@@ -2260,14 +2269,18 @@ function extractClaims(text, userPrompt = '') {
       }
     } else if (cleanBoxedStr) {
       // Only flag unverified_boxed_answer when the boxed content is a concrete numeric/equation solution
-      // (or not a multi-variable symbolic formula in a conceptual/Sim Lab derivation).
-      const isConceptualPrompt = /\b(?:in\s+the\s+sim\s+lab|derive|how\s+does|why\s+does|explain\s+(?:why|how)|difference\s+between|walk\s+me\s+through)\b/i.test(promptStr || '');
+      // (or not a multi-variable symbolic formula / abstract definition in a conceptual/Sim Lab derivation).
+      const isConceptualPrompt = /\b(?:in\s+the\s+sim\s+lab|derive|how\s+does|why\s+does|explain\b|what\s+is\s+(?:a|an|the)\b|what\s+does\b|define\b|difference\s+between|walk\s+me\s+through)\b/i.test(promptStr || '');
       const formulaVars = new Set(
         cleanBoxedStr
-          .replace(/\\(?:sqrt|frac|text|left|right|sin|cos|tan|sec|csc|cot|log|ln|pi|Delta|theta|omega|alpha|beta|gamma|cdot|times)\b/gi, '')
+          .replace(/\\(?:sqrt|frac|text|left|right|sin|cos|tan|sec|csc|cot|log|ln|pi|Delta|theta|omega|alpha|beta|gamma|cdot|times|lim|to|int)\b/gi, '')
           .match(/[a-zA-Z]/g) || []
       );
-      const hasMultiVarFormula = formulaVars.size >= 2 && !/^\s*[-+]?\d/.test(cleanBoxedStr);
+      const hasMultiVarFormula = (
+        formulaVars.size >= 2 ||
+        hasAbstractFunctionPlaceholder(cleanBoxedStr) ||
+        /\\lim\b|\\int\b|∫|\\frac\{d/.test(cleanBoxedStr)
+      ) && !/^\s*[-+]?\d+(?:\.\d+)?\s*$/.test(cleanBoxedStr);
       if (!(isConceptualPrompt && hasMultiVarFormula)) {
         // Response contains a \boxed{...} final mathematical claim with zero extracted equations
         claims.push({
@@ -4047,11 +4060,11 @@ function auditPromptClaimFidelity(claims, prompt, verificationResults = null) {
   // 6. Calculus Derivative Queries (only when asking to compute/find a derivative of an expression,
   // not conceptual questions like "limit definition of the derivative" or "how does shrinking Δx illustrate...")
   const isDerivativeComputationPrompt = (
-    /(?:find|calculate|compute|what\s+is|determine)\s+(?:the\s+)?(?:first\s+|second\s+|partial\s+)?derivative\b/i.test(prompt) ||
+    /(?:find|calculate|compute|what\s+is|determine)\s+(?:the\s+)?(?:first\s+|second\s+|partial\s+)?deriv[ai]tive\b/i.test(prompt) ||
     /\bd\/d[a-zA-Z]\b/i.test(prompt) ||
-    /\bdifferentiate\s+(?!between\b)/i.test(prompt)
-  ) && !/\b(?:limit\s+definition|concept(?:ual)?|illustrate|explain\s+(?:why|how)|how\s+does|in\s+the\s+sim\s+lab)\b/i.test(prompt);
-  if (isDerivativeComputationPrompt && !/\bwhat\s+is\s+(?:a|the)\s+derivative\s*\??$/i.test(prompt.trim())) {
+    /\bdifferen[tc]iate\s+(?!between\b)/i.test(prompt)
+  ) && !/\b(?:limit\s+definition|concept(?:ual)?|illustrate|explain\b|how\s+does|in\s+the\s+sim\s+lab)\b/i.test(prompt);
+  if (isDerivativeComputationPrompt && !/\bwhat\s+is\s+(?:a|the)\s+deriv[ai]tive(?:\s+is)?\s*\??$/i.test(prompt.trim())) {
     const check = hasAffirmativelyVerifiedClaim(c => c.claim_type === 'derivative');
     if (!check.ok) {
       return {
@@ -4067,10 +4080,10 @@ function auditPromptClaimFidelity(claims, prompt, verificationResults = null) {
 
   // 6b. Calculus Indefinite Integral / Antiderivative Queries
   const isIndefiniteIntegralPrompt = (
-    /(?:(?:find|calculate|compute|evaluate|what\s+is)\s+(?:the\s+)?(?:(?:indefinite\s+)?integral|antiderivative)\s+of\b|\bintegrate\b|\\int(?!\s*_)|∫(?!\s*_))/i.test(prompt)
+    /(?:(?:find|calculate|compute|evaluate|what\s+is)\s+(?:the\s+)?(?:(?:indefinite\s+)?int(?:e|er)gral|antideriv[ai]tive)\s+of\b|\bint(?:e|er)grate\b|\\int(?!\s*_)|∫(?!\s*_))/i.test(prompt)
   ) && !/\bfrom\s+[-\d.a-zA-Z\\]+\s+to\s+[-\d.a-zA-Z\\]+/i.test(prompt) &&
-    !/\b(?:concept(?:ual)?|illustrate|explain\s+(?:why|how)|how\s+does|in\s+the\s+sim\s+lab)\b/i.test(prompt);
-  if (isIndefiniteIntegralPrompt && !/\bwhat\s+is\s+(?:an?\s+|the\s+)?(?:integral|antiderivative)\s*\??$/i.test(prompt.trim())) {
+    !/\b(?:concept(?:ual)?|illustrate|explain\b|how\s+does|in\s+the\s+sim\s+lab)\b/i.test(prompt);
+  if (isIndefiniteIntegralPrompt && !/\bwhat\s+is\s+(?:an?\s+|the\s+)?(?:int(?:e|er)gral|antideriv[ai]tive)(?:\s+is)?\s*\??$/i.test(prompt.trim())) {
     const check = hasAffirmativelyVerifiedClaim(c => c.claim_type === 'antiderivative');
     if (!check.ok) {
       return {
