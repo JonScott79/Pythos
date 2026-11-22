@@ -92,7 +92,11 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
     return {
       intent: INTENTS.UNKNOWN,
       confidence: 'low',
-      signals: ['empty_or_invalid_input']
+      signals: ['empty_or_invalid_input'],
+      rawText: text,
+      interpretationConfidence: 0,
+      interpretationStatus: 'UNRESOLVED',
+      provenance: []
     };
   }
 
@@ -104,6 +108,21 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
   }
 
   const interpreted = preInterpreted || interpretUserTurn(text, conversationHistory, activeProblemState);
+  const attachMeta = (res) => ({
+    ...res,
+    rawText: text,
+    canonicalText: interpreted.canonicalText,
+    interpretedTurn: interpreted,
+    interpretationConfidence: interpreted.interpretationConfidence,
+    interpretationStatus: interpreted.interpretationStatus,
+    provenance: interpreted.provenance,
+    hasAmbiguity: interpreted.normalizedMath.ambiguities.length > 0,
+    ambiguities: interpreted.normalizedMath.ambiguities
+  });
+  return attachMeta(classifyStudentIntentCore(text, conversationHistory, activeProblemState, interpreted));
+}
+
+function classifyStudentIntentCore(text, conversationHistory, activeProblemState, interpreted) {
   const clean = sanitizeInput(interpreted.canonicalText || text);
   const transpiledClean = sanitizeInput(interpreted.transpiledText || clean);
   const lower = clean.toLowerCase();
@@ -442,8 +461,31 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
   }
 
   // -------------------------------------------------------------
+  // 7b. EXPLANATION_REQUEST / CONCEPTUAL PIVOT (Must preempt step/answer when student pivots topic)
+  // -------------------------------------------------------------
+  const isExplanation = /^(?:why(?:\s+is\s+that)?\??|why\s+did\s+you\s+do\s+that\??|how\s+did\s+you\s+get\s+that\??|can\s+you\s+explain(?:\s+that|\s+why|\s+how)?(?:\s+again)?\??|what\s+does\s+that\s+mean\??|where\s+did\s+(?:that|\d+|the)\s+come\s+from\??)$/i.test(lower) ||
+                        /^(?:(?:actually|wait)[,\s]+)?(?:can\s+you\s+|could\s+you\s+|please\s+)?explain(?:\s+step[-\s]by[-\s]step)?(?:\s+(?:how|why|what|the|this|that|to\s+me))?\b/i.test(lower) ||
+                        /^(?:(?:actually|wait)[,\s]+)?(?:what\s+is\s+(?:a|an|the)\b|what'?s\s+(?:a|an|the)\b|how\s+does\s+(?:a|an|the)\b)/i.test(lower) ||
+                        /^(?:why|how)\s+(?:is|did|does|can|would|are|was|were|come|so|to)\b/i.test(lower) ||
+                        /^(?:what(?:'s|\s+is)\s+(?:the\s+)?(?:answer|solution|result)|can\s+you\s+(?:give|tell)\s+me\s+the\s+answer|show\s+me\s+the\s+(?:answer|solution))\b/i.test(lower);
+  if (isExplanation) {
+    signals.push('explanation_query');
+    return { intent: INTENTS.EXPLANATION_REQUEST, confidence: 'high', signals };
+  }
+
+  // -------------------------------------------------------------
   // 8. PROPOSED_STEP Intent
   // -------------------------------------------------------------
+  if (interpreted.normalizedMath.ambiguities.length > 0) {
+    signals.push('ambiguous_math_notation');
+    return {
+      intent: clean.includes('=') ? INTENTS.PROPOSED_STEP : (hasActiveProblem ? INTENTS.PROPOSED_STEP : INTENTS.PROPOSED_ANSWER),
+      confidence: 'low',
+      signals,
+      extractedExpression: sanitizeInput(text)
+    };
+  }
+
   const stepPrefixMatch = clean.match(/^(?:so\s+then\s+(?:it\s+becomes|we\s+get|it's|it\s+is)?|then\s+(?:it\s+becomes|we\s+get|it's|it\s+is)?|so\s+(?:now\s+)?(?:we\s+get|it\s+becomes)?|next\s+step\s*(?:is|:)?|which\s+(?:gives|becomes|means))\s*(.+)$/i);
   if (stepPrefixMatch && (containsMathSymbols(stepPrefixMatch[1]) || /\d/.test(stepPrefixMatch[1]))) {
     signals.push('step_transition_prefix', 'contains_math');
@@ -451,12 +493,12 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
       intent: INTENTS.PROPOSED_STEP,
       confidence: 'high',
       signals,
-      extractedExpression: stepPrefixMatch[1].trim()
+      extractedExpression: transpileSpokenMath(stepPrefixMatch[1].trim())
     };
   }
 
   // 8b. Conversational Pragmatics: Elliptical Step RHS or Verbal Operation Reply
-  if (interpreted.pragmatics) {
+  if (interpreted.pragmatics && !interpreted.pragmatics.isStaleContext && !interpreted.pragmatics.contextConflict) {
     if (interpreted.pragmatics.isEllipticalStepRhs && interpreted.pragmatics.inferredFullStep) {
       signals.push('elliptical_step_rhs');
       return {
@@ -529,7 +571,21 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
     };
   }
 
+  if (hasActiveProblem && transpiledClean.includes('=') && transpiledClean.length <= 50) {
+    const eqSides = transpiledClean.split('=');
+    if (eqSides.length === 2 && isMathematicalExpression(eqSides[0].trim()) && isMathematicalExpression(eqSides[1].trim())) {
+      signals.push('contextual_equation_step');
+      return {
+        intent: INTENTS.PROPOSED_STEP,
+        confidence: 'high',
+        signals,
+        extractedExpression: transpiledClean
+      };
+    }
+  }
+
   const isCandidateRootValue = /^(?:(?:±|\\pm|\+-)\s*)?(?:[-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?|[-+]?(?:\\?sqrt|√)\s*[\({]?\s*\d+(?:\.\d+)?\s*[\)}]?)$/i.test(transpiledClean);
+  const isStandaloneNonFractionRoot = /^(?:(?:±|\\pm|\+-)\s*)?(?:[-+]?\d+(?:\.\d+)?|[-+]?(?:\\?sqrt|√)\s*[\({]?\s*\d+(?:\.\d+)?\s*[\)}]?)$/i.test(transpiledClean);
 
   if (hasActiveProblem) {
     const looksMath = isMathematicalExpression(transpiledClean) || isCandidateRootValue;
@@ -559,7 +615,7 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
     }
   }
 
-  if (isCandidateRootValue) {
+  if (isStandaloneNonFractionRoot) {
     signals.push('standalone_numeric_value');
     return {
       intent: INTENTS.PROPOSED_ANSWER,
@@ -567,18 +623,6 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
       signals,
       extractedExpression: transpiledClean
     };
-  }
-
-  // -------------------------------------------------------------
-  // 10. EXPLANATION_REQUEST Intent
-  // -------------------------------------------------------------
-  const isExplanation = /^(?:why(?:\s+is\s+that)?\??|why\s+did\s+you\s+do\s+that\??|how\s+did\s+you\s+get\s+that\??|can\s+you\s+explain(?:\s+that|\s+why|\s+how)?(?:\s+again)?\??|what\s+does\s+that\s+mean\??|where\s+did\s+(?:that|\d+|the)\s+come\s+from\??)$/i.test(lower) ||
-                        /^(?:can\s+you\s+)?explain(?:\s+step[-\s]by[-\s]step)?(?:\s+(?:how|why|what|the|this|that|to\s+me))?\b/i.test(lower) ||
-                        /^(?:why|how)\s+(?:is|did|does|can|would|are|was|were|come|so|to)\b/i.test(lower) ||
-                        /^(?:what(?:'s|\s+is)\s+(?:the\s+)?(?:answer|solution|result)|can\s+you\s+(?:give|tell)\s+me\s+the\s+answer|show\s+me\s+the\s+(?:answer|solution))\b/i.test(lower);
-  if (isExplanation) {
-    signals.push('explanation_query');
-    return { intent: INTENTS.EXPLANATION_REQUEST, confidence: 'high', signals };
   }
 
   // -------------------------------------------------------------

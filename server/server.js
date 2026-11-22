@@ -28,6 +28,7 @@ const OLLAMA_API_KEY = process.env.OLLAMA_API_KEY ? process.env.OLLAMA_API_KEY.t
 const providerPolicy = require('./providerPolicy');
 const projectKnowledgeService = require('./projectKnowledgeService');
 const lanzarIdService = require('./lanzarIdService');
+const inputInterpreter = require('./inputInterpreter');
 const PORT = process.env.PORT || 3006;
 const REQUEST_TIMEOUT_MS = parseInt(process.env.REQUEST_TIMEOUT_MS, 10) || 180000; // 180s timeout for vision models
 const REVISION_TIMEOUT_MS = parseInt(process.env.REVISION_TIMEOUT_MS, 10) || 25000; // 25s bounded timeout for revision calls
@@ -2341,8 +2342,16 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
   const activeProblemContext = boundedContext.activeProblemContext || '';
   const activeProblemState = boundedContext.activeProblemState;
 
-  // Student Intent Classification & Proposed Work Evaluation
-  const studentIntent = lastUserMsg ? classifyStudentIntent(lastUserMsg.content, messages, activeProblemState) : null;
+  // Authoritative Front-Door Input Interpretation, Student Intent Classification & Proposed Work Evaluation
+  let interpretedTurn = null;
+  if (lastUserMsg && typeof lastUserMsg.content === 'string') {
+    try {
+      interpretedTurn = inputInterpreter.interpretUserTurn(lastUserMsg.content, messages, activeProblemState);
+    } catch (interpErr) {
+      console.warn('[INTERPRETER] Fallback to raw input:', interpErr.message);
+    }
+  }
+  const studentIntent = lastUserMsg ? classifyStudentIntent(lastUserMsg.content, messages, activeProblemState, interpretedTurn) : null;
   const studentEvaluation = studentIntent ? evaluateStudentWork(lastUserMsg.content, studentIntent, messages, activeProblemState) : null;
   if (studentEvaluation && activeProblemState && activeProblemState.active) {
     if (studentEvaluation.status === 'STEP_VERIFIED_CORRECT' || studentEvaluation.status === 'STEP_VERIFIED_INCORRECT') {

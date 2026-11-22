@@ -555,7 +555,12 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
       extractedExpr = cleanPrompt;
     }
 
-    const activeMath = mathExpr || extractedEq || extractedExpr || null;
+    // Distinguish genuine new problems from terse student work/follow-ups
+    const isExplicitNewProblem = trans.type === 'NEW_TOPIC_EXPLICIT' ||
+      /^(?:(?:now|can\s+you|please|let's)\s+)?(?:solve|do|try|calculate|work\s+out)\s+([a-zA-Z0-9+\-*/^()=.\s]+)$/i.test(msg.content) ||
+      /^(?:new|next|different)\s+problem/i.test(msg.content);
+
+    const activeMath = (isExplicitNewProblem && extractedEq) ? extractedEq : (mathExpr || extractedEq || extractedExpr || null);
     const isAlgebraicEquation = Boolean(extractedEq);
     const isMathematicalExpression = Boolean(extractedExpr);
 
@@ -572,11 +577,6 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
       ? classification.problemSubtype
       : (isAlgebraicEquation ? (extractedEq.includes('pi') || extractedEq.includes('π') ? 'EQUALITY_VERIFICATION' : 'LINEAR_EQUATION') : (isMathematicalExpression ? (extractedExpr.includes('pi') || extractedExpr.includes('π') ? 'RADIAN_EXPRESSION' : 'EXPRESSION_SIMPLIFICATION') : (activeMath ? 'FUNCTION' : 'GENERAL')));
 
-    // Distinguish genuine new problems from terse student work/follow-ups
-    const isExplicitNewProblem = trans.type === 'NEW_TOPIC_EXPLICIT' ||
-      /^(?:(?:now|can\s+you|please|let's)\s+)?(?:solve|do|try|calculate|work\s+out)\s+([a-zA-Z0-9+\-*/^()=.\s]+)$/i.test(msg.content) ||
-      /^(?:new|next|different)\s+problem/i.test(msg.content);
-
     const isQuestionOrValidation = /^(?:is\s+|why\s+|how\s+|what\s+|can\s+you|did\s+i|check\b)/i.test(msg.content.trim()) ||
       /\b(?:right|correct|wrong)\??$/i.test(msg.content.trim());
 
@@ -586,11 +586,15 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
     // Check whether the extracted equation or referential expression is an intermediate step or candidate answer of the active problem
     let isIntermediateStepOfActive = false;
     const stepCandidateEq = extractedEq || (activeMath && activeMath.includes('=') ? activeMath : null);
-    if (stepCandidateEq && currentActive && currentActive.activeExpression) {
+    if (stepCandidateEq && currentActive && currentActive.activeExpression && !isExplicitNewProblem) {
       try {
-        if (evaluateLinearEquationStep(stepCandidateEq, currentActive.activeExpression) ||
-            evaluateEquationCandidate(stepCandidateEq, currentActive.activeExpression)) {
+        if (evaluateLinearEquationStep(stepCandidateEq, currentActive.activeExpression)) {
           isIntermediateStepOfActive = true;
+        } else {
+          const candStep = evaluateEquationCandidate(stepCandidateEq, currentActive.activeExpression);
+          if (candStep && (candStep.status === 'STEP_VERIFIED_CORRECT' || candStep.status === 'ANSWER_VERIFIED_CORRECT' || candStep.isOmittedOperation)) {
+            isIntermediateStepOfActive = true;
+          }
         }
       } catch (_) {}
     }

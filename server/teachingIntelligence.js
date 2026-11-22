@@ -1039,9 +1039,10 @@ function auditProposedShortcut({ userText = '', activeProblemState = null, origi
 
   // 3b. RADICAL DISTRIBUTION OVER ADDITION OR SUBTRACTION
   // e.g. "Can I simplify sqrt(x^2 + 9) to x + 3?" or "take the square root of each term"
-  if ((/\b(?:sqrt|√)\s*\(\s*[a-zA-Z0-9^]+\s*[+-]\s*[a-zA-Z0-9^]+\s*\)/i.test(clean) &&
+  if (!/\bsquare\s+both\s+sides\b/i.test(lower) &&
+      ((/\b(?:sqrt|√)\s*\(\s*[a-zA-Z0-9^]+\s*[+-]\s*[a-zA-Z0-9^]+\s*\)/i.test(clean) &&
        /\b(?:simplify|rewrite|reduce|turn|change|equals?|=|to|into|as)\b.*?\b[a-zA-Z0-9]+\s*[+-]\s*[a-zA-Z0-9]+\b/i.test(clean)) ||
-      /\b(?:take\s+the\s+square\s+root\s+of\s+each\s+term|distribute\s+the\s+(?:square\s+)?root)\b/i.test(lower)) {
+      /\b(?:take\s+the\s+square\s+root\s+of\s+each\s+term|distribute\s+the\s+(?:square\s+)?root)\b/i.test(lower))) {
     return attachSeqMetadata({
       isValid: false,
       status: SHORTCUT_STATUS.INVALID_SHORTCUT,

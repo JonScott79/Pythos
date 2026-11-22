@@ -110,11 +110,12 @@ async function run() {
     const eval51 = evaluateStudentWork('51', intent51, history, state);
     assert.strictEqual(eval51.status, 'STEP_VERIFIED_CORRECT', 'Elliptical reply "51" (meaning 3x^2 = 51) must verify as STEP_VERIFIED_CORRECT');
 
-    // Case B: Student replies verbally "add 3"
+    // Case B: Student replies verbally "add 3" (distinguished from actually executing the step)
     const intentVerb = classifyStudentIntent('add 3', history, state);
     assert.strictEqual(intentVerb.intent, 'PROPOSED_STEP');
     const evalVerb = evaluateStudentWork('add 3', intentVerb, history, state);
-    assert.strictEqual(evalVerb.status, 'STEP_VERIFIED_CORRECT', 'Verbal reply "add 3" must verify as STEP_VERIFIED_CORRECT');
+    assert.strictEqual(evalVerb.status, 'OPERATION_IDENTIFIED_CORRECT', 'Verbal reply "add 3" must verify as OPERATION_IDENTIFIED_CORRECT (not collapsed into executed STEP_VERIFIED_CORRECT)');
+    assert.strictEqual(evalVerb.evaluationCategory, 'CORRECT_OPERATION_UNEXECUTED');
 
     // Case C: Student replies with spoken math "3x squared equals 51"
     const intentSpoken = classifyStudentIntent('3x squared equals 51', history, state);

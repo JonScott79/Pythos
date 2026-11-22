@@ -14,7 +14,7 @@
 
 const math = require('mathjs');
 const { INTENTS, classifyStudentIntent } = require('./studentIntentClassifier');
-const { transpileSpokenMath, parseMultiRootStudentProposal } = require('./inputInterpreter');
+const { transpileSpokenMath, parseMultiRootStudentProposal, detectMathNotationAmbiguities } = require('./inputInterpreter');
 
 // Create exact math instance with fraction configuration
 const exactMath = math.create(math.all, {
@@ -25,18 +25,39 @@ const exactMath = math.create(math.all, {
 /**
  * Detects ambiguous mathematical notation where order of operations or units are uncertain.
  */
-function checkAmbiguousNotation(rawExpr) {
+function checkAmbiguousNotation(rawExpr, activeProblemState = null) {
   if (!rawExpr || typeof rawExpr !== 'string') return null;
   const s = rawExpr.trim();
 
-  // 1. Ambiguous division binding: e.g. 1/2x, a/bc, x/2y
-  const cleanedForDiv = s.replace(/\b(?:sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|sinh|cosh|tanh|ln|log10|log2|log|exp|sqrt|cbrt|abs|pi)\b/gi, 'F');
-  if (/(?<![a-zA-Z0-9_])[a-zA-Z0-9.]+\s*\/\s*(?:\d+(?:\.\d+)?[a-zA-Z]|[a-zA-Z]{2,})\b/.test(cleanedForDiv)) {
+  // 0. Check unified notation & spoken-math grouping ambiguities (radicals, unary negation + power, division binding, denominator grouping, trig power)
+  const detected = detectMathNotationAmbiguities(s, null, activeProblemState);
+  if (detected && detected.length > 0) {
+    const amb = detected[0];
     return {
       ambiguous: true,
-      reason: 'Ambiguous fraction division binding (e.g. 1/2x or a/bc could represent (1/2)x vs 1/(2x) or (a/b)c vs a/(bc)).',
-      suggestion: 'Clarify expression with explicit parentheses.'
+      ambiguityType: amb.type,
+      candidates: amb.candidates,
+      reason: amb.message,
+      suggestion: `Clarify whether you mean ${amb.candidates.map(c => c.expression).join(' or ')}.`
     };
+  }
+
+  // 1. Ambiguous division binding: e.g. 1/2x, a/bc, x/2y
+  const activeExpr = String(activeProblemState?.active?.activeExpression || '');
+  const cleanedForDiv = s.replace(/\bd[a-zA-Z]?\s*\/\s*d[a-zA-Z]\b/g, '').replace(/\b(?:sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|sinh|cosh|tanh|ln|log10|log2|log|exp|sqrt|cbrt|abs|pi)\b/gi, 'F');
+  const divM = cleanedForDiv.match(/(?<![a-zA-Z0-9_])([a-zA-Z0-9.]+)\s*\/\s*(\d+(?:\.\d+)?)([a-zA-Z])\b/);
+  if (/(?<![a-zA-Z0-9_])[a-zA-Z0-9.]+\s*\/\s*(?:\d+(?:\.\d+)?[a-zA-Z]|[a-zA-Z]{2,})\b/.test(cleanedForDiv)) {
+    const parentDisambiguates = divM && activeExpr &&
+      (activeExpr.includes(`(${divM[1]}/${divM[2]})${divM[3]}`) || activeExpr.includes(`(${divM[1]}/${divM[2]})*${divM[3]}`)) &&
+      s !== activeExpr;
+    if (!parentDisambiguates) {
+      return {
+        ambiguous: true,
+        ambiguityType: 'DIVISION_BINDING_AMBIGUITY',
+        reason: 'Ambiguous fraction division binding (e.g. 1/2x or a/bc could represent (1/2)x vs 1/(2x) or (a/b)c vs a/(bc)).',
+        suggestion: 'Clarify expression with explicit parentheses.'
+      };
+    }
   }
 
   // 2. Trigonometric functions without explicit unit (degrees vs radians)
@@ -47,6 +68,7 @@ function checkAmbiguousNotation(rawExpr) {
     const val = bareTrigMatch[2] || bareTrigMatch[3];
     return {
       ambiguous: true,
+      ambiguityType: 'TRIG_UNIT_AMBIGUITY',
       reason: `Trigonometric call ${fn}(${val}) lacks explicit angle units (degrees vs radians).`,
       suggestion: `Clarify whether ${val} is in degrees or radians.`
     };
@@ -451,43 +473,247 @@ function evaluateEqualityStep(targetExpr, activeEq) {
 }
 
 /**
+ * Helper: Safely evaluates a normalized expression at scope, returning { isRealFinite, value, isComplex, isPole }.
+ */
+function safeEvaluateRealAtPoint(normExpr, scope) {
+  try {
+    // Check explicit denominators for zero pole
+    const denomMatches = [...normExpr.matchAll(/\/\s*(?:\(([^()]+)\)|([a-zA-Z0-9.*^+\-]+))/g)];
+    for (const dm of denomMatches) {
+      const denExpr = dm[1] || dm[2];
+      if (denExpr && /[a-zA-Z]/.test(denExpr)) {
+        const denVal = math.evaluate(denExpr, scope);
+        if (typeof denVal === 'number' && Math.abs(denVal) < 1e-8) {
+          return { isRealFinite: false, value: NaN, isComplex: false, isPole: true };
+        }
+      }
+    }
+    const raw = math.evaluate(normExpr, scope);
+    if (raw && typeof raw === 'object' && typeof raw.im === 'number' && Math.abs(raw.im) > 1e-8) {
+      return { isRealFinite: false, value: NaN, isComplex: true, isPole: false };
+    }
+    const num = typeof raw === 'number' ? raw : (raw && typeof raw.re === 'number' ? raw.re : Number(raw));
+    if (!Number.isFinite(num)) {
+      return { isRealFinite: false, value: NaN, isComplex: false, isPole: true };
+    }
+    return { isRealFinite: true, value: num, isComplex: false, isPole: false };
+  } catch (_) {
+    return { isRealFinite: false, value: NaN, isComplex: false, isPole: false };
+  }
+}
+
+/**
  * Evaluates intermediate steps or candidate solutions for active equations (e.g. 3x + 7 = 22 or 3x^2 - 3 = 48).
  */
-function evaluateEquationCandidate(targetExpr, activeEq) {
+function evaluateEquationCandidate(targetExpr, activeEq, originalEq = null) {
   if (!targetExpr || !activeEq || !activeEq.includes('=')) return null;
+  const origEq = (originalEq && originalEq.includes('=')) ? originalEq : activeEq;
+
+  // 0. Chained step support: e.g. "2x = 8 so x = 4" or "3x^2 = 51 => x^2 = 17"
+  if (/\s+(?:so|then|therefore|which\s+gives)\s+|\s*(?:=>|->|\\implies)\s*/i.test(targetExpr)) {
+    const chainParts = targetExpr
+      .split(/\s+(?:so|then|therefore|which\s+gives)\s+|\s*(?:=>|->|\\implies)\s*/i)
+      .map(p => p.trim())
+      .filter(Boolean);
+    if (chainParts.length >= 2 && chainParts.every(p => p.includes('='))) {
+      let lastValid = null;
+      for (const part of chainParts) {
+        const subEval = evaluateEquationCandidate(part, activeEq, origEq);
+        if (!subEval) return null;
+        if (subEval.status === 'STEP_VERIFIED_INCORRECT' || subEval.status === 'ANSWER_VERIFIED_INCORRECT') {
+          return subEval;
+        }
+        lastValid = subEval;
+      }
+      return lastValid;
+    }
+  }
 
   // 1. Intermediate linear or algebraic equation step (e.g. "3x = 15", "3x = 16", "3x²-3=48", "3x^2 = 51")
   if (targetExpr.includes('=')) {
     const stepEval = evaluateLinearEquationStep(targetExpr, activeEq);
-    if (stepEval) return stepEval;
+    if (stepEval) {
+      // Check whether activeEq or origEq had a denominator pole that this linear step fails to exclude
+      const oParts = origEq.split('=');
+      if (oParts.length === 2 && /[\/]/.test(origEq) && typeof stepEval.proposedValue === 'number') {
+        const normOLhs = normalizeExpression(oParts[0]);
+        const normORhs = normalizeExpression(oParts[1]);
+        const vName = stepEval.variable || 'x';
+        const oL = safeEvaluateRealAtPoint(normOLhs, { [vName]: stepEval.proposedValue });
+        const oR = safeEvaluateRealAtPoint(normORhs, { [vName]: stepEval.proposedValue });
+        if (oL.isPole || oR.isPole) {
+          return {
+            status: 'ANSWER_VERIFIED_INCORRECT',
+            evaluationCategory: 'INCORRECT_TRANSFORMATION',
+            isExtraneousRoot: true,
+            domainViolation: 'division_by_zero',
+            variable: vName,
+            proposedValue: stepEval.proposedValue,
+            details: `${vName} = ${stepEval.proposedValue} is an extraneous root because it makes a denominator equal to zero in ${origEq}.`,
+            preferredResponse: `❌ Watch the domain restriction! Substituting \`${vName} = ${stepEval.proposedValue}\` into \`${origEq}\` causes division by zero, so \`${vName} = ${stepEval.proposedValue}\` is an extraneous solution.`
+          };
+        }
+      }
+      stepEval.evaluationCategory = stepEval.status === 'STEP_VERIFIED_CORRECT'
+        ? 'CORRECT_INTERMEDIATE_STEP'
+        : (stepEval.status === 'ANSWER_VERIFIED_CORRECT' ? 'CORRECT_FINAL_ANSWER' : 'INCORRECT_TRANSFORMATION');
+      return stepEval;
+    }
 
     const tParts = targetExpr.split('=');
     const aParts = activeEq.split('=');
+    const oParts = origEq.split('=');
     if (tParts.length === 2 && aParts.length === 2 && !/^[a-zA-Z]$/.test(tParts[0].trim())) {
       try {
         const normTLhs = normalizeExpression(tParts[0]);
         const normTRhs = normalizeExpression(tParts[1]);
         const normALhs = normalizeExpression(aParts[0]);
         const normARhs = normalizeExpression(aParts[1]);
+        const normOLhs = oParts.length === 2 ? normalizeExpression(oParts[0]) : normALhs;
+        const normORhs = oParts.length === 2 ? normalizeExpression(oParts[1]) : normARhs;
+
         const varMatch = (`${normALhs} ${normARhs}`.replace(/\b(?:sqrt|cbrt|sin|cos|tan|log|ln|exp|abs|pi)\b/gi, '').match(/\b([a-zA-Z])\b/));
         const v = varMatch ? varMatch[1] : 'x';
-        const samplePts = [-2, -1, 0.5, 1, 2, 3];
-        let ratios = [];
-        for (const pt of samplePts) {
-          const aDiff = Number(math.evaluate(`(${normALhs}) - (${normARhs})`, { [v]: pt }));
-          const tDiff = Number(math.evaluate(`(${normTLhs}) - (${normTRhs})`, { [v]: pt }));
-          if (Number.isFinite(aDiff) && Number.isFinite(tDiff) && Math.abs(aDiff) > 1e-7) {
-            ratios.push(tDiff / aDiff);
+
+        // Check if origEq has a denominator pole x0 in [-6..6] that targetExpr turns into a root (e.g. (x^2-4)/(x-2)=0 -> x^2-4=0 or x/(x-2)=2/(x-2) -> x=2)
+        if (/\//.test(origEq)) {
+          for (let candPole = -6; candPole <= 6; candPole += 1) {
+            const oL = safeEvaluateRealAtPoint(normOLhs, { [v]: candPole });
+            const oR = safeEvaluateRealAtPoint(normORhs, { [v]: candPole });
+            if (oL.isPole || oR.isPole) {
+              const tL = safeEvaluateRealAtPoint(normTLhs, { [v]: candPole });
+              const tR = safeEvaluateRealAtPoint(normTRhs, { [v]: candPole });
+              if (tL.isRealFinite && tR.isRealFinite && Math.abs(tL.value - tR.value) < 1e-6) {
+                return {
+                  status: 'STEP_VERIFIED_INCORRECT',
+                  evaluationCategory: 'INCORRECT_TRANSFORMATION',
+                  hasExtraneousSolutions: true,
+                  domainViolation: 'extraneous_pole_introduced',
+                  target: targetExpr.trim(),
+                  correctedStep: `${targetExpr.trim()} (with ${v} ≠ ${candPole})`,
+                  details: `Clearing the denominator in ${origEq} to obtain ${targetExpr.trim()} introduces an extraneous root at ${v} = ${candPole}, where the original denominator is zero (${v} ≠ ${candPole}).`,
+                  affirmation: 'Clearing the denominator is a reasonable algebraic step, provided you preserve the domain restriction.',
+                  preferredResponse: `❌ Careful with domain restrictions: clearing the denominator in \`${origEq}\` to write \`${targetExpr.trim()}\` admits \`${v} = ${candPole}\`, which makes the original denominator zero (\`${v} ≠ ${candPole}\`).`
+                };
+              }
+            }
           }
         }
-        if (ratios.length >= 4 && Math.abs(ratios[0]) > 1e-6 && ratios.every(r => Math.abs(r - ratios[0]) < 1e-4)) {
+
+        const samplePts = [-2.5, -1.5, 0.5, 1.5, 2.5, 3.5];
+        let ratios = [];
+        for (const pt of samplePts) {
+          const aL = safeEvaluateRealAtPoint(normALhs, { [v]: pt });
+          const aR = safeEvaluateRealAtPoint(normARhs, { [v]: pt });
+          const tL = safeEvaluateRealAtPoint(normTLhs, { [v]: pt });
+          const tR = safeEvaluateRealAtPoint(normTRhs, { [v]: pt });
+          if (aL.isRealFinite && aR.isRealFinite && tL.isRealFinite && tR.isRealFinite) {
+            const aDiff = aL.value - aR.value;
+            const tDiff = tL.value - tR.value;
+            if (Math.abs(aDiff) > 1e-7) {
+              ratios.push(tDiff / aDiff);
+            }
+          }
+        }
+
+        const isConstantRatio = ratios.length >= 4 && Math.abs(ratios[0]) > 1e-6 && ratios.every(r => Math.abs(r - ratios[0]) < 1e-4);
+        if (isConstantRatio) {
+          // Determine whether this step is an immediate single-step transformation or a multi-step jump-ahead
+          const activeHasDenomAndConst = /\/.*[+-]|[+-].*\//.test(normALhs);
+          const activeHasCoeffAndConst = /\d+\s*\*\s*[a-zA-Z].*[+-]/.test(normALhs);
+          const targetIsPureVarPower = new RegExp(`^${v}(?:\\^\\d+)?$`).test(normTLhs.replace(/\s+/g, ''));
+          const targetHasNoAddConst = !/[+-]/.test(normTLhs);
+          const isJumpAheadStep = (activeHasDenomAndConst && targetHasNoAddConst) || (activeHasCoeffAndConst && targetIsPureVarPower);
+
           return {
             status: 'STEP_VERIFIED_CORRECT',
+            evaluationCategory: isJumpAheadStep ? 'VALID_JUMP_AHEAD' : 'CORRECT_INTERMEDIATE_STEP',
+            jumpedAhead: isJumpAheadStep,
             target: targetExpr.trim(),
             correctedStep: `${normTLhs.replace(/\s*\*\s*/g, '')} = ${normTRhs.replace(/\s*\*\s*/g, '')}`,
             nextOperation: `isolate ${v}`,
             details: `Your step ${targetExpr.trim()} is algebraically equivalent to ${activeEq}.`,
             preferredResponse: `Yes! \`${targetExpr.trim()}\` is a valid step.`
+          };
+        }
+
+        // If targetExpr is in the same variable v but NOT a constant ratio of activeEq, classify WHY it is invalid!
+        const targetMentionsVar = new RegExp(`\\b${v}\\b`).test(`${normTLhs} ${normTRhs}`);
+        if (targetMentionsVar) {
+          // Check if student multiplied by a variable expression or squared both sides (e.g. tDiff = aDiff * x or tDiff = aLhs^2 - aRhs^2)
+          let matchesSquared = 0;
+          let matchesVarFactor = 0;
+          for (const pt of [-2, -1, 0.5, 1.5, 2.5]) {
+            const aL = safeEvaluateRealAtPoint(normALhs, { [v]: pt });
+            const aR = safeEvaluateRealAtPoint(normARhs, { [v]: pt });
+            const tL = safeEvaluateRealAtPoint(normTLhs, { [v]: pt });
+            const tR = safeEvaluateRealAtPoint(normTRhs, { [v]: pt });
+            if (aL.isRealFinite && aR.isRealFinite && tL.isRealFinite && tR.isRealFinite) {
+              const aDiff = aL.value - aR.value;
+              const tDiff = tL.value - tR.value;
+              const sqDiff = (aL.value * aL.value) - (aR.value * aR.value);
+              if (Math.abs(sqDiff) > 1e-6 && Math.abs(tDiff - sqDiff) < 1e-4) matchesSquared++;
+              if (Math.abs(aDiff) > 1e-6 && Math.abs((tDiff / aDiff) - pt) < 1e-4) matchesVarFactor++;
+            }
+          }
+
+          if (matchesSquared >= 3 || matchesVarFactor >= 3) {
+            return {
+              status: 'STEP_VERIFIED_INCORRECT',
+              evaluationCategory: 'INCORRECT_TRANSFORMATION',
+              hasExtraneousSolutions: true,
+              domainViolation: matchesSquared >= 3 ? 'squaring_introduces_extraneous_roots' : 'variable_multiplier_changes_roots',
+              target: targetExpr.trim(),
+              correctedStep: activeEq,
+              nextOperation: `isolate ${v} using reversible inverse operations`,
+              details: matchesSquared >= 3
+                ? `Squaring both sides of ${activeEq} to form ${targetExpr.trim()} is not an equivalent transformation and can introduce extraneous roots.`
+                : `Multiplying or dividing both sides of ${activeEq} by a variable expression changes the solution set and introduces extraneous roots.`,
+              affirmation: 'Be careful to apply only solution-preserving transformations.',
+              preferredResponse: matchesSquared >= 3
+                ? `❌ Careful: squaring both sides to get \`${targetExpr.trim()}\` can introduce extraneous solutions that do not satisfy \`${activeEq}\`.`
+                : `❌ Careful: multiplying both sides by a variable expression to get \`${targetExpr.trim()}\` alters the solution set and introduces extraneous solutions.`
+            };
+          }
+
+          // Otherwise it is an arithmetic / omitted-operation error in the intermediate step (e.g. "3x^2 = 48" from "3x^2 - 3 = 48")
+          const activeAddConstMatch = normALhs.replace(/\s+/g, '').match(/^(.+?)([+-])(\d+(?:\.\d+)?)$/);
+          const activeRhsNum = Number(normARhs);
+          const targetRhsNum = Number(normTRhs);
+          if (activeAddConstMatch && Number.isFinite(activeRhsNum) && Number.isFinite(targetRhsNum)) {
+            const coreTerm = activeAddConstMatch[1].replace(/\*/g, '');
+            const sign = activeAddConstMatch[2];
+            const constVal = parseFloat(activeAddConstMatch[3]);
+            const expectedRhs = sign === '-' ? activeRhsNum + constVal : activeRhsNum - constVal;
+            const expectedStepStr = `${coreTerm} = ${expectedRhs}`;
+            const omittedOp = Math.abs(targetRhsNum - activeRhsNum) < 1e-6;
+            const actionWord = sign === '-' ? `add ${constVal} to` : `subtract ${constVal} from`;
+            return {
+              status: 'STEP_VERIFIED_INCORRECT',
+              evaluationCategory: 'INCORRECT_TRANSFORMATION',
+              isOmittedOperation: omittedOp,
+              target: targetExpr.trim(),
+              correctedStep: expectedStepStr,
+              nextOperation: `isolate ${v}`,
+              details: omittedOp
+                ? `You eliminated ${sign}${constVal} on the left side, but omitted updating the right side. You must ${actionWord} both sides (${activeRhsNum} ${sign === '-' ? '+' : '-'} ${constVal} = ${expectedRhs}, not ${targetRhsNum}), giving ${expectedStepStr}.`
+                : `To undo ${sign}${constVal}, ${actionWord} both sides: ${activeRhsNum} ${sign === '-' ? '+' : '-'} ${constVal} = ${expectedRhs} (not ${targetRhsNum}), so the equation becomes ${expectedStepStr}.`,
+              affirmation: 'Your goal of isolating the variable term is right; make sure to apply the operation to both sides.',
+              preferredResponse: omittedOp
+                ? `❌ Not quite. When you remove ${sign}${constVal} from the left side, remember to ${actionWord} the right side as well (${activeRhsNum} ${sign === '-' ? '+' : '-'} ${constVal} = ${expectedRhs}, not ${targetRhsNum}). So the equation becomes \`${expectedStepStr}\`.`
+                : `❌ Not quite. When you ${actionWord} both sides of \`${activeEq}\`, the right side becomes ${expectedRhs}, not ${targetRhsNum}. So the equation becomes \`${expectedStepStr}\`.`
+            };
+          }
+
+          return {
+            status: 'STEP_VERIFIED_INCORRECT',
+            evaluationCategory: 'INCORRECT_TRANSFORMATION',
+            target: targetExpr.trim(),
+            correctedStep: activeEq,
+            nextOperation: `isolate ${v}`,
+            details: `The proposed step ${targetExpr.trim()} is not algebraically equivalent to ${activeEq}.`,
+            affirmation: 'Check the inverse operation applied to both sides of the equation.',
+            preferredResponse: `❌ Not quite. \`${targetExpr.trim()}\` is not algebraically equivalent to \`${activeEq}\`.`
           };
         }
       } catch (_) {}
@@ -504,31 +730,34 @@ function evaluateEquationCandidate(targetExpr, activeEq) {
   if (varInActive) proposedVar = varInActive[1];
 
   // 2a. Check for multi-root proposals (e.g. "2 and 3", "4 or -4", "±sqrt(17)", "plus or minus root 17")
-  const multiRoot = parseMultiRootStudentProposal(rawCandidateValStr);
+  const multiRoot = parseMultiRootStudentProposal(rawCandidateValStr, {
+    active: { activeExpression: origEq, domain: 'ALGEBRA', isCompleted: false }
+  });
   if (multiRoot && multiRoot.values.length >= 2) {
     if (multiRoot.variable) proposedVar = multiRoot.variable;
-    const eqParts = activeEq.split('=');
+    const eqParts = origEq.split('=');
     if (eqParts.length === 2) {
       try {
         const normEqLhs = normalizeExpression(eqParts[0].trim());
         const normEqRhs = normalizeExpression(eqParts[1].trim());
         const allSatisfy = multiRoot.values.every(v => {
-          const lhsVal = Number(math.evaluate(normEqLhs, { [proposedVar]: v }));
-          const rhsVal = Number(math.evaluate(normEqRhs, { [proposedVar]: v }));
-          return Number.isFinite(lhsVal) && Number.isFinite(rhsVal) && Math.abs(lhsVal - rhsVal) < 1e-4;
+          const lRes = safeEvaluateRealAtPoint(normEqLhs, { [proposedVar]: v });
+          const rRes = safeEvaluateRealAtPoint(normEqRhs, { [proposedVar]: v });
+          return lRes.isRealFinite && rRes.isRealFinite && Math.abs(lRes.value - rRes.value) < 1e-4;
         });
         if (allSatisfy && !multiRoot.hasBothSigns) {
           const rootsStr = multiRoot.values.join(', ');
           return {
             status: 'ANSWER_VERIFIED_CORRECT',
+            evaluationCategory: 'CORRECT_FINAL_ANSWER',
             jumpedAhead: true,
             hasSymmetricNegativeRoot: false,
             isCompleteMultiRoot: true,
             rawExpression: targetExpr,
             variable: proposedVar,
             proposedValue: rootsStr,
-            details: `Both proposed roots (${proposedVar} = ${rootsStr}) satisfy ${activeEq}.`,
-            preferredResponse: `Spot on—both $${proposedVar} = ${multiRoot.values[0]}$ and $${proposedVar} = ${multiRoot.values[1]}$ satisfy $${activeEq}$!\n\n$$\\boxed{${proposedVar} = ${rootsStr}}$$`
+            details: `Both proposed roots (${proposedVar} = ${rootsStr}) satisfy ${origEq}.`,
+            preferredResponse: `Spot on—both $${proposedVar} = ${multiRoot.values[0]}$ and $${proposedVar} = ${multiRoot.values[1]}$ satisfy $${origEq}$!\n\n$$\\boxed{${proposedVar} = ${rootsStr}}$$`
           };
         }
       } catch (_) {}
@@ -569,29 +798,68 @@ function evaluateEquationCandidate(targetExpr, activeEq) {
   if (proposedVal !== null && !isNaN(proposedVal)) {
     try {
       const eqParts = activeEq.split('=');
+      const origParts = origEq.split('=');
       if (eqParts.length === 2) {
         const normEqLhs = normalizeExpression(eqParts[0].trim());
         const normEqRhs = normalizeExpression(eqParts[1].trim());
+        const normOrigLhs = origParts.length === 2 ? normalizeExpression(origParts[0].trim()) : normEqLhs;
+        const normOrigRhs = origParts.length === 2 ? normalizeExpression(origParts[1].trim()) : normEqRhs;
         const scope = { [proposedVar]: proposedVal };
-        const lhsVal = Number(math.evaluate(normEqLhs, scope));
-        const rhsVal = Number(math.evaluate(normEqRhs, scope));
+
+        // Domain & Extraneous Root Check against original equation (Phase 5C)
+        const origLRes = safeEvaluateRealAtPoint(normOrigLhs, scope);
+        const origRRes = safeEvaluateRealAtPoint(normOrigRhs, scope);
+        if (origLRes.isPole || origRRes.isPole || origLRes.isComplex || origRRes.isComplex) {
+          const domainReason = (origLRes.isPole || origRRes.isPole)
+            ? 'division_by_zero'
+            : (/log|ln/i.test(origEq) ? 'logarithm_domain_violation' : 'radical_domain_violation');
+          return {
+            status: 'ANSWER_VERIFIED_INCORRECT',
+            evaluationCategory: 'INCORRECT_TRANSFORMATION',
+            isExtraneousRoot: true,
+            domainViolation: domainReason,
+            rawExpression: targetExpr,
+            variable: proposedVar,
+            proposedValue: proposedVal,
+            details: domainReason === 'division_by_zero'
+              ? `Substituting ${proposedVar} = ${proposedVal} into ${origEq} causes division by zero, so ${proposedVar} = ${proposedVal} is an extraneous root excluded from the domain.`
+              : `Substituting ${proposedVar} = ${proposedVal} into ${origEq} falls outside the real domain (${domainReason}), so ${proposedVar} = ${proposedVal} is an extraneous solution.`,
+            preferredResponse: `❌ Watch the domain restriction! Substituting \`${proposedVar} = ${proposedVal}\` into \`${origEq}\` is undefined in the real domain (${domainReason.replace(/_/g, ' ')}), making it an extraneous root.`
+          };
+        }
+
+        const lhsVal = origLRes.value;
+        const rhsVal = origRRes.value;
         const satisfies = Number.isFinite(lhsVal) && Number.isFinite(rhsVal) && Math.abs(lhsVal - rhsVal) < 1e-4;
+
+        // Check if proposedVal is an extraneous root from squaring a radical equation (e.g. sqrt(x) = -2 with x = 4, or sqrt(x+3) = x-3 with x = 1)
+        if (!satisfies && /sqrt|√/i.test(origEq) && Number.isFinite(lhsVal) && Number.isFinite(rhsVal) && Math.abs((lhsVal * lhsVal) - (rhsVal * rhsVal)) < 1e-4) {
+          return {
+            status: 'ANSWER_VERIFIED_INCORRECT',
+            evaluationCategory: 'INCORRECT_TRANSFORMATION',
+            isExtraneousRoot: true,
+            domainViolation: 'radical_extraneous_root',
+            rawExpression: targetExpr,
+            variable: proposedVar,
+            proposedValue: proposedVal,
+            details: `Substituting ${proposedVar} = ${proposedVal} into ${origEq} gives ${lhsVal} = ${rhsVal} (false). ${proposedVar} = ${proposedVal} is an extraneous root introduced by squaring both sides.`,
+            preferredResponse: `❌ \`${proposedVar} = ${proposedVal}\` is an extraneous solution! Although squaring both sides gives ${lhsVal * lhsVal} = ${rhsVal * rhsVal}, substituting \`${proposedVar} = ${proposedVal}\` back into the original radical equation \`${origEq}\` gives \`${lhsVal} ≠ ${rhsVal}\`.`
+          };
+        }
 
         let negAlsoSatisfies = false;
         if (satisfies && Math.abs(proposedVal) > 1e-6) {
-          try {
-            const negLhs = Number(math.evaluate(normEqLhs, { [proposedVar]: -proposedVal }));
-            const negRhs = Number(math.evaluate(normEqRhs, { [proposedVar]: -proposedVal }));
-            if (Number.isFinite(negLhs) && Number.isFinite(negRhs) && Math.abs(negLhs - negRhs) < 1e-4) {
-              negAlsoSatisfies = true;
-            }
-          } catch (_) {}
+          const negL = safeEvaluateRealAtPoint(normOrigLhs, { [proposedVar]: -proposedVal });
+          const negR = safeEvaluateRealAtPoint(normOrigRhs, { [proposedVar]: -proposedVal });
+          if (negL.isRealFinite && negR.isRealFinite && Math.abs(negL.value - negR.value) < 1e-4) {
+            negAlsoSatisfies = true;
+          }
         }
 
         const isRadicalInput = /sqrt|√/i.test(rawCandidateValStr);
         const radMatch = rawCandidateValStr.match(/(?:\\?sqrt|√)\s*[\({]?\s*(\d+(?:\.\d+)?)\s*[\)}]?/i);
         const cleanRootLatex = radMatch ? `\\sqrt{${radMatch[1]}}` : String(proposedVal);
-        const subExpr = eqParts[0].trim().replace(new RegExp(`\\b${proposedVar}\\b`, 'g'), `(${isRadicalInput ? cleanRootLatex : proposedVal})`);
+        const subExpr = eqParts[0].trim().replace(new RegExp(`(?<![a-zA-Z])${proposedVar}(?![a-zA-Z])`, 'g'), `(${isRadicalInput ? cleanRootLatex : proposedVal})`);
         const roundedLhs = Number.isFinite(lhsVal) ? Number(lhsVal.toFixed(6)) : lhsVal;
 
         if (satisfies && (isRadicalInput || negAlsoSatisfies)) {
@@ -601,6 +869,7 @@ function evaluateEquationCandidate(targetExpr, activeEq) {
             : `\\boxed{${proposedVar} = ${cleanRootLatex}}`;
           return {
             status: 'ANSWER_VERIFIED_CORRECT',
+            evaluationCategory: hasMissingNegRoot ? 'VALID_JUMP_AHEAD' : 'CORRECT_FINAL_ANSWER',
             jumpedAhead: true,
             hasSymmetricNegativeRoot: hasMissingNegRoot,
             rawExpression: targetExpr,
@@ -608,8 +877,8 @@ function evaluateEquationCandidate(targetExpr, activeEq) {
             proposedValue: proposedVal,
             cleanRootLatex,
             details: hasMissingNegRoot
-              ? `The student jumped ahead of the intermediate step and gave ${proposedVar} = ${cleanRootLatex} (${rawCandidateValStr}), which satisfies ${activeEq} (yielding ${roundedLhs} = ${rhsVal}). Because ${proposedVar} appears to an even power (${proposedVar}^2 = ${Math.round(proposedVal * proposedVal)}), the negative root ${proposedVar} = -${cleanRootLatex} is also a valid solution, giving the complete solution set ${proposedVar} = ±${cleanRootLatex}.`
-              : `The student jumped ahead and gave the correct solution ${proposedVar} = ${negAlsoSatisfies ? '±' + cleanRootLatex : cleanRootLatex}, which satisfies ${activeEq} (${roundedLhs} = ${rhsVal}).`,
+              ? `Explicitly state that the answer is correct: The student jumped ahead of the intermediate step and gave ${proposedVar} = ${cleanRootLatex} (${rawCandidateValStr}), which satisfies ${activeEq} (${subExpr} = ${roundedLhs} = ${rhsVal}). Because ${proposedVar} appears to an even power (${proposedVar}^2 = ${Math.round(proposedVal * proposedVal)}), the negative root ${proposedVar} = -${cleanRootLatex} is also a valid solution, giving the complete solution set ${proposedVar} = ±${cleanRootLatex}.`
+              : `Explicitly state that the answer is correct: The student jumped ahead and gave the correct solution ${proposedVar} = ${negAlsoSatisfies ? '±' + cleanRootLatex : cleanRootLatex}, which satisfies ${activeEq} (${subExpr} = ${roundedLhs} = ${rhsVal}).`,
             preferredResponse: hasMissingNegRoot
               ? `Nice job jumping ahead—$${proposedVar} = ${cleanRootLatex}$ is a valid solution! Substituting $${proposedVar} = ${cleanRootLatex}$ into $${activeEq}$ gives $${roundedLhs} = ${rhsVal}$.\n\nFinishing the steps from $${activeEq}$:\n$$${proposedVar}^2 = ${Math.round(proposedVal * proposedVal)}$$\nRemember that taking the square root of both sides yields both a positive and a negative root, so $$-${cleanRootLatex}$$ is also a solution:\n$$${finalBoxedLatex}$$`
               : `Spot on—you jumped ahead and solved it! Substituting $${proposedVar} = ${negAlsoSatisfies ? '\\pm ' + cleanRootLatex : cleanRootLatex}$ into $${activeEq}$ gives $${roundedLhs} = ${rhsVal}$.\n\n$$${finalBoxedLatex}$$`
@@ -618,7 +887,8 @@ function evaluateEquationCandidate(targetExpr, activeEq) {
 
         return {
           status: satisfies ? 'ANSWER_VERIFIED_CORRECT' : 'ANSWER_VERIFIED_INCORRECT',
-          jumpedAhead: satisfies,
+          evaluationCategory: satisfies ? 'CORRECT_FINAL_ANSWER' : 'INCORRECT_TRANSFORMATION',
+          jumpedAhead: false,
           rawExpression: targetExpr,
           variable: proposedVar,
           proposedValue: proposedVal,
@@ -880,13 +1150,57 @@ function validateAnswerAgainstConstraints(proposedValStr, expectedNumeric, forma
   return { status: 'CORRECT', details: `${proposedValStr} is correct.` };
 }
 
+function inferEvaluationCategory(res) {
+  if (!res) return 'UNRELATED_OR_CONVERSATIONAL';
+  if (res.evaluationCategory) return res.evaluationCategory;
+  if (res.status === 'AMBIGUOUS_NOTATION') return 'AMBIGUOUS_RESPONSE';
+  if (res.status === 'OPERATION_IDENTIFIED_CORRECT' || res.status === 'OPERATION_IDENTIFIED') return 'CORRECT_OPERATION_UNEXECUTED';
+  if (res.status === 'OPERATION_IDENTIFIED_INCORRECT' || res.status === 'STEP_VERIFIED_INCORRECT' || res.status === 'ANSWER_VERIFIED_INCORRECT') {
+    return 'INCORRECT_TRANSFORMATION';
+  }
+  if (res.status === 'STEP_VERIFIED_CORRECT') {
+    return res.jumpedAhead ? 'VALID_JUMP_AHEAD' : 'CORRECT_INTERMEDIATE_STEP';
+  }
+  if (res.status === 'ANSWER_VERIFIED_CORRECT') {
+    return (res.jumpedAhead && res.hasSymmetricNegativeRoot) ? 'VALID_JUMP_AHEAD' : 'CORRECT_FINAL_ANSWER';
+  }
+  return 'UNRELATED_OR_CONVERSATIONAL';
+}
+
 function evaluateStudentWork(rawInput, classification, conversationHistory = [], activeProblemState = null) {
   if (!classification || !classification.intent) {
-    return { status: 'NO_EVALUATION', reason: 'Missing intent classification' };
+    return {
+      status: 'NO_EVALUATION',
+      evaluationCategory: 'UNRELATED_OR_CONVERSATIONAL',
+      rawText: rawInput,
+      evaluatedFromInterpretation: false,
+      interpretationConfidence: 0,
+      interpretationStatus: 'UNRESOLVED',
+      provenance: [],
+      reason: 'Missing intent classification'
+    };
   }
 
+  const coreRes = evaluateStudentWorkCore(rawInput, classification, conversationHistory, activeProblemState);
+  const interpStatus = classification.interpretationStatus || classification.interpretedTurn?.interpretationStatus || 'EXACT_RAW';
+  return {
+    ...coreRes,
+    evaluationCategory: inferEvaluationCategory(coreRes),
+    rawText: rawInput,
+    evaluatedFromInterpretation: Boolean(
+      interpStatus !== 'EXACT_RAW' ||
+      (classification.extractedExpression && classification.extractedExpression !== String(rawInput || '').trim())
+    ),
+    interpretationConfidence: classification.interpretationConfidence ?? classification.interpretedTurn?.interpretationConfidence ?? 1.0,
+    interpretationStatus: interpStatus,
+    provenance: classification.provenance || classification.interpretedTurn?.provenance || []
+  };
+}
+
+function evaluateStudentWorkCore(rawInput, classification, conversationHistory = [], activeProblemState = null) {
   const { intent, extractedExpression } = classification;
-  let activeEq = activeProblemState?.active?.currentStepEquation || activeProblemState?.active?.activeExpression || activeProblemState?.activeExpression || null;
+  const originalEq = activeProblemState?.active?.activeExpression || activeProblemState?.activeExpression || null;
+  let activeEq = classification.pragmatics?.currentExpression || activeProblemState?.active?.currentStepEquation || originalEq || null;
   if ((!activeEq || !activeEq.includes('=')) && Array.isArray(conversationHistory) && conversationHistory.length > 0) {
     for (let i = conversationHistory.length - 1; i >= 0; i--) {
       const msg = conversationHistory[i];
@@ -1042,45 +1356,60 @@ function evaluateStudentWork(rawInput, classification, conversationHistory = [],
     };
   }
 
-  // 0. Verbal operation or Elliptical step RHS handling via conversational pragmatics
-  if (classification.isVerbalOperation && classification.pragmatics?.expectedOperation) {
-    const expOp = classification.pragmatics.expectedOperation;
-    const expStep = classification.pragmatics.expectedFullStep || activeEq;
-    if (classification.pragmatics.operationMatchesExpected === true) {
-      return {
-        status: 'STEP_VERIFIED_CORRECT',
-        intent,
-        ellipticalStep: true,
-        target: rawInput.trim(),
-        correctedStep: expStep,
-        nextOperation: 'continue isolating the variable',
-        details: `The student proposed the correct next operation (${expOp.description}), which transforms the equation into ${expStep}.`,
-        preferredResponse: `Exactly! When we ${expOp.description}, we get:\n$$${expStep}$$`
-      };
-    } else if (classification.pragmatics.operationMatchesExpected === false) {
-      return {
-        status: 'STEP_VERIFIED_INCORRECT',
-        intent,
-        target: rawInput.trim(),
-        correctedStep: expStep,
-        nextOperation: expOp.description,
-        details: `Instead of "${rawInput.trim()}", we need to ${expOp.description} to obtain ${expStep}.`,
-        affirmation: 'You are thinking about inverse operations to isolate the variable.',
-        preferredResponse: `❌ Not quite. At this stage we want to ${expOp.description}, which gives \`${expStep}\`.`
-      };
-    }
-  }
-
-  // 1. Ambiguity Check
-  const ambiguity = checkAmbiguousNotation(targetExpr);
-  if (ambiguity && ambiguity.ambiguous) {
+  // 0. Ambiguity Check (Check rawInput and targetExpr first so ambiguous notation is NEVER silently evaluated)
+  const rawAmbiguity = checkAmbiguousNotation(rawInput, activeProblemState) || checkAmbiguousNotation(targetExpr, activeProblemState);
+  if (rawAmbiguity && rawAmbiguity.ambiguous) {
     return {
       status: 'AMBIGUOUS_NOTATION',
+      evaluationCategory: 'AMBIGUOUS_RESPONSE',
       intent,
       rawExpression: targetExpr,
-      reason: ambiguity.reason,
-      suggestion: ambiguity.suggestion
+      ambiguityType: rawAmbiguity.ambiguityType,
+      candidates: rawAmbiguity.candidates,
+      reason: rawAmbiguity.reason,
+      suggestion: rawAmbiguity.suggestion
     };
+  }
+
+  // 0b. Verbal operation handling via conversational pragmatics (Distinguished from executed STEP_VERIFIED_CORRECT!)
+  if (classification.isVerbalOperation) {
+    const expOp = classification.pragmatics?.expectedOperation;
+    const expStep = classification.pragmatics?.expectedFullStep || activeEq;
+    if (expOp && classification.pragmatics.operationMatchesExpected === true) {
+      return {
+        status: 'OPERATION_IDENTIFIED_CORRECT',
+        evaluationCategory: 'CORRECT_OPERATION_UNEXECUTED',
+        intent,
+        isVerbalOperation: true,
+        target: rawInput.trim(),
+        expectedStepAfterExecution: expStep,
+        nextOperation: `perform "${expOp.description}" and write the resulting equation`,
+        details: `The student correctly identified the operation (${expOp.description}), but has not yet written the resulting equation (${expStep}).`,
+        preferredResponse: `Spot on—we want to ${expOp.description}! Go ahead and perform that operation: what equation do you get?`
+      };
+    } else if (expOp && classification.pragmatics.operationMatchesExpected === false) {
+      return {
+        status: 'OPERATION_IDENTIFIED_INCORRECT',
+        evaluationCategory: 'INCORRECT_TRANSFORMATION',
+        intent,
+        isVerbalOperation: true,
+        target: rawInput.trim(),
+        correctedStep: activeEq,
+        nextOperation: expOp.description,
+        details: `Instead of "${rawInput.trim()}", the required operation at this stage is to ${expOp.description}.`,
+        affirmation: 'You are thinking about inverse operations to isolate the variable.',
+        preferredResponse: `❌ Not quite. Before doing that, we should ${expOp.description}. What equation do you get when you ${expOp.description}?`
+      };
+    } else {
+      return {
+        status: 'OPERATION_IDENTIFIED',
+        evaluationCategory: 'CORRECT_OPERATION_UNEXECUTED',
+        intent,
+        isVerbalOperation: true,
+        target: rawInput.trim(),
+        details: `The student proposed the operation "${rawInput.trim()}" without writing the resulting transformed expression.`
+      };
+    }
   }
 
   // 2. Evaluate against active physics problem if present
@@ -1099,9 +1428,13 @@ function evaluateStudentWork(rawInput, classification, conversationHistory = [],
       eqStepEval.intent = intent;
       return eqStepEval;
     }
-    const candEval = evaluateEquationCandidate(targetExpr, activeEq);
+    const candEval = evaluateEquationCandidate(targetExpr, activeEq, originalEq || activeEq);
     if (candEval) {
       candEval.intent = intent;
+      if (classification.pragmatics?.isJumpAheadStepRhs) {
+        candEval.jumpedAhead = true;
+        candEval.evaluationCategory = 'VALID_JUMP_AHEAD';
+      }
       return candEval;
     }
   }
@@ -1275,12 +1608,25 @@ function formatStudentWorkContext(classification, evaluation, activeProblemState
       }
       out += `  3. DO NOT solve the entire problem from the beginning or dump the complete solution.\n`;
       out += `  4. Continue from the corrected state \`${evaluation.correctedStep}\`.\n`;
+    } else if (evaluation.status === 'OPERATION_IDENTIFIED_CORRECT' || evaluation.status === 'OPERATION_IDENTIFIED') {
+      out += `- Proposed Verbal Operation: \`${evaluation.target || evaluation.rawExpression}\`\n`;
+      out += `- Verification Status: ${evaluation.status} (Student identified the operation but has NOT yet executed it)\n`;
+      out += `- Deterministic Evaluation: ${evaluation.details}\n`;
+      out += `- CRITICAL PEDAGOGICAL DIRECTIVE:\n`;
+      out += `  1. Confirm that "${evaluation.target || evaluation.rawExpression}" is the right operation!\n`;
+      out += `  2. Ask the student to perform that operation and state the resulting equation.\n`;
+    } else if (evaluation.status === 'OPERATION_IDENTIFIED_INCORRECT') {
+      out += `- Proposed Verbal Operation: \`${evaluation.target || evaluation.rawExpression}\`\n`;
+      out += `- Verification Status: OPERATION_IDENTIFIED_INCORRECT\n`;
+      out += `- Error Details: ${evaluation.details}\n`;
+      out += `- CRITICAL PEDAGOGICAL DIRECTIVE:\n`;
+      out += `  1. Gently explain why a different operation (${evaluation.nextOperation}) is needed first.\n`;
     } else if (evaluation.status === 'ANSWER_VERIFIED_CORRECT') {
       out += `- Proposed Answer: \`${evaluation.rawExpression || evaluation.variable + ' = ' + evaluation.proposedValue}\`\n`;
       out += `- Verification Status: ANSWER_VERIFIED_CORRECT${evaluation.jumpedAhead ? ' (STUDENT SOLVED AHEAD OF INTERMEDIATE STEP)' : ''}\n`;
       out += `- Deterministic Evaluation: ${evaluation.details}\n`;
       out += `- CRITICAL PEDAGOGICAL DIRECTIVE:\n`;
-      out += `  1. Explicitly acknowledge and praise the student that their answer (${evaluation.rawExpression || evaluation.proposedValue}) is a valid solution, even though they jumped ahead of the intermediate step!\n`;
+      out += `  1. Explicitly state that the answer is correct and praise the student (${evaluation.rawExpression || evaluation.proposedValue} is a valid solution${evaluation.jumpedAhead ? ', even though they jumped ahead of the intermediate step' : ''})!\n`;
       out += `  2. Briefly show why (${evaluation.details}).\n`;
       if (evaluation.hasSymmetricNegativeRoot) {
         out += `  3. Gently point out that since ${evaluation.variable || 'x'} is squared, the negative root (-${evaluation.cleanRootLatex || evaluation.rawExpression}) is also a solution, so the complete solution set is ${evaluation.variable || 'x'} = ±${evaluation.cleanRootLatex || evaluation.rawExpression}.\n`;
