@@ -2342,7 +2342,7 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
   const activeProblemState = boundedContext.activeProblemState;
 
   // Student Intent Classification & Proposed Work Evaluation
-  const studentIntent = lastUserMsg ? classifyStudentIntent(lastUserMsg.content, messages) : null;
+  const studentIntent = lastUserMsg ? classifyStudentIntent(lastUserMsg.content, messages, activeProblemState) : null;
   const studentEvaluation = studentIntent ? evaluateStudentWork(lastUserMsg.content, studentIntent, messages, activeProblemState) : null;
   if (studentEvaluation && activeProblemState && activeProblemState.active) {
     if (studentEvaluation.status === 'STEP_VERIFIED_CORRECT' || studentEvaluation.status === 'STEP_VERIFIED_INCORRECT') {

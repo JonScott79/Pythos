@@ -1,5 +1,6 @@
 const { isPracticeRequest, extractDifficultyPreference } = require('./practiceProblemGenerator');
 const { isVisualRequested } = require('./vizEngine/visualFidelity');
+const { interpretUserTurn, transpileSpokenMath } = require('./inputInterpreter');
 /*
     studentIntentClassifier.js
 
@@ -86,7 +87,7 @@ function isMathematicalExpression(str) {
 /**
  * Classifies the student's conversational intent.
  */
-function classifyStudentIntent(text, conversationHistory = [], activeProblemState = null) {
+function classifyStudentIntent(text, conversationHistory = [], activeProblemState = null, preInterpreted = null) {
   if (!text || typeof text !== 'string') {
     return {
       intent: INTENTS.UNKNOWN,
@@ -102,7 +103,9 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
     } catch (_) {}
   }
 
-  const clean = sanitizeInput(text);
+  const interpreted = preInterpreted || interpretUserTurn(text, conversationHistory, activeProblemState);
+  const clean = sanitizeInput(interpreted.canonicalText || text);
+  const transpiledClean = sanitizeInput(interpreted.transpiledText || clean);
   const lower = clean.toLowerCase();
   const signals = [];
   const hasActiveProblem = Boolean(activeProblemState?.active && !activeProblemState.active.isCompleted);
@@ -452,13 +455,50 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
     };
   }
 
+  // 8b. Conversational Pragmatics: Elliptical Step RHS or Verbal Operation Reply
+  if (interpreted.pragmatics) {
+    if (interpreted.pragmatics.isEllipticalStepRhs && interpreted.pragmatics.inferredFullStep) {
+      signals.push('elliptical_step_rhs');
+      return {
+        intent: INTENTS.PROPOSED_STEP,
+        confidence: 'high',
+        signals,
+        extractedExpression: interpreted.pragmatics.inferredFullStep,
+        rawEllipticalInput: clean,
+        pragmatics: interpreted.pragmatics
+      };
+    }
+    if (interpreted.pragmatics.isOperationProposal) {
+      signals.push('verbal_operation_step');
+      return {
+        intent: INTENTS.PROPOSED_STEP,
+        confidence: 'high',
+        signals,
+        extractedExpression: interpreted.pragmatics.inferredFullStep || clean,
+        isVerbalOperation: true,
+        pragmatics: interpreted.pragmatics
+      };
+    }
+  }
+
   // -------------------------------------------------------------
   // 9. PROPOSED_ANSWER Intent
   // -------------------------------------------------------------
+  if (interpreted.multiRoot) {
+    signals.push('multi_root_proposal');
+    return {
+      intent: INTENTS.PROPOSED_ANSWER,
+      confidence: 'high',
+      signals,
+      extractedExpression: interpreted.multiRoot.canonicalExpression,
+      multiRoot: interpreted.multiRoot
+    };
+  }
+
   const ansPrefixMatch = clean.match(/^(?:i\s+think\s+(?:the\s+answer\s+is|it\'s|it\s+is)?|the\s+answer\s+is|is\s+the\s+answer|is\s+it|it\'s|it\s+is|answer\s*[:=]|final\s+answer\s*[:=]|got|i\s+got|my\s+answer\s+is|(?:my\s+(?:teacher|calculator|friend|book|textbook)|someone)\s+(?:said|says|tells\s+me|told\s+me)\s+(?:that\s+)?(?:the\s+answer\s+is|it\'s|it\s+is)?)\s*(.+)$/i);
   if (ansPrefixMatch) {
     signals.push('answer_prefix_marker');
-    const expr = ansPrefixMatch[1].replace(/[?.,!]$/, '').trim();
+    const expr = transpileSpokenMath(ansPrefixMatch[1].replace(/[?.,!]$/, '').trim());
     return {
       intent: INTENTS.PROPOSED_ANSWER,
       confidence: 'high',
@@ -467,7 +507,7 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
     };
   }
 
-  const varAssignMatch = clean.match(/^((?:[a-zA-Z]|theta)\s*=\s*(?:±|\\pm|\+-)?\s*(?:[-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?|[-+]?(?:\\?sqrt|√)\s*[\({]?\s*\d+(?:\.\d+)?\s*[\)}]?)(?:(?:\*?pi|\*?θ)?)?)(?:[,\s!]+.*)?$/i);
+  const varAssignMatch = transpiledClean.match(/^((?:[a-zA-Z]|theta)\s*=\s*(?:±|\\pm|\+-)?\s*(?:[-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?|[-+]?(?:\\?sqrt|√)\s*[\({]?\s*\d+(?:\.\d+)?\s*[\)}]?)(?:(?:\*?pi|\*?θ)?)?)(?:[,\s!]+.*)?$/i);
   if (varAssignMatch) {
     signals.push('variable_assignment');
     return {
@@ -478,7 +518,7 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
     };
   }
 
-  const stepEqMatch = clean.match(/^(\d*[a-zA-Z](?:\^[0-9]+|[²³⁴])?(?:\s*[-+]\s*\d+(?:\.\d+)?)?\s*=\s*[-+]?\d+(?:\.\d+)?(?:(?:\s*\/\s*\d+)?(?:\*?pi|\*?θ)?)?)(?:[,\s!]+.*)?$/i);
+  const stepEqMatch = transpiledClean.match(/^(\d*[a-zA-Z](?:\^[0-9]+|[²³⁴])?(?:\s*[-+]\s*\d+(?:\.\d+)?)?\s*=\s*[-+]?\d+(?:\.\d+)?(?:(?:\s*\/\s*\d+)?(?:\*?pi|\*?θ)?)?)(?:[,\s!]+.*)?$/i);
   if (stepEqMatch) {
     signals.push('intermediate_equation_step');
     return {
@@ -489,11 +529,11 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
     };
   }
 
-  const isCandidateRootValue = /^(?:(?:±|\\pm|\+-)\s*)?(?:[-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?|[-+]?(?:\\?sqrt|√)\s*[\({]?\s*\d+(?:\.\d+)?\s*[\)}]?)$/i.test(clean);
+  const isCandidateRootValue = /^(?:(?:±|\\pm|\+-)\s*)?(?:[-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?|[-+]?(?:\\?sqrt|√)\s*[\({]?\s*\d+(?:\.\d+)?\s*[\)}]?)$/i.test(transpiledClean);
 
   if (hasActiveProblem) {
-    const looksMath = isMathematicalExpression(clean) || isCandidateRootValue;
-    if (looksMath && clean.length <= 40 && !clean.includes('=')) {
+    const looksMath = isMathematicalExpression(transpiledClean) || isCandidateRootValue;
+    if (looksMath && transpiledClean.length <= 40 && !transpiledClean.includes('=')) {
       const isSimpleNum = isCandidateRootValue;
       const isSingleVarEq = activeProblemState?.active?.activeExpression &&
         !activeProblemState.active.activeExpression.includes('pi') &&
@@ -505,7 +545,7 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
           intent: INTENTS.PROPOSED_ANSWER,
           confidence: 'high',
           signals,
-          extractedExpression: clean
+          extractedExpression: transpiledClean
         };
       }
 
@@ -514,7 +554,7 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
         intent: INTENTS.PROPOSED_STEP,
         confidence: 'high',
         signals,
-        extractedExpression: clean
+        extractedExpression: transpiledClean
       };
     }
   }
@@ -525,7 +565,7 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
       intent: INTENTS.PROPOSED_ANSWER,
       confidence: 'medium',
       signals,
-      extractedExpression: clean
+      extractedExpression: transpiledClean
     };
   }
 

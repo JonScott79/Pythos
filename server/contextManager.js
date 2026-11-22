@@ -18,6 +18,7 @@
 
 const math = require('mathjs');
 const { classifyProblem, extractAnswerFormattingRequirements, extractRightTriangleTarget } = require('./problemClassifier');
+const { transpileSpokenMath } = require('./inputInterpreter');
 const { resolveReferentialContext } = require('./deterministicRouter');
 const { evaluateLinearEquationStep, evaluateEquationCandidate } = require('./studentWorkEvaluator');
 const mathjsVerifier = require('./mathjsVerifier');
@@ -515,13 +516,7 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
       '⁺': '+', '⁻': '-', '⁽': '(', '⁾': ')'
     };
     let extractedEq = null;
-    const cleanPrompt = msg.content
-      .replace(/\u2212/g, '-')
-      .replace(/([⁰¹²³⁴⁵⁶⁷⁸⁹]+\u2044[₀₁₂₃₄₅₆₇₈₉]+)|\^?([⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁽⁾]+)/g, (full, frac, run) => {
-        if (frac) return frac;
-        const decoded = [...run].map(c => superMap[c] || c).join('');
-        return /^-?\d+$/.test(decoded) ? `^${decoded}` : `^(${decoded})`;
-      })
+    const cleanPrompt = transpileSpokenMath(msg.content)
       .replace(/^(?:please\s+)?(?:solve(?:\s+for\s+[a-zA-Z])?|(?:check|verify|test|see)(?:\s+(?:if|whether|that))?|\bdoes\b|\bis\b|now\s+solve)[:\s]*/i, '')
       .replace(/[?!.]+$/, '')
       .trim();

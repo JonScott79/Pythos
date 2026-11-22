@@ -4,6 +4,7 @@
 // assumptions, constraints, and specialized reasoning protocol BEFORE calculation.
 
 const math = require('mathjs');
+const { canonicalizeStemTypos, transpileSpokenMath } = require('./inputInterpreter');
 
 // ==========================================
 // 1. PROBLEM DOMAIN & SUBTYPE CONSTANTS
@@ -463,21 +464,7 @@ function extractRightTriangleTarget(text) {
 
 function normalizeMathSpellingTypos(str) {
   if (!str || typeof str !== 'string') return '';
-  return str
-    .replace(/\bderivitives?\b/gi, m => m.replace(/itiv/i, 'ativ'))
-    .replace(/\bantiderivitives?\b/gi, m => m.replace(/itiv/i, 'ativ'))
-    .replace(/\bdifferenciates?\b/gi, m => m.replace(/ciat/i, 'tiat'))
-    .replace(/\bdifferenciation\b/gi, 'differentiation')
-    .replace(/\bintergrals?\b/gi, m => m.replace(/terg/i, 'teg'))
-    .replace(/\bintergrate\b/gi, 'integrate')
-    .replace(/\bintergration\b/gi, 'integration')
-    .replace(/\bhypotenous\b/gi, 'hypotenuse')
-    .replace(/\btriganometry\b/gi, 'trigonometry')
-    .replace(/\btrignometry\b/gi, 'trigonometry')
-    .replace(/\bpythagorian\b/gi, 'pythagorean')
-    .replace(/\bquadradic\b/gi, 'quadratic')
-    .replace(/\bequasions?\b/gi, m => m.replace(/si/i, 'ti'))
-    .replace(/\basymptopes?\b/gi, m => m.replace(/pe/i, 'te'));
+  return transpileSpokenMath(canonicalizeStemTypos(str));
 }
 
 function classifyProblem(userText) {

@@ -11,6 +11,7 @@
 
 const math = require('mathjs');
 const mathjsVerifier = require('./mathjsVerifier');
+const { canonicalizeStemTypos, transpileSpokenMath } = require('./inputInterpreter');
 
 /**
  * Checks if a string contains conceptual reasoning or pedagogical request words.
@@ -1412,7 +1413,8 @@ function extractContextualTrigTriangle(conversationHistory) {
 
 function analyzeDeterministicIntent(userText, conversationHistory = []) {
   if (!userText || typeof userText !== 'string') return null;
-  const clean = userText.trim().replace(/^\$+|\$+$/g, '').replace(/[?!.]+$/, '').replace(/(\d),(\d{3})\b/g, '$1$2').trim();
+  const canonicalInput = transpileSpokenMath(canonicalizeStemTypos(userText));
+  const clean = canonicalInput.trim().replace(/^\$+|\$+$/g, '').replace(/[?!.]+$/, '').replace(/(\d),(\d{3})\b/g, '$1$2').trim();
   const lower = clean.toLowerCase();
 
   // Deterministic Answer Formatting & Precision Validation

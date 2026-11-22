@@ -2315,7 +2315,7 @@ function extractClaims(text, userPrompt = '') {
     } else if (cleanBoxedStr) {
       // Only flag unverified_boxed_answer when the boxed content is a concrete numeric/equation solution
       // (or not a multi-variable symbolic formula / abstract definition in a conceptual/Sim Lab derivation).
-      const isConceptualPrompt = /\b(?:in\s+the\s+sim\s+lab|derive|how\s+does|why\s+does|explain\b|what\s+is\s+(?:a|an|the)\b|what\s+does\b|define\b|difference\s+between|walk\s+me\s+through)\b/i.test(promptStr || '');
+      const isConceptualPrompt = /\b(?:in\s+the\s+sim\s+lab|derive|how\s+does|how\s+do|why\s+does|why\s+do|why\s+can'?t|explain\b|what\s+is\s+(?:a|an|the)\b|what'?s\s+(?:a|an|the)\b|what\s+does\b|define\b|difference\s+between|walk\s+me\s+through|help\s+me\s+understand|eli5\b)\b/i.test(promptStr || '');
       const formulaVars = new Set(
         cleanBoxedStr
           .replace(/\\(?:sqrt|frac|text|left|right|sin|cos|tan|sec|csc|cot|log|ln|pi|Delta|theta|omega|alpha|beta|gamma|cdot|times|lim|to|int)\b/gi, '')

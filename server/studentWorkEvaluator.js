@@ -14,6 +14,7 @@
 
 const math = require('mathjs');
 const { INTENTS, classifyStudentIntent } = require('./studentIntentClassifier');
+const { transpileSpokenMath, parseMultiRootStudentProposal } = require('./inputInterpreter');
 
 // Create exact math instance with fraction configuration
 const exactMath = math.create(math.all, {
@@ -64,6 +65,7 @@ function normalizeExpression(rawExpr) {
   // Strip leading/trailing conversational prefixes if still present
   s = s.replace(/^(?:so\s+then\s+(?:it\s+becomes|we\s+get)?|then\s+(?:it\s+becomes|we\s+get)?|so\s+|next\s*(?:step)?[:=]?)\s*/i, '');
   s = s.replace(/^(?:i\s+(?:got|think|calculated|found)|the\s+answer\s+is|answer\s*[:=])\s*/i, '');
+  s = transpileSpokenMath(s);
 
   // Normalize Unicode superscripts, LaTeX fractions/radicals, and operators
   const superMap = {
@@ -500,6 +502,38 @@ function evaluateEquationCandidate(targetExpr, activeEq) {
 
   const varInActive = (activeEq.replace(/\\[a-zA-Z]+|\b(?:sqrt|cbrt|sin|cos|tan|log|ln|exp|abs|pi)\b/gi, '').match(/\b([a-zA-Z])\b/));
   if (varInActive) proposedVar = varInActive[1];
+
+  // 2a. Check for multi-root proposals (e.g. "2 and 3", "4 or -4", "±sqrt(17)", "plus or minus root 17")
+  const multiRoot = parseMultiRootStudentProposal(rawCandidateValStr);
+  if (multiRoot && multiRoot.values.length >= 2) {
+    if (multiRoot.variable) proposedVar = multiRoot.variable;
+    const eqParts = activeEq.split('=');
+    if (eqParts.length === 2) {
+      try {
+        const normEqLhs = normalizeExpression(eqParts[0].trim());
+        const normEqRhs = normalizeExpression(eqParts[1].trim());
+        const allSatisfy = multiRoot.values.every(v => {
+          const lhsVal = Number(math.evaluate(normEqLhs, { [proposedVar]: v }));
+          const rhsVal = Number(math.evaluate(normEqRhs, { [proposedVar]: v }));
+          return Number.isFinite(lhsVal) && Number.isFinite(rhsVal) && Math.abs(lhsVal - rhsVal) < 1e-4;
+        });
+        if (allSatisfy && !multiRoot.hasBothSigns) {
+          const rootsStr = multiRoot.values.join(', ');
+          return {
+            status: 'ANSWER_VERIFIED_CORRECT',
+            jumpedAhead: true,
+            hasSymmetricNegativeRoot: false,
+            isCompleteMultiRoot: true,
+            rawExpression: targetExpr,
+            variable: proposedVar,
+            proposedValue: rootsStr,
+            details: `Both proposed roots (${proposedVar} = ${rootsStr}) satisfy ${activeEq}.`,
+            preferredResponse: `Spot on—both $${proposedVar} = ${multiRoot.values[0]}$ and $${proposedVar} = ${multiRoot.values[1]}$ satisfy $${activeEq}$!\n\n$$\\boxed{${proposedVar} = ${rootsStr}}$$`
+          };
+        }
+      } catch (_) {}
+    }
+  }
 
   const valAssign = rawCandidateValStr.match(/^([a-zA-Z])\s*=\s*(.+)$/);
   if (valAssign) {
@@ -1006,6 +1040,35 @@ function evaluateStudentWork(rawInput, classification, conversationHistory = [],
       status: 'INTENT_ONLY',
       intent
     };
+  }
+
+  // 0. Verbal operation or Elliptical step RHS handling via conversational pragmatics
+  if (classification.isVerbalOperation && classification.pragmatics?.expectedOperation) {
+    const expOp = classification.pragmatics.expectedOperation;
+    const expStep = classification.pragmatics.expectedFullStep || activeEq;
+    if (classification.pragmatics.operationMatchesExpected === true) {
+      return {
+        status: 'STEP_VERIFIED_CORRECT',
+        intent,
+        ellipticalStep: true,
+        target: rawInput.trim(),
+        correctedStep: expStep,
+        nextOperation: 'continue isolating the variable',
+        details: `The student proposed the correct next operation (${expOp.description}), which transforms the equation into ${expStep}.`,
+        preferredResponse: `Exactly! When we ${expOp.description}, we get:\n$$${expStep}$$`
+      };
+    } else if (classification.pragmatics.operationMatchesExpected === false) {
+      return {
+        status: 'STEP_VERIFIED_INCORRECT',
+        intent,
+        target: rawInput.trim(),
+        correctedStep: expStep,
+        nextOperation: expOp.description,
+        details: `Instead of "${rawInput.trim()}", we need to ${expOp.description} to obtain ${expStep}.`,
+        affirmation: 'You are thinking about inverse operations to isolate the variable.',
+        preferredResponse: `❌ Not quite. At this stage we want to ${expOp.description}, which gives \`${expStep}\`.`
+      };
+    }
   }
 
   // 1. Ambiguity Check
