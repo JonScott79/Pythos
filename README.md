@@ -70,7 +70,7 @@ Try Pythos online:
 
 ## Development & Support
 
-Pythos is an independent education initiative created by Jon Scott and developed and supported by **[LANZAR](https://lanzar.me/)** to provide open, reliable, and rigorous educational tools for students everywhere. Pythos is being developed toward nonprofit educational operation with a simple principle: no kid should be charged to learn.
+Pythos is an independent education initiative created by Jon Scott and developed and supported by **[LANZAR](https://lanzar.me/)** to provide open, reliable, and rigorous educational tools for students everywhere—kept free for students and sustained through eventual advertising with a simple principle: no kid should be charged to learn.
 
 ---
 

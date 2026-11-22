@@ -169,8 +169,8 @@ for (const q of nonprofitQueries) {
     assert(res.sources.includes('NONPROFIT'));
 
     const ctx = buildProjectKnowledgeContext(q);
-    assert(ctx.includes('nonprofit future') || ctx.includes('WHY NONPROFIT'), 'Context must contain nonprofit mission');
-    assert(ctx.includes('independent education initiative') || ctx.includes('independent educational technology') || ctx.includes('future goal'), 'Context must explain transparent nonprofit roadmap');
+    assert(ctx.includes('KEEPING PYTHOS FREE') || ctx.includes('eventual advertising'), 'Context must contain free ad-supported mission');
+    assert(ctx.includes('independent education initiative') && ctx.includes('Neither Pythos nor LANZAR is a charity'), 'Context must explain transparent non-nonprofit status');
   });
 }
 
@@ -403,7 +403,7 @@ runTest('Authoritative source reads from filesystem, not hardcoded strings', () 
 
   const changelogSource = getAuthoritativeSource('CHANGELOG');
   assert(changelogSource !== null);
-  assert(changelogSource.text.includes('Pythos 1.8.65'));
+  assert(changelogSource.text.includes('Pythos 1.8.73'));
 });
 
 runTest('Railway Docker layout (server/site_sources) is synchronized and resolves current sources in isolated container layout', () => {
@@ -438,7 +438,7 @@ runTest('Railway Docker layout (server/site_sources) is synchronized and resolve
     const dockerVal = containerPk.getAuthoritativeSource('VALIDATION');
     assert(dockerVal && dockerVal.text.includes('50,000') && dockerVal.text.includes('100.00%'), 'Docker VALIDATION source must contain current 50K 100.00% record');
     const dockerChangelog = containerPk.getAuthoritativeSource('CHANGELOG');
-    assert(dockerChangelog && dockerChangelog.text.includes('Pythos 1.8.65'), 'Docker CHANGELOG source must contain current v1.8.65 release');
+    assert(dockerChangelog && dockerChangelog.text.includes('Pythos 1.8.73'), 'Docker CHANGELOG source must contain current v1.8.73 release');
   } finally {
     fs.rmSync(tmpBase, { recursive: true, force: true });
   }
@@ -516,19 +516,19 @@ runTest('Forbidden organizational terms (e.g. LANZAR initiative, ecosystem, umbr
   }
 });
 
-runTest('Authoritative About and Nonprofit passages adhere to canonical model', () => {
+runTest('Authoritative About and Mission passages adhere to canonical model', () => {
   const aboutHtml = fs.readFileSync(path.resolve(__dirname, 'about/index.html'), 'utf8');
   assert(aboutHtml.includes('<strong>The Pythos Initiative:</strong>'), 'About page must contain "The Pythos Initiative" heading');
   assert(aboutHtml.includes('Pythos is an independent education initiative dedicated to making high-quality mathematics and physics education freely accessible.'), 'About page must contain canonical definition');
-  assert(aboutHtml.includes('Pythos is being developed as a nonprofit educational organization'), 'About page must describe nonprofit development precisely');
+  assert(aboutHtml.includes('eventual advertising'), 'About page must describe ad-supported free sustainability');
   assert(aboutHtml.includes('no kid should be charged to learn'), 'About page must contain core principle');
   assert(aboutHtml.includes('Developed by LANZAR.'), 'About footer must state Developed by LANZAR');
 
   const nonprofitHtml = fs.readFileSync(path.resolve(__dirname, 'nonprofit.html'), 'utf8');
-  assert(nonprofitHtml.includes('<strong>The Pythos Initiative:</strong>'), 'Nonprofit page must contain "The Pythos Initiative" heading');
-  assert(nonprofitHtml.includes('developed and supported by LANZAR'), 'Nonprofit page must state LANZAR support');
-  assert(nonprofitHtml.includes('Neither Pythos nor LANZAR is currently a recognized charity'), 'Nonprofit page must disclaim current legal charity status');
-  assert(nonprofitHtml.includes('Developed by LANZAR.'), 'Nonprofit footer must state Developed by LANZAR');
+  assert(nonprofitHtml.includes('<strong>The Pythos Initiative:</strong>'), 'Mission page must contain "The Pythos Initiative" heading');
+  assert(nonprofitHtml.includes('developed and supported by LANZAR'), 'Mission page must state LANZAR support');
+  assert(nonprofitHtml.includes('Neither Pythos nor LANZAR is a charity'), 'Mission page must disclaim charity/nonprofit status');
+  assert(nonprofitHtml.includes('Developed by LANZAR.'), 'Mission footer must state Developed by LANZAR');
 });
 
 // =========================================================================
