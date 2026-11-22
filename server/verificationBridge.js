@@ -1125,90 +1125,124 @@ function extractClaims(text, userPrompt = '') {
   const isSystemPrompt = ((promptStr.match(/=/g) || []).length >= 2) || /\bsystem\b/i.test(promptStr);
   const isGraphPrompt = /\b(?:graph|plot|draw|sketch)\b/i.test(promptStr);
   const isIdentityPrompt = /\b(?:does|is|whether|prove|verify|show)\b.*?[=≈]/i.test(promptStr) || /\b(?:identity|identities)\b/i.test(promptStr);
-  if (promptStr && !isSystemPrompt && !isGraphPrompt && !isIdentityPrompt) {
-    const promptEqMatch = promptStr.match(/([^\n\r;=]+=[^\n\r;=]+)/);
-    if (promptEqMatch) {
-      const cleaned = cleanAndNormalizeEquation(promptEqMatch[1]);
-      if (cleaned && isSingleVarEq(cleaned.equation)) {
-        const v = cleaned.variable;
-        let sols = [];
-        let rawMatchStr = null;
+  if (!isSystemPrompt && !isGraphPrompt && !isIdentityPrompt) {
+    const promptEqMatch = promptStr ? promptStr.match(/([^\n\r;=]+=[^\n\r;=]+)/) : null;
+    let cleaned = promptEqMatch ? cleanAndNormalizeEquation(promptEqMatch[1]) : null;
+    if ((!cleaned || !isSingleVarEq(cleaned.equation)) && !promptEqMatch) {
+      const isNonAlgebraPrompt =
+        /\b(?:derivative|differentiate|integral|integrate|limit|coterminal|matrix|determinant|eigenvalue|probability|bayes|velocity|acceleration|kinetic|momentum|triangle|hypotenuse|perimeter|area|simplify|factor|expand)\b/i.test(promptStr || '') ||
+        /\[(?:GEOMETRY|VIZ):|\\int\b|\\frac\{d\}\{d/i.test(text);
+      if (!isNonAlgebraPrompt) {
+        const textUnboxed = text.replace(/\\boxed\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g, '$1');
+        const candidateEqSegments = text
+          .replace(/\\begin\{aligned\}|\\end\{aligned\}|&/g, ' ')
+          .replace(/\\boxed\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g, '$1')
+          .split(/\r?\n|\\\\|\\\[|\\\]|\\\(|\\\)|\$\$|\$|\\qquad|\\quad|\\implies|\\Longrightarrow|\\Rightarrow|⇒|==>|\.\s+(?=[A-Z\\$])/);
+        for (const seg of candidateEqSegments) {
+          const trimSeg = seg.trim();
+          if (!trimSeg || !trimSeg.includes('=') || /[<>≈~]|\\(?:approx|neq)\b/.test(trimSeg)) continue;
+          const cand = cleanAndNormalizeEquation(trimSeg);
+          if (!cand || !isSingleVarEq(cand.equation) || !/^[a-z]$/.test(cand.variable)) continue;
+          const eqSides = cand.equation.split('=').map(s => s.trim());
+          if (eqSides.length !== 2) continue;
+          if (/^[a-zA-Z]$/.test(eqSides[0]) || /^[a-zA-Z]$/.test(eqSides[1])) continue;
+          const hasExplicitVarAssign = new RegExp(
+            `(?:^|[^a-zA-Z0-9_*^/\\\\])${cand.variable}\\s*=\\s*[-+]?(?:\\\\frac\\{\\s*[-+]?\\d|\\d)`,
+            'i'
+          ).test(textUnboxed);
+          if (!hasExplicitVarAssign) continue;
+          const eqvCheck = mathjsVerifier.verifySymbolicEquivalence({
+            expr1: eqSides[0],
+            expr2: eqSides[1],
+            variables: [cand.variable]
+          });
+          if (eqvCheck && eqvCheck.status === 'NON_EQUIVALENT') {
+            cleaned = cand;
+            break;
+          }
+        }
+      }
+    }
+    if (cleaned && isSingleVarEq(cleaned.equation)) {
+      const v = cleaned.variable;
+      let sols = [];
+      let rawMatchStr = null;
 
-        // Check boxed matches first for full root set
-        let boxedWasParametric = false;
-        const boxedMatches = extractBoxedMatches(text);
-        if (boxedMatches.length > 0) {
-          const rawBoxed = cleanLatexUnits(boxedMatches[boxedMatches.length - 1].content);
-          // If the boxed content is an algebraic polynomial / identity containing the variable,
-          // do NOT treat its coefficients/exponents as candidate roots!
-          const hasUnboundVar = new RegExp(`\\b${v}\\b`).test(rawBoxed.replace(/^[a-zA-Z]\s*=/, ''));
-          const isIntermediateEquation = rawBoxed.includes('=') && !/^[a-zA-Z](?:_\{?\d+\}?)?\s*(?:=|\\approx|≈)/.test(rawBoxed.trim());
-          // Ignore integer/parametric solution families (e.g. n\pi, k\pi, arcsin(...))
-          const isParametricFamily = /\b[nkm]\b|\\pi\b|\bpi\b|\\?(?:arcsin|arccos|arctan|asin|acos|atan)\b/i.test(rawBoxed);
-          if (isParametricFamily) boxedWasParametric = true;
-          if (!hasUnboundVar && !isIntermediateEquation && !isParametricFamily) {
-            const cleanBoxedForComp = cleanLatexUnits(rawBoxed).replace(/\\pi\b|\bpi\b/gi, '').replace(/^[a-zA-Z]\s*=/, '');
-            const compMatches = cleanBoxedForComp.match(/(?<![a-zA-Z\\])[-+]?(?:\d*(?:\.\d+)?)?i\b(?![a-zA-Z])/g);
-            if (compMatches && compMatches.length > 0) {
-              sols = compMatches;
+      // Check boxed matches first for full root set
+      let boxedWasParametric = false;
+      const boxedMatches = extractBoxedMatches(text);
+      if (boxedMatches.length > 0) {
+        const rawBoxed = cleanLatexUnits(boxedMatches[boxedMatches.length - 1].content);
+        // If the boxed content is an algebraic polynomial / identity containing the variable,
+        // do NOT treat its coefficients/exponents as candidate roots!
+        const hasUnboundVar = new RegExp(`\\b${v}\\b`).test(rawBoxed.replace(/^[a-zA-Z]\s*=/, ''));
+        const isIntermediateEquation = rawBoxed.includes('=') && !/^[a-zA-Z](?:_\{?\d+\}?)?\s*(?:=|\\approx|≈)/.test(rawBoxed.trim());
+        // Ignore integer/parametric solution families (e.g. n\pi, k\pi, arcsin(...))
+        const isParametricFamily = /\b[nkm]\b|\\pi\b|\bpi\b|\\?(?:arcsin|arccos|arctan|asin|acos|atan)\b/i.test(rawBoxed);
+        if (isParametricFamily) boxedWasParametric = true;
+        if (!hasUnboundVar && !isIntermediateEquation && !isParametricFamily) {
+          const cleanBoxedForComp = cleanLatexUnits(rawBoxed).replace(/\\pi\b|\bpi\b/gi, '').replace(/^[a-zA-Z]\s*=/, '');
+          const compMatches = cleanBoxedForComp.match(/(?<![a-zA-Z\\])[-+]?(?:\d*(?:\.\d+)?)?i\b(?![a-zA-Z])/g);
+          if (compMatches && compMatches.length > 0) {
+            sols = compMatches;
+            rawMatchStr = boxedMatches[boxedMatches.length - 1].raw;
+          } else {
+            const boxedSols = parseSolutionNumbers(rawBoxed);
+            if (boxedSols && boxedSols.length > 0) {
+              sols = boxedSols;
               rawMatchStr = boxedMatches[boxedMatches.length - 1].raw;
-            } else {
-              const boxedSols = parseSolutionNumbers(rawBoxed);
-              if (boxedSols && boxedSols.length > 0) {
-                sols = boxedSols;
-                rawMatchStr = boxedMatches[boxedMatches.length - 1].raw;
-              }
             }
           }
         }
+      }
 
-        // If not in boxed (and not a parametric trig family), check explicit assignments like x = 3 or x = 9
-        if (sols.length === 0 && !boxedWasParametric) {
-          const solListRegex = new RegExp('(?:solutions?|roots?)\\s*(?:are|is|:|=)?\\s*([-\\d.,\\s*andor\\\\frac{}]+)', 'i');
-          const listMatch = text.match(solListRegex);
-          if (listMatch) {
-            const listSols = parseSolutionNumbers(listMatch[1]);
-            if (listSols && listSols.length > 0) {
-              listSols.forEach(n => {
-                if (!sols.includes(n)) sols.push(n);
-              });
-              rawMatchStr = listMatch[0];
-            }
-          }
-
-          const assignAllRegex = new RegExp('\\b' + v + '\\s*=\\s*([-\\+]?(?:\\\\frac\\{\\s*[-\\+]?\\d+(?:\\.\\d+)?\\s*\\}\\{\\s*\\d+(?:\\.\\d+)?\\s*\\}|[-\\+]?\\d+(?:\\.\\d+)?(?:\\/\\d+(?:\\.\\d+)?)?))', 'gi');
-          let m;
-          while ((m = assignAllRegex.exec(text)) !== null) {
-            // Do not extract test substitutions, hypothetical assignments, or trig/log arguments (e.g. "sin X = 2/7")
-            const prefix = text.slice(Math.max(0, m.index - 30), m.index);
-            if (/\b(?:let|test|testing|try|trying|for|if|when|substitute|substituting|plug|plugging|check|checking|at|with|no\s+real)\s*$/i.test(prefix) ||
-                /(?:\\|\b)(?:sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|log|ln|exp|sqrt)\s*(?:\^\s*\{?\d+\}?\s*)?$/i.test(prefix)) {
-              continue;
-            }
-            const parsedVals = parseSolutionNumbers(m[1]);
-            parsedVals.forEach(val => {
-              if (!sols.includes(val)) sols.push(val);
+      // If not in boxed (and not a parametric trig family), check explicit assignments like x = 3 or x = 9
+      if (sols.length === 0 && !boxedWasParametric) {
+        const solListRegex = new RegExp('(?:solutions?|roots?)\\s*(?:are|is|:|=)?\\s*([-\\d.,\\s*andor\\\\frac{}]+)', 'i');
+        const listMatch = text.match(solListRegex);
+        if (listMatch) {
+          const listSols = parseSolutionNumbers(listMatch[1]);
+          if (listSols && listSols.length > 0) {
+            listSols.forEach(n => {
+              if (!sols.includes(n)) sols.push(n);
             });
-            if (!rawMatchStr) rawMatchStr = m[0];
+            rawMatchStr = listMatch[0];
           }
         }
 
-        if (sols.length > 0) {
-          const alreadyClaimed = claims.some(c => c.data?.equation === cleaned.equation && c.claim_type === 'equation_solution');
-          if (!alreadyClaimed) {
-            claims.push({
-              domain: 'algebra',
-              claim_type: 'equation_solution',
-              raw_match: rawMatchStr || `solutions: ${sols.join(', ')}`,
-              data: {
-                equation: cleaned.equation,
-                variable: cleaned.variable,
-                proposed_solutions: sols,
-                userPrompt: promptStr
-              },
+        const assignAllRegex = new RegExp('\\b' + v + '\\s*=\\s*([-\\+]?(?:\\\\frac\\{\\s*[-\\+]?\\d+(?:\\.\\d+)?\\s*\\}\\{\\s*\\d+(?:\\.\\d+)?\\s*\\}|[-\\+]?\\d+(?:\\.\\d+)?(?:\\/\\d+(?:\\.\\d+)?)?))', 'gi');
+        let m;
+        while ((m = assignAllRegex.exec(text)) !== null) {
+          // Do not extract test substitutions, hypothetical assignments, or trig/log arguments (e.g. "sin X = 2/7")
+          const prefix = text.slice(Math.max(0, m.index - 30), m.index);
+          if (/\b(?:let|test|testing|try|trying|for|if|when|substitute|substituting|plug|plugging|check|checking|at|with|no\s+real)\s*$/i.test(prefix) ||
+              /(?:\\|\b)(?:sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|log|ln|exp|sqrt)\s*(?:\^\s*\{?\d+\}?\s*)?$/i.test(prefix) ||
+              /(?:[\^*\/+\-)]|\\(?:cdot|times|div))\s*$/i.test(prefix)) {
+            continue;
+          }
+          const parsedVals = parseSolutionNumbers(m[1]);
+          parsedVals.forEach(val => {
+            if (!sols.includes(val)) sols.push(val);
+          });
+          if (!rawMatchStr) rawMatchStr = m[0];
+        }
+      }
+
+      if (sols.length > 0) {
+        const alreadyClaimed = claims.some(c => c.data?.equation === cleaned.equation && c.claim_type === 'equation_solution');
+        if (!alreadyClaimed) {
+          claims.push({
+            domain: 'algebra',
+            claim_type: 'equation_solution',
+            raw_match: rawMatchStr || `solutions: ${sols.join(', ')}`,
+            data: {
+              equation: cleaned.equation,
+              variable: cleaned.variable,
+              proposed_solutions: sols,
               userPrompt: promptStr
-            });
-          }
+            },
+            userPrompt: promptStr
+          });
         }
       }
     }
@@ -1501,9 +1535,40 @@ function extractClaims(text, userPrompt = '') {
       // Single variable on one side cannot be symbolically equivalent to an expression in another variable
       if (lhsVarList[0] !== rhsVarList[0] && (!normLhs.includes(rhsVarList[0]) || !normRhs.includes(lhsVarList[0]))) continue;
 
-      // Do not mistake the prompt's equation-to-solve for an algebraic identity
+      // Do not mistake the prompt's equation-to-solve (or valid intermediate equation-solving steps in the solved variable) for a universal algebraic identity
       if (parts.length === 2 && promptStr && promptStr.includes('=') && (cleanBlock.includes(promptStr.split('=')[0].trim()) || promptStr.includes(cleanBlock))) continue;
       if (parts.length > 2 && promptStr && /\bsolve\b/i.test(promptStr) && promptStr.includes('=') && promptStr.replace(/\s+/g, '').includes(pairCleanBlock.replace(/\s+/g, ''))) continue;
+
+      const solvedEqClaimForVar = !isIdentityPrompt && lhsVars.size === 1
+        ? claims.find(c =>
+            c.claim_type === 'equation_solution' &&
+            String(c.data?.variable || '').toLowerCase() === lhsVarList[0].toLowerCase() &&
+            Array.isArray(c.data?.proposed_solutions) &&
+            c.data.proposed_solutions.length > 0
+          )
+        : null;
+      if (solvedEqClaimForVar) {
+        const candidateStepEq = `${normLhs} = ${normRhs}`;
+        if (solvedEqClaimForVar.data.equation === candidateStepEq) {
+          continue;
+        }
+        const eqvRes = mathjsVerifier.verifySymbolicEquivalence({
+          expr1: normLhs,
+          expr2: normRhs,
+          variables: [lhsVarList[0]]
+        });
+        if (eqvRes && eqvRes.status === 'NON_EQUIVALENT') {
+          const stepSolRes = mathjsVerifier.verifyEquationSolution({
+            equation: candidateStepEq,
+            variable: lhsVarList[0],
+            proposed_solutions: solvedEqClaimForVar.data.proposed_solutions,
+            userPrompt: promptStr
+          });
+          if (stepSolRes && stepSolRes.verified === true) {
+            continue;
+          }
+        }
+      }
 
       const vMatch = [lhsVarList[0], lhsVarList[0]];
 

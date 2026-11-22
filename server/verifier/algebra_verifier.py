@@ -877,6 +877,16 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
                 elif any("/log(" in s for s in (norm1, norm2)):
                     if sp.simplify(sp.logcombine(e1 - e2, force=True)) == 0:
                         diff = 0
+                elif any(
+                    isinstance(node, sp.log)
+                    and len(node.args) == 1
+                    and isinstance(node.args[0], sp.Pow)
+                    and len(node.args[0].exp.free_symbols) > 0
+                    for expr_node in (e1, e2)
+                    for node in sp.preorder_traversal(expr_node)
+                ):
+                    if sp.simplify(sp.logcombine(e1 - e2, force=True)) == 0:
+                        diff = 0
             except Exception:
                 pass
 

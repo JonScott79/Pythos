@@ -302,6 +302,28 @@ async function run() {
     assert.strictEqual(ambig.hasAmbiguity, false, 'Leibniz derivative notation d/dx must NOT trigger ambiguous division binding');
   });
 
+  await test('Vision Equation Solving (PY-713d8f2a & PY-9dad71dc): 2^{3x-12} = 3^{2x-8} with log power rule & intermediate steps', async () => {
+    const { verifyResponseClaims } = require('../server/verificationBridge');
+    const visionResponse = [
+      'Looking at the image, we want to solve the exponential equation:',
+      '$$2^{3x-12} = 3^{2x-8}$$',
+      'Take the natural logarithm of both sides:',
+      '$$\\ln\\left(2^{3x-12}\\right) = \\ln\\left(3^{2x-8}\\right)$$',
+      'Using the logarithm power rule $\\ln(a^b) = b \\cdot \\ln(a)$:',
+      '$$(3x - 12)\\ln(2) = (2x - 8)\\ln(3)$$',
+      'Notice that $3x - 12 = 3(x - 4)$ and $2x - 8 = 2(x - 4)$, or as noted in the comment, both exponents equal zero ($3x-12 = 2x-8 = 0$), which gives $3x - 12 = 0$, $3x = 12$, and $x = 4$.',
+      'Check: $2^0 = 1$ and $3^0 = 1$.',
+      '$$\\boxed{x = 4}$$'
+    ].join('\n');
+
+    const res = await verifyResponseClaims(visionResponse, 'Please inspect and help me with this problem.');
+    assert.strictEqual(res.invalidClaims.length, 0, `Expected 0 invalid claims on 2^{3x-12}=3^{2x-8} vision derivation, got: ${JSON.stringify(res.invalidClaims)}`);
+    assert.strictEqual(res.internalContradictions.length, 0, 'Expected 0 internal contradictions');
+    const eqClaim = res.claims.find(c => c.claim_type === 'equation_solution' && c.data?.equation === '2^(3*x-12) = 3^(2*x-8)');
+    assert(eqClaim, 'Must extract equation_solution claim for 2^(3*x-12) = 3^(2*x-8) even when prompt is a generic image upload prompt');
+    assert(res.verificationResults.every(v => v.verified === true), 'Every extracted claim (equation_solution, ln(a^b)=b*ln(a), arithmetic checks) must verify');
+  });
+
   console.log(`\n======================================================================`);
   console.log(`RESULTS: ${passed}/${total} PASSED`);
   console.log('======================================================================');
