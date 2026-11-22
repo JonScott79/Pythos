@@ -356,6 +356,67 @@ async function run() {
     assert(det && det.type === 'CALCULUS_DERIVATIVE' && det.result === '6*x', 'Misspelled "find the derivitive of 3x^2" must route deterministically to 6*x');
   });
 
+  // =========================================================================
+  // 13. Student Jumping Ahead to Correct Radical Answer ("Sqrt(17)" after "3x²-3=48")
+  // =========================================================================
+  await test('13. Student jumping ahead to radical answer (Sqrt(17)) is recognized and congratulated in Tutor Mode', async () => {
+    const { classifyStudentIntent } = require('../server/studentIntentClassifier');
+    const { evaluateStudentWork, formatStudentWorkContext } = require('../server/studentWorkEvaluator');
+    const { extractActiveProblemState } = require('../server/contextManager');
+    const { buildTutorModeDirective } = require('../server/teachingIntelligence');
+    const { verifyResponseClaims } = require('../server/verificationBridge');
+
+    const historyStep1 = [
+      { role: 'user', content: 'Solve (3x^2 - 3)/4 = 12' },
+      {
+        role: 'assistant',
+        content: 'Step 1: Clear the denominator. Multiply both sides by 4:\n$$4 \\cdot \\left(\\frac{3x^2 - 3}{4}\\right) = 12 \\cdot 4$$\nWhat do we get when we simplify both sides of this new equation?'
+      }
+    ];
+
+    // Turn 1: Student enters Unicode superscript equation "3x²-3=48"
+    const step1Ctx = extractActiveProblemState(historyStep1);
+    const step1Intent = classifyStudentIntent('3x²-3=48', historyStep1, step1Ctx);
+    assert.strictEqual(step1Intent.intent, 'PROPOSED_STEP', '3x²-3=48 must classify as PROPOSED_STEP');
+    const step1Eval = evaluateStudentWork('3x²-3=48', step1Intent, historyStep1, step1Ctx);
+    assert.strictEqual(step1Eval.status, 'STEP_VERIFIED_CORRECT', '3x²-3=48 must verify as STEP_VERIFIED_CORRECT against (3x^2-3)/4 = 12');
+
+    // Turn 2: Assistant asks to add 3 to both sides, student solves in their head and replies "Sqrt(17)"
+    const historyStep2 = [
+      ...historyStep1,
+      { role: 'user', content: '3x²-3=48' },
+      {
+        role: 'assistant',
+        content: 'Exactly—multiplying both sides by 4 clears the denominator and yields\n$$3x^2 - 3 = 48.$$\nNow we must isolate the term containing $x^2$.\nNext step: Add 3 to both sides of the equation.\nWhat expression do you obtain after performing this addition?'
+      }
+    ];
+
+    const step2Ctx = extractActiveProblemState(historyStep2);
+    const step2Intent = classifyStudentIntent('Sqrt(17)', historyStep2, step2Ctx);
+    assert.strictEqual(step2Intent.intent, 'PROPOSED_ANSWER', 'Sqrt(17) must classify as PROPOSED_ANSWER');
+
+    const step2Eval = evaluateStudentWork('Sqrt(17)', step2Intent, historyStep2, step2Ctx);
+    assert.strictEqual(step2Eval.status, 'ANSWER_VERIFIED_CORRECT', 'Sqrt(17) must verify as ANSWER_VERIFIED_CORRECT');
+    assert.strictEqual(step2Eval.jumpedAhead, true, 'Sqrt(17) evaluation must flag jumpedAhead: true');
+    assert.strictEqual(step2Eval.hasSymmetricNegativeRoot, true, 'Sqrt(17) evaluation must flag hasSymmetricNegativeRoot: true');
+    assert(/\\boxed\{x = \\pm\s*\\sqrt\{17\}\}/.test(step2Eval.preferredResponse), 'preferredResponse must include \\boxed{x = \\pm \\sqrt{17}}');
+
+    const workPrompt = formatStudentWorkContext(step2Intent, step2Eval, step2Ctx);
+    assert(workPrompt.includes('STUDENT SOLVED AHEAD OF INTERMEDIATE STEP'), 'formatStudentWorkContext must instruct the model that the student jumped ahead');
+
+    const tutorDir = buildTutorModeDirective({
+      tutorMode: true,
+      prompt: 'Sqrt(17)',
+      studentIntent: step2Intent,
+      studentEvaluation: step2Eval
+    });
+    assert(tutorDir.includes('[TUTOR MODE: STUDENT SOLVED THE PROBLEM AHEAD OF STEP]'), 'Tutor Mode directive must unlock final confirmation when student solves ahead');
+
+    // Verify response claims when concluding with \boxed{x = \pm\sqrt{17}}
+    const verifyJumpReply = await verifyResponseClaims(step2Eval.preferredResponse, '3x^2 - 3 = 48');
+    assert.strictEqual(verifyJumpReply.invalidClaims.length, 0, 'Radical solution \\boxed{x = \\pm\\sqrt{17}} must not be flagged invalid by parseSolutionNumbers');
+  });
+
   console.log(`\n======================================================================`);
   console.log(`RESULTS: ${passed}/${total} PASSED`);
   console.log('======================================================================');

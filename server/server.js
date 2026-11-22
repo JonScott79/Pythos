@@ -3462,6 +3462,16 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
             ollamaResponse.message.content = finalContent;
           }
         }
+      } else if (studentEvaluation.status === 'ANSWER_VERIFIED_CORRECT' && studentEvaluation.jumpedAhead) {
+        const asksForBypassedStep = /\bnext\s+step\s*:/i.test(finalContent) ||
+          /\bwhat\s+(?:expression|equation|value|do\s+you)\s+(?:do\s+you\s+)?(?:obtain|get)\s+after\b/i.test(finalContent);
+        if (asksForBypassedStep || (studentEvaluation.hasSymmetricNegativeRoot && !/\\pm|±|-\\sqrt|-sqrt/i.test(finalContent))) {
+          console.warn('[VERIFIER] Model failed to recognize student jumped ahead to correct answer. Enforcing jump-ahead acknowledgement...');
+          finalContent = studentEvaluation.preferredResponse;
+          if (ollamaResponse && ollamaResponse.message) {
+            ollamaResponse.message.content = finalContent;
+          }
+        }
       }
     }
 

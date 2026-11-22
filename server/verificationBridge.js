@@ -174,7 +174,52 @@ function replaceLatexRadicalsAndFractions(str) {
 function parseSolutionNumbers(rawStr) {
   if (!rawStr || typeof rawStr !== 'string') return [];
   const results = [];
-  let s = rawStr;
+  let s = rawStr
+    .replace(/^\\boxed\{([\s\S]*)\}$/, '$1')
+    .replace(/\\[,;!]|\\quad|\\qquad/g, ' ')
+    .trim();
+
+  // If the string contains radical expressions (\sqrt, sqrt, √) or \pm / ±, evaluate each root candidate
+  if (/\\sqrt|\bsqrt\b|√|\\pm|\\mp|±|\+-/i.test(s)) {
+    const rawItems = s
+      .split(/[,;]|\b(?:or|and)\b/i)
+      .map(item => item.trim().replace(/^[a-zA-Z](?:_\{?\d+\}?)?\s*(?:=|\\approx|≈)\s*/, '').trim())
+      .filter(Boolean);
+
+    const expandedItems = [];
+    for (const item of rawItems) {
+      if (/\\pm|\\mp|±|\+-/.test(item)) {
+        expandedItems.push(item.replace(/\\pm|\\mp|±|\+-/g, '+'));
+        expandedItems.push(item.replace(/\\pm|\\mp|±|\+-/g, '-'));
+      } else {
+        expandedItems.push(item);
+      }
+    }
+
+    for (const expItem of expandedItems) {
+      try {
+        let norm = replaceLatexRadicalsAndFractions(expItem)
+          .replace(/√\s*\(([^()]+)\)/g, 'sqrt($1)')
+          .replace(/√\s*(\d+(?:\.\d+)?)/g, 'sqrt($1)')
+          .replace(/\bsqrt\s*\(/gi, 'sqrt(')
+          .replace(/\\left\(/g, '(')
+          .replace(/\\right\)/g, ')')
+          .replace(/\\(?:cdot|times)\b/g, '*')
+          .replace(/(\d)\s*sqrt\(/g, '$1*sqrt(')
+          .replace(/[{}]/g, '')
+          .trim();
+        if (norm && !/\b[a-zA-Z]\b/.test(norm.replace(/\bsqrt\b/gi, ''))) {
+          const val = Number(math.evaluate(norm));
+          if (Number.isFinite(val) && !results.some(r => Math.abs(r - val) < 1e-9)) {
+            results.push(val);
+          }
+        }
+      } catch (_) {}
+    }
+    if (results.length > 0) {
+      return results;
+    }
+  }
 
   // 1. Replace [+-]?\frac{a}{b} with evaluated quotient
   s = s.replace(/([-\+]?)\s*\\frac\{\s*([-\+]?\d+(?:\.\d+)?)\s*\}\{\s*(\d+(?:\.\d+)?)\s*\}/g, (_, sign, num, den) => {

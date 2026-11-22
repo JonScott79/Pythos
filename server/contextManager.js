@@ -509,8 +509,19 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
       (classification.confidence === 'high' || classification.confidence === 'medium' || (typeof classification.confidence === 'number' && classification.confidence >= 0.70));
 
     // Extract algebraic equation or mathematical equality proposition (LHS = RHS)
+    const superMap = {
+      '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4',
+      '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9',
+      '⁺': '+', '⁻': '-', '⁽': '(', '⁾': ')'
+    };
     let extractedEq = null;
     const cleanPrompt = msg.content
+      .replace(/\u2212/g, '-')
+      .replace(/([⁰¹²³⁴⁵⁶⁷⁸⁹]+\u2044[₀₁₂₃₄₅₆₇₈₉]+)|\^?([⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁽⁾]+)/g, (full, frac, run) => {
+        if (frac) return frac;
+        const decoded = [...run].map(c => superMap[c] || c).join('');
+        return /^-?\d+$/.test(decoded) ? `^${decoded}` : `^(${decoded})`;
+      })
       .replace(/^(?:please\s+)?(?:solve(?:\s+for\s+[a-zA-Z])?|(?:check|verify|test|see)(?:\s+(?:if|whether|that))?|\bdoes\b|\bis\b|now\s+solve)[:\s]*/i, '')
       .replace(/[?!.]+$/, '')
       .trim();

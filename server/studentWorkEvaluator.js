@@ -65,8 +65,28 @@ function normalizeExpression(rawExpr) {
   s = s.replace(/^(?:so\s+then\s+(?:it\s+becomes|we\s+get)?|then\s+(?:it\s+becomes|we\s+get)?|so\s+|next\s*(?:step)?[:=]?)\s*/i, '');
   s = s.replace(/^(?:i\s+(?:got|think|calculated|found)|the\s+answer\s+is|answer\s*[:=])\s*/i, '');
 
-  // Normalize Unicode and LaTeX operators
+  // Normalize Unicode superscripts, LaTeX fractions/radicals, and operators
+  const superMap = {
+    '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4',
+    '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9',
+    '⁺': '+', '⁻': '-', '⁽': '(', '⁾': ')'
+  };
+  s = s.replace(/([⁰¹²³⁴⁵⁶⁷⁸⁹]+\u2044[₀₁₂₃₄₅₆₇₈₉]+)|\^?([⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁽⁾]+)/g, (full, frac, run) => {
+    if (frac) return frac;
+    const decoded = [...run].map(c => superMap[c] || c).join('');
+    return /^-?\d+$/.test(decoded) ? `^${decoded}` : `^(${decoded})`;
+  });
+  for (let i = 0; i < 3; i++) {
+    s = s.replace(/\\(?:d|t)?frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g, '(($1)/($2))');
+    s = s.replace(/\\sqrt\s*\{([^{}]+)\}/g, 'sqrt($1)');
+    s = s.replace(/\^\s*\{([^{}]+)\}/g, '^($1)');
+  }
   s = s
+    .replace(/\\left\s*([(\[])/g, '$1')
+    .replace(/\\right\s*([)\]])/g, '$1')
+    .replace(/√\s*\(([^()]+)\)/g, 'sqrt($1)')
+    .replace(/√\s*(\d+(?:\.\d+)?)/g, 'sqrt($1)')
+    .replace(/\bsqrt\s*\(/gi, 'sqrt(')
     .replace(/\\times/g, '*')
     .replace(/\\cdot/g, '*')
     .replace(/\\div/g, '/')
@@ -80,6 +100,7 @@ function normalizeExpression(rawExpr) {
   // Insert explicit multiplication for common patterns:
   // e.g. "2pi" -> "2 * pi", "5pi" -> "5 * pi"
   s = s.replace(/(\d)\s*(pi\b)/gi, '$1 * $2');
+  s = s.replace(/(\d)\s*(sqrt|cbrt|sin|cos|tan|log|ln|exp|abs)\b/gi, '$1 * $2');
   // e.g. "2x" -> "2 * x", "4y" -> "4 * y"
   s = s.replace(/(\d)\s*([a-zA-Z])(?![a-zA-Z])/g, '$1 * $2');
   
@@ -428,50 +449,151 @@ function evaluateEqualityStep(targetExpr, activeEq) {
 }
 
 /**
- * Evaluates intermediate steps or candidate solutions for active equations (e.g. 3x + 7 = 22).
+ * Evaluates intermediate steps or candidate solutions for active equations (e.g. 3x + 7 = 22 or 3x^2 - 3 = 48).
  */
 function evaluateEquationCandidate(targetExpr, activeEq) {
   if (!targetExpr || !activeEq || !activeEq.includes('=')) return null;
 
-  // 1. Intermediate linear equation step (e.g. "3x = 15" or "3x = 16")
+  // 1. Intermediate linear or algebraic equation step (e.g. "3x = 15", "3x = 16", "3x²-3=48", "3x^2 = 51")
   if (targetExpr.includes('=')) {
     const stepEval = evaluateLinearEquationStep(targetExpr, activeEq);
     if (stepEval) return stepEval;
+
+    const tParts = targetExpr.split('=');
+    const aParts = activeEq.split('=');
+    if (tParts.length === 2 && aParts.length === 2 && !/^[a-zA-Z]$/.test(tParts[0].trim())) {
+      try {
+        const normTLhs = normalizeExpression(tParts[0]);
+        const normTRhs = normalizeExpression(tParts[1]);
+        const normALhs = normalizeExpression(aParts[0]);
+        const normARhs = normalizeExpression(aParts[1]);
+        const varMatch = (`${normALhs} ${normARhs}`.replace(/\b(?:sqrt|cbrt|sin|cos|tan|log|ln|exp|abs|pi)\b/gi, '').match(/\b([a-zA-Z])\b/));
+        const v = varMatch ? varMatch[1] : 'x';
+        const samplePts = [-2, -1, 0.5, 1, 2, 3];
+        let ratios = [];
+        for (const pt of samplePts) {
+          const aDiff = Number(math.evaluate(`(${normALhs}) - (${normARhs})`, { [v]: pt }));
+          const tDiff = Number(math.evaluate(`(${normTLhs}) - (${normTRhs})`, { [v]: pt }));
+          if (Number.isFinite(aDiff) && Number.isFinite(tDiff) && Math.abs(aDiff) > 1e-7) {
+            ratios.push(tDiff / aDiff);
+          }
+        }
+        if (ratios.length >= 4 && Math.abs(ratios[0]) > 1e-6 && ratios.every(r => Math.abs(r - ratios[0]) < 1e-4)) {
+          return {
+            status: 'STEP_VERIFIED_CORRECT',
+            target: targetExpr.trim(),
+            correctedStep: `${normTLhs.replace(/\s*\*\s*/g, '')} = ${normTRhs.replace(/\s*\*\s*/g, '')}`,
+            nextOperation: `isolate ${v}`,
+            details: `Your step ${targetExpr.trim()} is algebraically equivalent to ${activeEq}.`,
+            preferredResponse: `Yes! \`${targetExpr.trim()}\` is a valid step.`
+          };
+        }
+      } catch (_) {}
+    }
   }
 
-  // 2. Candidate root/answer (e.g. "10", "5", "x = 5")
+  // 2. Candidate root/answer (e.g. "10", "5", "x = 5", "Sqrt(17)", "±sqrt(17)", "x = \sqrt{17}", "5/3")
   let proposedVar = 'x';
   let proposedVal = null;
-  const valAssign = targetExpr.match(/\b([a-zA-Z])\s*=\s*([-\d.]+)\b/);
+  let studentGaveBothSigns = false;
+  let rawCandidateValStr = targetExpr.trim();
+
+  const varInActive = (activeEq.replace(/\\[a-zA-Z]+|\b(?:sqrt|cbrt|sin|cos|tan|log|ln|exp|abs|pi)\b/gi, '').match(/\b([a-zA-Z])\b/));
+  if (varInActive) proposedVar = varInActive[1];
+
+  const valAssign = rawCandidateValStr.match(/^([a-zA-Z])\s*=\s*(.+)$/);
   if (valAssign) {
     proposedVar = valAssign[1];
-    proposedVal = parseFloat(valAssign[2]);
-  } else if (/^[-+]?\d+(?:\.\d+)?$/.test(targetExpr.trim())) {
-    const varMatch = activeEq.match(/[a-zA-Z]/);
-    if (varMatch) proposedVar = varMatch[0];
-    proposedVal = parseFloat(targetExpr.trim());
+    rawCandidateValStr = valAssign[2].trim();
+  }
+
+  if (!rawCandidateValStr.includes('=')) {
+    if (/±|\\pm|\\mp|\+-/.test(rawCandidateValStr) || (/,|\bor\b|\band\b/i.test(rawCandidateValStr) && /-/.test(rawCandidateValStr))) {
+      studentGaveBothSigns = true;
+    }
+    const singleBranchStr = rawCandidateValStr
+      .split(/[,;]|\b(?:or|and)\b/i)[0]
+      .replace(/^(?:±|\\pm|\\mp|\+-)\s*/, '')
+      .trim();
+
+    if (/^[-+]?\d+(?:\.\d+)?$/.test(singleBranchStr)) {
+      proposedVal = parseFloat(singleBranchStr);
+    } else {
+      const strippedFn = singleBranchStr.replace(/\\?(?:sqrt|cbrt|frac|dfrac|tfrac|pi|left|right)\b/gi, '');
+      if (!/[a-zA-Z]/.test(strippedFn) && /\d/.test(singleBranchStr)) {
+        try {
+          const normCand = normalizeExpression(singleBranchStr);
+          const evalCand = Number(math.evaluate(normCand));
+          if (Number.isFinite(evalCand)) {
+            proposedVal = evalCand;
+          }
+        } catch (_) {}
+      }
+    }
   }
 
   if (proposedVal !== null && !isNaN(proposedVal)) {
     try {
       const eqParts = activeEq.split('=');
       if (eqParts.length === 2) {
+        const normEqLhs = normalizeExpression(eqParts[0].trim());
+        const normEqRhs = normalizeExpression(eqParts[1].trim());
         const scope = { [proposedVar]: proposedVal };
-        const lhsVal = math.evaluate(eqParts[0].trim(), scope);
-        const rhsVal = math.evaluate(eqParts[1].trim(), scope);
-        const satisfies = Math.abs(lhsVal - rhsVal) < 1e-5;
-        const subExpr = eqParts[0].trim().replace(new RegExp(proposedVar, 'g'), `(${proposedVal})`);
+        const lhsVal = Number(math.evaluate(normEqLhs, scope));
+        const rhsVal = Number(math.evaluate(normEqRhs, scope));
+        const satisfies = Number.isFinite(lhsVal) && Number.isFinite(rhsVal) && Math.abs(lhsVal - rhsVal) < 1e-4;
+
+        let negAlsoSatisfies = false;
+        if (satisfies && Math.abs(proposedVal) > 1e-6) {
+          try {
+            const negLhs = Number(math.evaluate(normEqLhs, { [proposedVar]: -proposedVal }));
+            const negRhs = Number(math.evaluate(normEqRhs, { [proposedVar]: -proposedVal }));
+            if (Number.isFinite(negLhs) && Number.isFinite(negRhs) && Math.abs(negLhs - negRhs) < 1e-4) {
+              negAlsoSatisfies = true;
+            }
+          } catch (_) {}
+        }
+
+        const isRadicalInput = /sqrt|√/i.test(rawCandidateValStr);
+        const radMatch = rawCandidateValStr.match(/(?:\\?sqrt|√)\s*[\({]?\s*(\d+(?:\.\d+)?)\s*[\)}]?/i);
+        const cleanRootLatex = radMatch ? `\\sqrt{${radMatch[1]}}` : String(proposedVal);
+        const subExpr = eqParts[0].trim().replace(new RegExp(`\\b${proposedVar}\\b`, 'g'), `(${isRadicalInput ? cleanRootLatex : proposedVal})`);
+        const roundedLhs = Number.isFinite(lhsVal) ? Number(lhsVal.toFixed(6)) : lhsVal;
+
+        if (satisfies && (isRadicalInput || negAlsoSatisfies)) {
+          const hasMissingNegRoot = Boolean(negAlsoSatisfies && !studentGaveBothSigns);
+          const finalBoxedLatex = negAlsoSatisfies
+            ? `\\boxed{${proposedVar} = \\pm ${cleanRootLatex}}`
+            : `\\boxed{${proposedVar} = ${cleanRootLatex}}`;
+          return {
+            status: 'ANSWER_VERIFIED_CORRECT',
+            jumpedAhead: true,
+            hasSymmetricNegativeRoot: hasMissingNegRoot,
+            rawExpression: targetExpr,
+            variable: proposedVar,
+            proposedValue: proposedVal,
+            cleanRootLatex,
+            details: hasMissingNegRoot
+              ? `The student jumped ahead of the intermediate step and gave ${proposedVar} = ${cleanRootLatex} (${rawCandidateValStr}), which satisfies ${activeEq} (yielding ${roundedLhs} = ${rhsVal}). Because ${proposedVar} appears to an even power (${proposedVar}^2 = ${Math.round(proposedVal * proposedVal)}), the negative root ${proposedVar} = -${cleanRootLatex} is also a valid solution, giving the complete solution set ${proposedVar} = ±${cleanRootLatex}.`
+              : `The student jumped ahead and gave the correct solution ${proposedVar} = ${negAlsoSatisfies ? '±' + cleanRootLatex : cleanRootLatex}, which satisfies ${activeEq} (${roundedLhs} = ${rhsVal}).`,
+            preferredResponse: hasMissingNegRoot
+              ? `Nice job jumping ahead—$${proposedVar} = ${cleanRootLatex}$ is a valid solution! Substituting $${proposedVar} = ${cleanRootLatex}$ into $${activeEq}$ gives $${roundedLhs} = ${rhsVal}$.\n\nFinishing the steps from $${activeEq}$:\n$$${proposedVar}^2 = ${Math.round(proposedVal * proposedVal)}$$\nRemember that taking the square root of both sides yields both a positive and a negative root, so $$-${cleanRootLatex}$$ is also a solution:\n$$${finalBoxedLatex}$$`
+              : `Spot on—you jumped ahead and solved it! Substituting $${proposedVar} = ${negAlsoSatisfies ? '\\pm ' + cleanRootLatex : cleanRootLatex}$ into $${activeEq}$ gives $${roundedLhs} = ${rhsVal}$.\n\n$$${finalBoxedLatex}$$`
+          };
+        }
+
         return {
           status: satisfies ? 'ANSWER_VERIFIED_CORRECT' : 'ANSWER_VERIFIED_INCORRECT',
+          jumpedAhead: satisfies,
           rawExpression: targetExpr,
           variable: proposedVar,
           proposedValue: proposedVal,
           details: satisfies
-            ? `Substituting ${proposedVar} = ${proposedVal} into ${activeEq} gives ${subExpr} = ${lhsVal}, which satisfies the equation.`
-            : `Substituting ${proposedVar} = ${proposedVal} into ${activeEq} gives ${subExpr} = ${lhsVal}, not ${rhsVal}.`,
+            ? `Substituting ${proposedVar} = ${proposedVal} into ${activeEq} gives ${subExpr} = ${roundedLhs}, which satisfies the equation.`
+            : `Substituting ${proposedVar} = ${proposedVal} into ${activeEq} gives ${subExpr} = ${roundedLhs}, not ${rhsVal}.`,
           preferredResponse: satisfies
-            ? `Yes, \`${proposedVar} = ${proposedVal}\` is correct.\nSubstituting \`${proposedVar} = ${proposedVal}\` into \`${activeEq}\` gives \`${subExpr} = ${lhsVal}\`.\nThat's the complete solution!`
-            : `❌ Not quite. Substituting \`${proposedVar} = ${proposedVal}\` into \`${activeEq}\` gives \`${subExpr} = ${lhsVal}\`, not ${rhsVal}.`
+            ? `Yes, \`${proposedVar} = ${proposedVal}\` is correct.\nSubstituting \`${proposedVar} = ${proposedVal}\` into \`${activeEq}\` gives \`${subExpr} = ${roundedLhs}\`.\nThat's the complete solution!`
+            : `❌ Not quite. Substituting \`${proposedVar} = ${proposedVal}\` into \`${activeEq}\` gives \`${subExpr} = ${roundedLhs}\`, not ${rhsVal}.`
         };
       }
     } catch (_) {}
@@ -730,7 +852,25 @@ function evaluateStudentWork(rawInput, classification, conversationHistory = [],
   }
 
   const { intent, extractedExpression } = classification;
-  const activeEq = activeProblemState?.active?.activeExpression || activeProblemState?.activeExpression || null;
+  let activeEq = activeProblemState?.active?.currentStepEquation || activeProblemState?.active?.activeExpression || activeProblemState?.activeExpression || null;
+  if ((!activeEq || !activeEq.includes('=')) && Array.isArray(conversationHistory) && conversationHistory.length > 0) {
+    for (let i = conversationHistory.length - 1; i >= 0; i--) {
+      const msg = conversationHistory[i];
+      if (!msg || typeof msg.content !== 'string' || msg.content.trim() === String(rawInput || '').trim()) continue;
+      const dispMatches = [...msg.content.matchAll(/(?:\$\$|\\\[)\s*([^$\n\r;=]+=[^$\n\r;=]+?)\s*(?:\$\$|\\\])/g)];
+      if (dispMatches.length > 0) {
+        const candEq = dispMatches[dispMatches.length - 1][1].replace(/[.,;]+$/, '').trim();
+        if (/[a-zA-Z]/.test(candEq)) {
+          activeEq = candEq;
+          break;
+        }
+      }
+      if (msg.role === 'user' && msg.content.includes('=') && msg.content.trim().length <= 60) {
+        activeEq = msg.content.trim().replace(/[.,;?!]+$/, '');
+        break;
+      }
+    }
+  }
 
   // -------------------------------------------------------------
   // Case 1: CONTINUATION Intent ("Continue.", "Go on", "Next")
@@ -1074,13 +1214,18 @@ function formatStudentWorkContext(classification, evaluation, activeProblemState
       out += `  4. Continue from the corrected state \`${evaluation.correctedStep}\`.\n`;
     } else if (evaluation.status === 'ANSWER_VERIFIED_CORRECT') {
       out += `- Proposed Answer: \`${evaluation.rawExpression || evaluation.variable + ' = ' + evaluation.proposedValue}\`\n`;
-      out += `- Verification Status: ANSWER_VERIFIED_CORRECT\n`;
+      out += `- Verification Status: ANSWER_VERIFIED_CORRECT${evaluation.jumpedAhead ? ' (STUDENT SOLVED AHEAD OF INTERMEDIATE STEP)' : ''}\n`;
       out += `- Deterministic Evaluation: ${evaluation.details}\n`;
       out += `- CRITICAL PEDAGOGICAL DIRECTIVE:\n`;
-      out += `  1. Explicitly state that the answer is correct.\n`;
+      out += `  1. Explicitly acknowledge and praise the student that their answer (${evaluation.rawExpression || evaluation.proposedValue}) is a valid solution, even though they jumped ahead of the intermediate step!\n`;
       out += `  2. Briefly show why (${evaluation.details}).\n`;
-      out += `  3. Confirm that this completes the solution.\n`;
-      out += `  4. DO NOT regenerate the problem from scratch.\n`;
+      if (evaluation.hasSymmetricNegativeRoot) {
+        out += `  3. Gently point out that since ${evaluation.variable || 'x'} is squared, the negative root (-${evaluation.cleanRootLatex || evaluation.rawExpression}) is also a solution, so the complete solution set is ${evaluation.variable || 'x'} = ±${evaluation.cleanRootLatex || evaluation.rawExpression}.\n`;
+        out += `  4. Conclude the problem with the complete solution set (do NOT ask them to go back and perform intermediate addition/division steps).\n`;
+      } else {
+        out += `  3. Confirm that this completes the solution (do NOT ask them to go back and perform already-bypassed intermediate steps).\n`;
+        out += `  4. DO NOT regenerate the problem from scratch.\n`;
+      }
     } else if (evaluation.status === 'ANSWER_VERIFIED_INCORRECT') {
       out += `- Proposed Answer: \`${evaluation.rawExpression}\`\n`;
       out += `- Verification Status: ANSWER_VERIFIED_INCORRECT\n`;

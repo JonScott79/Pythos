@@ -69,15 +69,15 @@ function sanitizeInput(text) {
 function isMathematicalExpression(str) {
   if (!str || typeof str !== 'string') return false;
   const s = str.trim();
-  if (!/^[-+*/^0-9.()\s\\a-zA-Zθ_]+$/.test(s)) return false;
+  if (!/^[-+*/^0-9.()\s\\a-zA-Zθ_⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁽⁾√]+$/.test(s)) return false;
 
   const lower = s.toLowerCase();
   if (/\b(?:the|this|that|and|what|with|from|have|got|think|know|like|banana|pancake|hello|hi|please|maybe|because|about|apple|fruit)\b/i.test(lower)) {
     return false;
   }
 
-  const hasDigitsOrPi = /\d|θ|\bpi\b/i.test(s);
-  const hasOperators = /[-+*/^]/.test(s);
+  const hasDigitsOrPi = /\d|[⁰¹²³⁴⁵⁶⁷⁸⁹]|θ|\bpi\b/i.test(s);
+  const hasOperators = /[-+*/^√]/.test(s);
   const isSingleVarTerm = /^[+-]?\d*\s*\*?\s*[a-zA-Z]$/.test(s);
 
   return hasDigitsOrPi || hasOperators || isSingleVarTerm;
@@ -467,7 +467,7 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
     };
   }
 
-  const varAssignMatch = clean.match(/^((?:[a-zA-Z]|theta)\s*=\s*[-+]?\d+(?:\.\d+)?(?:(?:\s*\/\s*\d+)?(?:\*?pi|\*?θ)?)?)(?:[,\s!]+.*)?$/i);
+  const varAssignMatch = clean.match(/^((?:[a-zA-Z]|theta)\s*=\s*(?:±|\\pm|\+-)?\s*(?:[-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?|[-+]?(?:\\?sqrt|√)\s*[\({]?\s*\d+(?:\.\d+)?\s*[\)}]?)(?:(?:\*?pi|\*?θ)?)?)(?:[,\s!]+.*)?$/i);
   if (varAssignMatch) {
     signals.push('variable_assignment');
     return {
@@ -478,7 +478,7 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
     };
   }
 
-  const stepEqMatch = clean.match(/^(\d*[a-zA-Z]\s*=\s*[-+]?\d+(?:\.\d+)?(?:(?:\s*\/\s*\d+)?(?:\*?pi|\*?θ)?)?)(?:[,\s!]+.*)?$/i);
+  const stepEqMatch = clean.match(/^(\d*[a-zA-Z](?:\^[0-9]+|[²³⁴])?(?:\s*[-+]\s*\d+(?:\.\d+)?)?\s*=\s*[-+]?\d+(?:\.\d+)?(?:(?:\s*\/\s*\d+)?(?:\*?pi|\*?θ)?)?)(?:[,\s!]+.*)?$/i);
   if (stepEqMatch) {
     signals.push('intermediate_equation_step');
     return {
@@ -489,10 +489,12 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
     };
   }
 
+  const isCandidateRootValue = /^(?:(?:±|\\pm|\+-)\s*)?(?:[-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?|[-+]?(?:\\?sqrt|√)\s*[\({]?\s*\d+(?:\.\d+)?\s*[\)}]?)$/i.test(clean);
+
   if (hasActiveProblem) {
-    const looksMath = isMathematicalExpression(clean);
+    const looksMath = isMathematicalExpression(clean) || isCandidateRootValue;
     if (looksMath && clean.length <= 40 && !clean.includes('=')) {
-      const isSimpleNum = /^[-+]?\d+(?:\.\d+)?$/.test(clean);
+      const isSimpleNum = isCandidateRootValue;
       const isSingleVarEq = activeProblemState?.active?.activeExpression &&
         !activeProblemState.active.activeExpression.includes('pi') &&
         !activeProblemState.active.activeExpression.includes('θ');
@@ -517,7 +519,7 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
     }
   }
 
-  if (/^[-+]?\d+(?:\.\d+)?$/.test(clean)) {
+  if (isCandidateRootValue) {
     signals.push('standalone_numeric_value');
     return {
       intent: INTENTS.PROPOSED_ANSWER,

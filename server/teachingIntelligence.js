@@ -1480,6 +1480,19 @@ function buildTutorModeDirective({ tutorMode = false, userText = '', messages = 
     ].join('\n');
   }
 
+  if (studentEvaluation && studentEvaluation.status === 'ANSWER_VERIFIED_CORRECT') {
+    const symmetricNote = studentEvaluation.hasSymmetricNegativeRoot
+      ? '\n- Note that because this involves an even power of the variable, taking the square root yields both the positive and negative roots (remind them of the negative root as well and include both in the final \\boxed{...} answer).'
+      : '';
+    return `
+
+[TUTOR MODE: STUDENT SOLVED THE PROBLEM AHEAD OF STEP]
+- The student jumped ahead of the current step and provided a CORRECT final root/answer (${studentEvaluation.details || 'verified correct'}).
+- Enthusiastically acknowledge and congratulate the student for solving ahead to the correct answer!
+- Briefly connect the intermediate steps they did in their head so the derivation is complete.${symmetricNote}
+- Conclude the problem with the final answer in \\boxed{...}. Do NOT ask them to perform the bypassed intermediate steps.`;
+  }
+
   const isFollowUpHint = /\b(?:next\s+hint|another\s+hint|more\s+help|still\s+stuck|hint)\b/i.test(clean);
   const stepContext = studentEvaluation && studentEvaluation.status === 'STEP_VERIFIED_INCORRECT'
     ? 'The student submitted an incorrect intermediate step. Address their specific step kindly using the deterministic correction, without giving away the final answer.'
