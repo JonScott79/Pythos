@@ -1340,31 +1340,30 @@ const MathJSVerifier = {
         };
       }
 
-      // 2. Multi-point deterministic numerical equivalence check
+      // 2. Multi-point deterministic numerical refutation check ONLY
+      // (Never promote numerical agreement to exact VERIFIED; defer to SymPy CAS!)
       const testPoints = [1, 2, 3, -1, -2, 0.5, 2.5];
-      let allPointsMatch = true;
-      let evaluatedCount = 0;
+      let mismatchFound = false;
 
       for (const pt of testPoints) {
         try {
           const val = diffNode.evaluate({ [varStr]: pt });
           if (typeof val === "number" && !isNaN(val)) {
-            evaluatedCount++;
             if (Math.abs(val) > 1e-9) {
-              allPointsMatch = false;
+              mismatchFound = true;
               break;
             }
           }
         } catch (_) {}
       }
 
-      if (allPointsMatch && evaluatedCount >= 3) {
+      if (!mismatchFound) {
         return {
-          verified: true,
+          verified: false,
           engine: "mathjs",
-          status: "VERIFIED",
-          actual_derivative: computed.toString(),
-          details: `d/d${varStr}[${cleanExpr}] = ${computed.toString()} verified across sample points`
+          status: "UNKNOWN",
+          numericallySupported: true,
+          reason: "Derivative agrees at sample points, but symbolic equivalence is inconclusive in Math.js (deferring to SymPy CAS)"
         };
       }
 

@@ -592,7 +592,7 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
           isIntermediateStepOfActive = true;
         } else {
           const candStep = evaluateEquationCandidate(stepCandidateEq, currentActive.activeExpression);
-          if (candStep && (candStep.status === 'STEP_VERIFIED_CORRECT' || candStep.status === 'ANSWER_VERIFIED_CORRECT' || candStep.isOmittedOperation)) {
+          if (candStep && (candStep.status === 'STEP_VERIFIED_CORRECT' || candStep.status === 'STEP_NUMERICALLY_SUPPORTED' || candStep.status === 'ANSWER_VERIFIED_CORRECT' || candStep.isOmittedOperation || candStep.verificationCategory === 'DOMAIN_VIOLATION')) {
             isIntermediateStepOfActive = true;
           }
         }

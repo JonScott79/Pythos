@@ -351,6 +351,15 @@ def _parse_inequality_restrictions(cond_str: str) -> list:
             if item.strip():
                 _record_lhs_rhs(lhs_v, item)
 
+    # 3. Domain positivity/nonnegativity forms like "x > 0", "x >= 0", "x \ge 0"
+    ord_re = _re.compile(r'([a-zA-Z0-9_()+\-*/\s]+?)\s*(>=|\\ge|≥|>)\s*([-+]?\d+(?:\.\d+)?|[a-zA-Z0-9_()+\-*/]+)')
+    for m_ord in ord_re.finditer(cond_str):
+        lhs_v = m_ord.group(1).strip()
+        op_v = ">=" if m_ord.group(2) in (">=", "\\ge", "≥") else ">"
+        rhs_v = m_ord.group(3).strip().rstrip('.,;:)')
+        if lhs_v and rhs_v:
+            found.append(f"{lhs_v} {op_v} {rhs_v}")
+
     return found
 
 
@@ -863,9 +872,48 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
                 pass
             return restr
 
+        # Extract real-domain inequality constraints from log(arg) [arg > 0] and sqrt(arg) [arg >= 0]
+        def _extract_real_ineq_restrictions(norm_s):
+            ineq_restr = set()
+            if not use_real_domain:
+                return ineq_restr
+            try:
+                raw_expr = safe_sympify(norm_s, locals=local_syms, evaluate=False)
+                for atom in sp.preorder_traversal(raw_expr):
+                    if isinstance(atom, sp.log) and len(atom.args) == 1:
+                        arg = atom.args[0]
+                        if isinstance(arg, sp.Pow) and len(arg.exp.free_symbols) > 0:
+                            # For general exponential identity a^b (symbolic real exponent b), real power/log requires base a > 0
+                            if arg.base.free_symbols and arg.base.is_positive is not True:
+                                ineq_restr.add(f"{sp.simplify(arg.base)} > 0")
+                        elif arg.free_symbols and arg.is_positive is not True:
+                            arg_s = sp.simplify(arg)
+                            if isinstance(arg_s, sp.Mul):
+                                pos_coeff = sp.Integer(1)
+                                rem_factors = []
+                                for fac in arg_s.args:
+                                    if fac.is_number and fac.is_positive:
+                                        pos_coeff *= fac
+                                    else:
+                                        rem_factors.append(fac)
+                                if pos_coeff != 1 and rem_factors:
+                                    arg_s = sp.Mul(*rem_factors)
+                            ineq_restr.add(f"{arg_s} > 0")
+                    elif isinstance(atom, sp.Pow) and atom.exp == sp.Rational(1, 2):
+                        arg = atom.base
+                        if arg.free_symbols and arg.is_nonnegative is not True and arg.is_positive is not True:
+                            # sqrt(u^2) = |u| is already defined for all real u
+                            if not (isinstance(arg, sp.Pow) and arg.exp.is_Integer and arg.exp % 2 == 0 and arg.base.is_real):
+                                ineq_restr.add(f"{sp.simplify(arg)} >= 0")
+            except Exception:
+                pass
+            return ineq_restr
+
         restrictions_1 = _extract_denom_restrictions(norm1)
         restrictions_2 = _extract_denom_restrictions(norm2)
-        domain_restrictions = restrictions_1 | restrictions_2
+        ineq_1 = _extract_real_ineq_restrictions(norm1)
+        ineq_2 = _extract_real_ineq_restrictions(norm2)
+        domain_restrictions = restrictions_1 | restrictions_2 | ineq_1 | ineq_2
         sorted_restr = sorted(domain_restrictions, key=lambda x: (0 if isinstance(x, (int, float)) else 1, str(x)))
 
         diff = sp.simplify(sp.trigsimp(e1 - e2))
@@ -874,7 +922,14 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
                 diff_log = sp.simplify(sp.logcombine(e1 - e2, force=False))
                 if diff_log == 0:
                     diff = 0
-                elif any("/log(" in s for s in (norm1, norm2)):
+                elif any("/log(" in s for s in (norm1, norm2)) and not any(
+                    isinstance(node, sp.log)
+                    and len(node.args) == 1
+                    and isinstance(node.args[0], sp.Pow)
+                    and len(node.args[0].exp.free_symbols) == 0
+                    for expr_node in (e1, e2)
+                    for node in sp.preorder_traversal(expr_node)
+                ):
                     if sp.simplify(sp.logcombine(e1 - e2, force=True)) == 0:
                         diff = 0
                 elif any(
@@ -891,8 +946,8 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
                 pass
 
         if diff == 0:
-            if restrictions_1 != restrictions_2:
-                mismatched = restrictions_1 ^ restrictions_2
+            if restrictions_1 != restrictions_2 or ineq_1 != ineq_2:
+                mismatched = (restrictions_1 ^ restrictions_2) | (ineq_1 ^ ineq_2)
                 # Check if every mismatched restriction was explicitly stated in assumptions
                 def _is_restriction_stated(r):
                     if r in stated_restrictions:
@@ -903,9 +958,18 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
                             (isinstance(sr, str) and sr.endswith(f"!= {r:g}"))
                             for sr in stated_restrictions
                         )
-                    return str(r) in {str(sr) for sr in stated_restrictions}
+                    r_norm = str(r).replace(" ", "")
+                    for sr in stated_restrictions:
+                        sr_norm = str(sr).replace(" ", "")
+                        if r_norm == sr_norm:
+                            return True
+                    # Check inline inequality strings in prompt/condition (e.g. "x > 0", "x >= 0")
+                    for src_s in extra_condSources:
+                        if isinstance(src_s, str) and r_norm in src_s.replace(" ", ""):
+                            return True
+                    return False
 
-                if stated_restrictions and all(_is_restriction_stated(r) for r in mismatched):
+                if (stated_restrictions or any(isinstance(s, str) and (">" in s or ">=" in s) for s in extra_condSources)) and all(_is_restriction_stated(r) for r in mismatched):
                     return {
                         "verified": True,
                         "status": "CONDITIONALLY_EQUIVALENT",
@@ -922,7 +986,7 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
                     "error_type": "DOMAIN_RESTRICTION_MISMATCH",
                     "domain_assumptions": domain_policy,
                     "domain_restrictions": sorted_restr,
-                    "details": f"Expressions {expr1_str} and {expr2_str} simplify to the same form except at excluded domain point(s) {sorted_restr}, where one expression is undefined."
+                    "details": f"Expressions {expr1_str} and {expr2_str} simplify to the same form except for domain restriction(s) {sorted_restr}, where one expression is undefined in the {domain_policy} domain."
                 }
             details = f"Symbolic equivalence proven ({domain_policy} domain): {expr1_str} ≡ {expr2_str} (Difference simplifies to 0)."
             if sorted_restr:

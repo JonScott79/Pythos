@@ -591,8 +591,83 @@ function evalNodeReal(compiled, variable, val) {
   return null;
 }
 
+function isPurePolynomialNode(node, variable, maxDeg = 6) {
+  if (!node) return false;
+  if (node.isConstantNode) return true;
+  if (node.isSymbolNode) return node.name === variable;
+  if (node.isParenthesisNode) return isPurePolynomialNode(node.content, variable, maxDeg);
+  if (node.isOperatorNode) {
+    if (node.op === '+' || node.op === '-' || node.op === '*') {
+      return node.args.every(a => isPurePolynomialNode(a, variable, maxDeg));
+    }
+    if (node.op === '^' && node.args.length === 2) {
+      const expNode = node.args[1];
+      if (expNode.isConstantNode && Number.isInteger(Number(expNode.value)) && Number(expNode.value) >= 0 && Number(expNode.value) <= maxDeg) {
+        return isPurePolynomialNode(node.args[0], variable, maxDeg);
+      }
+    }
+  }
+  return false;
+}
+
+function solveQuadraticOrLinearExact(compiled, variable) {
+  try {
+    const f0 = evalNodeReal(compiled, variable, 0);
+    const f1 = evalNodeReal(compiled, variable, 1);
+    const fm1 = evalNodeReal(compiled, variable, -1);
+    const f2 = evalNodeReal(compiled, variable, 2);
+    const fm2 = evalNodeReal(compiled, variable, -2);
+    const f3 = evalNodeReal(compiled, variable, 3);
+    if ([f0, f1, fm1, f2, fm2, f3].some(v => v === null)) return null;
+
+    const c = f0;
+    const a = (f1 + fm1 - 2 * c) / 2;
+    const b = (f1 - fm1) / 2;
+    const check2 = Math.abs(f2 - (4 * a + 2 * b + c));
+    const checkm2 = Math.abs(fm2 - (4 * a - 2 * b + c));
+    const check3 = Math.abs(f3 - (9 * a + 3 * b + c));
+    if (check2 > 1e-7 || checkm2 > 1e-7 || check3 > 1e-7) return null;
+
+    if (Math.abs(a) < 1e-11) {
+      if (Math.abs(b) < 1e-11) return [];
+      return [Number((-c / b).toFixed(8))];
+    }
+    const disc = b * b - 4 * a * c;
+    if (disc < -1e-10) return [];
+    if (Math.abs(disc) <= 1e-10) {
+      return [Number((-b / (2 * a)).toFixed(8))];
+    }
+    const sq = Math.sqrt(Math.max(0, disc));
+    const r1 = (-b - sq) / (2 * a);
+    const r2 = (-b + sq) / (2 * a);
+    return [Number(r1.toFixed(8)), Number(r2.toFixed(8))].sort((x, y) => x - y);
+  } catch (_) {
+    return null;
+  }
+}
+
 function findZerosOfNode(node, variable) {
   if (!node) return [];
+  const rawRoots = [];
+
+  // 1. Recursive factor & power decomposition (handles (x - 1.3)^2, (x - 1.001)*(x - 1.002), etc. analytically)
+  const unwrapped = node.isParenthesisNode ? node.content : node;
+  if (unwrapped.isOperatorNode) {
+    if (unwrapped.op === '*' && unwrapped.args && unwrapped.args.length === 2) {
+      rawRoots.push(...findZerosOfNode(unwrapped.args[0], variable), ...findZerosOfNode(unwrapped.args[1], variable));
+    } else if (unwrapped.op === '^' && unwrapped.args && unwrapped.args.length === 2) {
+      const expVal = Number(unwrapped.args[1]?.value);
+      if (Number.isFinite(expVal) && expVal > 0) {
+        rawRoots.push(...findZerosOfNode(unwrapped.args[0], variable));
+      }
+    } else if (unwrapped.op === '-' && unwrapped.args && unwrapped.args.length === 2) {
+      // Check if it is A - B where B is 0
+      if (unwrapped.args[1].isConstantNode && Number(unwrapped.args[1].value) === 0) {
+        rawRoots.push(...findZerosOfNode(unwrapped.args[0], variable));
+      }
+    }
+  }
+
   let compiled;
   try {
     compiled = node.compile();
@@ -600,25 +675,40 @@ function findZerosOfNode(node, variable) {
     return [];
   }
 
-  const rawRoots = [];
+  // 2. Exact analytical linear / quadratic solver (catches repeated roots, closely spaced roots, and large roots outside [-12, 12])
+  if (isPurePolynomialNode(unwrapped, variable, 2)) {
+    const exactPolyRoots = solveQuadraticOrLinearExact(compiled, variable);
+    if (exactPolyRoots !== null) {
+      rawRoots.push(...exactPolyRoots);
+    }
+  }
+
+  // 3. Numerical sign-change scan + derivative extremum scan for higher-degree / non-polynomial functions
+  let derivCompiled = null;
+  try {
+    derivCompiled = math.derivative(node, variable).compile();
+  } catch (_) {}
+
   const step = 0.25;
   let prevX = null;
   let prevY = null;
+  let prevDY = null;
 
   for (let x = -12; x <= 12; x += step) {
     const y = evalNodeReal(compiled, variable, x);
+    const dy = derivCompiled ? evalNodeReal(derivCompiled, variable, x) : null;
+
     if (y !== null && Math.abs(y) < 1e-7) {
       rawRoots.push(Number(x.toFixed(6)));
     } else if (y !== null && prevY !== null && ((prevY < 0 && y > 0) || (prevY > 0 && y < 0))) {
-      // Refine sign-change crossing by bisection
       let lo = prevX;
       let hi = x;
       let fLo = prevY;
-      for (let iter = 0; iter < 18; iter++) {
+      for (let iter = 0; iter < 24; iter++) {
         const mid = (lo + hi) / 2;
         const fMid = evalNodeReal(compiled, variable, mid);
         if (fMid === null) break;
-        if (Math.abs(fMid) < 1e-9) {
+        if (Math.abs(fMid) < 1e-11) {
           lo = mid;
           hi = mid;
           break;
@@ -632,19 +722,46 @@ function findZerosOfNode(node, variable) {
       }
       const root = (lo + hi) / 2;
       const check = evalNodeReal(compiled, variable, root);
-      if (check !== null && Math.abs(check) < 1e-4) {
-        rawRoots.push(Number(root.toFixed(4)));
+      if (check !== null && Math.abs(check) < 1e-5) {
+        rawRoots.push(Number(root.toFixed(6)));
+      }
+    } else if (derivCompiled && dy !== null && prevDY !== null && ((prevDY < 0 && dy > 0) || (prevDY > 0 && dy < 0))) {
+      // Check for even-multiplicity tangent root where f'(x) crosses zero and f(x) == 0
+      let lo = prevX;
+      let hi = x;
+      let dLo = prevDY;
+      for (let iter = 0; iter < 24; iter++) {
+        const mid = (lo + hi) / 2;
+        const dMid = evalNodeReal(derivCompiled, variable, mid);
+        if (dMid === null) break;
+        if (Math.abs(dMid) < 1e-11) {
+          lo = mid;
+          hi = mid;
+          break;
+        }
+        if ((dLo < 0 && dMid < 0) || (dLo > 0 && dMid > 0)) {
+          lo = mid;
+          dLo = dMid;
+        } else {
+          hi = mid;
+        }
+      }
+      const candExt = (lo + hi) / 2;
+      const fExt = evalNodeReal(compiled, variable, candExt);
+      if (fExt !== null && Math.abs(fExt) < 1e-6) {
+        rawRoots.push(Number(candExt.toFixed(6)));
       }
     }
     prevX = x;
     prevY = y;
+    prevDY = dy;
   }
 
-  // Deduplicate close roots
+  // Deduplicate roots with 1e-5 tolerance so closely spaced roots (e.g. 1.001 and 1.002) are preserved distinctly
   const deduped = [];
   for (const r of rawRoots.sort((a, b) => a - b)) {
-    const snapped = Math.abs(r - Math.round(r)) < 1e-4 ? Math.round(r) : Number(r.toFixed(4));
-    if (!deduped.some(d => Math.abs(d - snapped) < 1e-3)) {
+    const snapped = Math.abs(r - Math.round(r)) < 1e-7 ? Math.round(r) : Number(r.toFixed(6));
+    if (!deduped.some(d => Math.abs(d - snapped) < 1e-5)) {
       deduped.push(snapped);
     }
   }
@@ -883,24 +1000,40 @@ function evaluateTransformationSequence({ userText = '', activeProblemState = nu
         };
       }
     } else if (prev.kind === 'expression' && curr.kind === 'expression') {
-      const testPoints = [-5, -3, -2, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2, 3, 4, 5, 7];
+      const testPoints = [-5, -3, -2, -1.5, -1, -0.5, 0, Math.PI / 7, 0.5, 1, Math.SQRT2 - 0.3, 1.5, 2, Math.E, 3, 4, 5, 7];
       for (const pt of testPoints) {
         if (allDenomZeros.has(pt)) continue;
         const v1 = evalNodeReal(prev.compiled, varName, pt);
         const v2 = evalNodeReal(curr.compiled, varName, pt);
+        if ((v1 === null) !== (v2 === null)) {
+          return {
+            ...baseEmpty,
+            evaluated: true,
+            status: SHORTCUT_STATUS.CONDITIONALLY_VALID,
+            verificationCategory: 'DOMAIN_VIOLATION',
+            isValid: false,
+            exactFailingStep: `Step ${k + 1} -> ${k + 2}: \`${prev.raw}\` => \`${curr.raw}\` alters the real domain at ${varName} = ${Number(pt.toFixed(4))}`,
+            invalidStepIndex: k,
+            failureReason: 'DOMAIN_RESTRICTION_MISMATCH',
+            domainRestrictions,
+            explanation: `The transformation \`${prev.raw}\` => \`${curr.raw}\` changes the real domain of the expression (one side is undefined in the real domain at ${varName} = ${Number(pt.toFixed(4))}).`,
+            pedagogicalDirective: `Point out that the two expressions do not share the same real domain at ${varName} = ${Number(pt.toFixed(4))}.`
+          };
+        }
         if (v1 !== null && v2 !== null && Math.abs(v1 - v2) > 1e-6) {
           return {
             ...baseEmpty,
             evaluated: true,
             status: SHORTCUT_STATUS.INVALID_SHORTCUT,
+            verificationCategory: 'INVALID_TRANSFORMATION',
             isValid: false,
-            exactFailingStep: `Step ${k + 1} -> ${k + 2}: \`${prev.raw}\` => \`${curr.raw}\` fails at ${varName} = ${pt} (${Number(v1.toFixed(4))} != ${Number(v2.toFixed(4))})`,
+            exactFailingStep: `Step ${k + 1} -> ${k + 2}: \`${prev.raw}\` => \`${curr.raw}\` fails at ${varName} = ${Number(pt.toFixed(4))} (${Number(v1.toFixed(4))} != ${Number(v2.toFixed(4))})`,
             invalidStepIndex: k,
             failureReason: 'NON_EQUIVALENT_TRANSFORMATION',
             domainRestrictions,
             counterexample: { variable: varName, value: pt, originalValue: v1, transformedValue: v2 },
-            explanation: `The transformation \`${prev.raw}\` => \`${curr.raw}\` is algebraically non-equivalent: substituting ${varName} = ${pt} yields ${Number(v1.toFixed(4))} for the original expression versus ${Number(v2.toFixed(4))} for the transformed expression.`,
-            pedagogicalDirective: `Show the concrete counterexample at ${varName} = ${pt} and help the student locate the algebraic error in Step ${k + 1} -> ${k + 2}.`
+            explanation: `The transformation \`${prev.raw}\` => \`${curr.raw}\` is algebraically non-equivalent: substituting ${varName} = ${Number(pt.toFixed(4))} yields ${Number(v1.toFixed(4))} for the original expression versus ${Number(v2.toFixed(4))} for the transformed expression.`,
+            pedagogicalDirective: `Show the concrete counterexample at ${varName} = ${Number(pt.toFixed(4))} and help the student locate the algebraic error in Step ${k + 1} -> ${k + 2}.`
           };
         }
       }
@@ -911,6 +1044,7 @@ function evaluateTransformationSequence({ userText = '', activeProblemState = nu
           ...baseEmpty,
           evaluated: true,
           status: SHORTCUT_STATUS.CONDITIONALLY_VALID,
+          verificationCategory: 'DOMAIN_VIOLATION',
           isValid: false,
           exactFailingStep: `Step ${k + 1} -> ${k + 2}: \`${prev.raw}\` => \`${curr.raw}\` removes denominator without stating domain restriction (${droppedDenoms.map(d => `${varName} != ${d}`).join(', ')})`,
           invalidStepIndex: k,
@@ -918,6 +1052,34 @@ function evaluateTransformationSequence({ userText = '', activeProblemState = nu
           domainRestrictions,
           explanation: `Simplifying \`${prev.raw}\` to \`${curr.raw}\` is algebraically equivalent everywhere except where the original denominator is zero (${domainRestrictions.join(', ')}). You must state ${domainRestrictions.join(', ')} as a domain restriction.`,
           pedagogicalDirective: `Confirm the simplified form, but explicitly require stating the domain restriction (${domainRestrictions.join(', ')}) where the original denominator vanished.`
+        };
+      }
+
+      let isSymbolicallyProven = false;
+      try {
+        const diffSimp = math.simplify(`(${prev.normalized}) - (${curr.normalized})`).toString();
+        if (diffSimp === '0') {
+          isSymbolicallyProven = true;
+        } else if (isPurePolynomialNode(prev.exprNode, varName, 6) && isPurePolynomialNode(curr.exprNode, varName, 6)) {
+          isSymbolicallyProven = true;
+        }
+      } catch (_) {}
+
+      if (!isSymbolicallyProven) {
+        return {
+          ...baseEmpty,
+          evaluated: true,
+          status: SHORTCUT_STATUS.UNVERIFIABLE,
+          verificationCategory: 'NUMERICALLY_SUPPORTED',
+          isExactSymbolicProof: false,
+          isValid: null,
+          exactFailingStep: null,
+          invalidStepIndex: null,
+          failureReason: 'SYMBOLIC_PROOF_INCONCLUSIVE',
+          domainRestrictions,
+          isUniversalIdentity: false,
+          explanation: `The expressions \`${prev.raw}\` and \`${curr.raw}\` agree at the numerical values checked, but exact symbolic equivalence has not been proven in closed form.`,
+          pedagogicalDirective: 'State that the expressions agree at the values checked, but do not claim exact symbolic equivalence without a symbolic proof.'
         };
       }
     } else {
@@ -929,6 +1091,8 @@ function evaluateTransformationSequence({ userText = '', activeProblemState = nu
     ...baseEmpty,
     evaluated: true,
     status: SHORTCUT_STATUS.VALID_SHORTCUT,
+    verificationCategory: 'SYMBOLICALLY_VERIFIED',
+    isExactSymbolicProof: true,
     isValid: true,
     exactFailingStep: null,
     invalidStepIndex: null,

@@ -472,34 +472,314 @@ function evaluateEqualityStep(targetExpr, activeEq) {
   return null;
 }
 
+const VERIFICATION_CATEGORIES = Object.freeze({
+  SYMBOLICALLY_VERIFIED: 'SYMBOLICALLY_VERIFIED',
+  NUMERICALLY_SUPPORTED: 'NUMERICALLY_SUPPORTED',
+  INVALID_TRANSFORMATION: 'INVALID_TRANSFORMATION',
+  DOMAIN_VIOLATION: 'DOMAIN_VIOLATION',
+  INDETERMINATE: 'INDETERMINATE'
+});
+
 /**
- * Helper: Safely evaluates a normalized expression at scope, returning { isRealFinite, value, isComplex, isPole }.
+ * Helper: Safely evaluates a normalized expression at scope, returning
+ * { isRealFinite, value, isComplex, isPole, poleReason }.
+ * Traverses the Math.js AST to catch denominator zeros, trig singularities (tan, sec, cot, csc),
+ * logarithm domain violations (arg <= 0), and even-root radical domain violations (arg < 0).
  */
 function safeEvaluateRealAtPoint(normExpr, scope) {
   try {
-    // Check explicit denominators for zero pole
-    const denomMatches = [...normExpr.matchAll(/\/\s*(?:\(([^()]+)\)|([a-zA-Z0-9.*^+\-]+))/g)];
-    for (const dm of denomMatches) {
-      const denExpr = dm[1] || dm[2];
-      if (denExpr && /[a-zA-Z]/.test(denExpr)) {
-        const denVal = math.evaluate(denExpr, scope);
-        if (typeof denVal === 'number' && Math.abs(denVal) < 1e-8) {
-          return { isRealFinite: false, value: NaN, isComplex: false, isPole: true };
+    let ast = null;
+    try {
+      ast = math.parse(normExpr);
+    } catch (_) {}
+
+    if (ast && typeof ast.traverse === 'function') {
+      let foundPole = false;
+      let foundComplex = false;
+      let poleReason = null;
+
+      ast.traverse((node) => {
+        if (foundPole || foundComplex) return;
+        if (node.isOperatorNode && node.op === '/' && node.args && node.args.length === 2) {
+          try {
+            const denRaw = node.args[1].evaluate(scope);
+            const denVal = typeof denRaw === 'number' ? denRaw : Number(denRaw);
+            if (!Number.isFinite(denVal) || Math.abs(denVal) < 1e-8) {
+              foundPole = true;
+              poleReason = 'division_by_zero';
+            }
+          } catch (_) {}
+        } else if (node.isFunctionNode && node.fn && node.args && node.args.length >= 1) {
+          const fnName = (node.fn.name || String(node.fn)).toLowerCase();
+          try {
+            const argRaw = node.args[0].evaluate(scope);
+            if (argRaw && typeof argRaw === 'object' && typeof argRaw.im === 'number' && Math.abs(argRaw.im) > 1e-8) {
+              foundComplex = true;
+              return;
+            }
+            const argVal = typeof argRaw === 'number' ? argRaw : Number(argRaw);
+            if (!Number.isFinite(argVal)) {
+              foundPole = true;
+              return;
+            }
+            if (fnName === 'log' || fnName === 'ln' || fnName === 'log10' || fnName === 'log2') {
+              if (argVal <= 1e-11) {
+                if (Math.abs(argVal) <= 1e-11) {
+                  foundPole = true;
+                  poleReason = 'logarithm_domain_violation';
+                } else {
+                  foundComplex = true;
+                  poleReason = 'logarithm_domain_violation';
+                }
+              }
+            } else if (fnName === 'sqrt') {
+              if (argVal < -1e-11) {
+                foundComplex = true;
+                poleReason = 'radical_domain_violation';
+              }
+            } else if (fnName === 'tan' || fnName === 'sec') {
+              if (Math.abs(Math.cos(argVal)) < 1e-8) {
+                foundPole = true;
+                poleReason = 'trig_singularity_pole';
+              }
+            } else if (fnName === 'cot' || fnName === 'csc') {
+              if (Math.abs(Math.sin(argVal)) < 1e-8) {
+                foundPole = true;
+                poleReason = 'trig_singularity_pole';
+              }
+            }
+          } catch (_) {}
+        }
+      });
+
+      if (foundPole) {
+        return { isRealFinite: false, value: NaN, isComplex: false, isPole: true, poleReason: poleReason || 'division_by_zero' };
+      }
+      if (foundComplex) {
+        return { isRealFinite: false, value: NaN, isComplex: true, isPole: false, poleReason };
+      }
+    }
+
+    const raw = math.evaluate(normExpr, scope);
+    if (raw && typeof raw === 'object' && typeof raw.im === 'number' && Math.abs(raw.im) > 1e-8) {
+      return { isRealFinite: false, value: NaN, isComplex: true, isPole: false, poleReason: null };
+    }
+    const num = typeof raw === 'number' ? raw : (raw && typeof raw.re === 'number' ? raw.re : Number(raw));
+    if (!Number.isFinite(num) || Math.abs(num) > 1e14) {
+      return { isRealFinite: false, value: NaN, isComplex: false, isPole: true, poleReason: 'division_by_zero' };
+    }
+    return { isRealFinite: true, value: num, isComplex: false, isPole: false, poleReason: null };
+  } catch (_) {
+    return { isRealFinite: false, value: NaN, isComplex: false, isPole: false, poleReason: null };
+  }
+}
+
+/**
+ * Checks whether a Math.js AST node is a pure polynomial in `variable` of degree <= maxDeg.
+ */
+function isPurePolynomialAstNode(node, variable = 'x', maxDeg = 6) {
+  if (!node) return false;
+  if (node.isConstantNode) return true;
+  if (node.isSymbolNode) return node.name === variable;
+  if (node.isParenthesisNode) return isPurePolynomialAstNode(node.content, variable, maxDeg);
+  if (node.isOperatorNode) {
+    if (node.op === '+' || node.op === '-' || node.op === '*') {
+      return node.args.every(a => isPurePolynomialAstNode(a, variable, maxDeg));
+    }
+    if (node.op === '/' && node.args.length === 2) {
+      // Division by a non-zero constant is still a polynomial
+      const den = node.args[1].isParenthesisNode ? node.args[1].content : node.args[1];
+      if (den.isConstantNode && Number(den.value) !== 0) {
+        return isPurePolynomialAstNode(node.args[0], variable, maxDeg);
+      }
+      return false;
+    }
+    if (node.op === '^' && node.args.length === 2) {
+      const exp = node.args[1].isParenthesisNode ? node.args[1].content : node.args[1];
+      if (exp.isConstantNode && Number.isInteger(Number(exp.value)) && Number(exp.value) >= 0 && Number(exp.value) <= maxDeg) {
+        return isPurePolynomialAstNode(node.args[0], variable, maxDeg);
+      }
+      return false;
+    }
+  }
+  return false;
+}
+
+/**
+ * Analytically solves linear, quadratic, or factored polynomial zeros of a Math.js AST node.
+ * Returns { roots: number[], repeatedRoots: number[] }.
+ */
+function findAnalyticalZerosOfAstNode(node, variable = 'x') {
+  if (!node) return { roots: [], repeatedRoots: [] };
+  const rawRoots = [];
+  const repeated = [];
+
+  function collectFromNode(n, mult = 1) {
+    if (!n) return;
+    const u = n.isParenthesisNode ? n.content : n;
+    if (u.isOperatorNode) {
+      if (u.op === '*' && u.args.length === 2) {
+        collectFromNode(u.args[0], mult);
+        collectFromNode(u.args[1], mult);
+        return;
+      }
+      if (u.op === '^' && u.args.length === 2) {
+        const expNode = u.args[1].isParenthesisNode ? u.args[1].content : u.args[1];
+        const k = Number(expNode?.value);
+        if (Number.isInteger(k) && k > 0) {
+          collectFromNode(u.args[0], mult * k);
+          return;
+        }
+      }
+      if ((u.op === '-' || u.op === '+') && u.args.length === 2) {
+        const rChild = u.args[1].isParenthesisNode ? u.args[1].content : u.args[1];
+        if (rChild.isConstantNode && Number(rChild.value) === 0) {
+          collectFromNode(u.args[0], mult);
+          return;
         }
       }
     }
-    const raw = math.evaluate(normExpr, scope);
-    if (raw && typeof raw === 'object' && typeof raw.im === 'number' && Math.abs(raw.im) > 1e-8) {
-      return { isRealFinite: false, value: NaN, isComplex: true, isPole: false };
+
+    if (isPurePolynomialAstNode(u, variable, 2)) {
+      try {
+        const compiled = u.compile();
+        const f = (xVal) => {
+          const v = compiled.evaluate({ [variable]: xVal });
+          return typeof v === 'number' && Number.isFinite(v) ? v : null;
+        };
+        const f0 = f(0);
+        const f1 = f(1);
+        const fm1 = f(-1);
+        const f2 = f(2);
+        const fm2 = f(-2);
+        if ([f0, f1, fm1, f2, fm2].every(v => v !== null)) {
+          const c = f0;
+          const a = (f1 + fm1 - 2 * c) / 2;
+          const b = (f1 - fm1) / 2;
+          if (Math.abs(f2 - (4 * a + 2 * b + c)) < 1e-7 && Math.abs(fm2 - (4 * a - 2 * b + c)) < 1e-7) {
+            if (Math.abs(a) < 1e-11) {
+              if (Math.abs(b) > 1e-11) {
+                const r = Number((-c / b).toFixed(8));
+                rawRoots.push(r);
+                if (mult >= 2) repeated.push(r);
+              }
+            } else {
+              const disc = b * b - 4 * a * c;
+              if (Math.abs(disc) <= 1e-10) {
+                const r = Number((-b / (2 * a)).toFixed(8));
+                rawRoots.push(r);
+                repeated.push(r);
+              } else if (disc > 1e-10) {
+                const sq = Math.sqrt(disc);
+                const r1 = Number(((-b - sq) / (2 * a)).toFixed(8));
+                const r2 = Number(((-b + sq) / (2 * a)).toFixed(8));
+                rawRoots.push(r1, r2);
+                if (mult >= 2) repeated.push(r1, r2);
+              }
+            }
+          }
+        }
+      } catch (_) {}
     }
-    const num = typeof raw === 'number' ? raw : (raw && typeof raw.re === 'number' ? raw.re : Number(raw));
-    if (!Number.isFinite(num)) {
-      return { isRealFinite: false, value: NaN, isComplex: false, isPole: true };
-    }
-    return { isRealFinite: true, value: num, isComplex: false, isPole: false };
-  } catch (_) {
-    return { isRealFinite: false, value: NaN, isComplex: false, isPole: false };
   }
+
+  collectFromNode(node, 1);
+
+  const dedupRoots = [];
+  for (const r of rawRoots.sort((a, b) => a - b)) {
+    const snapped = Math.abs(r - Math.round(r)) < 1e-8 ? Math.round(r) : r;
+    if (!dedupRoots.some(d => Math.abs(d - snapped) < 1e-7)) {
+      dedupRoots.push(snapped);
+    } else if (!repeated.some(d => Math.abs(d - snapped) < 1e-7)) {
+      repeated.push(snapped);
+    }
+  }
+
+  return { roots: dedupRoots, repeatedRoots: repeated };
+}
+
+/**
+ * Extracts domain metadata (denominator poles, trig singularity families, log/radical boundary points)
+ * from a normalized equation's LHS and RHS.
+ */
+function extractEquationDomainMetadata(normLhs, normRhs, variable = 'x') {
+  const numericPoles = [];
+  const trigPoleFamilies = new Set();
+  const criticalBoundaryZeros = [];
+  let hasLog = false;
+  let hasSqrt = false;
+
+  for (const sideStr of [normLhs, normRhs]) {
+    let ast = null;
+    try {
+      ast = math.parse(sideStr);
+    } catch (_) {}
+    if (!ast || typeof ast.traverse !== 'function') continue;
+
+    ast.traverse((node) => {
+      if (node.isOperatorNode && node.op === '/' && node.args && node.args.length === 2) {
+        const denNode = node.args[1];
+        const denStr = denNode.toString();
+        if (new RegExp(`\\b${variable}\\b`).test(denStr)) {
+          const { roots } = findAnalyticalZerosOfAstNode(denNode, variable);
+          for (const r of roots) {
+            if (!numericPoles.some(p => Math.abs(p - r) < 1e-7)) numericPoles.push(r);
+          }
+          if (/\bsin\s*\(/.test(denStr)) trigPoleFamilies.add('sin_zero');
+          if (/\bcos\s*\(/.test(denStr)) trigPoleFamilies.add('cos_zero');
+        }
+      } else if (node.isFunctionNode && node.fn && node.args && node.args.length >= 1) {
+        const fnName = (node.fn.name || String(node.fn)).toLowerCase();
+        const argNode = node.args[0];
+        if (fnName === 'tan' || fnName === 'sec') {
+          trigPoleFamilies.add('cos_zero');
+        } else if (fnName === 'cot' || fnName === 'csc') {
+          trigPoleFamilies.add('sin_zero');
+        } else if (fnName === 'log' || fnName === 'ln' || fnName === 'log10' || fnName === 'log2') {
+          hasLog = true;
+          const { roots } = findAnalyticalZerosOfAstNode(argNode, variable);
+          criticalBoundaryZeros.push(...roots);
+        } else if (fnName === 'sqrt') {
+          hasSqrt = true;
+          const { roots } = findAnalyticalZerosOfAstNode(argNode, variable);
+          criticalBoundaryZeros.push(...roots);
+        }
+      }
+    });
+  }
+
+  return {
+    numericPoles: numericPoles.sort((a, b) => a - b),
+    trigPoleFamilies,
+    criticalBoundaryZeros: Array.from(new Set(criticalBoundaryZeros)).sort((a, b) => a - b),
+    hasLog,
+    hasSqrt
+  };
+}
+
+/**
+ * Splits any inline domain restriction suffix from a student's proposed step
+ * (e.g. "x - 3 = 0, x != 2" or "x - 3 = 0 for x != 2").
+ */
+function splitInlineStepRestrictions(rawTargetExpr) {
+  if (!rawTargetExpr || typeof rawTargetExpr !== 'string') {
+    return { cleanEquation: '', excludedNumbers: [], rawCondition: '' };
+  }
+  const s = rawTargetExpr.trim();
+  const m = s.match(/^(.*?)(?:[,;]\s*|\s+(?:for|where|when|if|assuming|provided|with)\s+)([a-zA-Z0-9_()+\-*/^\s]*(?:!=|≠|\\neq|<|>|≤|≥)[a-zA-Z0-9_()+\-*/^.,\s\\]+)$/i);
+  if (!m) {
+    return { cleanEquation: s, excludedNumbers: [], rawCondition: '' };
+  }
+  const cleanEquation = m[1].trim();
+  const rawCondition = m[2].trim();
+  const excludedNumbers = [];
+  for (const nm of rawCondition.matchAll(/(?:!=|≠|\\neq)\s*([-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?)/g)) {
+    try {
+      const val = Number(math.evaluate(nm[1]));
+      if (Number.isFinite(val)) excludedNumbers.push(val);
+    } catch (_) {}
+  }
+  return { cleanEquation, excludedNumbers, rawCondition };
 }
 
 /**
@@ -531,7 +811,9 @@ function evaluateEquationCandidate(targetExpr, activeEq, originalEq = null) {
 
   // 1. Intermediate linear or algebraic equation step (e.g. "3x = 15", "3x = 16", "3x²-3=48", "3x^2 = 51")
   if (targetExpr.includes('=')) {
-    const stepEval = evaluateLinearEquationStep(targetExpr, activeEq);
+    const { cleanEquation: cleanTargetEq, excludedNumbers: studentExcludedNums, rawCondition: studentCond } = splitInlineStepRestrictions(targetExpr);
+    const effectiveTargetEq = cleanTargetEq || targetExpr;
+    const stepEval = evaluateLinearEquationStep(effectiveTargetEq, activeEq);
     if (stepEval) {
       // Check whether activeEq or origEq had a denominator pole that this linear step fails to exclude
       const oParts = origEq.split('=');
@@ -545,6 +827,8 @@ function evaluateEquationCandidate(targetExpr, activeEq, originalEq = null) {
           return {
             status: 'ANSWER_VERIFIED_INCORRECT',
             evaluationCategory: 'INCORRECT_TRANSFORMATION',
+            verificationCategory: VERIFICATION_CATEGORIES.DOMAIN_VIOLATION,
+            isExactSymbolicProof: false,
             isExtraneousRoot: true,
             domainViolation: 'division_by_zero',
             variable: vName,
@@ -557,10 +841,14 @@ function evaluateEquationCandidate(targetExpr, activeEq, originalEq = null) {
       stepEval.evaluationCategory = stepEval.status === 'STEP_VERIFIED_CORRECT'
         ? 'CORRECT_INTERMEDIATE_STEP'
         : (stepEval.status === 'ANSWER_VERIFIED_CORRECT' ? 'CORRECT_FINAL_ANSWER' : 'INCORRECT_TRANSFORMATION');
+      stepEval.verificationCategory = stepEval.status === 'STEP_VERIFIED_CORRECT' || stepEval.status === 'ANSWER_VERIFIED_CORRECT'
+        ? VERIFICATION_CATEGORIES.SYMBOLICALLY_VERIFIED
+        : VERIFICATION_CATEGORIES.INVALID_TRANSFORMATION;
+      stepEval.isExactSymbolicProof = stepEval.verificationCategory === VERIFICATION_CATEGORIES.SYMBOLICALLY_VERIFIED;
       return stepEval;
     }
 
-    const tParts = targetExpr.split('=');
+    const tParts = effectiveTargetEq.split('=');
     const aParts = activeEq.split('=');
     const oParts = origEq.split('=');
     if (tParts.length === 2 && aParts.length === 2 && !/^[a-zA-Z]$/.test(tParts[0].trim())) {
@@ -575,49 +863,222 @@ function evaluateEquationCandidate(targetExpr, activeEq, originalEq = null) {
         const varMatch = (`${normALhs} ${normARhs}`.replace(/\b(?:sqrt|cbrt|sin|cos|tan|log|ln|exp|abs|pi)\b/gi, '').match(/\b([a-zA-Z])\b/));
         const v = varMatch ? varMatch[1] : 'x';
 
-        // Check if origEq has a denominator pole x0 in [-6..6] that targetExpr turns into a root (e.g. (x^2-4)/(x-2)=0 -> x^2-4=0 or x/(x-2)=2/(x-2) -> x=2)
-        if (/\//.test(origEq)) {
-          for (let candPole = -6; candPole <= 6; candPole += 1) {
-            const oL = safeEvaluateRealAtPoint(normOLhs, { [v]: candPole });
-            const oR = safeEvaluateRealAtPoint(normORhs, { [v]: candPole });
-            if (oL.isPole || oR.isPole) {
-              const tL = safeEvaluateRealAtPoint(normTLhs, { [v]: candPole });
-              const tR = safeEvaluateRealAtPoint(normTRhs, { [v]: candPole });
-              if (tL.isRealFinite && tR.isRealFinite && Math.abs(tL.value - tR.value) < 1e-6) {
-                return {
-                  status: 'STEP_VERIFIED_INCORRECT',
-                  evaluationCategory: 'INCORRECT_TRANSFORMATION',
-                  hasExtraneousSolutions: true,
-                  domainViolation: 'extraneous_pole_introduced',
-                  target: targetExpr.trim(),
-                  correctedStep: `${targetExpr.trim()} (with ${v} ≠ ${candPole})`,
-                  details: `Clearing the denominator in ${origEq} to obtain ${targetExpr.trim()} introduces an extraneous root at ${v} = ${candPole}, where the original denominator is zero (${v} ≠ ${candPole}).`,
-                  affirmation: 'Clearing the denominator is a reasonable algebraic step, provided you preserve the domain restriction.',
-                  preferredResponse: `❌ Careful with domain restrictions: clearing the denominator in \`${origEq}\` to write \`${targetExpr.trim()}\` admits \`${v} = ${candPole}\`, which makes the original denominator zero (\`${v} ≠ ${candPole}\`).`
-                };
-              }
+        // 1a. Analytical Domain Metadata Extraction (all numeric poles, trig pole families, log/sqrt boundary points)
+        const origDomain = extractEquationDomainMetadata(normOLhs, normORhs, v);
+        const activeDomain = extractEquationDomainMetadata(normALhs, normARhs, v);
+        const targetDomain = extractEquationDomainMetadata(normTLhs, normTRhs, v);
+
+        const allOrigPoles = Array.from(new Set([...origDomain.numericPoles, ...activeDomain.numericPoles]));
+        for (const candPole of allOrigPoles) {
+          const studentPreservedPole = targetDomain.numericPoles.some(p => Math.abs(p - candPole) < 1e-6) ||
+            studentExcludedNums.some(ex => Math.abs(ex - candPole) < 1e-6);
+          if (!studentPreservedPole) {
+            const tL = safeEvaluateRealAtPoint(normTLhs, { [v]: candPole });
+            const tR = safeEvaluateRealAtPoint(normTRhs, { [v]: candPole });
+            const admitsPoleAsSolution = tL.isRealFinite && tR.isRealFinite && Math.abs(tL.value - tR.value) < 1e-6;
+            if (admitsPoleAsSolution || origDomain.numericPoles.some(p => Math.abs(p - candPole) < 1e-6)) {
+              return {
+                status: 'STEP_VERIFIED_INCORRECT',
+                evaluationCategory: 'INCORRECT_TRANSFORMATION',
+                verificationCategory: VERIFICATION_CATEGORIES.DOMAIN_VIOLATION,
+                isExactSymbolicProof: false,
+                hasExtraneousSolutions: admitsPoleAsSolution,
+                domainViolation: admitsPoleAsSolution ? 'extraneous_pole_introduced' : 'missing_domain_restriction',
+                target: targetExpr.trim(),
+                correctedStep: `${effectiveTargetEq.trim()} (with ${v} ≠ ${candPole})`,
+                details: admitsPoleAsSolution
+                  ? `Clearing the denominator in ${origEq} to obtain ${targetExpr.trim()} introduces an extraneous root at ${v} = ${candPole}, where the original denominator is zero (${v} ≠ ${candPole}).`
+                  : `Transforming ${activeEq} to ${targetExpr.trim()} removes a denominator without preserving the domain restriction ${v} ≠ ${candPole}.`,
+                affirmation: 'Clearing the denominator is valid only when the original domain restriction is preserved.',
+                preferredResponse: `❌ Careful with domain restrictions: rewriting \`${origEq}\` as \`${effectiveTargetEq.trim()}\` must keep the excluded value \`${v} ≠ ${candPole}\`${admitsPoleAsSolution ? ` (otherwise \`${v} = ${candPole}\` appears as an extraneous root)` : ''}.`
+              };
             }
           }
         }
 
-        const samplePts = [-2.5, -1.5, 0.5, 1.5, 2.5, 3.5];
-        let ratios = [];
-        for (const pt of samplePts) {
+        // Check trig singularity mismatch (e.g. tan(x) -> sin(x)/cos(x) vs sin(x) = cos(x) without cos(x) != 0)
+        const trigDropped = [...activeDomain.trigPoleFamilies].filter(fam => !targetDomain.trigPoleFamilies.has(fam));
+        if (trigDropped.length > 0 && !/(?:cos|sin).*?(?:!=|≠|\\neq)\s*0/i.test(studentCond)) {
+          const trigNote = trigDropped.includes('cos_zero') ? 'cos(x) ≠ 0 (x ≠ π/2 + nπ)' : 'sin(x) ≠ 0 (x ≠ nπ)';
+          return {
+            status: 'STEP_VERIFIED_INCORRECT',
+            evaluationCategory: 'INCORRECT_TRANSFORMATION',
+            verificationCategory: VERIFICATION_CATEGORIES.DOMAIN_VIOLATION,
+            isExactSymbolicProof: false,
+            domainViolation: 'trig_domain_restriction_dropped',
+            target: targetExpr.trim(),
+            correctedStep: `${effectiveTargetEq.trim()} (with ${trigNote})`,
+            details: `Transforming ${activeEq} to ${targetExpr.trim()} changes trigonometric domain restrictions without stating ${trigNote}.`,
+            affirmation: 'When eliminating trig denominators (tan/sec/cot/csc), carry forward the excluded angles.',
+            preferredResponse: `❌ Careful with domain restrictions: this transformation drops a trig denominator, so you must keep \`${trigNote}\`.`
+          };
+        }
+
+        // 1b. Domain-consistency & extended numerical sampling (including irrationals & boundary points)
+        const aDiffStr = `(${normALhs}) - (${normARhs})`;
+        const tDiffStr = `(${normTLhs}) - (${normTRhs})`;
+        const sampleSet = new Set([-5, -2.5, -Math.PI / 3, -1.5, -0.5, 0, 0.25, 0.5, Math.SQRT2 - 0.4, 1.001, 1.5, Math.E, 2.5, 3.5, 7]);
+        for (const bz of [...origDomain.criticalBoundaryZeros, ...activeDomain.criticalBoundaryZeros, ...targetDomain.criticalBoundaryZeros]) {
+          sampleSet.add(bz - 0.5);
+          sampleSet.add(bz + 0.5);
+        }
+
+        const ratios = [];
+        const validPairs = [];
+        for (const pt of sampleSet) {
+          if (allOrigPoles.some(p => Math.abs(p - pt) < 1e-6)) continue;
           const aL = safeEvaluateRealAtPoint(normALhs, { [v]: pt });
           const aR = safeEvaluateRealAtPoint(normARhs, { [v]: pt });
           const tL = safeEvaluateRealAtPoint(normTLhs, { [v]: pt });
           const tR = safeEvaluateRealAtPoint(normTRhs, { [v]: pt });
-          if (aL.isRealFinite && aR.isRealFinite && tL.isRealFinite && tR.isRealFinite) {
+
+          const aDefined = aL.isRealFinite && aR.isRealFinite;
+          const tDefined = tL.isRealFinite && tR.isRealFinite;
+          if (aDefined !== tDefined) {
+            const hasExplicitDomainFailure = aL.isPole || aR.isPole || aL.isComplex || aR.isComplex ||
+              tL.isPole || tR.isPole || tL.isComplex || tR.isComplex ||
+              Boolean(aL.poleReason || aR.poleReason || tL.poleReason || tR.poleReason);
+            if (!hasExplicitDomainFailure) {
+              return {
+                status: 'STEP_INDETERMINATE',
+                evaluationCategory: 'UNRELATED_OR_CONVERSATIONAL',
+                verificationCategory: VERIFICATION_CATEGORIES.INDETERMINATE,
+                isExactSymbolicProof: false,
+                target: targetExpr.trim(),
+                details: `The transformation ${targetExpr.trim()} could not be conclusively verified against ${activeEq} with the available checks.`,
+                preferredResponse: `I cannot conclusively verify whether \`${targetExpr.trim()}\` is equivalent to \`${activeEq}\` with the available checks.`
+              };
+            }
+            const violationType = (aL.poleReason || aR.poleReason || tL.poleReason || tR.poleReason) || 'domain_restriction_mismatch';
+            return {
+              status: 'STEP_VERIFIED_INCORRECT',
+              evaluationCategory: 'INCORRECT_TRANSFORMATION',
+              verificationCategory: VERIFICATION_CATEGORIES.DOMAIN_VIOLATION,
+              isExactSymbolicProof: false,
+              domainViolation: violationType,
+              target: targetExpr.trim(),
+              correctedStep: activeEq,
+              details: `The step ${targetExpr.trim()} does not preserve the real-valued domain of ${activeEq} (domains differ at ${v} = ${Number(pt.toFixed(4))}).`,
+              affirmation: 'Make sure both sides keep the same valid real-number domain.',
+              preferredResponse: `❌ Careful with the real-valued domain: \`${activeEq}\` and \`${targetExpr.trim()}\` do not have the same domain at \`${v} = ${Number(pt.toFixed(4))}\`.`
+            };
+          }
+
+          if (aDefined && tDefined) {
             const aDiff = aL.value - aR.value;
             const tDiff = tL.value - tR.value;
+            validPairs.push({ pt, aDiff, tDiff });
             if (Math.abs(aDiff) > 1e-7) {
               ratios.push(tDiff / aDiff);
             }
           }
         }
 
+        // Shared helper to classify whether a step squared both sides or multiplied by a variable factor
+        const classifyNonEquivalentCause = () => {
+          let matchesSquared = 0;
+          let matchesVarFactor = 0;
+          for (const { pt, aDiff, tDiff } of validPairs) {
+            const aL = safeEvaluateRealAtPoint(normALhs, { [v]: pt });
+            const aR = safeEvaluateRealAtPoint(normARhs, { [v]: pt });
+            if (aL.isRealFinite && aR.isRealFinite) {
+              const sqDiff = (aL.value * aL.value) - (aR.value * aR.value);
+              if (Math.abs(sqDiff) > 1e-6 && Math.abs(tDiff - sqDiff) < 1e-4) matchesSquared++;
+              if (Math.abs(aDiff) > 1e-6 && Math.abs((tDiff / aDiff) - pt) < 1e-4) matchesVarFactor++;
+            }
+          }
+          if (matchesSquared >= 3) return 'squaring_introduces_extraneous_roots';
+          if (matchesVarFactor >= 3) return 'variable_multiplier_changes_roots';
+          return null;
+        };
+
+        // 1c. Analytical solution-set comparison for polynomials / factored forms (catches closely spaced & repeated roots)
+        let aDiffAst = null;
+        let tDiffAst = null;
+        try {
+          aDiffAst = math.parse(aDiffStr);
+          tDiffAst = math.parse(tDiffStr);
+          const aRoots = findAnalyticalZerosOfAstNode(aDiffAst, v).roots;
+          const tRoots = findAnalyticalZerosOfAstNode(tDiffAst, v).roots;
+          if (aRoots.length > 0 || tRoots.length > 0) {
+            const aCompiled = aDiffAst.compile();
+            const tCompiled = tDiffAst.compile();
+            // Check every known root of A satisfies T, and every known root of T satisfies A
+            for (const r of aRoots) {
+              const tAtR = Number(tCompiled.evaluate({ [v]: r }));
+              if (!Number.isFinite(tAtR) || Math.abs(tAtR) > 1e-4) {
+                return {
+                  status: 'STEP_VERIFIED_INCORRECT',
+                  evaluationCategory: 'INCORRECT_TRANSFORMATION',
+                  verificationCategory: VERIFICATION_CATEGORIES.INVALID_TRANSFORMATION,
+                  isExactSymbolicProof: false,
+                  target: targetExpr.trim(),
+                  correctedStep: activeEq,
+                  details: `The proposed step ${targetExpr.trim()} loses the solution ${v} = ${r} from ${activeEq}.`,
+                  affirmation: 'Check that no valid solutions were dropped during the transformation.',
+                  preferredResponse: `❌ Careful: \`${targetExpr.trim()}\` drops the solution \`${v} = ${r}\` which satisfies \`${activeEq}\`.`
+                };
+              }
+            }
+            for (const r of tRoots) {
+              if (studentExcludedNums.some(ex => Math.abs(ex - r) < 1e-6)) continue;
+              const aAtR = Number(aCompiled.evaluate({ [v]: r }));
+              if (!Number.isFinite(aAtR) || Math.abs(aAtR) > 1e-4) {
+                const cause = classifyNonEquivalentCause();
+                const isSquaringOrMult = !targetDomain.hasSqrt && !activeDomain.hasSqrt;
+                return {
+                  status: 'STEP_VERIFIED_INCORRECT',
+                  evaluationCategory: 'INCORRECT_TRANSFORMATION',
+                  verificationCategory: VERIFICATION_CATEGORIES.INVALID_TRANSFORMATION,
+                  isExactSymbolicProof: false,
+                  hasExtraneousSolutions: true,
+                  domainViolation: cause || (isSquaringOrMult ? 'extraneous_roots_introduced' : undefined),
+                  target: targetExpr.trim(),
+                  correctedStep: activeEq,
+                  details: `The proposed step ${targetExpr.trim()} introduces an extraneous root ${v} = ${r} that does not satisfy ${activeEq}.`,
+                  affirmation: 'Use reversible solution-preserving operations.',
+                  preferredResponse: `❌ Careful: \`${targetExpr.trim()}\` introduces \`${v} = ${r}\`, which does not satisfy \`${activeEq}\`.`
+                };
+              }
+            }
+          }
+        } catch (_) {}
+
+        if (validPairs.length === 0 || ratios.length === 0) {
+          return {
+            status: 'STEP_INDETERMINATE',
+            evaluationCategory: 'UNRELATED_OR_CONVERSATIONAL',
+            verificationCategory: VERIFICATION_CATEGORIES.INDETERMINATE,
+            isExactSymbolicProof: false,
+            target: targetExpr.trim(),
+            details: `The transformation ${targetExpr.trim()} could not be conclusively verified against ${activeEq} with the available checks.`,
+            preferredResponse: `I cannot conclusively establish whether \`${targetExpr.trim()}\` is equivalent to \`${activeEq}\` with the available checks.`
+          };
+        }
+
         const isConstantRatio = ratios.length >= 4 && Math.abs(ratios[0]) > 1e-6 && ratios.every(r => Math.abs(r - ratios[0]) < 1e-4);
         if (isConstantRatio) {
+          // 1d. Symbolic Equivalence Gate (NEVER promote pure numerical agreement to SYMBOLICALLY_VERIFIED!)
+          let isSymbolicallyProven = false;
+          const r0 = ratios[0];
+          const roundedInt = Math.round(r0);
+          const scalarStr = Math.abs(r0 - roundedInt) < 1e-7 ? String(roundedInt) : String(Number(r0.toFixed(10)));
+
+          try {
+            const symDiff = math.simplify(`(${tDiffStr}) - (${scalarStr}) * (${aDiffStr})`).toString();
+            if (symDiff === '0') {
+              isSymbolicallyProven = true;
+            }
+          } catch (_) {}
+
+          // Pure polynomial uniqueness theorem: two polynomials of degree <= 6 with constant ratio at >= 8 distinct points are identically equivalent
+          if (!isSymbolicallyProven && aDiffAst && tDiffAst) {
+            const bothPurePolys = isPurePolynomialAstNode(aDiffAst, v, 6) && isPurePolynomialAstNode(tDiffAst, v, 6);
+            if (bothPurePolys && ratios.length >= 8 && ratios.every(r => Math.abs(r - r0) < 1e-6)) {
+              isSymbolicallyProven = true;
+            }
+          }
+
           // Determine whether this step is an immediate single-step transformation or a multi-step jump-ahead
           const activeHasDenomAndConst = /\/.*[+-]|[+-].*\//.test(normALhs);
           const activeHasCoeffAndConst = /\d+\s*\*\s*[a-zA-Z].*[+-]/.test(normALhs);
@@ -625,52 +1086,54 @@ function evaluateEquationCandidate(targetExpr, activeEq, originalEq = null) {
           const targetHasNoAddConst = !/[+-]/.test(normTLhs);
           const isJumpAheadStep = (activeHasDenomAndConst && targetHasNoAddConst) || (activeHasCoeffAndConst && targetIsPureVarPower);
 
+          if (isSymbolicallyProven) {
+            return {
+              status: 'STEP_VERIFIED_CORRECT',
+              evaluationCategory: isJumpAheadStep ? 'VALID_JUMP_AHEAD' : 'CORRECT_INTERMEDIATE_STEP',
+              verificationCategory: VERIFICATION_CATEGORIES.SYMBOLICALLY_VERIFIED,
+              isExactSymbolicProof: true,
+              jumpedAhead: isJumpAheadStep,
+              target: targetExpr.trim(),
+              correctedStep: `${normTLhs.replace(/\s*\*\s*/g, '')} = ${normTRhs.replace(/\s*\*\s*/g, '')}`,
+              nextOperation: `isolate ${v}`,
+              details: `Your step ${targetExpr.trim()} is mathematically equivalent to ${activeEq}.`,
+              preferredResponse: `Yes! \`${targetExpr.trim()}\` is mathematically equivalent to \`${activeEq}\`.`
+            };
+          }
+
+          // Numerical agreement ONLY without symbolic proof -> fail closed to NUMERICALLY_SUPPORTED!
           return {
-            status: 'STEP_VERIFIED_CORRECT',
+            status: 'STEP_NUMERICALLY_SUPPORTED',
             evaluationCategory: isJumpAheadStep ? 'VALID_JUMP_AHEAD' : 'CORRECT_INTERMEDIATE_STEP',
+            verificationCategory: VERIFICATION_CATEGORIES.NUMERICALLY_SUPPORTED,
+            isExactSymbolicProof: false,
             jumpedAhead: isJumpAheadStep,
             target: targetExpr.trim(),
-            correctedStep: `${normTLhs.replace(/\s*\*\s*/g, '')} = ${normTRhs.replace(/\s*\*\s*/g, '')}`,
-            nextOperation: `isolate ${v}`,
-            details: `Your step ${targetExpr.trim()} is algebraically equivalent to ${activeEq}.`,
-            preferredResponse: `Yes! \`${targetExpr.trim()}\` is a valid step.`
+            details: `The expressions in ${targetExpr.trim()} agree with ${activeEq} at the values checked, though exact symbolic equivalence has not been established.`,
+            preferredResponse: `The expressions agree at the values checked, though I haven't established exact symbolic equivalence for \`${targetExpr.trim()}\` yet.`
           };
         }
 
         // If targetExpr is in the same variable v but NOT a constant ratio of activeEq, classify WHY it is invalid!
         const targetMentionsVar = new RegExp(`\\b${v}\\b`).test(`${normTLhs} ${normTRhs}`);
         if (targetMentionsVar) {
-          // Check if student multiplied by a variable expression or squared both sides (e.g. tDiff = aDiff * x or tDiff = aLhs^2 - aRhs^2)
-          let matchesSquared = 0;
-          let matchesVarFactor = 0;
-          for (const pt of [-2, -1, 0.5, 1.5, 2.5]) {
-            const aL = safeEvaluateRealAtPoint(normALhs, { [v]: pt });
-            const aR = safeEvaluateRealAtPoint(normARhs, { [v]: pt });
-            const tL = safeEvaluateRealAtPoint(normTLhs, { [v]: pt });
-            const tR = safeEvaluateRealAtPoint(normTRhs, { [v]: pt });
-            if (aL.isRealFinite && aR.isRealFinite && tL.isRealFinite && tR.isRealFinite) {
-              const aDiff = aL.value - aR.value;
-              const tDiff = tL.value - tR.value;
-              const sqDiff = (aL.value * aL.value) - (aR.value * aR.value);
-              if (Math.abs(sqDiff) > 1e-6 && Math.abs(tDiff - sqDiff) < 1e-4) matchesSquared++;
-              if (Math.abs(aDiff) > 1e-6 && Math.abs((tDiff / aDiff) - pt) < 1e-4) matchesVarFactor++;
-            }
-          }
-
-          if (matchesSquared >= 3 || matchesVarFactor >= 3) {
+          const cause = classifyNonEquivalentCause();
+          if (cause) {
             return {
               status: 'STEP_VERIFIED_INCORRECT',
               evaluationCategory: 'INCORRECT_TRANSFORMATION',
+              verificationCategory: VERIFICATION_CATEGORIES.INVALID_TRANSFORMATION,
+              isExactSymbolicProof: false,
               hasExtraneousSolutions: true,
-              domainViolation: matchesSquared >= 3 ? 'squaring_introduces_extraneous_roots' : 'variable_multiplier_changes_roots',
+              domainViolation: cause,
               target: targetExpr.trim(),
               correctedStep: activeEq,
               nextOperation: `isolate ${v} using reversible inverse operations`,
-              details: matchesSquared >= 3
+              details: cause === 'squaring_introduces_extraneous_roots'
                 ? `Squaring both sides of ${activeEq} to form ${targetExpr.trim()} is not an equivalent transformation and can introduce extraneous roots.`
                 : `Multiplying or dividing both sides of ${activeEq} by a variable expression changes the solution set and introduces extraneous roots.`,
               affirmation: 'Be careful to apply only solution-preserving transformations.',
-              preferredResponse: matchesSquared >= 3
+              preferredResponse: cause === 'squaring_introduces_extraneous_roots'
                 ? `❌ Careful: squaring both sides to get \`${targetExpr.trim()}\` can introduce extraneous solutions that do not satisfy \`${activeEq}\`.`
                 : `❌ Careful: multiplying both sides by a variable expression to get \`${targetExpr.trim()}\` alters the solution set and introduces extraneous solutions.`
             };
@@ -691,6 +1154,8 @@ function evaluateEquationCandidate(targetExpr, activeEq, originalEq = null) {
             return {
               status: 'STEP_VERIFIED_INCORRECT',
               evaluationCategory: 'INCORRECT_TRANSFORMATION',
+              verificationCategory: VERIFICATION_CATEGORIES.INVALID_TRANSFORMATION,
+              isExactSymbolicProof: false,
               isOmittedOperation: omittedOp,
               target: targetExpr.trim(),
               correctedStep: expectedStepStr,
@@ -708,6 +1173,8 @@ function evaluateEquationCandidate(targetExpr, activeEq, originalEq = null) {
           return {
             status: 'STEP_VERIFIED_INCORRECT',
             evaluationCategory: 'INCORRECT_TRANSFORMATION',
+            verificationCategory: VERIFICATION_CATEGORIES.INVALID_TRANSFORMATION,
+            isExactSymbolicProof: false,
             target: targetExpr.trim(),
             correctedStep: activeEq,
             nextOperation: `isolate ${v}`,
@@ -1167,11 +1634,30 @@ function inferEvaluationCategory(res) {
   return 'UNRELATED_OR_CONVERSATIONAL';
 }
 
+function inferVerificationCategory(res) {
+  if (!res) return VERIFICATION_CATEGORIES.INDETERMINATE;
+  if (res.verificationCategory) return res.verificationCategory;
+  if (res.domainViolation) return VERIFICATION_CATEGORIES.DOMAIN_VIOLATION;
+  if (res.status === 'STEP_NUMERICALLY_SUPPORTED') return VERIFICATION_CATEGORIES.NUMERICALLY_SUPPORTED;
+  if (res.status === 'STEP_INDETERMINATE' || res.status === 'UNKNOWN' || res.status === 'UNPARSEABLE' || res.status === 'NO_EVALUATION') {
+    return VERIFICATION_CATEGORIES.INDETERMINATE;
+  }
+  if (res.status === 'STEP_VERIFIED_INCORRECT' || res.status === 'ANSWER_VERIFIED_INCORRECT' || res.status === 'OPERATION_IDENTIFIED_INCORRECT') {
+    return VERIFICATION_CATEGORIES.INVALID_TRANSFORMATION;
+  }
+  if (res.status === 'STEP_VERIFIED_CORRECT' || res.status === 'ANSWER_VERIFIED_CORRECT' || res.status === 'VERIFIED') {
+    return VERIFICATION_CATEGORIES.SYMBOLICALLY_VERIFIED;
+  }
+  return VERIFICATION_CATEGORIES.INDETERMINATE;
+}
+
 function evaluateStudentWork(rawInput, classification, conversationHistory = [], activeProblemState = null) {
   if (!classification || !classification.intent) {
     return {
       status: 'NO_EVALUATION',
       evaluationCategory: 'UNRELATED_OR_CONVERSATIONAL',
+      verificationCategory: VERIFICATION_CATEGORIES.INDETERMINATE,
+      isExactSymbolicProof: false,
       rawText: rawInput,
       evaluatedFromInterpretation: false,
       interpretationConfidence: 0,
@@ -1183,9 +1669,14 @@ function evaluateStudentWork(rawInput, classification, conversationHistory = [],
 
   const coreRes = evaluateStudentWorkCore(rawInput, classification, conversationHistory, activeProblemState);
   const interpStatus = classification.interpretationStatus || classification.interpretedTurn?.interpretationStatus || 'EXACT_RAW';
+  const verCat = inferVerificationCategory(coreRes);
   return {
     ...coreRes,
     evaluationCategory: inferEvaluationCategory(coreRes),
+    verificationCategory: verCat,
+    isExactSymbolicProof: coreRes.isExactSymbolicProof !== undefined
+      ? coreRes.isExactSymbolicProof
+      : verCat === VERIFICATION_CATEGORIES.SYMBOLICALLY_VERIFIED,
     rawText: rawInput,
     evaluatedFromInterpretation: Boolean(
       interpStatus !== 'EXACT_RAW' ||
@@ -1591,18 +2082,36 @@ function formatStudentWorkContext(classification, evaluation, activeProblemState
       out += `  2. Briefly show why: "${evaluation.details}"\n`;
       out += `  3. Prompt for the next operation: "Next, ${evaluation.nextOperation}."\n`;
       out += `  4. DO NOT regenerate or solve the problem from the beginning. Continue from this exact step.\n`;
+    } else if (evaluation.status === 'STEP_NUMERICALLY_SUPPORTED') {
+      out += `- Proposed Intermediate Step: \`${evaluation.target || evaluation.rawExpression}\`\n`;
+      out += `- Verification Category: NUMERICALLY_SUPPORTED (Numerical points agree, NOT symbolically proven)\n`;
+      out += `- Deterministic Evaluation: ${evaluation.details}\n`;
+      out += `- CRITICAL PEDAGOGICAL DIRECTIVE:\n`;
+      out += `  1. Tell the student honestly: "The expressions agree at the values checked, though exact symbolic equivalence has not been established yet."\n`;
+      out += `  2. DO NOT claim that the transformation is proven or mathematically equivalent.\n`;
+    } else if (evaluation.status === 'STEP_INDETERMINATE') {
+      out += `- Proposed Intermediate Step: \`${evaluation.target || evaluation.rawExpression}\`\n`;
+      out += `- Verification Category: INDETERMINATE\n`;
+      out += `- Deterministic Evaluation: ${evaluation.details}\n`;
+      out += `- CRITICAL PEDAGOGICAL DIRECTIVE:\n`;
+      out += `  1. Honestly explain that this transformation could not be conclusively verified.\n`;
+      out += `  2. DO NOT claim the step is correct or verified.\n`;
     } else if (evaluation.status === 'STEP_VERIFIED_INCORRECT') {
       out += `- Proposed Intermediate Step: \`${evaluation.target || evaluation.rawExpression}\`\n`;
-      out += `- Verification Status: STEP_VERIFIED_INCORRECT (Ground truth: ${evaluation.isSignError ? 'sign mistake' : 'arithmetic error'} in proposed step)\n`;
+      out += `- Verification Status: STEP_VERIFIED_INCORRECT (Category: ${evaluation.verificationCategory || (evaluation.domainViolation ? 'DOMAIN_VIOLATION' : 'INVALID_TRANSFORMATION')})\n`;
       out += `- Error Details: ${evaluation.details}\n`;
       out += `- Corrected Step: \`${evaluation.correctedStep}\`\n`;
       out += `- CRITICAL PEDAGOGICAL DIRECTIVE:\n`;
-      if (evaluation.isSignError) {
+      if (evaluation.verificationCategory === 'DOMAIN_VIOLATION' || evaluation.domainViolation) {
+        out += `  The student's step alters or violates DOMAIN RESTRICTIONS.\n`;
+        out += `  1. Explicitly identify the excluded value or domain restriction: "${evaluation.details}"\n`;
+        out += `  2. Affirm student's overall method: "${evaluation.affirmation}"\n`;
+      } else if (evaluation.isSignError) {
         out += `  The student made a SIGN ERROR.\n`;
         out += `  1. Explicitly identify the sign mistake: "${evaluation.details}"\n`;
         out += `  2. Affirm student's overall method: "${evaluation.affirmation}"\n`;
       } else {
-        out += `  The student asks to validate their proposed step, which contains an arithmetic mistake.\n`;
+        out += `  The student asks to validate their proposed step, which contains an algebraic or arithmetic error.\n`;
         out += `  1. Explicitly state: "❌ Not quite. ${evaluation.details}"\n`;
         out += `  2. Affirm student's method: "${evaluation.affirmation}"\n`;
       }
@@ -1740,6 +2249,7 @@ function stripModelScratchpad(content) {
 }
 
 module.exports = {
+  VERIFICATION_CATEGORIES,
   checkAmbiguousNotation,
   normalizeExpression,
   evaluatePiRationalExpression,
@@ -1747,6 +2257,8 @@ module.exports = {
   evaluateLinearEquationStep,
   evaluateEqualityStep,
   evaluateEquationCandidate,
+  safeEvaluateRealAtPoint,
+  extractEquationDomainMetadata,
   evaluatePhysicsStep,
   evaluateStudentWork,
   formatStudentWorkContext,
