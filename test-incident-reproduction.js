@@ -84,18 +84,18 @@ async function main() {
   });
 
   // ----------------------------------------------------
-  // TEST 2: Exact origin of "An unexpected error occurred while processing your request."
+  // TEST 2: Exact origin of generic unhandled internal error message
   // ----------------------------------------------------
-  runTest("2. Verify exact origin of 'An unexpected error occurred while processing your request'", () => {
-    // Generic unclassified error defaults to Case 8 (INTERNAL_ERROR, status 500)
+  runTest("2. Verify exact origin of generic unhandled internal error message", () => {
+    // Generic unclassified error defaults to INTERNAL_ERROR, status 500
     const genericErr = new Error('unhandled internal error occurred in pipeline');
     const classifiedGeneric = errorHandler.classifyUpstreamError(genericErr, 'text');
     assert.strictEqual(classifiedGeneric.status, 500, "Unclassified error defaults to status 500");
     assert.strictEqual(classifiedGeneric.error, 'INTERNAL_ERROR', "Error code is INTERNAL_ERROR");
     assert.strictEqual(
       classifiedGeneric.message,
-      '❌ An unexpected error occurred while processing your request. Please try again.',
-      "Message must match exact incident error string"
+      '❌ Something unexpected went wrong on my end (an unexpected error occurred). Please try sending your question again.',
+      "Message must match current errorHandler internal error copy"
     );
 
     // After fix: PRIMARY_EMPTY_RESPONSE is classified as UPSTREAM_SERVER_ERROR (502) rather than generic 500
@@ -260,17 +260,17 @@ async function main() {
   console.log(`====================================================\n`);
 
   try {
-    const calculusEngine = require('./server/engines/calculusEngine');
-    calculusEngine.closeCalculusDaemon();
+    try { require('./server/engines/calculusEngine').closeCalculusDaemon(); } catch (_) {}
+    try { require('./server/verificationBridge').closeVerifierDaemon(); } catch (_) {}
+    try { require('./server/engines/rootSolver').closeRootDaemon(); } catch (_) {}
   } catch (_) {}
 
   if (passedTests !== totalTests) {
-    process.exit(1);
+    process.exitCode = 1;
   }
-  process.exit(0);
 }
 
 main().catch(err => {
   console.error("FATAL in reproduction test:", err);
-  process.exit(1);
+  process.exitCode = 1;
 });

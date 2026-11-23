@@ -5,7 +5,9 @@
 */
 
 const MathJSVerifier = require('../../server/mathjsVerifier');
-const { runDeterministicVerification } = require('../../server/verificationBridge');
+const { runDeterministicVerification, closeVerifierDaemon } = require('../../server/verificationBridge');
+const { closeCalculusDaemon } = require('../../server/engines/calculusEngine');
+const { closeRootDaemon } = require('../../server/engines/rootSolver');
 
 const ALL_38_PARTS_TESTS = [
   // PART 0 — PERMANENT REGRESSIONS
@@ -69,7 +71,8 @@ const ALL_38_PARTS_TESTS = [
 
   // PART 15 — CALCULUS II & GENERAL TRANSFORMATION AUDIT
   { partNum: 15, partName: "PART 15 - CALCULUS II: Change of Variables x = tan(u) in int 1/(1+x^2) dx", payload: { domain: 'calculus', claim_type: 'change_of_variables', data: { original_integrand: '1/(1+x^2)', substitution: 'tan(u)', old_variable: 'x', new_variable: 'u', proposed_transformed_integrand: '1' } }, expectVerified: true, expectStatus: 'VERIFIED' },
-  { partNum: 15, partName: "PART 15 - REGRESSION: Valid Substitution x = 1/u in int ln(x)/(1+x^2) dx -> ln(u)/(1+u^2)", payload: { domain: 'calculus', claim_type: 'change_of_variables', data: { original_integrand: 'ln(x)/(1+x^2)', substitution: '1/u', old_variable: 'x', new_variable: 'u', proposed_transformed_integrand: 'ln(u)/(1+u^2)' } }, expectVerified: true, expectStatus: 'VERIFIED' },
+  { partNum: 15, partName: "PART 15 - REGRESSION: Unconditional x = 1/u substitution preserves -ln(1/u)/(1+u^2) without unsafe log branch assumptions", payload: { domain: 'calculus', claim_type: 'change_of_variables', data: { original_integrand: 'ln(x)/(1+x^2)', substitution: '1/u', old_variable: 'x', new_variable: 'u', proposed_transformed_integrand: '-ln(1/u)/(1+u^2)' } }, expectVerified: true, expectStatus: 'VERIFIED' },
+  { partNum: 15, partName: "PART 15 - REGRESSION: Conservative rejection of ln(u)/(1+u^2) for x = 1/u when positivity u > 0 is omitted", payload: { domain: 'calculus', claim_type: 'change_of_variables', data: { original_integrand: 'ln(x)/(1+x^2)', substitution: '1/u', old_variable: 'x', new_variable: 'u', proposed_transformed_integrand: 'ln(u)/(1+u^2)' } }, expectVerified: false, expectStatus: 'INVALID_SUBSTITUTION' },
   { partNum: 15, partName: "PART 15 - REGRESSION: Invalid Polar Coordinate Transformation introducing extra r factor", payload: { domain: 'calculus', claim_type: 'change_of_variables', data: { original_integrand: 'ln(x)/(1+x^2)', substitution: 'r', old_variable: 'x', new_variable: 'r', proposed_transformed_integrand: 'r*ln(r)/(1+r^2)' } }, expectVerified: false, expectStatus: 'INVALID_SUBSTITUTION' },
 
   // PART 16 — LINEAR ALGEBRA
@@ -136,7 +139,7 @@ const ALL_38_PARTS_TESTS = [
   { partNum: 27, partName: "PART 27 - UNSOLVED PROBLEMS: Refuses fake proof of Riemann Hypothesis", payload: { domain: 'unsolved', claim_type: 'riemann_hypothesis', data: {} }, expectVerified: false, expectStatus: 'UNKNOWN' },
 
   // PART 28 — PROFESSOR'S TRICK QUESTIONS
-  { partNum: 28, partName: "PART 28 - TRICK QUESTIONS: Division by zero x / 0 is undefined", payload: { domain: 'arithmetic', data: { expression: '5 / 0' } }, expectVerified: false, expectStatus: 'UNDEFINED' },
+  { partNum: 28, partName: "PART 28 - TRICK QUESTIONS: Division by zero 5 / 0 returns DIVISION_BY_ZERO", payload: { domain: 'arithmetic', data: { expression: '5 / 0' } }, expectVerified: false, expectStatus: 'DIVISION_BY_ZERO' },
 
   // PART 29 — AI HALLUCINATION GAUNTLET & CHAOS / DYNAMICAL SYSTEMS REGRESSIONS
   { partNum: 29, partName: "PART 29 - CHAOS REGRESSION: Validates True Fixed Points x*=0 and x*=1-1/r", payload: { domain: 'dynamical_systems', claim_type: 'fixed_point', data: { map_expression: 'r*x*(1 - x)', proposed_fixed_points: ['0', '1 - 1/r'] } }, expectVerified: true, expectStatus: 'VERIFIED' },
@@ -197,7 +200,8 @@ async function runComplete38PartsGauntlet() {
   let generativeValid = 0;
   let generativeCorrupted = 0;
 
-  for (const t of ALL_38_PARTS_TESTS) {
+  try {
+    for (const t of ALL_38_PARTS_TESTS) {
     if (t.isGenerativeBatch) {
       console.log(`▶ [PART ${String(t.partNum).padStart(2, '0')}] ${t.partName}`);
       let batchPass = true;
@@ -301,13 +305,21 @@ async function runComplete38PartsGauntlet() {
   }
   console.log('======================================================================\n');
 
-  if (passed !== ALL_38_PARTS_TESTS.length || falseVerified > 0) {
-    process.exit(1);
+    if (passed !== ALL_38_PARTS_TESTS.length || falseVerified > 0) {
+      process.exitCode = 1;
+    }
+  } finally {
+    try { closeVerifierDaemon(); } catch (_) {}
+    try { closeCalculusDaemon(); } catch (_) {}
+    try { closeRootDaemon(); } catch (_) {}
   }
 }
 
 module.exports = { runComplete38PartsGauntlet };
 
 if (require.main === module) {
-  runComplete38PartsGauntlet();
+  runComplete38PartsGauntlet().catch(err => {
+    console.error('Fatal error in final_exam_38_parts:', err);
+    process.exitCode = 1;
+  });
 }

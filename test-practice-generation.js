@@ -310,10 +310,13 @@ runTest('Practice generation does not weaken fail-closed behavior for actual ans
   assert(evalResult !== null);
   assert.strictEqual(evalResult.status, 'ANSWER_VERIFIED_INCORRECT');
 
-  // If a candidate answer is completely unverified, getSafeWithholding still triggers
+  // If a candidate answer is completely unverified, getSafeWithholding still triggers with current taxonomy copy
   const withholding = getSafeWithholding(WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED);
   assert(withholding !== null);
-  assert(withholding.formattedContent.includes("couldn't verify it well enough") || withholding.formattedContent.includes("rather not guess"));
+  assert(
+    withholding.headline.includes("couldn't confirm the final answer") &&
+    withholding.explanation.includes('held back rather than guessing')
+  );
 });
 
 // -------------------------------------------------------------

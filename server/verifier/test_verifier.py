@@ -128,6 +128,39 @@ class TestDeterministicVerificationEngine(unittest.TestCase):
         self.assertFalse(res_invalid["verified"])
         self.assertEqual(res_invalid["status"], "INVALID_SUBSTITUTION")
 
+    def test_12b_change_of_variables_conservative_log_branch(self):
+        """TEST 12b: Substitution x = 1/u for ln(x)/(1+x^2) must NOT assume u > 0 unconditionally"""
+        import cmath
+        from calculus_verifier import verify_change_of_variables
+
+        # Exact unforced form without positivity assumptions passes
+        res_exact = verify_change_of_variables({
+            "original_integrand": "ln(x)/(1+x^2)",
+            "substitution": "1/u",
+            "old_variable": "x",
+            "new_variable": "u",
+            "proposed_transformed_integrand": "-ln(1/u)/(1+u^2)"
+        })
+        self.assertTrue(res_exact["verified"])
+        self.assertEqual(res_exact["status"], "VERIFIED")
+
+        # Without u > 0, -ln(1/u)/(1+u^2) != ln(u)/(1+u^2) for negative u (principal branch u = -2)
+        u_neg = -2.0
+        lhs = -cmath.log(1.0 / u_neg) / (1.0 + u_neg ** 2)
+        rhs = cmath.log(u_neg) / (1.0 + u_neg ** 2)
+        self.assertNotAlmostEqual(lhs.imag, rhs.imag, places=6)
+
+        # Verifier conservatively rejects dropping the implicit log domain constraint
+        res_unconstrained = verify_change_of_variables({
+            "original_integrand": "ln(x)/(1+x^2)",
+            "substitution": "1/u",
+            "old_variable": "x",
+            "new_variable": "u",
+            "proposed_transformed_integrand": "ln(u)/(1+u^2)"
+        })
+        self.assertFalse(res_unconstrained["verified"])
+        self.assertEqual(res_unconstrained["status"], "INVALID_SUBSTITUTION")
+
     def test_13_dimensional_analysis(self):
         """TEST 13: Dimensional consistency: Force [mass*accel] vs Energy [force*dist]"""
         from physics_universal_verifier import verify_dimensions

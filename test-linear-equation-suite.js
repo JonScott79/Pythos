@@ -265,9 +265,10 @@ async function runAllTests() {
     const hasInvalid = verifications.some(v => v.verified === false);
     assert.strictEqual(hasInvalid, true, 'Verifier must catch incorrect root');
 
-    // Delivery gate check: must withhold safely with student-friendly taxonomy
+    // Delivery gate check: must withhold safely with current evidence-based student-friendly taxonomy
     const withholding = getSafeWithholding('CLAIM_NOT_VERIFIED');
-    assert.strictEqual(withholding.headline, 'I need a little more information to solve this problem.');
+    assert.strictEqual(withholding.headline, "I checked part of this problem, but I couldn't confirm the final answer.");
+    assert(withholding.explanation.includes('held back rather than guessing'));
     assert(!withholding.explanation.includes('UNKNOWN'), 'Zero internal verifier jargon');
     assert(!withholding.explanation.includes('verification gate'), 'Zero gate jargon');
   });
@@ -318,11 +319,11 @@ async function runAllTests() {
     // Must NOT be delivered
   });
 
-  await test('7.3: Dual failure (primary + backup unavailable) -> safe withholding with student UX', async () => {
+  await test('7.3: Dual failure (primary + backup unavailable) -> safe withholding with current student UX', async () => {
     const withholding = getSafeWithholding('DUAL_PROVIDER_FAILURE');
-    assert.strictEqual(withholding.headline, 'I need a little more information to solve this problem.');
-    assert.strictEqual(withholding.cause, 'Our primary and backup reasoning services were temporarily unable to complete processing.');
-    assert.strictEqual(withholding.nextStep, 'Please send your question again.');
+    assert.strictEqual(withholding.headline, "I'm temporarily unable to reach my solving services right now.");
+    assert.strictEqual(withholding.cause, 'Solving capacity was temporarily unavailable or busy during this request.');
+    assert.strictEqual(withholding.nextStep, 'Please resend your question in a few moments.');
     assert(!withholding.explanation.includes('503') && !withholding.explanation.includes('provider failure'));
   });
 
@@ -335,7 +336,13 @@ async function runAllTests() {
   console.log('================================================================\n');
 }
 
-runAllTests().catch((err) => {
-  console.error('Test suite failed:', err);
-  process.exit(1);
-});
+runAllTests()
+  .catch((err) => {
+    console.error('Test suite failed:', err);
+    process.exitCode = 1;
+  })
+  .finally(() => {
+    try { require('./server/verificationBridge').closeVerifierDaemon(); } catch (_) {}
+    try { require('./server/engines/calculusEngine').closeCalculusDaemon(); } catch (_) {}
+    try { require('./server/engines/rootSolver').closeRootDaemon(); } catch (_) {}
+  });

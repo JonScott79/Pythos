@@ -10,9 +10,10 @@
  */
 
 const assert = require('assert');
-const { verifyResponseClaims, evaluateCandidateDelivery, extractClaims } = require('./server/verificationBridge');
+const { verifyResponseClaims, evaluateCandidateDelivery, extractClaims, closeVerifierDaemon } = require('./server/verificationBridge');
 
 async function runTests() {
+  try {
   console.log('====================================================');
   console.log('P0 REGRESSION SUITE: INCIDENT RESOLUTION VERIFICATION');
   console.log('====================================================\n');
@@ -127,9 +128,12 @@ Proposed extraneous solution:
   console.log('====================================================');
   console.log('ALL 5 INCIDENT VERIFICATION REGRESSION TESTS PASSED!');
   console.log('====================================================\n');
+  } finally {
+    try { closeVerifierDaemon(); } catch (_) {}
+  }
 }
 
 runTests().catch(err => {
   console.error('Test Suite Failed:', err);
-  process.exit(1);
+  process.exitCode = 1;
 });

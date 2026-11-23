@@ -33,7 +33,9 @@ const {
   extractPreflightDeterministicFacts,
   buildDeterministicResponse
 } = require('./server/deterministicRouter');
-const { extractClaims, runDeterministicVerification } = require('./server/verificationBridge');
+const { extractClaims, runDeterministicVerification, closeVerifierDaemon } = require('./server/verificationBridge');
+const { closeCalculusDaemon } = require('./server/engines/calculusEngine');
+const { closeRootDaemon } = require('./server/engines/rootSolver');
 
 console.log('===============================================================');
 console.log('🔬 TESTING PI, PARENTHESES & DIVISION MATHEMATICAL ACCURACY');
@@ -41,17 +43,10 @@ console.log('===============================================================\n')
 
 let totalTests = 0;
 let passedTests = 0;
+const testQueue = [];
 
 function test(name, fn) {
-  totalTests++;
-  try {
-    fn();
-    passedTests++;
-    console.log(`  ✔ [PASS] ${name}`);
-  } catch (err) {
-    console.error(`  ✘ [FAIL] ${name}: ${err.message}`);
-    throw err;
-  }
+  testQueue.push({ name, fn });
 }
 
 // -----------------------------------------------------------------------------
@@ -236,8 +231,8 @@ test('4.1: Claims containing 345(10/pi) = 1098.17 are extracted and verified', a
   const claims = extractClaims('Therefore 345(10/pi) = 1098.17');
   assert(claims.length > 0, 'Claim should be extracted');
   const claim = claims[0];
-  assert.strictEqual(claim.data.expression, '345(10/pi)');
-  
+  assert.strictEqual(claim.data.expression, '345*(10/pi)');
+
   // Mark approximate to verify within tolerance
   claim.data.is_approximate = true;
   claim.data.tolerance = 0.05;
@@ -254,12 +249,35 @@ test('4.2: Verification engine rejects false hallucination claim 345(10/pi) = 10
   assert.strictEqual(result.status, 'INCORRECT_RESULT');
 });
 
-test('4.3: Claims with Greek π symbol are normalized and extracted', () => {
+test('4.3: Claims with Greek π symbol are normalized with explicit multiplication and extracted', () => {
   const claims = extractClaims('345(180/π) = 19768.46');
   assert(claims.length > 0, 'Claim with π symbol should be extracted');
-  assert.strictEqual(claims[0].data.expression, '345(180/pi)');
+  assert.strictEqual(claims[0].data.expression, '345*(180/pi)');
 });
 
-console.log(`\n===============================================================`);
-console.log(`RESULTS: ${passedTests}/${totalTests} (100%) PASSED`);
-console.log(`===============================================================\n`);
+(async function runAll() {
+  try {
+    for (const item of testQueue) {
+      totalTests++;
+      try {
+        await item.fn();
+        passedTests++;
+        console.log(`  ✔ [PASS] ${item.name}`);
+      } catch (err) {
+        console.error(`  ✘ [FAIL] ${item.name}: ${err.message}`);
+        process.exitCode = 1;
+        throw err;
+      }
+    }
+    console.log(`\n===============================================================`);
+    console.log(`RESULTS: ${passedTests}/${totalTests} (100%) PASSED`);
+    console.log(`===============================================================\n`);
+  } finally {
+    try { closeVerifierDaemon(); } catch (_) {}
+    try { closeCalculusDaemon(); } catch (_) {}
+    try { closeRootDaemon(); } catch (_) {}
+  }
+})().catch(err => {
+  console.error('Fatal pi test failure:', err);
+  process.exitCode = 1;
+});

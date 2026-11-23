@@ -48,31 +48,40 @@ async function runTests() {
   });
 
   await test('Cold vs warm single-request latency and correctness', async () => {
-    const claim = {
+    const coldClaim = {
       domain: 'calculus',
-      claim_type: 'derivative',
-      data: { expression: 'x^3/3', variable: 'x', proposed_derivative: 'x^2' }
+      claim_type: 'antiderivative',
+      data: { integrand: '2*x', variable: 'x', proposed_antiderivative: 'x^2 + C' }
     };
 
+    // Warm both workers in the pool on Python/SymPy antiderivative evaluation before timing warm runs
     const tCold0 = performance.now();
-    const coldRes = await verificationBridge.runDeterministicVerification(claim);
+    const [coldRes] = await Promise.all([
+      verificationBridge.runDeterministicVerification(coldClaim),
+      verificationBridge.runDeterministicVerification({
+        domain: 'calculus',
+        claim_type: 'antiderivative',
+        data: { integrand: '3*x^2', variable: 'x', proposed_antiderivative: 'x^3 + C' }
+      })
+    ]);
     const coldMs = performance.now() - tCold0;
     assert.strictEqual(coldRes.verified, true, `Expected coldRes verified=true, got ${JSON.stringify(coldRes)}`);
 
-    // Warm runs across both workers
+    // Warm runs across both workers (cache-busted unique expressions)
     const warmLatencies = [];
     for (let i = 0; i < 6; i++) {
+      const k = i + 2;
       const t0 = performance.now();
       const warmRes = await verificationBridge.runDeterministicVerification({
         domain: 'calculus',
         claim_type: 'antiderivative',
-        data: { integrand: '2*x', variable: 'x', proposed_antiderivative: 'x^2 + C' }
+        data: { integrand: `${2 * k}*x`, variable: 'x', proposed_antiderivative: `${k}*x^2 + C` }
       });
       warmLatencies.push(performance.now() - t0);
       assert.strictEqual(warmRes.verified, true, `Expected warmRes verified=true on iter ${i}`);
     }
     const avgWarmMs = warmLatencies.reduce((a, b) => a + b, 0) / warmLatencies.length;
-    console.log(`    [BENCH] Cold request: ${coldMs.toFixed(2)}ms | Avg warm request (n=6): ${avgWarmMs.toFixed(2)}ms`);
+    console.log(`    [BENCH] Cold Python pool warmup (2 workers): ${coldMs.toFixed(2)}ms | Avg warm request (n=6): ${avgWarmMs.toFixed(2)}ms`);
     assert(avgWarmMs < 200, `Expected warm latency < 200ms, got ${avgWarmMs.toFixed(2)}ms`);
   });
 
