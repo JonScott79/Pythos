@@ -196,17 +196,39 @@ def _expand_latex_structures(s: str) -> str:
 
 
 def _normalize_abs_bars(s: str) -> str:
-    while '|' in s:
-        next_s = _re.sub(
-            r'\|\s*([^|]*?[a-zA-Z0-9_)][^|]*?)(?<![+\-*/^,(])\s*\|',
-            r'Abs(\1)',
-            s,
-            count=1
-        )
-        if next_s == s:
-            break
-        s = next_s
-    return s
+    """Stack-based balanced absolute value bar converter (handles nested |x - |y|| cleanly)."""
+    if '|' not in s:
+        return s
+    chars = list(s)
+    stack = []
+    out = []
+    i = 0
+    n = len(chars)
+
+    def prev_nonspace(buf):
+        for ch in reversed(buf):
+            if not ch.isspace():
+                return ch
+        return ''
+
+    while i < n:
+        ch = chars[i]
+        if ch != '|':
+            out.append(ch)
+            i += 1
+            continue
+        prev = prev_nonspace(out)
+        # Closing bar if stack is non-empty AND previous non-space char can end an operand
+        is_close = bool(stack) and (prev.isalnum() or prev in (')', ']', '}'))
+        if is_close:
+            open_pos = stack.pop()
+            out[open_pos] = 'Abs('
+            out.append(')')
+        else:
+            stack.append(len(out))
+            out.append('|')
+        i += 1
+    return ''.join(out)
 
 
 def _has_ambiguous_division_binding(raw_s: str) -> bool:
@@ -382,8 +404,10 @@ def verify_algebra(claim: dict) -> dict:
     """
     eq_str = claim.get("equation")
     variable_str = claim.get("variable", "x")
-    proposed_solutions = claim.get("proposed_solutions", [])
-    
+    has_proposed_field = ("proposed_solutions" in claim) or ("proposed_solution" in claim)
+    raw_proposed = claim.get("proposed_solutions") if "proposed_solutions" in claim else claim.get("proposed_solution")
+    proposed_solutions = [] if raw_proposed is None else raw_proposed
+
     if isinstance(proposed_solutions, (int, float, str)):
         proposed_solutions = [proposed_solutions]
 
@@ -397,7 +421,7 @@ def verify_algebra(claim: dict) -> dict:
         return {"verified": False, "status": "UNKNOWN", "reason": str(e)}
 
     eq_str = _normalize_implicit_functions(eq_str).replace("^", "**")
-    eq_str = _re.sub(r'(?<![a-zA-Z_])(\d+)\s*([a-zA-Z(])', r'\1*\2', eq_str)
+    eq_str = _re.sub(r'(?<![a-zA-Z_.])(\d+)\s*(?![eE][+-]?\d+\b)([a-zA-Z(])', r'\1*\2', eq_str)
 
     try:
         var = sp.Symbol(variable_str)
@@ -415,7 +439,7 @@ def verify_algebra(claim: dict) -> dict:
         # solve variable (unparsed function names, parameters), substitution cannot decide the
         # claim. Report UNKNOWN instead of mislabelling a correct root as EXTRANEOUS_ROOT.
         unresolved = {str(s) for s in equation.free_symbols if s != var}
-        has_proposed = "proposed_solutions" in claim and bool(claim.get("proposed_solutions"))
+        has_proposed = has_proposed_field and bool(proposed_solutions)
         if unresolved and has_proposed:
             return {
                 "verified": False,
@@ -495,8 +519,9 @@ def verify_algebra(claim: dict) -> dict:
                     frac = m_dec.group(1) or ""
                     exp_str = m_dec.group(2)
                     dec_places = len(frac) - (int(exp_str) if exp_str else 0)
-                    if dec_places > 0:
-                        return 0.5 * (10.0 ** (-dec_places))
+                    # Require at least 2 decimal places before granting rounding ULP slack ("1.0" must not tolerate ±0.05!)
+                    if dec_places >= 2:
+                        return min(5e-3, 0.5 * (10.0 ** (-dec_places)))
                     return 1e-6
                 return 1e-9
             return 1e-6
@@ -610,7 +635,36 @@ def verify_algebra(claim: dict) -> dict:
                 "details": f"Proposed value(s) {extraneous_found} do not satisfy original equation {eq_str}"
             }
 
-        # 2. Lost root check (for algebraic / non-periodic equations)
+        # 2. Lost root check (empty proposed_solutions on solvable equations must NEVER return VERIFIED!)
+        if has_proposed_field and len(proposed_solutions) == 0:
+            if true_sol_vals:
+                return {
+                    "verified": False,
+                    "status": "LOST_ROOT",
+                    "error_type": "LOST_ROOT",
+                    "lost_roots": [f"{r:g}" for r in true_sol_vals],
+                    "proposed_solutions": [],
+                    "all_valid_solutions": [str(s) for s in true_solutions],
+                    "details": f"No solutions proposed, but equation {eq_str} has valid solution(s) {true_solutions}."
+                }
+            if has_trig:
+                try:
+                    trig_set = sp.solveset(equation, var, domain=sp.S.Reals)
+                    if trig_set is not sp.EmptySet and not (isinstance(trig_set, sp.FiniteSet) and len(trig_set) == 0):
+                        return {
+                            "verified": False,
+                            "status": "LOST_ROOT",
+                            "error_type": "LOST_ROOT",
+                            "proposed_solutions": [],
+                            "details": f"No solutions proposed, but trigonometric equation {eq_str} has real solutions."
+                        }
+                except Exception:
+                    return {
+                        "verified": False,
+                        "status": "UNKNOWN",
+                        "reason": f"Cannot verify empty solution list for trigonometric equation {eq_str}."
+                    }
+
         if proposed_solutions and true_sol_vals and not has_trig:
             lost_roots = []
             for t in true_sol_vals:
@@ -726,26 +780,26 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
             s = _re.sub(r'\\(sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|sinh|cosh|tanh|exp|log|sqrt)\b', r'\1', s)
             s = _re.sub(r'\\?ln\b', 'log', s)
             s = _re.sub(r'\\?log\b', 'log', s)
-            s = _re.sub(r'\bcbrt\s*\(([^()]+)\)', r'((\1)**(1/3))', s)
+            s = _re.sub(r'\bcbrt\s*\(([^()]+)\)', lambda m: f"real_root(({m.group(1)}), 3)" if use_real_domain else f"(({m.group(1)})**(1/3))", s)
             s = _normalize_implicit_functions(s)
             s = s.replace('^', '**')
-            # Implicit multiplication between adjacent single-letter variables inside parens/numerators when multi-variable (e.g. a/(bc) -> a/(b*c), ab/c -> a*b/c)
-            s = _re.sub(r'(?<![a-zA-Z_])(\d)\s*([a-zA-Z])', r'\1*\2', s)
+            # Preserve scientific notation (e.g. 1e-5, 2.5E+3) when inserting implicit multiplication
+            s = _re.sub(r'(?<![a-zA-Z_.])(\d)\s*(?![eE][+-]?\d+\b)([a-zA-Z])', r'\1*\2', s)
             s = _re.sub(r'(?<![a-zA-Z_])(\d)\s*\(', r'\1*(', s)
             s = _re.sub(r'\)\s*\(', r')*(', s)
             s = _re.sub(r'\)\s*([a-zA-Z0-9])', r')*\1', s)
-            s = _re.sub(r'\b(?!sin|cos|tan|sec|csc|cot|log|log10|log2|ln|exp|sqrt|cbrt|asin|acos|atan|arcsin|arccos|arctan|sinh|cosh|tanh|atan2|Abs\b)([a-zA-Z])\s*\(', r'\1*(', s)
+            s = _re.sub(r'\b(?!sin|cos|tan|sec|csc|cot|log|log10|log2|ln|exp|sqrt|cbrt|real_root|asin|acos|atan|arcsin|arccos|arctan|sinh|cosh|tanh|asinh|acosh|atanh|atan2|Abs\b)([a-zA-Z])\s*\(', r'\1*(', s)
             return s
 
         norm1 = _norm(expr1_str)
         norm2 = _norm(expr2_str)
 
         # If multi-letter token like 'bc' appears inside explicit parens/numerator alongside single-letter 'b' or 'c', split into b*c
-        single_letter_tokens = set(_re.findall(r'\b([a-zA-Z])\b', norm1 + ' ' + norm2))
+        single_letter_tokens = set(_re.findall(r'\b([a-zA-Z])\b', _re.sub(r'\b\d+(?:\.\d+)?[eE][+-]?\d+\b', '', norm1 + ' ' + norm2)))
         RESERVED_WORDS = {
             'sin', 'cos', 'tan', 'sec', 'csc', 'cot', 'asin', 'acos', 'atan',
-            'arcsin', 'arccos', 'arctan', 'sinh', 'cosh', 'tanh', 'log', 'ln',
-            'exp', 'sqrt', 'cbrt', 'atan2', 'Abs', 'abs', 'pi'
+            'arcsin', 'arccos', 'arctan', 'sinh', 'cosh', 'tanh', 'asinh', 'acosh', 'atanh', 'log', 'ln',
+            'exp', 'sqrt', 'cbrt', 'real_root', 'atan2', 'Abs', 'abs', 'pi'
         }
         def _split_juxtaposed_vars(expr_norm: str) -> str:
             def _repl(m):
@@ -760,9 +814,10 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
         norm1 = _split_juxtaposed_vars(norm1)
         norm2 = _split_juxtaposed_vars(norm2)
 
-        # Build symbol table with real=True by default (unless complex domain)
-        all_identifiers = set(_re.findall(r'\b([a-zA-Z_][a-zA-Z0-9_]*)\b', norm1 + ' ' + norm2)) - RESERVED_WORDS
-        local_syms = {"e": sp.E, "pi": sp.pi, "ln": sp.log, "Abs": sp.Abs, "abs": sp.Abs}
+        # Build symbol table with real=True by default (unless complex domain); strip scientific numbers before scanning identifiers
+        ident_src = _re.sub(r'\b\d+(?:\.\d+)?[eE][+-]?\d+\b', '', norm1 + ' ' + norm2)
+        all_identifiers = set(_re.findall(r'\b([a-zA-Z_][a-zA-Z0-9_]*)\b', ident_src)) - RESERVED_WORDS
+        local_syms = {"e": sp.E, "pi": sp.pi, "ln": sp.log, "Abs": sp.Abs, "abs": sp.Abs, "real_root": sp.real_root}
         for ident in all_identifiers:
             if ident == 'I':
                 local_syms[ident] = sp.I
@@ -771,8 +826,16 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
             else:
                 local_syms[ident] = sp.Symbol(ident)
 
-        e1 = safe_sympify(norm1, locals=local_syms)
-        e2 = safe_sympify(norm2, locals=local_syms)
+        def _apply_real_negative_odd_roots(sym_expr):
+            if not use_real_domain:
+                return sym_expr
+            return sym_expr.replace(
+                lambda n: isinstance(n, sp.Pow) and n.base.is_number and n.base.is_negative and isinstance(n.exp, sp.Rational) and n.exp.q % 2 == 1,
+                lambda n: (sp.real_root(n.base, n.exp.q)) ** n.exp.p
+            )
+
+        e1 = _apply_real_negative_odd_roots(safe_sympify(norm1, locals=local_syms))
+        e2 = _apply_real_negative_odd_roots(safe_sympify(norm2, locals=local_syms))
 
         primary_sym = local_syms.get(primary_var_name)
         if primary_sym is None and all_identifiers:
@@ -851,6 +914,7 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
                             continue
 
                     zeros = sp.solve(denom_base, target_sym)
+                    is_multivar = len(all_identifiers) > 1
                     if not zeros:
                         restr.add(f"{sp.simplify(denom_base)} != 0")
                     for z in zeros:
@@ -859,7 +923,12 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
                                 val_c = complex(z.evalf())
                                 if abs(val_c.imag) < 1e-12:
                                     if z.is_Rational or abs(val_c.real - round(val_c.real)) < 1e-12:
-                                        restr.add(round(val_c.real, 10))
+                                        if is_multivar:
+                                            val_num = round(val_c.real, 10)
+                                            val_str = f"{int(round(val_num))}" if abs(val_num - round(val_num)) < 1e-12 else f"{val_num:g}"
+                                            restr.add(f"{target_sym} != {val_str}")
+                                        else:
+                                            restr.add(round(val_c.real, 10))
                                     else:
                                         restr.add(f"{target_sym} != {sp.simplify(z)}")
                                 elif not use_real_domain:
@@ -872,7 +941,7 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
                 pass
             return restr
 
-        # Extract real-domain inequality constraints from log(arg) [arg > 0] and sqrt(arg) [arg >= 0]
+        # Extract real-domain inequality constraints from log(arg) [arg > 0], even roots [arg >= 0], and inverse trig/hyperbolic bounds
         def _extract_real_ineq_restrictions(norm_s):
             ineq_restr = set()
             if not use_real_domain:
@@ -883,7 +952,6 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
                     if isinstance(atom, sp.log) and len(atom.args) == 1:
                         arg = atom.args[0]
                         if isinstance(arg, sp.Pow) and len(arg.exp.free_symbols) > 0:
-                            # For general exponential identity a^b (symbolic real exponent b), real power/log requires base a > 0
                             if arg.base.free_symbols and arg.base.is_positive is not True:
                                 ineq_restr.add(f"{sp.simplify(arg.base)} > 0")
                         elif arg.free_symbols and arg.is_positive is not True:
@@ -899,12 +967,33 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
                                 if pos_coeff != 1 and rem_factors:
                                     arg_s = sp.Mul(*rem_factors)
                             ineq_restr.add(f"{arg_s} > 0")
-                    elif isinstance(atom, sp.Pow) and atom.exp == sp.Rational(1, 2):
-                        arg = atom.base
-                        if arg.free_symbols and arg.is_nonnegative is not True and arg.is_positive is not True:
-                            # sqrt(u^2) = |u| is already defined for all real u
-                            if not (isinstance(arg, sp.Pow) and arg.exp.is_Integer and arg.exp % 2 == 0 and arg.base.is_real):
-                                ineq_restr.add(f"{sp.simplify(arg)} >= 0")
+                    elif isinstance(atom, sp.Pow):
+                        exp_v = atom.exp
+                        if not exp_v.free_symbols:
+                            try:
+                                exp_v = sp.simplify(exp_v)
+                            except Exception:
+                                pass
+                        is_even_root = (
+                            (isinstance(exp_v, sp.Rational) and exp_v.q % 2 == 0)
+                            or (exp_v == sp.Rational(1, 2))
+                            or (isinstance(exp_v, sp.Float) and abs(float(exp_v) * 4 - round(float(exp_v) * 4)) < 1e-12 and round(float(exp_v) * 4) % 4 in (1, 2, 3))
+                        )
+                        if is_even_root:
+                            arg = atom.base
+                            if arg.free_symbols and arg.is_nonnegative is not True and arg.is_positive is not True:
+                                if not (isinstance(arg, sp.Pow) and arg.exp.is_Integer and arg.exp % 2 == 0 and arg.base.is_real):
+                                    ineq_restr.add(f"{sp.simplify(arg)} >= 0")
+                    elif isinstance(atom, (sp.asin, sp.acos)) and len(atom.args) == 1:
+                        arg = atom.args[0]
+                        if arg.free_symbols:
+                            arg_s = sp.simplify(arg)
+                            ineq_restr.add(f"{arg_s} >= -1")
+                            ineq_restr.add(f"{arg_s} <= 1")
+                    elif isinstance(atom, sp.acosh) and len(atom.args) == 1:
+                        arg = atom.args[0]
+                        if arg.free_symbols and arg.is_positive is not True:
+                            ineq_restr.add(f"{sp.simplify(arg)} >= 1")
             except Exception:
                 pass
             return ineq_restr
@@ -922,7 +1011,7 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
                 diff_log = sp.simplify(sp.logcombine(e1 - e2, force=False))
                 if diff_log == 0:
                     diff = 0
-                elif any("/log(" in s for s in (norm1, norm2)) and not any(
+                elif use_real_domain and any("/log(" in s for s in (norm1, norm2)) and not any(
                     isinstance(node, sp.log)
                     and len(node.args) == 1
                     and isinstance(node.args[0], sp.Pow)
@@ -932,7 +1021,7 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
                 ):
                     if sp.simplify(sp.logcombine(e1 - e2, force=True)) == 0:
                         diff = 0
-                elif any(
+                elif use_real_domain and any(
                     isinstance(node, sp.log)
                     and len(node.args) == 1
                     and isinstance(node.args[0], sp.Pow)
@@ -963,10 +1052,12 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
                         sr_norm = str(sr).replace(" ", "")
                         if r_norm == sr_norm:
                             return True
-                    # Check inline inequality strings in prompt/condition (e.g. "x > 0", "x >= 0")
+                    # Check inline inequality strings with left token boundary (so "-x>0" NEVER matches "x>0")
                     for src_s in extra_condSources:
-                        if isinstance(src_s, str) and r_norm in src_s.replace(" ", ""):
-                            return True
+                        if isinstance(src_s, str):
+                            src_clean = src_s.replace(" ", "")
+                            if _re.search(r'(?<![a-zA-Z0-9_-])' + _re.escape(r_norm), src_clean):
+                                return True
                     return False
 
                 if (stated_restrictions or any(isinstance(s, str) and (">" in s or ">=" in s) for s in extra_condSources)) and all(_is_restriction_stated(r) for r in mismatched):

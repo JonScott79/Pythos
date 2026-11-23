@@ -31,10 +31,29 @@ def _normalize_equation_str(raw: str) -> str:
     s = re.sub(r'\b(sin|cos|tan|sec|csc|cot)\s+([a-zA-Z])\b(?![a-zA-Z(])', r'\1(\2)', s)
     s = re.sub(r'\\cdot|\\times', '*', s)
     s = s.replace('^', '**')
-    s = re.sub(r'(?<![a-zA-Z_])(\d+)\s*([a-zA-Z(])', r'\1*\2', s)
+    # Preserve scientific notation like 1e-5 or 2.5E+3 while inserting implicit multiplication for 2x / 3(x)
+    s = re.sub(r'(?<![a-zA-Z_.])(\d+)\s*(?![eE][+-]?\d+\b)([a-zA-Z(])', r'\1*\2', s)
     s = re.sub(r'\)\s*\(', r')*(', s)
     s = re.sub(r'\)\s*([a-zA-Z0-9])', r')*\1', s)
     return s.strip()
+
+
+def _extract_raw_denominators(expr_str: str, x_sym: sp.Symbol):
+    """Collects symbolic denominator factors before cancellation using evaluate=False."""
+    dens = []
+    try:
+        raw = safe_sympify(expr_str, locals={str(x_sym): x_sym}, evaluate=False)
+        for node in sp.preorder_traversal(raw):
+            if isinstance(node, sp.Pow):
+                exp_val = node.args[1]
+                try:
+                    if exp_val.is_number and float(exp_val.evalf()) < 0:
+                        dens.append(node.args[0])
+                except Exception:
+                    pass
+    except Exception:
+        pass
+    return dens
 
 
 def _detect_trig_substitution(expr_str: str, var_sym: sp.Symbol):
@@ -219,15 +238,66 @@ def solve_equation_roots(payload: dict) -> dict:
             "exactResult": ", ".join(g["formatted"] for g in general_solutions) if general_solutions else "NO_REAL_SOLUTION",
         }
 
-    # 2. Direct polynomial equation
+    # 2. Direct polynomial / rational equation (strict pole exclusion)
     try:
-        num, _ = sp.fraction(sp.together(diff_expr))
-        roots = _solve_polynomial_real_roots(sp.expand(num), x)
+        raw_dens = _extract_raw_denominators(lhs_s, x) + _extract_raw_denominators(rhs_s, x)
+        num, den = sp.fraction(sp.together(diff_expr))
+        if den != 1:
+            raw_dens.append(den)
+        all_roots = _solve_polynomial_real_roots(sp.expand(num), x)
+        roots = []
+        excluded_poles = []
+        for r in all_roots:
+            rv = r["value_precise"]
+            is_pole = False
+            for d_expr in raw_dens:
+                try:
+                    d_val = d_expr.subs(x, rv).evalf(20)
+                    if d_val in (sp.zoo, sp.nan, sp.oo, -sp.oo) or abs(complex(d_val)) < 1e-8:
+                        is_pole = True
+                        break
+                except Exception:
+                    is_pole = True
+                    break
+            if is_pole:
+                excluded_poles.append(round(rv, 8))
+            else:
+                roots.append(r)
+
+        # Also extract real zeros directly from uncancelled raw denominators (e.g. (x^2-4)/(x-2)=0 -> pole x=2)
+        for d_expr in raw_dens:
+            if not d_expr.has(x):
+                continue
+            try:
+                if d_expr.is_polynomial(x):
+                    d_roots = _solve_polynomial_real_roots(sp.expand(d_expr), x)
+                    for dr in d_roots:
+                        excluded_poles.append(round(dr["value_precise"], 8))
+                else:
+                    for sol in sp.solve(d_expr, x):
+                        try:
+                            val = complex(sol.evalf(20))
+                            if abs(val.imag) < 1e-9 and abs(val.real) < 1e12:
+                                excluded_poles.append(round(float(val.real), 8))
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+
+        # Deduplicate poles and re-filter roots against any newly discovered poles within tolerance
+        dedup_poles = []
+        for p in sorted(excluded_poles):
+            if not any(abs(p - ep) < 1e-7 for ep in dedup_poles):
+                dedup_poles.append(p)
+        excluded_poles = dedup_poles
+        roots = [r for r in roots if not any(abs(r["value_precise"] - ep) < 1e-7 for ep in excluded_poles)]
+
         return {
             "status": "VERIFIED",
             "operation": "POLYNOMIAL_ROOTS",
             "polynomial": f"{sp.expand(num)} = 0",
             "roots": [round(r["value_precise"], 8) for r in roots],
+            "excluded_poles": excluded_poles,
             "root_multiplicities": [
                 {"value": round(r["value_precise"], 8), "multiplicity": r.get("multiplicity", 1)}
                 for r in roots
@@ -239,20 +309,43 @@ def solve_equation_roots(payload: dict) -> dict:
         return {"status": "FAILED", "error": f"Root solver failed: {e}"}
 
 
+def _safe_json_dumps(obj) -> str:
+    def clean(v):
+        if isinstance(v, float):
+            return None if (math.isnan(v) or math.isinf(v)) else v
+        if isinstance(v, dict):
+            return {k: clean(val) for k, val in v.items()}
+        if isinstance(v, list):
+            return [clean(val) for val in v]
+        return v
+    return json.dumps(clean(obj), allow_nan=False)
+
+
 if __name__ == "__main__":
+    if hasattr(sys.stdin, "reconfigure"):
+        try:
+            sys.stdin.reconfigure(encoding="utf-8", errors="replace")
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
     if "--daemon" in sys.argv:
         for line in sys.stdin:
             line = line.strip()
             if not line:
                 continue
+            req_id = None
             try:
                 payload = json.loads(line)
+                if isinstance(payload, dict):
+                    req_id = payload.get("_id")
                 res = solve_equation_roots(payload)
             except Exception as exc:
                 res = {"status": "FAILED", "error": f"Daemon error: {exc}"}
-            sys.stdout.write(json.dumps(res) + "\n")
+            if req_id is not None and isinstance(res, dict):
+                res["_id"] = req_id
+            sys.stdout.write(_safe_json_dumps(res) + "\n")
             sys.stdout.flush()
     else:
         raw_in = sys.argv[1] if len(sys.argv) > 1 else sys.stdin.read()
         payload = json.loads(raw_in)
-        print(json.dumps(solve_equation_roots(payload)))
+        print(_safe_json_dumps(solve_equation_roots(payload)))

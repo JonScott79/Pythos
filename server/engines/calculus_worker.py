@@ -19,6 +19,13 @@ import re
 import traceback
 import sympy as sp
 
+if hasattr(sys.stdin, 'reconfigure'):
+    try:
+        sys.stdin.reconfigure(encoding='utf-8', errors='replace')
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+
 _VERIFIER_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "verifier"))
 if _VERIFIER_DIR not in sys.path:
     sys.path.insert(0, _VERIFIER_DIR)
@@ -269,7 +276,14 @@ def solve_derivative(payload: dict) -> dict:
                     f_mid = float(f_mid_raw)
                     approx_deriv = (f_plus - 2 * f_mid + f_minus) / (h * h)
                 else:
-                    approx_deriv = num_at_x
+                    # Independent nth-order numerical differentiation via mpmath (never compare num_at_x to itself!)
+                    try:
+                        import mpmath as mp
+                        with mp.workdps(30):
+                            f_num = sp.lambdify(x, expr, modules=["mpmath"])
+                            approx_deriv = float(mp.re(mp.diff(f_num, mp.mpf(str(test_val)), n=order)))
+                    except Exception:
+                        continue
 
                 if not math.isfinite(approx_deriv):
                     continue
@@ -504,34 +518,44 @@ def solve_integral(payload: dict) -> dict:
                 pass
 
             anti = sp.integrate(f, x)
+            has_symbolic_anti = not anti.has(sp.Integral) and not exact_val_simplified.has(sp.Integral)
             ftc_passed = False
-            try:
-                if b == sp.oo:
-                    f_b = sp.limit(anti, x, sp.oo, dir="-")
-                else:
-                    f_b = anti.subs(x, b)
-                    if f_b in [sp.oo, -sp.oo, sp.zoo, sp.nan]:
-                        f_b = sp.limit(anti, x, b, dir="-")
+            verification_method = "FUNDAMENTAL_THEOREM_OF_CALCULUS" if has_symbolic_anti else "SYMBOLIC_FTC_UNAVAILABLE"
 
-                if a == -sp.oo:
-                    f_a = sp.limit(anti, x, -sp.oo, dir="+")
-                else:
-                    f_a = anti.subs(x, a)
-                    if f_a in [sp.oo, -sp.oo, sp.zoo, sp.nan]:
-                        f_a = sp.limit(anti, x, a, dir="+")
-
-                ftc_diff = sp.simplify((f_b - f_a) - exact_val_simplified)
-                ftc_passed = bool(ftc_diff == 0)
-            except Exception:
-                ftc_passed = False
-
-            if not ftc_passed and numeric_val is not None:
+            if has_symbolic_anti:
                 try:
-                    num_quad = float(sp.N(exact_val_simplified))
-                    if abs(num_quad - numeric_val) < 1e-4:
-                        ftc_passed = True
+                    if b == sp.oo:
+                        f_b = sp.limit(anti, x, sp.oo, dir="-")
+                    else:
+                        f_b = anti.subs(x, b)
+                        if f_b in [sp.oo, -sp.oo, sp.zoo, sp.nan]:
+                            f_b = sp.limit(anti, x, b, dir="-")
+
+                    if a == -sp.oo:
+                        f_a = sp.limit(anti, x, -sp.oo, dir="+")
+                    else:
+                        f_a = anti.subs(x, a)
+                        if f_a in [sp.oo, -sp.oo, sp.zoo, sp.nan]:
+                            f_a = sp.limit(anti, x, a, dir="+")
+
+                    ftc_diff = sp.simplify((f_b - f_a) - exact_val_simplified)
+                    ftc_passed = bool(ftc_diff == 0)
                 except Exception:
-                    pass
+                    ftc_passed = False
+
+                # Independent mpmath numerical quadrature cross-check if symbolic subtraction was inconclusive
+                if not ftc_passed and numeric_val is not None and a.is_number and b.is_number and abs(float(a.evalf())) < 1e6 and abs(float(b.evalf())) < 1e6:
+                    try:
+                        import mpmath as mp
+                        with mp.workdps(25):
+                            f_num = sp.lambdify(x, f, modules=["mpmath"])
+                            indep_quad = float(mp.re(mp.quad(f_num, [mp.mpf(str(float(a.evalf()))), mp.mpf(str(float(b.evalf())))])))
+                            scale = max(1.0, abs(numeric_val))
+                            if math.isfinite(indep_quad) and abs(indep_quad - numeric_val) <= 1e-4 * scale:
+                                ftc_passed = True
+                                verification_method = "NUMERICAL_QUADRATURE_CROSSCHECK"
+                    except Exception:
+                        pass
 
             return {
                 "status": "VERIFIED" if ftc_passed else "DISAGREEMENT",
@@ -553,10 +577,10 @@ def solve_integral(payload: dict) -> dict:
                     f"Evaluate bounds: F({b}) - F({a}) = {exact_val_simplified}"
                 ],
                 "verificationEvidence": {
-                    "method": "FUNDAMENTAL_THEOREM_OF_CALCULUS",
-                    "independentCheck": f"d/d{var_str}[F({var_str})] = {sp.diff(anti, x)} matches integrand {f}",
+                    "method": verification_method,
+                    "independentCheck": f"d/d{var_str}[F({var_str})] = {sp.diff(anti, x)} matches integrand {f}" if has_symbolic_anti else "No elementary antiderivative available for FTC verification",
                     "passed": ftc_passed,
-                    "tolerance": 0
+                    "tolerance": 0 if verification_method == "FUNDAMENTAL_THEOREM_OF_CALCULUS" else 1e-4
                 },
                 "warnings": []
             }
@@ -737,8 +761,20 @@ def solve_optimization(payload: dict) -> dict:
             extrema["globalMinimum"] = candidates[0]
             extrema["globalMaximum"] = candidates[-1]
 
+        # Independently verify critical point stationarity f'(cp) = 0
+        opt_passed = True
+        for cp in critical_points:
+            try:
+                res_val = complex(f_prime.subs(x, cp["xNumeric"]).evalf())
+                if not math.isfinite(abs(res_val)) or abs(res_val) > 1e-6:
+                    opt_passed = False
+                    break
+            except Exception:
+                opt_passed = False
+                break
+
         return {
-            "status": "VERIFIED",
+            "status": "VERIFIED" if opt_passed else "DISAGREEMENT",
             "operation": "OPTIMIZATION",
             "domain": "calculus",
             "expression": str(f),
@@ -758,14 +794,14 @@ def solve_optimization(payload: dict) -> dict:
             ],
             "verificationEvidence": {
                 "method": "SECOND_DERIVATIVE_TEST",
-                "independentCheck": "Stationary points verified via f'(x)=0 residual",
-                "passed": True,
-                "tolerance": 1e-9
+                "independentCheck": "Stationary points verified via f'(x)=0 residual" if opt_passed else "Stationary residual check failed",
+                "passed": opt_passed,
+                "tolerance": 1e-6
             },
             "warnings": []
         }
     except Exception as e:
-        return {"status": "FAILED", "error": str(e), "traceback": traceback.format_exc()}
+        return {"status": "FAILED", "error": str(e)}
 
 
 def sanitize_obj(o):
@@ -781,6 +817,12 @@ def sanitize_obj(o):
 
 
 def process_payload(payload):
+    if not isinstance(payload, dict):
+        return {"status": "FAILED", "error": "Invalid payload object"}
+    try:
+        validate_payload_strings(payload)
+    except UnsafeMathExpressionError as sec_err:
+        return {"status": "FAILED", "error": f"UNSAFE_EXPRESSION: {sec_err}"}
     op = payload.get("operation")
     if op == "DIFFERENTIATION":
         res = solve_derivative(payload)
@@ -806,37 +848,38 @@ def main():
             req_id = None
             try:
                 payload = json.loads(line)
-                req_id = payload.get("_id")
+                if isinstance(payload, dict):
+                    req_id = payload.get("_id")
                 res = process_payload(payload)
-                if req_id is not None:
+                if req_id is not None and isinstance(res, dict):
                     res["_id"] = req_id
-                print(json.dumps(res), flush=True)
+                print(json.dumps(sanitize_obj(res), allow_nan=False), flush=True)
             except Exception as e:
                 err_res = {"status": "FAILED", "error": str(e)}
                 if req_id is not None:
                     err_res["_id"] = req_id
-                print(json.dumps(err_res), flush=True)
+                print(json.dumps(err_res, allow_nan=False), flush=True)
         return
 
     if len(sys.argv) > 1:
         try:
             payload = json.loads(sys.argv[1])
         except Exception as e:
-            print(json.dumps({"status": "FAILED", "error": f"JSON parse error: {e}"}))
+            print(json.dumps({"status": "FAILED", "error": f"JSON parse error: {e}"}, allow_nan=False))
             return
     else:
         line = sys.stdin.read().strip()
         if not line:
-            print(json.dumps({"status": "FAILED", "error": "Empty stdin"}))
+            print(json.dumps({"status": "FAILED", "error": "Empty stdin"}, allow_nan=False))
             return
         try:
             payload = json.loads(line)
         except Exception as e:
-            print(json.dumps({"status": "FAILED", "error": f"JSON parse error: {e}"}))
+            print(json.dumps({"status": "FAILED", "error": f"JSON parse error: {e}"}, allow_nan=False))
             return
 
     res = process_payload(payload)
-    print(json.dumps(res))
+    print(json.dumps(sanitize_obj(res), allow_nan=False))
 
 
 if __name__ == "__main__":

@@ -29,35 +29,49 @@ def verify_singularity_classification(claim: dict) -> dict:
 
         # 1. Compute limit at the point
         lim_val = sp.limit(expr, x, point, direction)
-        is_unbounded = (lim_val == sp.oo or lim_val == -sp.oo or lim_val == sp.zoo or not getattr(lim_val, 'is_finite', False))
+        is_oscillating = isinstance(lim_val, sp.AccumBounds) or getattr(lim_val, 'has', lambda *_: False)(sp.AccumBounds)
+        is_unbounded = (
+            lim_val == sp.oo
+            or lim_val == -sp.oo
+            or lim_val == sp.zoo
+            or lim_val == sp.nan
+            or is_oscillating
+            or not getattr(lim_val, 'is_finite', False)
+        )
 
-        # 2. Check local integrability at boundary point
+        # 2. Check local integrability at boundary point (respecting approach direction & avoiding secondary poles)
         is_integrable = False
-        if is_unbounded:
+        if is_unbounded and not is_oscillating:
+            step_sign = -1 if str(direction).strip() == "-" else 1
             try:
-                # Leading asymptotic term near singularity
+                # Leading asymptotic term near singularity along the approached side
                 shifted_x = sp.Symbol('__t', positive=True)
-                expr_shifted = expr.subs(x, point + shifted_x)
+                expr_shifted = expr.subs(x, point + step_sign * shifted_x)
                 lead_term = expr_shifted.as_leading_term(shifted_x)
-                
-                # Check sign of lead_term on (0, 1)
-                test_val = float(lead_term.subs(shifted_x, 0.1).evalf())
+
+                # Choose a tight test radius inside any adjacent singularity
+                delta = sp.Rational(1, 10)
+                test_val = float(lead_term.subs(shifted_x, 0.01).evalf())
                 signed_term = -lead_term if test_val < 0 else lead_term
-                
-                lead_int = sp.integrate(signed_term, (shifted_x, 0, 1))
+
+                lead_int = sp.integrate(signed_term, (shifted_x, 0, delta))
                 if lead_int is not None and getattr(lead_int, 'is_finite', False) and not (lead_int == sp.oo or lead_int == -sp.oo or lead_int == sp.zoo):
                     is_integrable = True
                 elif lead_int == sp.oo or lead_int == -sp.oo or lead_int == sp.zoo:
                     is_integrable = False
             except Exception:
                 try:
-                    direct_int = sp.integrate(expr, (x, point, point + 1))
+                    upper_b = point + sp.Rational(1, 4) if step_sign > 0 else point
+                    lower_b = point if step_sign > 0 else point - sp.Rational(1, 4)
+                    direct_int = sp.integrate(expr, (x, lower_b, upper_b))
                     if direct_int is not None and getattr(direct_int, 'is_finite', False) and not (direct_int == sp.oo or direct_int == -sp.oo or direct_int == sp.zoo):
                         is_integrable = True
                 except Exception:
                     is_integrable = False
 
-        if not is_unbounded:
+        if is_oscillating:
+            actual_type = "essential_oscillating"
+        elif not is_unbounded:
             actual_type = "removable"
         elif is_integrable:
             actual_type = "unbounded_integrable"

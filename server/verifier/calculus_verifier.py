@@ -136,7 +136,7 @@ def _has_integration_constant(raw_str: str) -> bool:
     return bool(re.search(r'(?:^|[+-])\s*(?:C(?:_\{?\d+\}?)?|c|K|k|constant|const)\b\s*$', s))
 
 
-def _normalize_calculus_expr(raw_str: str, strip_constant: bool = False) -> str:
+def _normalize_calculus_expr(raw_str: str, strip_constant: bool = False, var_name: str = "x") -> str:
     if not raw_str:
         return ""
     s = str(raw_str).strip()
@@ -152,7 +152,8 @@ def _normalize_calculus_expr(raw_str: str, strip_constant: bool = False) -> str:
     s = re.sub(r'^\\int\s*', '', s).strip()
 
     s = re.sub(r'\\(?:text|mathrm)\s*\{\s*(?:constant|const)\s*\}', 'constant', s)
-    if strip_constant:
+    can_strip_c = strip_constant and str(var_name).strip().lower() not in {"c", "k"}
+    if can_strip_c:
         s = re.sub(r'\s*[+-]\s*(?:C(?:_\{?\d+\}?)?|c|K|k|constant|const)\b\s*$', '', s).strip()
 
     s = re.sub(r'\\left\s*([(\[{])', r'\1', s)
@@ -172,13 +173,14 @@ def _normalize_calculus_expr(raw_str: str, strip_constant: bool = False) -> str:
     s = re.sub(r'\b(arcsin|arccos|arctan)\b', lambda m: {'arcsin': 'asin', 'arccos': 'acos', 'arctan': 'atan'}[m.group(1)], s)
     s = re.sub(r'\b(sin|cos|tan|sec|csc|cot)\s*\^\s*\{?(-?\d+)\}?\s*\(([^()]+)\)', lambda m: f"({m.group(1)}({m.group(3)}))**({m.group(2)})", s)
     s = re.sub(r'\s*\bwith\s+respect\s+to\s+[a-zA-Z]\b.*$', '', s, flags=re.IGNORECASE).strip()
-    s = re.sub(r'(?:\s|\\,|\\;|\\!|\*)+d[a-zA-Z]$', '', s).strip()
-    if strip_constant:
+    s = re.sub(rf'(?:\s|\\,|\\;|\\!|\*)+d{re.escape(str(var_name))}$', '', s).strip()
+    if can_strip_c:
         s = re.sub(r'\s*[+-]\s*(?:C(?:_\d+)?|c|K|k|constant|const)\b\s*$', '', s).strip()
     s = s.replace('^', '**')
     s = re.sub(r'\be\s*\*\*\s*\(([^()]+)\)', r'exp(\1)', s)
     s = re.sub(r'\be\s*\*\*\s*([a-zA-Z0-9_]+)', r'exp(\1)', s)
-    s = re.sub(r'(?<![a-zA-Z_])(\d+)\s*([a-zA-Z(])', r'\1*\2', s)
+    # Preserve scientific notation (e.g. 1e-5, 2.5E+3) before inserting implicit multiplication
+    s = re.sub(r'(?<![a-zA-Z_.])(\d+)\s*(?![eE][+-]?\d+\b)([a-zA-Z(])', r'\1*\2', s)
     s = re.sub(r'\)\s*\(', ')*(', s)
     s = re.sub(r'\)\s*([a-zA-Z0-9])', r')*\1', s)
     return s.strip()
@@ -197,11 +199,12 @@ def verify_derivative(claim: dict) -> dict:
 
     try:
         x = sp.Symbol(var_str, real=True)
-        expr_clean = _normalize_calculus_expr(expr_str, strip_constant=False)
-        prop_clean = _normalize_calculus_expr(proposed_str, strip_constant=False)
+        expr_clean = _normalize_calculus_expr(expr_str, strip_constant=False, var_name=var_str)
+        prop_clean = _normalize_calculus_expr(proposed_str, strip_constant=False, var_name=var_str)
         if not expr_clean or not prop_clean:
             return {"verified": False, "status": "UNKNOWN", "reason": "Empty normalized derivative expression"}
-        local_syms = {var_str: x, "e": sp.E, "pi": sp.pi, "ln": sp.log}
+        local_syms = {"e": sp.E, "pi": sp.pi, "ln": sp.log}
+        local_syms[var_str] = x
         expr = safe_sympify(expr_clean, locals=local_syms)
         proposed = safe_sympify(prop_clean, locals=local_syms)
 
@@ -334,8 +337,8 @@ def verify_change_of_variables(claim: dict) -> dict:
         return {"verified": False, "status": "UNKNOWN", "reason": "Missing change of variables parameters"}
 
     try:
-        x = sp.Symbol(old_var_str, positive=True)
-        u = sp.Symbol(new_var_str, positive=True)
+        x = sp.Symbol(old_var_str, real=True)
+        u = sp.Symbol(new_var_str, real=True)
         sym_dict = {old_var_str: x, new_var_str: u}
 
         orig_integrand = safe_sympify(original_integrand_str, locals=sym_dict)
@@ -345,12 +348,12 @@ def verify_change_of_variables(claim: dict) -> dict:
         # Differential: dx = g'(u) du
         dx_factor = sp.diff(g_u, u)
 
-        # Full transformed integrand: f(g(u)) * g'(u)
+        # Full transformed integrand: f(g(u)) * g'(u) without unsafe force=True positivity assumptions
         raw_transformed = orig_integrand.subs(x, g_u) * dx_factor
-        correct_transformed = sp.simplify(sp.expand_log(raw_transformed, force=True))
-        
+        correct_transformed = sp.simplify(sp.expand_log(raw_transformed, force=False))
+
         # Test equivalence
-        diff = sp.simplify(sp.expand_log(correct_transformed - proposed_transformed, force=True))
+        diff = sp.simplify(sp.expand_log(correct_transformed - proposed_transformed, force=False))
 
         if diff == 0:
             return {
@@ -416,7 +419,40 @@ def verify_limit(claim: dict) -> dict:
         target_val = safe_sympify(target_clean, locals=local_syms)
         proposed = safe_sympify(prop_clean, locals=local_syms)
 
-        actual_limit = sp.limit(expr, x, target_val, dir=limit_dir)
+        if limit_dir == "+-":
+            lim_left = sp.limit(expr, x, target_val, dir="-")
+            lim_right = sp.limit(expr, x, target_val, dir="+")
+            if isinstance(lim_left, sp.AccumBounds) or isinstance(lim_right, sp.AccumBounds) or getattr(lim_left, "has", lambda *_: False)(sp.AccumBounds) or getattr(lim_right, "has", lambda *_: False)(sp.AccumBounds):
+                return {
+                    "verified": False,
+                    "status": "INCORRECT_LIMIT",
+                    "error_type": "LIMIT_DOES_NOT_EXIST",
+                    "actual_limit": "DNE",
+                    "proposed_limit": str(proposed_str),
+                    "details": f"Limit lim_{{{var_str}->{target_str}}}[{expr_str}] does not exist (oscillating bounds)."
+                }
+            if sp.simplify(lim_left - lim_right) != 0:
+                return {
+                    "verified": False,
+                    "status": "INCORRECT_LIMIT",
+                    "error_type": "LIMIT_DOES_NOT_EXIST",
+                    "actual_limit": f"DNE (left={lim_left}, right={lim_right})",
+                    "proposed_limit": str(proposed_str),
+                    "details": f"Two-sided limit lim_{{{var_str}->{target_str}}}[{expr_str}] does not exist: left={lim_left}, right={lim_right}."
+                }
+            actual_limit = lim_right
+        else:
+            actual_limit = sp.limit(expr, x, target_val, dir=limit_dir)
+            if isinstance(actual_limit, sp.AccumBounds) or getattr(actual_limit, "has", lambda *_: False)(sp.AccumBounds):
+                return {
+                    "verified": False,
+                    "status": "INCORRECT_LIMIT",
+                    "error_type": "LIMIT_DOES_NOT_EXIST",
+                    "actual_limit": "DNE",
+                    "proposed_limit": str(proposed_str),
+                    "details": f"One-sided limit lim_{{{var_str}->{target_str}}}[{expr_str}] does not exist."
+                }
+
         if isinstance(actual_limit, sp.Limit) or actual_limit == sp.nan:
             return {"verified": False, "status": "UNKNOWN", "reason": "Limit could not be evaluated deterministically"}
 

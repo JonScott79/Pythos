@@ -169,11 +169,16 @@ function parseTrigExpression(text) {
 
   // Do not synthesize a numeric reference triangle for algebraic/symbolic trig equations
   // (e.g., "cos(2x)+3+5cos(x)=0" or "7sin^2(X)+5sin(X)=2").
-  const strippedTrigKeywords = text.replace(/\b(?:sin|cos|tan|csc|sec|cot|arcsin|arccos|arctan|asin|acos|atan|deg(?:rees)?|rad(?:ians)?|pi)\b/gi, '');
-  if (/=/.test(text) && /\b(?:sin|cos|tan|csc|sec|cot)\s*\([^)]*[a-zA-Z][^)]*\)/i.test(strippedTrigKeywords)) {
+  const trigArgVars = [];
+  const trigArgScan = text.matchAll(/\b(?:sin|cos|tan|csc|sec|cot)\s*\(([^()]+)\)/gi);
+  for (const tm of trigArgScan) {
+    const cleanedArg = tm[1].replace(/\b(?:sin|cos|tan|csc|sec|cot|arcsin|arccos|arctan|asin|acos|atan|deg(?:rees)?|rad(?:ians)?|pi)\b/gi, '');
+    if (/[a-zA-Z]/.test(cleanedArg)) trigArgVars.push(cleanedArg);
+  }
+  if (/=/.test(text) && trigArgVars.length > 0) {
     return null;
   }
-  if (/\b(?:sin|cos|tan|csc|sec|cot)\s*\(\s*-?\d+(?:\.\d+)?\s*[a-zA-Z]\b/i.test(strippedTrigKeywords)) {
+  if (/\b(?:sin|cos|tan|csc|sec|cot)\s*\(\s*-?\d+(?:\.\d+)?\s*(?!(?:deg(?:rees)?|rad(?:ians)?)\b)[a-zA-Z]\b/i.test(text)) {
     return null;
   }
 

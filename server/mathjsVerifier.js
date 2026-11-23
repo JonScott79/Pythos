@@ -155,7 +155,8 @@ const MathJSVerifier = {
           ? exactResult
           : (exactResult && exactResult.valueOf ? exactResult.valueOf() : Number(exactResult));
 
-        // Reject non-finite values (Infinity, -Infinity, NaN, Complex in real domain)
+        // Reject non-finite values (Infinity, -Infinity, NaN, Complex) as MATHEMATICAL_UNDEFINED for generic arithmetic
+        // (while domain-specific sqrt op & log/ln paths explicitly emit DOMAIN_ERROR)
         if (!Number.isFinite(numResult) || isNaN(numResult)) {
           return {
             verified: false,
@@ -238,9 +239,9 @@ const MathJSVerifier = {
           }
 
           const hasPi = typeof expression === 'string' && /\bpi\b/i.test(expression);
-          if (is_approximate || hasPi) {
+          if (is_approximate || (hasPi && Math.abs(numResult) >= 10 && tolerance <= 0.01)) {
             const diff = Math.abs(numResult - Number(proposed_value));
-            const effTol = hasPi ? Math.max(tolerance, 0.02) : tolerance;
+            const effTol = is_approximate ? tolerance : Math.min(tolerance, 0.005);
             const matches = diff <= effTol;
             return {
               verified: matches,
@@ -250,9 +251,9 @@ const MathJSVerifier = {
               exact_value: numResult,
               proposed_value: proposed_value,
               is_approximate: true,
-              tolerance_used: tolerance,
+              tolerance_used: effTol,
               details: matches
-                ? `${expression} ≈ ${proposed_value} within tolerance ±${tolerance}`
+                ? `${expression} ≈ ${proposed_value} within tolerance ±${effTol}`
                 : `${expression} evaluated to ${numResult}, not ${proposed_value}`
             };
           } else {
@@ -361,18 +362,35 @@ const MathJSVerifier = {
       };
     }
 
-    // If either expression contains inline conditions (for x != 2), LaTeX fractions, or division by a variable,
-    // defer to Python SymPy so removable singularities and domain restrictions are audited.
+    // If either expression contains inline conditions (for x != 2), LaTeX fractions, division by a variable,
+    // or domain-sensitive functions/fractional/negative powers with variables, defer to Python SymPy so
+    // removable singularities and real-domain restrictions (e.g. (x^(1/2))^2 vs x, log, trig) are audited.
     const hasInlineCondition = (s) => /(?:[,;]\s*|\s+)(?:for|where|when|if|assuming|provided)\s+/i.test(s);
     const hasVariableDenominator = (s) =>
       /\/\s*(?:\([^)]*[a-zA-Z][^)]*\)|[a-zA-Z0-9_]*[a-zA-Z][a-zA-Z0-9_^]*)/.test(s) ||
       /\\(?:d|t)?frac\s*\{[\s\S]*?\}\s*\{[^}]*[a-zA-Z][^}]*\}/.test(s);
-    if (hasInlineCondition(expr1Str) || hasInlineCondition(expr2Str) || hasVariableDenominator(expr1Str) || hasVariableDenominator(expr2Str)) {
+    const hasVariableLetter = (s) => {
+      const stripped = String(s)
+        .replace(/\\?(?:sqrt|cbrt|nthRoot|log10|log2|log|ln|exp|asin|acos|atan|acosh|asinh|atanh|arcsin|arccos|arctan|sin|cos|tan|sec|csc|cot|abs|operatorname)\b/gi, '')
+        .replace(/\b(?:pi|tau|inf|infty|oo)\b/gi, '')
+        .replace(/\be\b/g, '');
+      return /[a-zA-Z]/.test(stripped);
+    };
+    const hasDomainSensitiveExpr = (s) =>
+      hasVariableLetter(s) && (
+        /(?:\\?(?:sqrt|cbrt|nthRoot|log10|log2|log|ln|asin|acos|acosh|atanh|arcsin|arccos|tan|sec|csc|cot))\b/i.test(s) ||
+        /\^\s*(?:-\s*[\d({]|[({]\s*-|\(?\{?\s*\d+\s*\/\s*\d+|\(?\{?\s*\d*\.\d+)/.test(s)
+      );
+    if (
+      hasInlineCondition(expr1Str) || hasInlineCondition(expr2Str) ||
+      hasVariableDenominator(expr1Str) || hasVariableDenominator(expr2Str) ||
+      hasDomainSensitiveExpr(expr1Str) || hasDomainSensitiveExpr(expr2Str)
+    ) {
       return {
         verified: false,
         engine: 'mathjs',
         status: 'UNKNOWN',
-        reason: 'Rational expression with variable denominator or domain condition deferred to CAS/SymPy for domain-restriction audit'
+        reason: 'Domain-sensitive expression or condition deferred to CAS/SymPy for domain-restriction audit'
       };
     }
 
@@ -484,12 +502,19 @@ const MathJSVerifier = {
     const solutions = rawSolutions.map(s => {
       if (typeof s === 'number') return s;
       const str = String(s).trim();
-      if (str.includes('/')) {
-        const parts = str.split('/');
-        return parseFloat(parts[0]) / parseFloat(parts[1]);
+      if (/^[-+]?\d+(?:\.\d+)?$/.test(str)) return parseFloat(str);
+      try {
+        const evaled = math.evaluate(str.replace(/\^/g, '^').replace(/√\s*\(/g, 'sqrt(').replace(/√\s*(\d+(?:\.\d+)?)/g, 'sqrt($1)'));
+        if (typeof evaled === 'number' && Number.isFinite(evaled)) return evaled;
+        if (evaled && typeof evaled === 'object' && !evaled.isComplex && typeof evaled.valueOf === 'function') {
+          const v = Number(evaled.valueOf());
+          if (Number.isFinite(v)) return v;
+        }
+        return NaN;
+      } catch (_) {
+        return NaN;
       }
-      return parseFloat(str);
-    }).filter(n => !isNaN(n));
+    }).filter(n => Number.isFinite(n));
 
     if (solutions.length === 0) {
       return { verified: false, engine: 'mathjs', status: 'UNKNOWN', reason: 'Proposed solution(s) could not be parsed to numeric values' };
@@ -523,13 +548,19 @@ const MathJSVerifier = {
         const expectedPm2 = a * 4 - b * 2 + c;
 
         if (Math.abs(p2 - expectedP2) < 1e-4 && Math.abs(pm2 - expectedPm2) < 1e-4) {
-          if (Math.abs(a) > 1e-6) {
-            const disc = b * b - 4 * a * c;
-            polyInfo = { degree: 2, a, b, c, disc };
-          } else if (Math.abs(b) > 1e-6) {
-            polyInfo = { degree: 1, a: 0, b, c, root: -c / b };
-          } else {
-            polyInfo = { degree: 0, c };
+          // Cross-check off-grid irrational sample so degree >= 3 polynomials zeroed on [-2,-1,0,1,2] don't fool degree inference
+          const irrX = 1.7320508075688772;
+          const pIrr = f(irrX);
+          const expectedIrr = a * irrX * irrX + b * irrX + c;
+          if (Math.abs(pIrr - expectedIrr) < 1e-4 * Math.max(1, Math.abs(expectedIrr))) {
+            if (Math.abs(a) > 1e-6) {
+              const disc = b * b - 4 * a * c;
+              polyInfo = { degree: 2, a, b, c, disc };
+            } else if (Math.abs(b) > 1e-6) {
+              polyInfo = { degree: 1, a: 0, b, c, root: -c / b };
+            } else {
+              polyInfo = { degree: 0, c };
+            }
           }
         }
       } catch (_) {}
@@ -1396,9 +1427,34 @@ const MathJSVerifier = {
       // Logarithmic evaluation support
       if (typeof data.expression === 'string' && /\b(?:log10|log|ln)\s*\(/.test(data.expression)) {
         try {
-          const computed = Number(math.evaluate(data.expression));
+          const dom = data.domain || 'real';
+          const evalVal = math.evaluate(data.expression.replace(/\bln\s*\(/gi, 'log('));
+          if (dom === 'real' && evalVal && typeof evalVal === 'object' && evalVal.isComplex) {
+            return {
+              verified: false,
+              engine: 'mathjs',
+              status: 'DOMAIN_ERROR',
+              error_type: 'DOMAIN_VIOLATION',
+              exact_value: null,
+              proposed_value: data.proposed_value,
+              details: `Logarithm in ${data.expression} evaluated to complex ${evalVal.toString()}, undefined over the real domain.`
+            };
+          }
+          const computed = Number(evalVal);
+          if (!Number.isFinite(computed)) {
+            return {
+              verified: false,
+              engine: 'mathjs',
+              status: 'DOMAIN_ERROR',
+              error_type: 'DOMAIN_VIOLATION',
+              exact_value: null,
+              proposed_value: data.proposed_value,
+              details: `Logarithm in ${data.expression} is undefined over the real domain.`
+            };
+          }
           const prop = Number(data.proposed_value);
-          const ok = Math.abs(computed - prop) < 1e-4;
+          const tol = data.is_approximate ? (data.tolerance || 1e-4) : 1e-7 * Math.max(1, Math.abs(computed));
+          const ok = Math.abs(computed - prop) <= tol;
           return {
             verified: ok,
             engine: 'mathjs',

@@ -95,7 +95,10 @@ def verify_conservation_law(claim: dict) -> dict:
             }
 
         # 3. Established conservation in conservative system
-        if (nonconservative_forces_present is False and external_work_present is not True) or "frictionless" in statement:
+        has_frictionless_phrase = "frictionless" in statement and "not frictionless" not in statement and "non-frictionless" not in statement
+        if (nonconservative_forces_present is False and external_work_present is not True) or (
+            has_frictionless_phrase and nonconservative_forces_present is not True and external_work_present is not True
+        ):
             if claims_conserved is True or "delta_k + delta_u = 0" in statement or "conserved" in statement or claims_conserved is None:
                 return {
                     "verified": True,

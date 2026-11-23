@@ -292,6 +292,9 @@ function parseLinearEquation(rawEqStr) {
  * Deterministically evaluates an intermediate linear equation step against active problem.
  */
 function evaluateLinearEquationStep(targetEqStr, activeEqStr) {
+  if (!targetEqStr || /[,;]|\b(?:or|and)\b|±|\\pm|\\mp/i.test(String(targetEqStr))) {
+    return null;
+  }
   const parsedActive = parseLinearEquation(activeEqStr);
   const parsedTarget = parseLinearEquation(targetEqStr);
 
@@ -454,9 +457,9 @@ function evaluateEqualityStep(targetExpr, activeEq) {
               preferredResponse: `Yes. The left side simplifies to ${simplifiedLhsDisplay}, which matches the right side. The equality is verified.`
             };
           } else {
-            // Expression differs from both LHS and RHS (e.g. 23pi/3)
+            // Expression differs from both LHS and RHS (e.g. 23pi/3) -> MUST be STEP_VERIFIED_INCORRECT!
             return {
-              status: 'STEP_VERIFIED_CORRECT',
+              status: 'STEP_VERIFIED_INCORRECT',
               equalityEvaluated: true,
               isEqual: false,
               rawExpression: targetExpr,
@@ -1254,6 +1257,38 @@ function evaluateEquationCandidate(targetExpr, activeEq, originalEq = null) {
           return lRes.isRealFinite && rRes.isRealFinite && Math.abs(lRes.value - rRes.value) < 1e-4;
         });
         if (allSatisfy && !multiRoot.hasBothSigns) {
+          // Verify multi-root completeness on polynomial equations (e.g. catch x^3 - x = 0 with only [0, 1] missing -1!)
+          let missingRootDetected = null;
+          if (!/\b(?:sin|cos|tan|sec|csc|cot|log|ln)\b|sqrt/i.test(origEq)) {
+            const residualFn = (val) => {
+              const l = safeEvaluateRealAtPoint(normEqLhs, { [proposedVar]: val });
+              const r = safeEvaluateRealAtPoint(normEqRhs, { [proposedVar]: val });
+              return (l.isRealFinite && r.isRealFinite) ? (l.value - r.value) : NaN;
+            };
+            const probePoints = [-10, -9, -8, -7, -6, -5, -4, -3, -2, -1, -0.5, 0, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+            for (const p of probePoints) {
+              if (multiRoot.values.some(v => Math.abs(v - p) < 1e-4)) continue;
+              const diffP = residualFn(p);
+              if (Number.isFinite(diffP) && Math.abs(diffP) < 1e-6) {
+                missingRootDetected = p;
+                break;
+              }
+            }
+          }
+          if (missingRootDetected !== null) {
+            const rootsStr = multiRoot.values.join(', ');
+            return {
+              status: 'STEP_VERIFIED_INCORRECT',
+              evaluationCategory: 'INCORRECT_TRANSFORMATION',
+              lostRoots: [missingRootDetected],
+              rawExpression: targetExpr,
+              variable: proposedVar,
+              proposedValue: rootsStr,
+              details: `Proposed roots (${proposedVar} = ${rootsStr}) satisfy ${origEq}, but valid solution ${proposedVar} = ${missingRootDetected} was omitted (incomplete solution set).`,
+              preferredResponse: `Those values work, but watch out — you missed another solution ($${proposedVar} = ${missingRootDetected}$) for $${origEq}$!`
+            };
+          }
+
           const rootsStr = multiRoot.values.join(', ');
           return {
             status: 'ANSWER_VERIFIED_CORRECT',
@@ -1267,6 +1302,26 @@ function evaluateEquationCandidate(targetExpr, activeEq, originalEq = null) {
             details: `Both proposed roots (${proposedVar} = ${rootsStr}) satisfy ${origEq}.`,
             preferredResponse: `Spot on—both $${proposedVar} = ${multiRoot.values[0]}$ and $${proposedVar} = ${multiRoot.values[1]}$ satisfy $${origEq}$!\n\n$$\\boxed{${proposedVar} = ${rootsStr}}$$`
           };
+        }
+        // If multiRoot was parsed (e.g. "2 and 5") and NOT allSatisfy (5 failed x - 2 = 0), reject instead of cherry-picking branch [0]!
+        if (!allSatisfy && Array.isArray(multiRoot.values) && multiRoot.values.length >= 2) {
+          const invalidCands = multiRoot.values.filter(v => {
+            const lRes = safeEvaluateRealAtPoint(normEqLhs, { [proposedVar]: v });
+            const rRes = safeEvaluateRealAtPoint(normEqRhs, { [proposedVar]: v });
+            return !(lRes.isRealFinite && rRes.isRealFinite && Math.abs(lRes.value - rRes.value) < 1e-4);
+          });
+          if (invalidCands.length > 0) {
+            return {
+              status: 'ANSWER_VERIFIED_INCORRECT',
+              evaluationCategory: 'INCORRECT_ANSWER',
+              isExtraneousRoot: true,
+              rawExpression: targetExpr,
+              variable: proposedVar,
+              proposedValue: multiRoot.values.join(', '),
+              details: `Proposed candidate(s) ${invalidCands.join(', ')} do not satisfy ${origEq}.`,
+              preferredResponse: `Check all your proposed values carefully — $${proposedVar} = ${invalidCands.join(', ')}$ does not satisfy $${origEq}$.`
+            };
+          }
         }
       } catch (_) {}
     }
@@ -1362,6 +1417,19 @@ function evaluateEquationCandidate(targetExpr, activeEq, originalEq = null) {
           if (negL.isRealFinite && negR.isRealFinite && Math.abs(negL.value - negR.value) < 1e-4) {
             negAlsoSatisfies = true;
           }
+        }
+
+        if (satisfies && studentGaveBothSigns && Math.abs(proposedVal) > 1e-6 && !negAlsoSatisfies) {
+          return {
+            status: 'ANSWER_VERIFIED_INCORRECT',
+            evaluationCategory: 'INCORRECT_TRANSFORMATION',
+            isExtraneousRoot: true,
+            rawExpression: targetExpr,
+            variable: proposedVar,
+            proposedValue: rawCandidateValStr,
+            details: `You proposed both +${proposedVal} and -${proposedVal}, but -${proposedVal} does not satisfy ${origEq}.`,
+            preferredResponse: `Careful with the $\\pm$ sign: $${proposedVar} = ${proposedVal}$ works, but $${proposedVar} = -${proposedVal}$ does not satisfy $${origEq}$.`
+          };
         }
 
         const isRadicalInput = /sqrt|√/i.test(rawCandidateValStr);
@@ -1687,6 +1755,9 @@ function inferVerificationCategory(res) {
     return VERIFICATION_CATEGORIES.INVALID_TRANSFORMATION;
   }
   if (res.status === 'STEP_VERIFIED_CORRECT' || res.status === 'ANSWER_VERIFIED_CORRECT' || res.status === 'VERIFIED') {
+    if (res.isExactSymbolicProof === false) {
+      return VERIFICATION_CATEGORIES.NUMERICALLY_SUPPORTED;
+    }
     return VERIFICATION_CATEGORIES.SYMBOLICALLY_VERIFIED;
   }
   return VERIFICATION_CATEGORIES.INDETERMINATE;
@@ -1824,6 +1895,9 @@ function evaluateStudentWorkCore(rawInput, classification, conversationHistory =
     }
 
     if (target) {
+      const valAmbig = checkAmbiguousNotation(target);
+      if (valAmbig) return valAmbig;
+
       if (activeEq) {
         const linStepEval = evaluateLinearEquationStep(target, activeEq);
         if (linStepEval) {

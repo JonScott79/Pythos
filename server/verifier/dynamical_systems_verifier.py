@@ -150,7 +150,7 @@ def verify_map_stability(claim: dict) -> dict:
             iv_clean = claimed_stability_interval.replace(" ", "").replace("(", "").replace(")", "")
             if pt == 0:
                 expected_interval = "0 < r < 1"
-                if "r>1" in iv_clean or "1<r" in iv_clean and not "0<r<1" in claimed_stability_interval:
+                if ("r>1" in iv_clean or "1<r" in iv_clean) and "0<r<1" not in iv_clean:
                     return {
                         "verified": False,
                         "status": "INCORRECT_STABILITY_INTERVAL",

@@ -842,14 +842,18 @@ function buildPreflightContext(facts, classification = null) {
   ctx += '\n\n# PRE-COMPUTED DETERMINISTIC GROUND TRUTH (ESTABLISHED IN <1MS BY PYTHON/MATH.JS)\n';
   facts.forEach((f, idx) => {
     if (f.type === 'BAYES_TWO_CLASS') {
+      const exactPostPct = (f.postB * 100).toFixed(2).replace(/\.00$/, '');
+      const jA = f.jointA.toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
+      const jB = f.jointB.toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
+      const totP = f.totalP.toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
       ctx += `- Fact ${idx + 1} (Bayes Two-Source Screening):\n`;
       ctx += `  * Prior Probabilities: P(${f.sourceA}) = ${f.pA}, P(${f.sourceB}) = ${f.pB}\n`;
       ctx += `  * Conditional Defect Rates: P(Defect|${f.sourceA}) = ${f.rateA}, P(Defect|${f.sourceB}) = ${f.rateB}\n`;
-      ctx += `  * Joint Probabilities: P(Defect and ${f.sourceA}) = ${f.rateA} * ${f.pA} = ${f.jointA.toFixed(4)}\n`;
-      ctx += `  * Joint Probabilities: P(Defect and ${f.sourceB}) = ${f.rateB} * ${f.pB} = ${f.jointB.toFixed(4)} (EXACT: 0.018, NOT 0.09!)\n`;
-      ctx += `  * Total Defect Rate: P(Defect) = ${f.jointA.toFixed(4)} + ${f.jointB.toFixed(4)} = ${f.totalP.toFixed(4)} (0.032)\n`;
-      ctx += `  * Exact Posterior: P(${f.sourceB}|Defect) = ${f.jointB.toFixed(4)} / ${f.totalP.toFixed(4)} = 0.018 / 0.032 = 0.5625 (EXACTLY 56.25% or 9/16, NOT 28.13%!)\n`;
-      ctx += `  * INSTRUCTION: You MUST use P(${f.sourceB}|Defect) = 56.25% (9/16) and P(Defect and ${f.sourceB}) = 0.018. Do NOT make arithmetic mistakes in intermediate multiplications.\n`;
+      ctx += `  * Joint Probabilities: P(Defect and ${f.sourceA}) = ${f.rateA} * ${f.pA} = ${jA}\n`;
+      ctx += `  * Joint Probabilities: P(Defect and ${f.sourceB}) = ${f.rateB} * ${f.pB} = ${jB}\n`;
+      ctx += `  * Total Defect Rate: P(Defect) = ${jA} + ${jB} = ${totP}\n`;
+      ctx += `  * Exact Posterior: P(${f.sourceB}|Defect) = ${jB} / ${totP} = ${f.postB.toFixed(4)} (${exactPostPct}%)\n`;
+      ctx += `  * INSTRUCTION: You MUST use P(${f.sourceB}|Defect) = ${exactPostPct}% and P(Defect and ${f.sourceB}) = ${jB}. Do NOT make arithmetic mistakes in intermediate multiplications.\n`;
       return;
     }
 
@@ -2090,7 +2094,15 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
     const isPerimeter = /\bperimeter\b/i.test(cleanWithoutAreaBoilerplate);
     const isArea = !!triangleMatch && (/\b(?:find|calculate|compute|what\s+is|determine|get)\s+(?:the\s+)?area\b/i.test(cleanWithoutAreaBoilerplate) || /\barea\s*(?:=|is|\?)\b/i.test(cleanWithoutAreaBoilerplate));
     const isHypotenuse = (/\b(?:find|calculate|compute|what\s+is|determine|get|length\s+of)\s+(?:the\s+)?hypotenuse\b/i.test(cleanWithoutAreaBoilerplate) || /\bhypotenuse\s*(?:=|is|\?)\b/i.test(cleanWithoutAreaBoilerplate));
-    const expectedVal = isPerimeter ? (a + b + c) : (isArea ? (0.5 * a * b) : c);
+    const sortedSides = [a, b, c].sort((x, y) => x - y);
+    const isRightTriangle = !hasThirdSide || Math.abs(sortedSides[0] ** 2 + sortedSides[1] ** 2 - sortedSides[2] ** 2) <= 1e-6 * (sortedSides[2] ** 2);
+    const sSemi = (a + b + c) / 2;
+    const heronArea = Math.sqrt(Math.max(0, sSemi * (sSemi - a) * (sSemi - b) * (sSemi - c)));
+    const areaValue = isRightTriangle
+      ? 0.5 * sortedSides[0] * sortedSides[1]
+      : parseFloat(heronArea.toFixed(6));
+
+    const expectedVal = isPerimeter ? (a + b + c) : (isArea ? areaValue : c);
     const formattedVal = isPerimeter ? `perimeter = ${expectedVal}` : (isArea ? `area = ${expectedVal}` : `c = ${c}`);
 
     return {
@@ -2099,7 +2111,8 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
       a,
       b,
       c,
-      right_angle: 'C',
+      right_angle: isRightTriangle ? 'C' : null,
+      isRightTriangle,
       isTrigExplanation: hasTrigContext && !isPerimeter && !isArea && !isHypotenuse,
       isPerimeter,
       isArea,
@@ -2498,10 +2511,18 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
           const diff2 = f2 - f1;
           const diff3 = f3 - f2;
 
-          // Rigorous linearity check: constant first difference, zero second difference
-          if (Math.abs(diff1 - diff2) <= 1e-5 && Math.abs(diff2 - diff3) <= 1e-5) {
-            const A = diff1;
-            const B = f0;
+          // Rigorous linearity check including off-grid irrational samples (defeats conspiracy polynomials)
+          const A = diff1;
+          const B = f0;
+          const fIrr1 = math.evaluate(expr, { [v]: 1.7320508075688772 });
+          const fIrr2 = math.evaluate(expr, { [v]: -2.718281828459045 });
+          const irrScale = Math.max(1, Math.abs(A), Math.abs(B));
+          const isLinearIrr =
+            Number.isFinite(fIrr1) && Number.isFinite(fIrr2) &&
+            Math.abs(fIrr1 - (A * 1.7320508075688772 + B)) <= 1e-6 * irrScale &&
+            Math.abs(fIrr2 - (A * (-2.718281828459045) + B)) <= 1e-6 * irrScale;
+
+          if (Math.abs(diff1 - diff2) <= 1e-5 && Math.abs(diff2 - diff3) <= 1e-5 && isLinearIrr) {
 
             if (Math.abs(A) < 1e-9) {
               if (Math.abs(B) < 1e-9) {
@@ -2654,15 +2675,20 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
   const ratSimpMatch = clean.match(/^simplify\s*\(([a-zA-Z])\^2\s*-\s*(\d+(?:\.\d+)?)\)\s*\/\s*\(\1\s*-\s*(\d+(?:\.\d+)?)\)(?:\s*for\s+.*)?$/i);
   if (ratSimpMatch) {
     const v = ratSimpMatch[1];
-    const a = Math.sqrt(parseFloat(ratSimpMatch[2]));
-    const simpStr = `${v} + ${a}`;
-    return {
-      type: 'ALGEBRA_SIMPLIFICATION',
-      original: clean,
-      result: simpStr,
-      solution: simpStr,
-      formatted: simpStr
-    };
+    const sqVal = parseFloat(ratSimpMatch[2]);
+    const denConst = parseFloat(ratSimpMatch[3]);
+    const a = Math.sqrt(sqVal);
+    if (Math.abs(a - denConst) < 1e-9) {
+      const simpStr = `${v} + ${a}`;
+      return {
+        type: 'ALGEBRA_SIMPLIFICATION',
+        original: clean,
+        result: simpStr,
+        solution: simpStr,
+        domainRestriction: `${v} != ${a}`,
+        formatted: `${simpStr} (${v} != ${a})`
+      };
+    }
   }
 
   const expRuleMatch = clean.match(/^simplify\s*\(([a-zA-Z])\^(\d+)\s*\*\s*\1\^(\d+)\)$/i);
@@ -2744,17 +2770,23 @@ function analyzeDeterministicIntent(userText, conversationHistory = []) {
     const rawExpr = limitMatch[1].trim();
     const v = limitMatch[2];
     const k = parseFloat(limitMatch[3]);
-    // 0/0 rational difference of squares: (x^2 - a^2) / (x - a)
-    const ratMatch = rawExpr.match(/^\(?\s*([a-zA-Z])\^2\s*-\s*(\d+(?:\.\d+)?)\s*\)?\s*\/\s*\(?\s*\1\s*-\s*(\d+(?:\.\d+)?)\s*\)?$/i);
-    if (ratMatch) {
-      const a = Math.sqrt(parseFloat(ratMatch[2]));
-      const limVal = 2 * a;
-      return {
-        type: 'CALCULUS_LIMIT',
-        result: limVal,
-        solution: limVal,
-        formatted: String(limVal)
-      };
+    // Rational difference of squares: (x^2 - a^2) / (x +- a) -> evaluate at actual limit target k!
+    const ratMatch = rawExpr.match(/^\(?\s*([a-zA-Z])\^2\s*-\s*(\d+(?:\.\d+)?)\s*\)?\s*\/\s*\(?\s*\1\s*([-+])\s*(\d+(?:\.\d+)?)\s*\)?$/i);
+    if (ratMatch && ratMatch[1].toLowerCase() === v.toLowerCase()) {
+      const cSq = parseFloat(ratMatch[2]);
+      const denSign = ratMatch[3] === '+' ? 1 : -1;
+      const denConst = parseFloat(ratMatch[4]);
+      if (Math.abs(cSq - denConst * denConst) < 1e-9) {
+        const pole = -denSign * denConst;
+        const limVal = Math.abs(k - pole) < 1e-9 ? (pole * 2) : ((k * k - cSq) / (k + denSign * denConst));
+        const cleanVal = Math.abs(limVal - Math.round(limVal)) < 1e-9 ? Math.round(limVal) : parseFloat(limVal.toFixed(6));
+        return {
+          type: 'CALCULUS_LIMIT',
+          result: cleanVal,
+          solution: cleanVal,
+          formatted: String(cleanVal)
+        };
+      }
     }
     // Direct polynomial/continuous evaluation:
     try {
@@ -3656,7 +3688,15 @@ If you ever want a tool that isn't here yet, just hit the **🚩 Report** button
     }
 
     if (f.type === 'BAYES_TWO_CLASS') {
-      return `⚖️ Verified Bayes Posterior Calculation:\n\n$$\nP(${f.sourceB} \\mid \\text{Defect}) = \\frac{P(\\text{Defect} \\mid ${f.sourceB}) P(${f.sourceB})}{P(\\text{Defect})} = \\frac{0.06 \\times 0.30}{0.02 \\times 0.70 + 0.06 \\times 0.30} = \\frac{0.018}{0.032} = 56.25\\%\n$$\n\n- Joint probability from ${f.sourceA}: $0.02 \\times 0.70 = 0.014$\n- Joint probability from ${f.sourceB}: $0.06 \\times 0.30 = 0.018$\n- Total probability of defective bulb: $0.014 + 0.018 = 0.032$\n\nTherefore, the probability that a defective bulb came from ${f.sourceB} is **56.25%** (or $9/16$).`;
+      const jA = f.jointA.toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
+      const jB = f.jointB.toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
+      const totP = f.totalP.toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
+      const postPct = (f.postB * 100).toFixed(2).replace(/\.00$/, '');
+      const rBStr = f.rateB.toFixed(2);
+      const pBStr = f.pB.toFixed(2);
+      const rAStr = f.rateA.toFixed(2);
+      const pAStr = f.pA.toFixed(2);
+      return `⚖️ Verified Bayes Posterior Calculation:\n\n$$\nP(${f.sourceB} \\mid \\text{Defect}) = \\frac{P(\\text{Defect} \\mid ${f.sourceB}) P(${f.sourceB})}{P(\\text{Defect})} = \\frac{${rBStr} \\times ${pBStr}}{${rAStr} \\times ${pAStr} + ${rBStr} \\times ${pBStr}} = \\frac{${jB}}{${totP}} = ${postPct}\\%\n$$\n\n- Joint probability from ${f.sourceA}: $${rAStr} \\times ${pAStr} = ${jA}$\n- Joint probability from ${f.sourceB}: $${rBStr} \\times ${pBStr} = ${jB}$\n- Total probability of defective item: $${jA} + ${jB} = ${totP}$\n\nTherefore, the probability that a defective item came from ${f.sourceB} is **${postPct}%**.`;
     }
 
     if (f.type === 'OPTIMIZATION_FENCING') {

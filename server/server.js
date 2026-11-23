@@ -2190,26 +2190,55 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
         let verificationResults = [];
         let verificationAudit = [];
 
-        const isVisualOrClarification = deterministicIntent.type === 'CLASSICAL_MODEL_VIZ' ||
-                                        deterministicIntent.type === 'PROJECTILE_VIZ' ||
-                                        deterministicIntent.type === 'GEOMETRY_VIZ' ||
-                                        deterministicIntent.type === 'GRAPH_PLOT' ||
-                                        deterministicIntent.type === 'GRAPH_CIRCLE' ||
-                                        deterministicIntent.type === 'GRAPH_CLARIFICATION' ||
-                                        deterministicIntent.type === 'IMPLICIT_GRAPH_UNSUPPORTED' ||
-                                        deterministicIntent.type === 'NUMBER_LINE_VIZ' ||
-                                        deterministicIntent.type === 'VIZ_SUBJECT_CLARIFICATION' ||
-                                        deterministicIntent.type === 'INPUT_AMBIGUITY_CLARIFICATION' ||
-                                        deterministicIntent.type === 'PLATFORM_KNOWLEDGE';
+        const isPureClarificationOrPlot = deterministicIntent.type === 'GRAPH_CLARIFICATION' ||
+                                          deterministicIntent.type === 'IMPLICIT_GRAPH_UNSUPPORTED' ||
+                                          deterministicIntent.type === 'NUMBER_LINE_VIZ' ||
+                                          deterministicIntent.type === 'VIZ_SUBJECT_CLARIFICATION' ||
+                                          deterministicIntent.type === 'INPUT_AMBIGUITY_CLARIFICATION' ||
+                                          deterministicIntent.type === 'PLATFORM_KNOWLEDGE';
+        const isVisualWithPossibleMath = deterministicIntent.type === 'CLASSICAL_MODEL_VIZ' ||
+                                         deterministicIntent.type === 'PROJECTILE_VIZ' ||
+                                         deterministicIntent.type === 'GEOMETRY_VIZ' ||
+                                         deterministicIntent.type === 'GRAPH_PLOT' ||
+                                         deterministicIntent.type === 'GRAPH_CIRCLE';
 
-        if (isVisualOrClarification) {
+        if (isPureClarificationOrPlot) {
           gatePassed = true;
           delivery = {
             delivered: true,
             status: 'DELIVERED_VISUALIZATION',
             answer: null,
-            reason: 'Verified deterministic STEM visualizer or clarification delivery'
+            reason: 'Verified deterministic STEM clarification/plot delivery'
           };
+        } else if (isVisualWithPossibleMath) {
+          const vizClaims = extractClaims(directResponse, effectiveVerificationPrompt);
+          if (vizClaims.length === 0) {
+            gatePassed = true;
+            delivery = {
+              delivered: true,
+              status: 'DELIVERED_VISUALIZATION',
+              answer: null,
+              reason: 'Verified deterministic STEM visualizer delivery'
+            };
+          } else {
+            try {
+              const verifyResult = await verifyResponseClaims(directResponse, effectiveVerificationPrompt, abortController.signal);
+              if (abortController.signal.aborted || res.writableEnded) return;
+              claims = verifyResult.claims;
+              verificationResults = verifyResult.verificationResults;
+              verificationAudit = verifyResult.verificationAudit || [];
+              delivery = evaluateCandidateDelivery(
+                directResponse,
+                effectiveVerificationPrompt,
+                verifyResult.claims,
+                verifyResult.verificationResults,
+                verifyResult.internalContradictions
+              );
+              gatePassed = Boolean(delivery && delivery.delivered);
+            } catch (_) {
+              gatePassed = false;
+            }
+          }
         } else {
           try {
             const verifyResult = await verifyResponseClaims(directResponse, effectiveVerificationPrompt, abortController.signal);
@@ -2450,36 +2479,53 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
       }
 
       console.log(`[PRACTICE GENERATOR] Successfully generated practice problem for concept '${practiceResult.targetConcept}' (difficulty: ${practiceResult.difficulty})`);
+      let practiceClaims = [];
+      let practiceVerifications = [];
+      let practiceValid = true;
+      try {
+        const pVerify = await verifyResponseClaims(practiceResult.formattedResponse, lastUserMsg?.content || '', abortController.signal);
+        if (pVerify && pVerify.invalidClaims && pVerify.invalidClaims.length > 0) {
+          console.warn('[PRACTICE GENERATOR] Generated practice response failed claim check; falling through to verified gate.');
+          practiceValid = false;
+        } else if (pVerify) {
+          practiceClaims = pVerify.claims || [];
+          practiceVerifications = pVerify.verificationResults || [];
+        }
+      } catch (_) {}
 
-      if (isStreaming) {
-        res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
-        res.setHeader('Transfer-Encoding', 'chunked');
-        res.setHeader('Cache-Control', 'no-cache, no-transform');
-        res.write(JSON.stringify({ type: 'token', content: practiceResult.formattedResponse }) + '\n');
-        res.write(JSON.stringify({
-          type: 'verified',
-          claims: [],
-          verification: [],
-          model: 'pythos-practice-engine',
-          isPracticeProblem: true,
-          deterministic: true
-        }) + '\n');
-        res.write(JSON.stringify({ type: 'done' }) + '\n');
+      if (practiceValid) {
+        if (isStreaming) {
+          res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+          res.setHeader('Transfer-Encoding', 'chunked');
+          res.setHeader('Cache-Control', 'no-cache, no-transform');
+          res.write(JSON.stringify({ type: 'token', content: practiceResult.formattedResponse }) + '\n');
+          res.write(JSON.stringify({
+            type: 'verified',
+            claims: practiceClaims,
+            verification: practiceVerifications,
+            model: 'pythos-practice-engine',
+            isPracticeProblem: true,
+            deterministic: true
+          }) + '\n');
+          res.write(JSON.stringify({ type: 'done' }) + '\n');
+          activeControllers.delete(abortController);
+          return res.end();
+        }
+
         activeControllers.delete(abortController);
-        return res.end();
+        return res.status(200).json({
+          model: 'pythos-practice-engine',
+          claims: practiceClaims,
+          verification: practiceVerifications,
+          message: {
+            role: 'assistant',
+            content: practiceResult.formattedResponse
+          },
+          isPracticeProblem: true,
+          deterministic: true,
+          done: true
+        });
       }
-
-      activeControllers.delete(abortController);
-      return res.status(200).json({
-        model: 'pythos-practice-engine',
-        message: {
-          role: 'assistant',
-          content: practiceResult.formattedResponse
-        },
-        isPracticeProblem: true,
-        deterministic: true,
-        done: true
-      });
     }
   }
 
@@ -2761,12 +2807,15 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
   if (!candidateResult) {
     const textSelection = providerPolicy.selectProvider({ capability: 'text' });
     if (!textSelection.provider) {
-      const safeRecovery = constructSafeVerifiedResponse({
-        userPrompt: lastUserMsg?.content || '',
-        preflightToolResult,
-        activeProblemState,
-        messages: req.body?.messages || []
-      });
+      const cooldownAnomaly = detectFormattingAnomaly(lastUserMsg?.content || '');
+      const safeRecovery = cooldownAnomaly.isWeird
+        ? null
+        : constructSafeVerifiedResponse({
+            userPrompt: lastUserMsg?.content || '',
+            preflightToolResult,
+            activeProblemState,
+            messages: req.body?.messages || []
+          });
       if (safeRecovery && safeRecovery.content) {
         console.log(`[DELIVERY GATE] Upstream LLMs in cooldown, but Pythos possesses trusted verified solution from ${safeRecovery.source} (${safeRecovery.title}). Delivering verified truth directly!`);
         candidateResult = {
@@ -3222,7 +3271,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
                 const lastB = candidateBoxedMatches[candidateBoxedMatches.length - 1];
                 const rawValBoxed = cleanLatexUnits(lastB.content).replace(/^[a-zA-Z]\s*=\s*/, '').trim();
                 const proposedRaw = String(claim.data?.proposed_value || '').trim();
-                if (rawValBoxed === proposedRaw || rawValBoxed === String(claim.data?.raw_val_str || '').trim()) {
+                if (typeof lastB.startIndex === 'number' && typeof lastB.endIndex === 'number' && (rawValBoxed === proposedRaw || rawValBoxed === String(claim.data?.raw_val_str || '').trim())) {
                   // Replace erroneous boxed value with exact formatted value
                   const newBoxed = `\\boxed{${exactFormatted}}`;
                   finalContent = finalContent.slice(0, lastB.startIndex) + newBoxed + finalContent.slice(lastB.endIndex);
@@ -3366,6 +3415,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
         ollamaResponse.message.content = finalContent;
 
         // Re-verify the recovered safe response so claims & verificationResults reflect the delivered content
+        let recoveredAuditOk = false;
         try {
           const recoveredAudit = await verifyResponseClaims(
             finalContent,
@@ -3378,7 +3428,20 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           invalidClaims = recoveredAudit.invalidClaims;
           unknownClaims = recoveredAudit.unknownClaims || [];
           verificationAudit = recoveredAudit.verificationAudit;
-        } catch (_) {}
+          recoveredAuditOk = invalidClaims.length === 0 && internalContradictions.length === 0;
+        } catch (recAuditErr) {
+          console.error('[DELIVERY GATE] Failed to re-audit recovered safe response:', recAuditErr.message);
+          invalidClaims = [{ claim: {}, verification: { verified: false, status: 'ERROR', reason: 'Recovered response verification failed' } }];
+          verificationResults = [invalidClaims[0].verification];
+          ollamaResponse.safeResponseRecovered = false;
+        }
+        if (!recoveredAuditOk) {
+          const safeWithholding = getSafeWithholding(WITHHOLDING_REASONS.CLAIM_NOT_VERIFIED || 'CLAIM_NOT_VERIFIED', null);
+          finalContent = safeWithholding.formattedContent;
+          ollamaResponse.withheld = true;
+          ollamaResponse.safeResponseRecovered = false;
+          ollamaResponse.message.content = finalContent;
+        }
       } else {
         // No trusted verified solution exists -> Enforce fail-closed safe withholding to protect the student
         const failureAudit = [];
@@ -3520,9 +3583,9 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
       const verificationEvaluation = evaluateVerificationState({
         claims,
         verificationResults,
-        invalidClaims: ollamaResponse.safeResponseRecovered ? [] : uncorrectedInvalidClaims,
-        unknownClaims: ollamaResponse.safeResponseRecovered ? [] : unknownClaims,
-        internalContradictions: ollamaResponse.safeResponseRecovered ? [] : internalContradictions,
+        invalidClaims: ollamaResponse.safeResponseRecovered ? invalidClaims : uncorrectedInvalidClaims,
+        unknownClaims,
+        internalContradictions,
         prompt: isGuidedTutoringPrompt ? '' : effectiveVerificationPrompt,
         withheld: Boolean(ollamaResponse.withheld),
         isCandidateIncomplete: ollamaResponse.safeResponseRecovered ? false : isCandidateIncomplete,
@@ -3593,7 +3656,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
         setImmediate(() => {
           memoryExtractor.processInteractionAsync(studentUid, lastUserMsg.content, finalContent, req.body.chatId || null)
             .catch(err => console.warn('[MEMORY EXTRACTOR] Error in post-response extraction:', err.message));
-          if (teachingStrategy?.mastery) {
+          if (teachingStrategy?.mastery && (verificationEvaluation.state === 'VERIFIED' || verificationEvaluation.state === 'PARTIALLY_VERIFIED')) {
             teachingIntelligence.persistConceptMastery(studentUid, teachingStrategy.mastery, studentProfile, memoryService)
               .catch(err => console.warn('[TEACHING INTELLIGENCE] Error persisting concept mastery:', err.message));
           }
@@ -3716,41 +3779,60 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
 
     if (safeFallback && safeFallback.content) {
       let fallbackContent = enforceVisualFidelity(safeFallback.content, lastUserMsg?.content || '', req.body?.messages || [], activeProblemState);
-      console.log(`[DELIVERY GATE] Recovered from upstream failure. Delivering safe verified truth from ${safeFallback.source} (${safeFallback.title})!`);
-      if (isStreaming) {
-        if (!res.headersSent) {
-          res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
-          res.setHeader('Transfer-Encoding', 'chunked');
-          res.setHeader('Cache-Control', 'no-cache, no-transform');
+      let fbClaims = [];
+      let fbVerifications = [];
+      let fbValid = true;
+      try {
+        const fbAudit = await verifyResponseClaims(fallbackContent, lastUserMsg?.content || '', null);
+        if (fbAudit) {
+          fbClaims = fbAudit.claims || [];
+          fbVerifications = fbAudit.verificationResults || [];
+          if ((fbAudit.invalidClaims && fbAudit.invalidClaims.length > 0) || (fbAudit.internalContradictions && fbAudit.internalContradictions.length > 0)) {
+            fbValid = false;
+          }
         }
-        res.write(JSON.stringify({ type: 'token', content: fallbackContent }) + '\n');
-        res.write(JSON.stringify({
-          type: 'verified',
-          claims: [],
-          verification: [],
+      } catch (_) {
+        fbValid = false;
+      }
+      if (fbValid) {
+        console.log(`[DELIVERY GATE] Recovered from upstream failure. Delivering safe verified truth from ${safeFallback.source} (${safeFallback.title})!`);
+        if (isStreaming) {
+          if (!res.headersSent) {
+            res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+            res.setHeader('Transfer-Encoding', 'chunked');
+            res.setHeader('Cache-Control', 'no-cache, no-transform');
+          }
+          res.write(JSON.stringify({ type: 'token', content: fallbackContent }) + '\n');
+          res.write(JSON.stringify({
+            type: 'verified',
+            claims: fbClaims,
+            verification: fbVerifications,
+            model: 'pythos-verified-engine',
+            deterministic: true,
+            safeResponseRecovered: true,
+            recoverySource: safeFallback.source,
+            recoveryTitle: safeFallback.title
+          }) + '\n');
+          res.write(JSON.stringify({ type: 'done' }) + '\n');
+          return res.end();
+        }
+
+        return res.status(200).json({
           model: 'pythos-verified-engine',
-          deterministic: true,
+          provider: 'deterministic-cas',
           safeResponseRecovered: true,
           recoverySource: safeFallback.source,
-          recoveryTitle: safeFallback.title
-        }) + '\n');
-        res.write(JSON.stringify({ type: 'done' }) + '\n');
-        return res.end();
+          recoveryTitle: safeFallback.title,
+          claims: fbClaims,
+          verification: fbVerifications,
+          withheld: false,
+          message: {
+            role: 'assistant',
+            content: fallbackContent
+          },
+          done: true
+        });
       }
-
-      return res.status(200).json({
-        model: 'pythos-verified-engine',
-        provider: 'deterministic-cas',
-        safeResponseRecovered: true,
-        recoverySource: safeFallback.source,
-        recoveryTitle: safeFallback.title,
-        withheld: false,
-        message: {
-          role: 'assistant',
-          content: fallbackContent
-        },
-        done: true
-      });
     }
 
     const isTimeout = error.message === 'ETIMEDOUT' || error.message.includes('timeout');

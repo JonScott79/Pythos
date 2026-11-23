@@ -94,14 +94,14 @@ function constructSafeVerifiedResponse({
         '',
         `*Orientation note:* Geometric side lengths represent positive Euclidean distances. Any negative trigonometric values indicate quadrant coordinates.`,
         '',
-        `Final value: $\\boxed{${trigModel.evaluatedInner ? trigModel.evaluatedInner.numericValue : referenceTriangle.hyp}}$`
+        `Final value: $\\boxed{${trigModel.evaluatedInner.numericValue}}$`
       ];
 
-      return {
+      return trigModel.evaluatedInner ? {
         content: lines.join('\n'),
         source: 'TRIG_REFERENCE_TRIANGLE',
         title: `Verified Right-Triangle Model for ${innerFunction}(${angleStr})`
-      };
+      } : null;
     }
   }
 
@@ -217,13 +217,18 @@ function constructSafeVerifiedResponse({
 
     // 2f. Preflight Specialist Calculus / Geometry
     if (preflightToolResult.tool === 'solve_calculus' || preflightToolResult.tool === 'solve_geometry') {
-      const { operation, result, formattedResult, derivationSteps = [] } = preflightToolResult;
+      const { status, operation, result, formattedResult, derivationSteps = [] } = preflightToolResult;
+      if (status !== 'VERIFIED' && status !== 'SUCCESS') {
+        return null;
+      }
+      const boxContent = result !== undefined && result !== null && String(result).trim() !== '' ? result : formattedResult;
+      if (!boxContent) return null;
       const lines = [
         "Here's the verified step-by-step solution:",
         '',
         ...(Array.isArray(derivationSteps) && derivationSteps.length > 0 ? derivationSteps.map(s => `- ${s}`) : []),
         '',
-        `$\\boxed{${result || formattedResult}}$`
+        `$\\boxed{${boxContent}}$`
       ];
 
       return {

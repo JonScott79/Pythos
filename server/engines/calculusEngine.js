@@ -133,23 +133,55 @@ class CalculusWorker {
 
       if (!this.currentTask) continue;
 
-      const task = this.currentTask;
-      clearTimeout(task.timer);
-      this.currentTask = null;
-      this.busy = false;
-
+      let parsed;
       try {
-        const parsed = JSON.parse(line);
-        if (parsed && (parsed.status === 'VERIFIED' || parsed.status === 'SUCCESS')) {
-          cacheSet(task.cacheKey, parsed);
-        }
-        task.resolve(parsed);
+        parsed = JSON.parse(line);
       } catch (parseErr) {
-        task.resolve({
-          status: 'FAILED',
-          error: `Failed to parse calculus worker output: ${parseErr.message}`,
-          rawOutput: line
-        });
+        const task = this.currentTask;
+        if (!task.settled) {
+          task.settled = true;
+          clearTimeout(task.timer);
+          this.currentTask = null;
+          this.busy = false;
+          task.resolve({
+            status: 'FAILED',
+            error: `Failed to parse calculus worker output: ${parseErr.message}`,
+            rawOutput: line
+          });
+        }
+        this.onAvailable(this);
+        continue;
+      }
+
+      const task = this.currentTask;
+      if (parsed && parsed._id !== undefined && parsed._id !== task.id) {
+        // Stale or mismatched response frame; fail closed and recycle worker
+        if (!task.settled) {
+          task.settled = true;
+          clearTimeout(task.timer);
+          this.currentTask = null;
+          this.busy = false;
+          task.resolve({
+            status: 'FAILED',
+            error: `Calculus worker _id mismatch (expected ${task.id}, got ${parsed._id})`
+          });
+        }
+        this.terminate();
+        this.onCrash(this);
+        continue;
+      }
+
+      if (!task.settled) {
+        task.settled = true;
+        clearTimeout(task.timer);
+        this.currentTask = null;
+        this.busy = false;
+        const cleanResult = (parsed && typeof parsed === 'object') ? { ...parsed } : parsed;
+        if (cleanResult && '_id' in cleanResult) delete cleanResult._id;
+        if (cleanResult && (cleanResult.status === 'VERIFIED' || cleanResult.status === 'SUCCESS')) {
+          cacheSet(task.cacheKey, cleanResult);
+        }
+        task.resolve(cleanResult);
       }
 
       this.onAvailable(this);
@@ -165,7 +197,10 @@ class CalculusWorker {
       clearTimeout(task.timer);
       this.currentTask = null;
       this.busy = false;
-      task.resolve({ status: 'FAILED', error: reason });
+      if (!task.settled) {
+        task.settled = true;
+        task.resolve({ status: 'FAILED', error: reason });
+      }
     }
 
     this.terminate();
@@ -173,7 +208,7 @@ class CalculusWorker {
   }
 
   execute(task) {
-    if (this.busy || !this.proc || this.isDead) {
+    if (this.busy || !this.proc || this.isDead || task.settled) {
       return false;
     }
 
@@ -191,26 +226,37 @@ class CalculusWorker {
       return true;
     } catch (writeErr) {
       clearTimeout(task.timer);
-      this.currentTask = null;
+      if (this.currentTask === task) {
+        this.currentTask = null;
+      }
       this.busy = false;
-      task.resolve({
-        status: 'FAILED',
-        error: `Failed to write to calculus worker stdin: ${writeErr.message}`
-      });
+      if (!task.settled) {
+        task.settled = true;
+        task.resolve({
+          status: 'FAILED',
+          error: `Failed to write to calculus worker stdin: ${writeErr.message}`
+        });
+      }
       this.terminate();
       this.onCrash(this);
-      return false;
+      // Do NOT return false after resolving & crashing; returning true prevents caller from re-queuing settled task
+      return true;
     }
   }
 
   _handleTimeout(task) {
-    this.currentTask = null;
-    this.busy = false;
+    if (this.currentTask === task) {
+      this.currentTask = null;
+      this.busy = false;
+    }
     this.terminate();
-    task.resolve({
-      status: 'FAILED',
-      error: `Calculus worker timed out after ${task.timeoutMs}ms`
-    });
+    if (!task.settled) {
+      task.settled = true;
+      task.resolve({
+        status: 'FAILED',
+        error: `Calculus worker timed out after ${task.timeoutMs}ms`
+      });
+    }
     this.onCrash(this);
   }
 
@@ -220,6 +266,16 @@ class CalculusWorker {
 
   terminate() {
     this.isDead = true;
+    if (this.currentTask) {
+      const task = this.currentTask;
+      clearTimeout(task.timer);
+      this.currentTask = null;
+      this.busy = false;
+      if (!task.settled) {
+        task.settled = true;
+        task.resolve({ status: 'FAILED', error: 'Calculus worker terminated' });
+      }
+    }
     if (this.proc) {
       const p = this.proc;
       this.proc = null;
@@ -247,10 +303,12 @@ let pool = [];
 let taskCounter = 0;
 const taskQueue = [];
 let isShuttingDown = false;
+let crashTimestamps = [];
 
 function initCalculusDaemon(poolSize = DEFAULT_POOL_SIZE) {
   if (isShuttingDown) return;
   if (pool.length > 0) return;
+  crashTimestamps = [];
 
   const targetSize = Math.max(1, Math.min(poolSize, 8));
   for (let i = 1; i <= targetSize; i++) {
@@ -266,9 +324,26 @@ function initCalculusDaemon(poolSize = DEFAULT_POOL_SIZE) {
 
 function onWorkerCrash(crashedWorker) {
   if (isShuttingDown) return;
-  // Automatically replace crashed worker to keep capacity stable
-  crashedWorker.start();
-  dispatchNext();
+  const now = Date.now();
+  crashTimestamps = crashTimestamps.filter(t => now - t < 10000);
+  crashTimestamps.push(now);
+  if (crashTimestamps.length > 10) {
+    // Circuit breaker against runaway crash-restart fork loop; drain queued tasks safely
+    while (taskQueue.length > 0) {
+      const t = taskQueue.shift();
+      if (t.queueTimer) clearTimeout(t.queueTimer);
+      if (!t.settled) {
+        t.settled = true;
+        t.resolve({ status: 'FAILED', error: 'Calculus worker pool circuit open (excessive crashes)' });
+      }
+    }
+    return;
+  }
+  const idx = pool.indexOf(crashedWorker);
+  if (idx !== -1) {
+    crashedWorker.start();
+    dispatchNext();
+  }
 }
 
 function dispatchNext() {

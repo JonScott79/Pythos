@@ -47,6 +47,8 @@ function resolvePython() {
   return cachedPythonBin;
 }
 
+let rootTaskCounter = 0;
+
 function cacheSet(key, val) {
   if (rootCache.size >= MAX_CACHE_ENTRIES) {
     const oldestKey = rootCache.keys().next().value;
@@ -120,16 +122,42 @@ function ensureDaemon() {
       daemonBuffer = daemonBuffer.slice(nlIdx + 1);
       if (!line || !activeTask) continue;
       const task = activeTask;
-      activeTask = null;
-      clearTimeout(task.timer);
+      let parsed;
       try {
-        const parsed = JSON.parse(line);
-        if (parsed && parsed.status === 'VERIFIED' && task.cacheKey) {
-          cacheSet(task.cacheKey, parsed);
-        }
-        task.resolve(parsed);
+        parsed = JSON.parse(line);
       } catch (err) {
-        task.resolve({ status: 'FAILED', error: `Invalid JSON from root_solver.py: ${err.message}` });
+        if (!task.settled) {
+          task.settled = true;
+          activeTask = null;
+          clearTimeout(task.timer);
+          task.resolve({ status: 'FAILED', error: `Invalid JSON from root_solver.py: ${err.message}` });
+        }
+        pumpQueue();
+        continue;
+      }
+
+      if (parsed && parsed._id !== undefined && parsed._id !== task.id) {
+        if (!task.settled) {
+          task.settled = true;
+          activeTask = null;
+          clearTimeout(task.timer);
+          task.resolve({ status: 'FAILED', error: `Root solver _id mismatch (expected ${task.id}, got ${parsed._id})` });
+        }
+        terminateDaemon();
+        pumpQueue();
+        continue;
+      }
+
+      if (!task.settled) {
+        task.settled = true;
+        activeTask = null;
+        clearTimeout(task.timer);
+        const cleanResult = (parsed && typeof parsed === 'object') ? { ...parsed } : parsed;
+        if (cleanResult && '_id' in cleanResult) delete cleanResult._id;
+        if (cleanResult && cleanResult.status === 'VERIFIED' && task.cacheKey) {
+          cacheSet(task.cacheKey, cleanResult);
+        }
+        task.resolve(cleanResult);
       }
       pumpQueue();
     }
@@ -145,7 +173,10 @@ function ensureDaemon() {
       const task = activeTask;
       activeTask = null;
       clearTimeout(task.timer);
-      task.resolve({ status: 'FAILED', error: msg });
+      if (!task.settled) {
+        task.settled = true;
+        task.resolve({ status: 'FAILED', error: msg });
+      }
     }
     pumpQueue();
   };
@@ -176,18 +207,24 @@ function pumpQueue() {
     if (activeTask === task) {
       activeTask = null;
       terminateDaemon();
-      task.resolve({ status: 'FAILED', error: `Root solver timed out after ${task.timeoutMs}ms` });
+      if (!task.settled) {
+        task.settled = true;
+        task.resolve({ status: 'FAILED', error: `Root solver timed out after ${task.timeoutMs}ms` });
+      }
       pumpQueue();
     }
   }, task.timeoutMs);
 
   try {
-    proc.stdin.write(JSON.stringify({ equation: task.equation, variable: task.variable }) + '\n');
+    proc.stdin.write(JSON.stringify({ equation: task.equation, variable: task.variable, _id: task.id }) + '\n');
   } catch (err) {
     activeTask = null;
     clearTimeout(task.timer);
     terminateDaemon();
-    task.resolve({ status: 'FAILED', error: err.message });
+    if (!task.settled) {
+      task.settled = true;
+      task.resolve({ status: 'FAILED', error: err.message });
+    }
     pumpQueue();
   }
 }
@@ -201,7 +238,7 @@ function pumpQueue() {
 function solveEquationRoots(equation, options = {}) {
   const variable = options.variable || 'x';
   const timeoutMs = Number.isFinite(options.timeoutMs) ? options.timeoutMs : 5000;
-  const cacheKey = `${variable}::${equation}`;
+  const cacheKey = `${variable}::${String(equation || '').trim()}`;
   if (rootCache.has(cacheKey)) {
     return Promise.resolve(rootCache.get(cacheKey));
   }
@@ -213,7 +250,7 @@ function solveEquationRoots(equation, options = {}) {
   }
 
   return new Promise((resolve) => {
-    taskQueue.push({ equation, variable, timeoutMs, cacheKey, resolve, timer: null });
+    taskQueue.push({ id: ++rootTaskCounter, equation, variable, timeoutMs, cacheKey, resolve, timer: null, settled: false });
     pumpQueue();
   });
 }
@@ -223,11 +260,17 @@ function closeRootDaemon() {
   while (taskQueue.length > 0) {
     const task = taskQueue.shift();
     if (task.timer) clearTimeout(task.timer);
-    task.resolve({ status: 'FAILED', error: 'Root solver daemon closed' });
+    if (!task.settled) {
+      task.settled = true;
+      task.resolve({ status: 'FAILED', error: 'Root solver daemon closed' });
+    }
   }
   if (activeTask) {
     if (activeTask.timer) clearTimeout(activeTask.timer);
-    activeTask.resolve({ status: 'FAILED', error: 'Root solver daemon closed' });
+    if (!activeTask.settled) {
+      activeTask.settled = true;
+      activeTask.resolve({ status: 'FAILED', error: 'Root solver daemon closed' });
+    }
     activeTask = null;
   }
   terminateDaemon();

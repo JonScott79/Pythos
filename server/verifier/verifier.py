@@ -8,10 +8,26 @@ import traceback
 
 if sys.platform == 'win32' or hasattr(sys.stdin, 'reconfigure'):
     try:
-        sys.stdin.reconfigure(encoding='utf-8')
-        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stdin.reconfigure(encoding='utf-8', errors='replace')
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
     except Exception:
         pass
+
+
+def _json_sanitize(obj):
+    if isinstance(obj, float):
+        if obj != obj or obj in (float('inf'), float('-inf')):
+            return None
+        return obj
+    if isinstance(obj, dict):
+        return {k: _json_sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_json_sanitize(v) for v in obj]
+    return obj
+
+
+def _safe_json_dumps(obj) -> str:
+    return json.dumps(_json_sanitize(obj), allow_nan=False)
 
 from safe_sympify import validate_payload_strings, UnsafeMathExpressionError
 from arithmetic_verifier import verify_arithmetic
@@ -42,7 +58,11 @@ def dispatch_verification(payload: dict) -> dict:
 
     domain = payload.get("domain")
     claim_type = payload.get("claim_type")
-    data = payload.get("data", {})
+    data = payload.get("data")
+    if data is None:
+        data = {}
+    elif not isinstance(data, dict):
+        return {"verified": False, "status": "UNKNOWN", "reason": "Claim 'data' field must be an object"}
 
     try:
         if claim_type == "compound_claim" or domain == "compound":
@@ -140,9 +160,9 @@ def dispatch_verification(payload: dict) -> dict:
         return {
             "verified": False,
             "status": "ERROR",
-            "error": str(e),
-            "traceback": traceback.format_exc()
+            "error": str(e)
         }
+
 
 def dispatch_payload(payload):
     """
@@ -157,6 +177,7 @@ def dispatch_payload(payload):
     else:
         return {"verified": False, "status": "ERROR", "error": "Unsupported payload type"}
 
+
 MAX_DAEMON_LINE_BYTES = 262144  # 256 KB per-request JSON line cap
 
 
@@ -164,7 +185,7 @@ def main():
     if len(sys.argv) > 1 and sys.argv[1] == "--daemon":
         for line in sys.stdin:
             if len(line.encode("utf-8", errors="replace")) > MAX_DAEMON_LINE_BYTES:
-                print(json.dumps({
+                print(_safe_json_dumps({
                     "verified": False,
                     "status": "ERROR",
                     "error_type": "PAYLOAD_TOO_LARGE",
@@ -188,12 +209,12 @@ def main():
                         out = {"_id": req_id, "results": res}
                 else:
                     out = res
-                print(json.dumps(out), flush=True)
+                print(_safe_json_dumps(out), flush=True)
             except Exception as e:
                 err_res = {"verified": False, "status": "ERROR", "error": str(e)}
                 if req_id is not None:
                     err_res["_id"] = req_id
-                print(json.dumps(err_res), flush=True)
+                print(_safe_json_dumps(err_res), flush=True)
         return
 
     if len(sys.argv) > 1:
@@ -201,9 +222,9 @@ def main():
         try:
             payload = json.loads(sys.argv[1])
             res = dispatch_payload(payload)
-            print(json.dumps(res))
+            print(_safe_json_dumps(res))
         except Exception as e:
-            print(json.dumps({"verified": False, "status": "ERROR", "error": str(e)}))
+            print(_safe_json_dumps({"verified": False, "status": "ERROR", "error": str(e)}))
     else:
         # Read from stdin
         try:
@@ -211,11 +232,11 @@ def main():
             if line.strip():
                 payload = json.loads(line)
                 res = dispatch_payload(payload)
-                print(json.dumps(res))
+                print(_safe_json_dumps(res))
             else:
-                print(json.dumps({"verified": False, "status": "UNKNOWN", "reason": "Empty input"}))
+                print(_safe_json_dumps({"verified": False, "status": "UNKNOWN", "reason": "Empty input"}))
         except Exception as e:
-            print(json.dumps({"verified": False, "status": "ERROR", "error": str(e)}))
+            print(_safe_json_dumps({"verified": False, "status": "ERROR", "error": str(e)}))
 
 if __name__ == "__main__":
     main()

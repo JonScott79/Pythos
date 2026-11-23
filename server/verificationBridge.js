@@ -34,9 +34,13 @@ function extractBoxedMatches(text) {
       }
     }
     if (end !== -1) {
+      const rawBox = text.slice(idx, end + 1);
       matches.push({
-        raw: text.slice(idx, end + 1),
-        content: text.slice(start, end).trim()
+        raw: rawBox,
+        fullMatch: rawBox,
+        content: text.slice(start, end).trim(),
+        startIndex: idx,
+        endIndex: end + 1
       });
       idx = end + 1;
     } else {
@@ -1231,8 +1235,9 @@ function extractClaims(text, userPrompt = '') {
         // do NOT treat its coefficients/exponents as candidate roots!
         const hasUnboundVar = new RegExp(`\\b${v}\\b`).test(rawBoxed.replace(/^[a-zA-Z]\s*=/, ''));
         const isIntermediateEquation = rawBoxed.includes('=') && !/^[a-zA-Z](?:_\{?\d+\}?)?\s*(?:=|\\approx|≈)/.test(rawBoxed.trim());
-        // Ignore integer/parametric solution families (e.g. n\pi, k\pi, arcsin(...))
-        const isParametricFamily = /\b[nkm]\b|\\pi\b|\bpi\b|\\?(?:arcsin|arccos|arctan|asin|acos|atan)\b/i.test(rawBoxed);
+        // Ignore true general integer parametric solution families (e.g. n*pi, 2*k*pi, + 2\pi k, n \in Z),
+        // but DO NOT skip literal numeric pi / inverse-trig solutions like \boxed{\pi} or \boxed{\arcsin(1/2)}!
+        const isParametricFamily = /\b[nk]\s*(?:\*?\s*(?:\\pi|pi)|\\in)|(?:\\pi|pi)\s*\*?\s*[nk]\b|\\in\s*\\(?:mathbb\{Z\}|Z\b)|(?:[+-]\s*2?\s*[nk]\s*\\?pi|\+\s*2?\\?pi\s*[nk])/i.test(rawBoxed);
         if (isParametricFamily) boxedWasParametric = true;
         if (!hasUnboundVar && !isIntermediateEquation && !isParametricFamily) {
           const cleanBoxedForComp = cleanLatexUnits(rawBoxed).replace(/\\pi\b|\bpi\b/gi, '').replace(/^[a-zA-Z]\s*=/, '');
@@ -1496,15 +1501,19 @@ function extractClaims(text, userPrompt = '') {
     }
   }
 
-  // Extract inline delimited math spans ($...$ and \(...\)) containing '=' first so surrounding sentence prose cannot contaminate them
+  // Extract inline delimited math spans ($...$ and \(...\)) containing '=', preserving any trailing "for/where $cond$" restriction!
   const inlineDelimitedMathBlocks = [];
-  const inlineDollarMatches = text.matchAll(/(?<!\$)\$(?!\$)([^$\n]+?=[^$\n]+?)\$(?!\$)/g);
+  const inlineDollarMatches = text.matchAll(/(?<!\$)\$(?!\$)([^$\n]+?=[^$\n]+?)\$(?!\$)((?:\s*(?:,|;)?\s*(?:for|where|when|if|assuming|provided(?:\s+that)?)\s+(?:\$[^$\n]+?\$|\\\([^)\n]+?\\\)|[a-zA-Z_][a-zA-Z0-9_]*\s*(?:!=|\\neq|≠|<>|>=|<=|>|<)\s*[-+]?[a-zA-Z0-9_./\\^{},\s]+))?)/gi);
   for (const im of inlineDollarMatches) {
-    inlineDelimitedMathBlocks.push(im[1].replace(/\\boxed\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g, '$1').trim());
+    const core = im[1].replace(/\\boxed\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g, '$1').trim();
+    const trailingCond = (im[2] || '').replace(/\$/g, ' ').trim();
+    inlineDelimitedMathBlocks.push(trailingCond ? `${core} ${trailingCond}` : core);
   }
-  const inlineParenMatches = text.matchAll(/\\\(([\s\S]+?=[\s\S]+?)\\\)/g);
+  const inlineParenMatches = text.matchAll(/\\\(([\s\S]+?=[\s\S]+?)\\\)((?:\s*(?:,|;)?\s*(?:for|where|when|if|assuming|provided(?:\s+that)?)\s+(?:\$[^$\n]+?\$|\\\([^)\n]+?\\\)|[a-zA-Z_][a-zA-Z0-9_]*\s*(?:!=|\\neq|≠|<>|>=|<=|>|<)\s*[-+]?[a-zA-Z0-9_./\\^{},\s]+))?)/gi);
   for (const ip of inlineParenMatches) {
-    inlineDelimitedMathBlocks.push(ip[1].replace(/\\boxed\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g, '$1').trim());
+    const core = ip[1].replace(/\\boxed\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g, '$1').trim();
+    const trailingCond = (ip[2] || '').replace(/\\\(|\\\)/g, ' ').trim();
+    inlineDelimitedMathBlocks.push(trailingCond ? `${core} ${trailingCond}` : core);
   }
 
   const rawEquivBlocks = [
@@ -1522,17 +1531,18 @@ function extractClaims(text, userPrompt = '') {
       .replace(/\\\[|\\\]|\\\(|\\\)|\\text\{[^}]*\}|\$/g, ' ')
       .trim();
     if (!cleanBlock || !cleanBlock.includes('=')) continue;
-    if (cleanBlock.includes('<') || cleanBlock.includes('>') || cleanBlock.includes('≈') || cleanBlock.includes('~') || /\\(?:approx|thickapprox)\b/.test(cleanBlock)) continue;
-    if (/\b(?:d|dt|dx|dy)\b\s*=\s*/.test(cleanBlock)) continue;
-    if (/\\int|∫|\\frac\{d\}\{d|\\lim\b/i.test(cleanBlock)) continue;
 
-    // Preserve explicit inline domain restrictions (e.g. ", for x != 2", ", x \neq 2, 3", "where x \notin {1, 2}")
+    // Extract inline domain restrictions BEFORE checking '<' / '>' so "for x > 0" or "for x >= 0" isn't skipped!
     let blockInlineCondition = null;
-    const condMatch = cleanBlock.match(/(?:(?:[,;]\s*|\s+)(?:for|where|when|if|assuming|provided(?:\s+that)?)\s+|[,;]\s*(?=[a-zA-Z_][a-zA-Z0-9_]*(?:\([^()]+\))?\s*(?:!=|\\neq|≠|<>|\\notin|\\not\\in)))([a-zA-Z_][a-zA-Z0-9_]*(?:\([^()]+\))?\s*(?:(?:!=|\\neq|≠|<>)\s*[-+]?[a-zA-Z0-9_.\/\\]+(?:\s*(?:,|and)\s*(?:[a-zA-Z_][a-zA-Z0-9_]*\s*(?:!=|\\neq|≠|<>)\s*)?[-+]?[a-zA-Z0-9_.\/\\]+)*|(?:\\notin|\\not\\in|not\s+in)\s*\\?\{[^}]+\})).*$/i);
+    const condMatch = cleanBlock.match(/(?:(?:[,;]\s*|\s+)(?:for|where|when|if|assuming|provided(?:\s+that)?)\s+|[,;]\s*(?=[a-zA-Z_][a-zA-Z0-9_]*(?:\([^()]+\))?\s*(?:!=|\\neq|≠|<>|>=|<=|>|<|\\notin|\\not\\in)))([a-zA-Z_][a-zA-Z0-9_]*(?:\([^()]+\))?\s*(?:(?:!=|\\neq|≠|<>|>=|<=|>|<)\s*[-+]?[a-zA-Z0-9_.\/\\]+(?:\s*(?:,|and)\s*(?:[a-zA-Z_][a-zA-Z0-9_]*\s*(?:!=|\\neq|≠|<>|>=|<=|>|<)\s*)?[-+]?[a-zA-Z0-9_.\/\\]+)*|(?:\\notin|\\not\\in|not\s+in)\s*\\?\{[^}]+\})).*$/i);
     if (condMatch) {
       blockInlineCondition = condMatch[1].trim();
       cleanBlock = cleanBlock.slice(0, condMatch.index).trim();
     }
+
+    if (cleanBlock.includes('<') || cleanBlock.includes('>') || cleanBlock.includes('≈') || cleanBlock.includes('~') || /\\(?:approx|thickapprox)\b/.test(cleanBlock)) continue;
+    if (/\b(?:d|dt|dx|dy)\b\s*=\s*/.test(cleanBlock)) continue;
+    if (/\\int|∫|\\frac\{d\}\{d|\\lim\b/i.test(cleanBlock)) continue;
 
     const parts = cleanBlock.split('=');
     if (parts.length < 2) continue;
@@ -1593,7 +1603,7 @@ function extractClaims(text, userPrompt = '') {
       if (parts.length === 2 && promptStr && promptStr.includes('=') && (cleanBlock.includes(promptStr.split('=')[0].trim()) || promptStr.includes(cleanBlock))) continue;
       if (parts.length > 2 && promptStr && /\bsolve\b/i.test(promptStr) && promptStr.includes('=') && promptStr.replace(/\s+/g, '').includes(pairCleanBlock.replace(/\s+/g, ''))) continue;
 
-      const solvedEqClaimForVar = !isIdentityPrompt && lhsVars.size === 1
+      const solvedEqClaimForVar = !blockInlineCondition && !isIdentityPrompt && lhsVars.size === 1
         ? claims.find(c =>
             c.claim_type === 'equation_solution' &&
             String(c.data?.variable || '').toLowerCase() === lhsVarList[0].toLowerCase() &&
@@ -1611,7 +1621,7 @@ function extractClaims(text, userPrompt = '') {
           expr2: normRhs,
           variables: [lhsVarList[0]]
         });
-        if (eqvRes && eqvRes.status === 'NON_EQUIVALENT') {
+        if (eqvRes && (eqvRes.status === 'NON_EQUIVALENT' || eqvRes.status === 'UNKNOWN')) {
           const stepSolRes = mathjsVerifier.verifyEquationSolution({
             equation: candidateStepEq,
             variable: lhsVarList[0],
@@ -1626,8 +1636,12 @@ function extractClaims(text, userPrompt = '') {
 
       const vMatch = [lhsVarList[0], lhsVarList[0]];
 
-      const alreadyEquiv = claims.some(c => c.claim_type === 'symbolic_equivalence' && c.data?.expr1 === normLhs && c.data?.expr2 === normRhs);
-      if (!alreadyEquiv) {
+      const existingEquiv = claims.find(c => c.claim_type === 'symbolic_equivalence' && c.data?.expr1 === normLhs && c.data?.expr2 === normRhs);
+      if (existingEquiv) {
+        if (!existingEquiv.data.condition && blockInlineCondition) {
+          existingEquiv.data.condition = blockInlineCondition;
+        }
+      } else {
         claims.push({
           domain: 'algebra',
           claim_type: 'symbolic_equivalence',
@@ -1821,12 +1835,29 @@ function extractClaims(text, userPrompt = '') {
         }
       }
 
-      for (const expr of candidateExprs) {
-        const rawMatch = `${expr} = ${rawVal}${isPct ? '%' : ''}`;
+      const normArithExpr = (s) => {
+        let res = String(s || '').replace(/\s+/g, '');
+        let prev;
+        do {
+          prev = res;
+          res = res
+            .replace(/\((\d+(?:\.\d+)?|\bpi\b)\)/gi, '$1')
+            .replace(/\(\(([^()]+)\)\)/g, '($1)');
+        } while (res !== prev);
+        if (res.startsWith('(') && res.endsWith(')') && !res.slice(1, -1).includes('(')) {
+          res = res.slice(1, -1);
+        }
+        return res;
+      };
 
-        if (!claims.some(c => c.data?.expression === expr && Math.abs(c.data.proposed_value - val) < 1e-4)) {
+      for (const expr of candidateExprs) {
+        const cleanRawVal = String(rawVal).replace(/\.+$/, '');
+        const rawMatch = `${expr} = ${cleanRawVal}${isPct ? '%' : ''}`;
+        const canonExpr = normArithExpr(expr);
+
+        if (!claims.some(c => c.domain === 'arithmetic' && (c.data?.expression === expr || normArithExpr(c.data?.expression) === canonExpr) && Math.abs(c.data.proposed_value - val) < 1e-4)) {
           const explicitApprox = match[0].includes('approx') || match[0].includes('≈') || match[0].includes('~');
-          const rawDecMatch = !isPct && rawVal.match(/\.(\d+)$/);
+          const rawDecMatch = !isPct && cleanRawVal.match(/\.(\d+)$/);
           const decPlaces = rawDecMatch ? rawDecMatch[1].length : 0;
           const isRoundedTranscendental = !explicitApprox && decPlaces >= 2 && /\b(?:sin|cos|tan|sec|csc|cot)\b/i.test(expr);
           const claimTolerance = isRoundedTranscendental ? (0.5 * Math.pow(10, -decPlaces)) : 0.005;
@@ -1841,7 +1872,7 @@ function extractClaims(text, userPrompt = '') {
               is_approximate: explicitApprox || isRoundedTranscendental,
               tolerance: claimTolerance,
               is_percent: isPct,
-              raw_val_str: rawVal
+              raw_val_str: cleanRawVal
             }
           });
         }
@@ -3196,16 +3227,22 @@ class VerifierWorker {
       clearTimeout(task.timer);
       this.currentTask = null;
       this.busy = false;
-      task.resolve(task.makeErrorResult('CAS_PIPE_ERROR', `Failed to write to verifier worker stdin: ${writeErr.message}`));
+      if (!task.settled) {
+        task.settled = true;
+        task.resolve(task.makeErrorResult('CAS_PIPE_ERROR', `Failed to write to verifier worker stdin: ${writeErr.message}`));
+      }
       this.terminate();
       this.onCrash(this);
-      return false;
+      // Returning true prevents caller queue loop from re-queuing an already-settled task
+      return true;
     }
   }
 
   _handleTimeout(task) {
-    this.currentTask = null;
-    this.busy = false;
+    if (this.currentTask === task) {
+      this.currentTask = null;
+      this.busy = false;
+    }
     verifierTelemetry.timeouts++;
     const durationMs = Number((performance.now() - task.startedPerf).toFixed(2));
     recordVerifierDiag({
@@ -3218,7 +3255,10 @@ class VerifierWorker {
       fallbackUsed: false
     });
     this.terminate();
-    task.resolve(task.makeErrorResult('CAS_TIMEOUT', `Verifier timeout after ${task.timeoutMs}ms`));
+    if (!task.settled) {
+      task.settled = true;
+      task.resolve(task.makeErrorResult('CAS_TIMEOUT', `Verifier timeout after ${task.timeoutMs}ms`));
+    }
     this.onCrash(this);
   }
 
@@ -3769,10 +3809,36 @@ async function runPythonVerifierBatch(claimsBatch, abortSignal = null) {
 
   const timeoutMs = Math.min(15000, Math.max(5000, claimsBatch.length * 2500));
   if (process.env.VERIFIER_DAEMON_DISABLED !== 'true') {
-    return runViaVerifierPool({ batch: claimsBatch }, {
+    const poolCall = runViaVerifierPool({ batch: claimsBatch }, {
       isBatch: true,
       batchLength: claimsBatch.length,
       timeoutMs
+    });
+    if (!abortSignal || typeof abortSignal.addEventListener !== 'function') {
+      return poolCall;
+    }
+    return new Promise((resolve) => {
+      let done = false;
+      const onAbort = () => {
+        if (!done) {
+          done = true;
+          resolve(claimsBatch.map(() => ({ verified: false, status: 'ABORTED', reason: 'Verification aborted' })));
+        }
+      };
+      abortSignal.addEventListener('abort', onAbort, { once: true });
+      poolCall.then((res) => {
+        abortSignal.removeEventListener('abort', onAbort);
+        if (!done) {
+          done = true;
+          resolve(res);
+        }
+      }).catch((err) => {
+        abortSignal.removeEventListener('abort', onAbort);
+        if (!done) {
+          done = true;
+          resolve(claimsBatch.map(() => ({ verified: false, status: 'ERROR', reason: err?.message || 'Batch pool error' })));
+        }
+      });
     });
   }
 
@@ -3963,20 +4029,20 @@ async function verifyResponseClaims(content, userQueryText, abortSignal) {
   const unknownClaims = [];
   for (let ci = 0; ci < claims.length; ci++) {
     const claim = claims[ci];
-    const verification = resolvedByIndex[ci];
-    if (verification) {
-      verificationResults.push(verification);
-      const auditStep = synthesizeVerificationStepAudit(claim, verification, ci);
-      if (auditStep) {
-        verificationAudit.push(auditStep);
-      }
+    const verification = resolvedByIndex[ci] || {
+      verified: false,
+      status: abortSignal && abortSignal.aborted ? 'ABORTED' : 'UNKNOWN',
+      reason: abortSignal && abortSignal.aborted ? 'Verification aborted' : 'Verification not completed'
+    };
+    verificationResults.push(verification);
+    const auditStep = synthesizeVerificationStepAudit(claim, verification, ci);
+    if (auditStep) {
+      verificationAudit.push(auditStep);
     }
-    if (verification && verification.verified === false) {
-      if (verification.status === 'UNKNOWN') {
-        unknownClaims.push({ claim, verification, claimIndex: ci });
-      } else {
-        invalidClaims.push({ claim, verification, claimIndex: ci });
-      }
+    if (verification.status === 'UNKNOWN') {
+      unknownClaims.push({ claim, verification, claimIndex: ci });
+    } else if (verification.verified !== true) {
+      invalidClaims.push({ claim, verification, claimIndex: ci });
     }
   }
 
@@ -4201,15 +4267,25 @@ function evaluateVerificationState({
 
   const fidelity = auditPromptClaimFidelity(safeClaims, prompt, safeResults);
 
-  if (safeResponseRecovered && !withheld) {
+  if (
+    safeResponseRecovered &&
+    !withheld &&
+    !isCandidateIncomplete &&
+    rejectedCount === 0 &&
+    (!Array.isArray(invalidClaims) || invalidClaims.length === 0) &&
+    contradictionCount === 0 &&
+    unknownCount === 0 &&
+    verifiedCount > 0 &&
+    fidelity.valid
+  ) {
     return {
       state: 'VERIFIED',
-      verifiedCount: Math.max(1, verifiedCount),
+      verifiedCount,
       unknownCount: 0,
       rejectedCount: 0,
-      totalCount: Math.max(1, totalCount),
+      totalCount,
       primaryClaimVerified: true,
-      fidelity: { valid: true, primaryClaimVerified: true },
+      fidelity,
       disclosure: null
     };
   }
@@ -4302,13 +4378,22 @@ function evaluateVerificationState({
     };
   }
 
-  if (safeResponseRecovered) {
+  if (
+    safeResponseRecovered &&
+    !withheld &&
+    !isCandidateIncomplete &&
+    rejectedCount === 0 &&
+    contradictionCount === 0 &&
+    unknownCount === 0 &&
+    verifiedCount > 0 &&
+    fidelity.valid
+  ) {
     return {
       state: 'VERIFIED',
-      verifiedCount: Math.max(1, verifiedCount),
+      verifiedCount,
       unknownCount: 0,
       rejectedCount: 0,
-      totalCount: Math.max(1, totalCount),
+      totalCount,
       primaryClaimVerified: true,
       fidelity,
       disclosure: null

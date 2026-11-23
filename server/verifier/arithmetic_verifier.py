@@ -29,6 +29,11 @@ def verify_arithmetic(claim: dict) -> dict:
     expr_str = claim.get("expression")
     proposed = claim.get("proposed_value")
     op = claim.get("operation")
+    is_approx = bool(claim.get("is_approximate", False))
+    try:
+        user_tol = float(claim.get("tolerance")) if claim.get("tolerance") is not None else None
+    except Exception:
+        user_tol = None
 
     if op == "sqrt" or "sqrt" in str(expr_str):
         radicand = claim.get("radicand")
@@ -42,7 +47,9 @@ def verify_arithmetic(claim: dict) -> dict:
                 })
             exact_val = math.sqrt(radicand)
             if proposed is not None:
-                if abs(proposed - exact_val) < 1e-4:
+                prop_f = float(proposed)
+                sqrt_tol = user_tol if (user_tol is not None and is_approx) else (1e-4 if abs(exact_val) >= 1e-2 else 1e-8)
+                if math.isfinite(prop_f) and abs(prop_f - exact_val) <= sqrt_tol:
                     return _finalize({
                         "verified": True,
                         "status": "VERIFIED",
@@ -73,7 +80,33 @@ def verify_arithmetic(claim: dict) -> dict:
                 })
             computed_val = float(parsed.evalf())
             if proposed is not None:
-                if abs(computed_val - float(proposed)) < 1e-3:
+                prop_sym = None
+                try:
+                    prop_sym = safe_sympify(str(proposed))
+                    exact_equal = (sp.simplify(parsed - prop_sym) == 0)
+                except Exception:
+                    exact_equal = False
+
+                prop_f = float(prop_sym.evalf()) if (prop_sym is not None and prop_sym.is_number) else float(proposed)
+                if not math.isfinite(prop_f) or not math.isfinite(computed_val):
+                    return _finalize({
+                        "verified": False,
+                        "status": "INCORRECT_RESULT",
+                        "exact_value": computed_val if math.isfinite(computed_val) else None,
+                        "proposed_value": proposed,
+                        "error_type": "INCORRECT_RESULT",
+                        "details": f"Expression {expr_str} comparison invalid (non-finite value)."
+                    })
+
+                if is_approx:
+                    eff_tol = user_tol if user_tol is not None else max(1e-4, 1e-4 * abs(computed_val))
+                    matched = exact_equal or (abs(computed_val - prop_f) <= eff_tol)
+                else:
+                    # Exact verification: require symbolic identity or tight IEEE tolerance, never 1e-3!
+                    eff_tol = 1e-9 * max(1.0, abs(computed_val))
+                    matched = exact_equal or (abs(computed_val - prop_f) <= eff_tol)
+
+                if matched:
                     return _finalize({
                         "verified": True,
                         "status": "VERIFIED",
@@ -88,7 +121,7 @@ def verify_arithmetic(claim: dict) -> dict:
                         "calculated_value": computed_val,
                         "proposed_value": proposed,
                         "error_type": "INCORRECT_RESULT",
-                        "details": f"Expression {expr_str} = {computed_val:.4f}, differing from proposed {proposed}"
+                        "details": f"Expression {expr_str} = {computed_val:.6g}, differing from proposed {proposed}"
                     })
             return _finalize({"verified": True, "status": "VERIFIED", "exact_value": computed_val, "calculated_value": computed_val})
         except Exception as e:

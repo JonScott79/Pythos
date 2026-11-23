@@ -16,14 +16,21 @@ def verify_improper_integral(claim: dict) -> dict:
     """
     integrand_str = claim.get("integrand") # "x**(a - 1)/(1 + x)"
     var_str = claim.get("variable", "x")
-    param_str = claim.get("parameter", "a")
+    param_str = claim.get("parameter")
     lower_bound = claim.get("lower_bound", 0)
     upper_bound = claim.get("upper_bound", "oo")
     claimed_convergence_domain = claim.get("claimed_convergence_domain") # e.g. "0 < a < 1"
     proposed_closed_form = claim.get("proposed_closed_form") # e.g. "pi / sin(pi*a)"
 
+    if not integrand_str:
+        return {"verified": False, "status": "UNKNOWN", "reason": "Missing integrand"}
+
     try:
         x = sp.Symbol(var_str, positive=True)
+        temp_sym = safe_sympify(integrand_str, locals={var_str: x})
+        if not param_str:
+            other_syms = [s.name for s in temp_sym.free_symbols if s.name != var_str]
+            param_str = other_syms[0] if len(other_syms) == 1 else "a"
         a = sp.Symbol(param_str, real=True)
         sym_dict = {var_str: x, param_str: a}
         integrand = safe_sympify(integrand_str, locals=sym_dict)
@@ -31,62 +38,43 @@ def verify_improper_integral(claim: dict) -> dict:
         up_b = safe_sympify(str(upper_bound), locals=sym_dict)
 
         canonical_target = x**(a - 1) / (1 + x)
-        
-        # Test exact symbolic difference or multi-point numerical equivalence
+
+        # Require EXACT symbolic identity with the Mellin template (never finite-point numerical promotion)
         diff_sym = sp.simplify(integrand - canonical_target)
         is_canonical_equivalent = (diff_sym == 0)
-        
         if not is_canonical_equivalent:
-            # Multi-point rational sampling over (0, 1) x (0, oo)
-            test_samples = [(0.5, 2.0), (0.25, 0.5), (0.75, 3.0), (0.333, 1.5)]
-            matches_all = True
-            for a_val, x_val in test_samples:
-                try:
-                    subs_dict = {}
-                    for sym in integrand.free_symbols:
-                        if sym.name == var_str:
-                            subs_dict[sym] = x_val
-                        elif sym.name == param_str:
-                            subs_dict[sym] = a_val
-                    v1 = float(integrand.subs(subs_dict).evalf())
-
-                    target_subs = {}
-                    for sym in canonical_target.free_symbols:
-                        if sym.name == var_str:
-                            target_subs[sym] = x_val
-                        elif sym.name == param_str:
-                            target_subs[sym] = a_val
-                    v2 = float(canonical_target.subs(target_subs).evalf())
-
-                    if abs(v1 - v2) > 1e-5:
-                        matches_all = False
-                        break
-                except Exception:
-                    matches_all = False
-                    break
-            if matches_all:
-                is_canonical_equivalent = True
+            try:
+                ratio = sp.powsimp(integrand / canonical_target, force=True)
+                if sp.simplify(ratio - 1) == 0:
+                    is_canonical_equivalent = True
+            except Exception:
+                pass
 
         # Generalized beta/mellin transform family
         if is_canonical_equivalent:
-            correct_domain = "0 < a < 1"
-            correct_closed_form = "pi/sin(pi*a)"
+            correct_domain = f"0 < {param_str} < 1"
+            correct_closed_form = f"pi/sin(pi*{param_str})"
 
             if claimed_convergence_domain:
                 cleaned_prop = claimed_convergence_domain.replace(" ", "")
-                if cleaned_prop not in ["0<a<1", "a>0anda<1", "(0,1)"]:
+                valid_forms = {
+                    f"0<{param_str}<1",
+                    f"{param_str}>0and{param_str}<1",
+                    "(0,1)",
+                }
+                if cleaned_prop not in valid_forms:
                     return {
                         "verified": False,
                         "status": "INVALID_CONVERGENCE_CONDITION",
                         "error_type": "CONVERGENCE_DOMAIN_ERROR",
                         "correct_domain": correct_domain,
                         "proposed_domain": claimed_convergence_domain,
-                        "details": f"Integral converges only for {correct_domain}. At x->0 it diverges for a <= 0; at x->oo it diverges for a >= 1."
+                        "details": f"Integral converges only for {correct_domain}. At {var_str}->0 it diverges for {param_str} <= 0; at {var_str}->oo it diverges for {param_str} >= 1."
                     }
 
             if proposed_closed_form:
-                prop_sym = safe_sympify(proposed_closed_form)
-                corr_sym = safe_sympify(correct_closed_form)
+                prop_sym = safe_sympify(proposed_closed_form, locals=sym_dict)
+                corr_sym = safe_sympify(correct_closed_form, locals=sym_dict)
                 diff = sp.simplify(prop_sym - corr_sym)
                 if diff != 0:
                     return {
@@ -147,20 +135,34 @@ def verify_improper_integral(claim: dict) -> dict:
         try:
             val_exact = sp.integrate(integrand, (x, low_b, up_b))
             if val_exact is not None and not isinstance(val_exact, sp.Integral):
+                is_divergent = bool(
+                    val_exact in (sp.oo, -sp.oo, sp.zoo)
+                    or getattr(val_exact, "has", lambda *_: False)(sp.oo, -sp.oo, sp.zoo)
+                )
+                claimed_classification = claim.get("claimed_classification")
+
+                if is_divergent:
+                    if claimed_classification == "divergent" and proposed_closed_form is None:
+                        return {
+                            "verified": True,
+                            "status": "VERIFIED",
+                            "classification": "divergent",
+                            "evaluated_value": str(val_exact),
+                            "details": f"Improper integral int_{lower_bound}^{upper_bound} {integrand_str} d{var_str} diverges ({val_exact}), matching claimed classification."
+                        }
+                    return {
+                        "verified": False,
+                        "status": "DIVERGENT_INTEGRAL",
+                        "error_type": "DIVERGENT_INTEGRAL",
+                        "classification": "divergent",
+                        "evaluated_value": str(val_exact),
+                        "details": f"Improper integral int_{lower_bound}^{upper_bound} {integrand_str} d{var_str} diverges to {val_exact} and cannot verify a convergent closed form."
+                    }
+
                 if proposed_closed_form is not None:
-                    prop_sym = safe_sympify(str(proposed_closed_form), locals={var_str: x, param_str: a})
-                    diff = sp.simplify(prop_sym - val_exact)
+                    prop_sym = safe_sympify(str(proposed_closed_form), locals=sym_dict)
+                    diff = sp.simplify(sp.expand_func(prop_sym - val_exact))
                     is_match = (diff == 0)
-                    
-                    if not is_match:
-                        try:
-                            # High-precision numerical equivalence for polylog/hypergeometric/gamma representations
-                            n1 = complex(sp.N(val_exact, 30))
-                            n2 = complex(sp.N(prop_sym, 30))
-                            if abs(n1 - n2) < 1e-12:
-                                is_match = True
-                        except Exception:
-                            pass
 
                     if is_match:
                         return {
@@ -169,20 +171,43 @@ def verify_improper_integral(claim: dict) -> dict:
                             "evaluated_value": str(val_exact),
                             "details": f"Improper integral int_{lower_bound}^{upper_bound} {integrand_str} d{var_str} evaluates to {val_exact}."
                         }
-                    else:
-                        return {
-                            "verified": False,
-                            "status": "INCORRECT_INTEGRAL_VALUE",
-                            "error_type": "INCORRECT_INTEGRAL_VALUE",
-                            "correct_value": str(val_exact),
-                            "proposed_value": str(proposed_closed_form),
-                            "details": f"Improper integral evaluation mismatch: expected {val_exact}, got {proposed_closed_form}."
-                        }
+
+                    # High-precision numerical comparison must never upgrade to exact VERIFIED
+                    try:
+                        n1 = complex(sp.N(val_exact, 30))
+                        n2 = complex(sp.N(prop_sym, 30))
+                        if abs(n1 - n2) < 1e-12:
+                            return {
+                                "verified": False,
+                                "status": "NUMERICALLY_SUPPORTED",
+                                "evaluated_value": str(val_exact),
+                                "proposed_value": str(proposed_closed_form),
+                                "details": f"High-precision numeric check agrees (~{n1}), but exact symbolic equivalence of {proposed_closed_form} and {val_exact} was not established."
+                            }
+                    except Exception:
+                        pass
+
+                    return {
+                        "verified": False,
+                        "status": "INCORRECT_INTEGRAL_VALUE",
+                        "error_type": "INCORRECT_INTEGRAL_VALUE",
+                        "correct_value": str(val_exact),
+                        "proposed_value": str(proposed_closed_form),
+                        "details": f"Improper integral evaluation mismatch: expected {val_exact}, got {proposed_closed_form}."
+                    }
+
+                if claimed_convergence_domain or claimed_classification in ("convergent", "absolutely_convergent"):
+                    return {
+                        "verified": True,
+                        "status": "VERIFIED",
+                        "evaluated_value": str(val_exact),
+                        "details": f"Improper integral int_{lower_bound}^{upper_bound} {integrand_str} d{var_str} converges to {val_exact}."
+                    }
                 return {
-                    "verified": True,
-                    "status": "VERIFIED",
+                    "verified": False,
+                    "status": "UNKNOWN",
                     "evaluated_value": str(val_exact),
-                    "details": f"Improper integral int_{lower_bound}^{upper_bound} {integrand_str} d{var_str} evaluates to {val_exact}."
+                    "reason": "Convergent improper integral evaluated, but no proposed_closed_form or convergence claim was supplied to verify."
                 }
         except Exception:
             pass

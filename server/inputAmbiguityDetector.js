@@ -174,19 +174,19 @@ function detectInputAmbiguity(promptStr) {
   }
 
   // --------------------------------------------------------------------------
-  // 4. INLINE AMBIGUOUS DIVISION BINDING (e.g. 1/2x, a/bc, x/2y)
+  // 4. INLINE AMBIGUOUS DIVISION BINDING (e.g. 1/2x, a/bc, x/2y, 1/2x + 3 = 7)
   // --------------------------------------------------------------------------
   const strippedCmd = text
     .replace(/^(?:please\s+)?(?:calculate|compute|evaluate|simplify|what\s+is|solve|find)\s+/i, '')
     .replace(/[?.!]+$/, '')
     .trim();
-  if (!strippedCmd.includes('\\frac') && !strippedCmd.includes('=')) {
+  if (!strippedCmd.includes('\\frac')) {
     // Exclude Leibniz differential operators (e.g. d/dx, d/dt, d^2/dx^2) from algebraic division ambiguity
     const cleanedTokens = strippedCmd
       .replace(/\bd(?:\s*\^\s*\d+)?\s*\/\s*d[a-zA-Z](?:\s*\^\s*\d+)?\b/g, 'F')
       .replace(/\b(?:sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|sinh|cosh|tanh|ln|log10|log2|log|exp|sqrt|cbrt|abs|pi|m|s|kg|ft|cm|km|hr|sec|deg|rad)\b/gi, 'F');
-    const divAmbigMatch = cleanedTokens.match(/^(?:[-+*/^0-9a-zA-Z.()\s]*?)\b([a-zA-Z0-9.]+)\s*\/\s*(\d+(?:\.\d+)?[a-zA-Z][a-zA-Z0-9^]*|[a-zA-Z]{2,})\b/);
-    if (divAmbigMatch && /^[a-zA-Z0-9.+\-*/^()\s]+$/.test(strippedCmd)) {
+    const divAmbigMatch = cleanedTokens.match(/^(?:[-+*/^=0-9a-zA-Z.()\s]*?)\b([a-zA-Z0-9.]+)\s*\/\s*(\d+(?:\.\d+)?[a-zA-Z][a-zA-Z0-9^]*|[a-zA-Z]{2,})\b/);
+    if (divAmbigMatch && /^[a-zA-Z0-9.+\-*/^()=\s]+$/.test(strippedCmd)) {
       const strippedNoDiff = strippedCmd.replace(/\bd(?:\s*\^\s*\d+)?\s*\/\s*d[a-zA-Z](?:\s*\^\s*\d+)?\b/g, ' ');
       const rawMatch = strippedNoDiff.match(/\b([a-zA-Z0-9.]+)\s*\/\s*(\d+(?:\.\d+)?[a-zA-Z][a-zA-Z0-9^]*|[a-zA-Z]{2,})\b/);
       if (rawMatch || divAmbigMatch) {

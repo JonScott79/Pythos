@@ -362,7 +362,8 @@ function analyzeConceptMastery(arg0 = {}, arg1 = null, arg2 = null, arg3 = null,
         if (nextA && nextA.role === 'assistant') {
           const aContent = (nextA.content || '').toLowerCase();
           const confirmedCorrect = /\b(?:yes|correct|exactly|that'?s\s+right|spot\s+on|well\s+done)\b/.test(aContent) &&
-                                   !/\b(?:not\s+quite|incorrect|mistake|error|check\s+your)\b/.test(aContent);
+                                   !/\b(?:not\s+quite|incorrect|mistake|error|check\s+your|wrong|but|however|missing|careful|watch\s+out|almost)\b/.test(aContent) &&
+                                   !/\b(?:correct\s+approach|good\s+(?:first\s+)?step|what\s+(?:do\s+you\s+get|is\s+the\s+next\s+step))\b/.test(aContent);
 
           if (confirmedCorrect) {
             totalStudentAttempts++;
@@ -1423,12 +1424,24 @@ function auditProposedShortcut({ userText = '', activeProblemState = null, origi
     });
   }
 
-  // 5. DIVIDING BOTH SIDES BY A NON-ZERO CONSTANT BEFORE EXPANDING (Valid Shortcut)
+  // 5. DIVIDING BOTH SIDES BY A CONSTANT BEFORE EXPANDING (Reject 0 division immediately!)
   // e.g. "Can I divide both sides by 2 first to get x + 3 = 7 instead of distributing?" for 2(x + 3) = 14
   if (/\bdivide\s+(?:both\s+sides\s+)?by\s+(\d+)\s+first\b/i.test(lower) ||
       (/\bdivide\s+(?:both\s+sides\s+)?by\s+(\d+)\b/i.test(lower) && /\binstead\s+of\s+distribut/i.test(lower))) {
     const constMatch = clean.match(/\bdivide\s+(?:both\s+sides\s+)?by\s+(\d+)/i);
     const divisor = constMatch ? constMatch[1] : 'the constant';
+    if (divisor !== 'the constant' && Number(divisor) === 0) {
+      return attachSeqMetadata({
+        isValid: false,
+        status: SHORTCUT_STATUS.INVALID_SHORTCUT,
+        exactFailingStep: 'Dividing both sides by 0',
+        failureReason: 'DIVISION_BY_ZERO',
+        lostRoots: [],
+        zeroDivisors: ['0'],
+        explanation: 'Division by zero is mathematically undefined! Dividing both sides of an equation by 0 destroys equality and is never valid.',
+        pedagogicalDirective: 'Explicitly reject dividing by 0 as undefined. Guide the student to divide by a non-zero constant instead.'
+      });
+    }
     return attachSeqMetadata({
       isValid: true,
       status: SHORTCUT_STATUS.VALID_SHORTCUT,
@@ -1752,39 +1765,68 @@ async function auditProposedShortcutAsync({ userText = '', activeProblemState = 
     return syncResult;
   }
 
-  // Extract expression pair if not explicitly passed
+  // Extract expression step transitions if not explicitly passed (MUST verify every adjacent transition steps[i] -> steps[i+1]!)
   const steps = syncResult.transformationSequence?.steps || [];
-  let casOrig = originalExpr;
-  let casShort = shortcutExpr;
-  if ((!casOrig || !casShort) && steps.length >= 2) {
-    const first = steps[0];
-    const last = steps[steps.length - 1];
-    if (!/=/.test(first) && !/=/.test(last)) {
-      casOrig = first;
-      casShort = last;
+  const pairsToVerify = [];
+  if (originalExpr && shortcutExpr && !/=/.test(originalExpr) && !/=/.test(shortcutExpr)) {
+    pairsToVerify.push([originalExpr, shortcutExpr]);
+  } else if (steps.length >= 2 && steps.every(s => !/=/.test(s))) {
+    for (let i = 0; i < steps.length - 1; i++) {
+      pairsToVerify.push([steps[i], steps[i + 1]]);
     }
   }
 
-  // Verify expression equivalence with deterministic CAS verifier (SymPy / Math.js)
-  if (casOrig && casShort) {
+  // Verify every expression transition with deterministic CAS verifier (SymPy / Math.js)
+  if (pairsToVerify.length > 0) {
     try {
       const { verifyProposedShortcut } = require('./verificationBridge');
-      const casRes = await verifyProposedShortcut({ originalExpr: casOrig, shortcutExpr: casShort, variable });
-      if (casRes && casRes.status === 'NON_EQUIVALENT') {
+      let lastCasRes = null;
+      let anyConditional = false;
+      let conditionalRestrictions = [];
+      let allVerified = true;
+
+      for (const [casOrig, casShort] of pairsToVerify) {
+        const casRes = await verifyProposedShortcut({ originalExpr: casOrig, shortcutExpr: casShort, variable });
+        lastCasRes = casRes;
+        if (casRes && casRes.status === 'NON_EQUIVALENT') {
+          return {
+            ...syncResult,
+            isValid: false,
+            status: SHORTCUT_STATUS.INVALID_SHORTCUT,
+            exactFailingStep: `Algebraic transformation from \`${casOrig}\` to \`${casShort}\``,
+            failureReason: 'ALGEBRAIC_NON_EQUIVALENCE',
+            casVerification: casRes,
+            explanation: `Deterministic CAS verification proved that \`${casOrig}\` is NOT equivalent to \`${casShort}\` (non-zero difference: ${casRes.details || 'algebraic mismatch'}).`,
+            pedagogicalDirective: 'Politely reject the proposed equivalence with mathematical evidence. Do not praise an incorrect shortcut.'
+          };
+        }
+        if (casRes && casRes.status === 'CONDITIONALLY_EQUIVALENT') {
+          anyConditional = true;
+          if (Array.isArray(casRes.domain_restrictions)) {
+            conditionalRestrictions.push(...casRes.domain_restrictions);
+          }
+        } else if (!(casRes && casRes.verified === true)) {
+          allVerified = false;
+        }
+      }
+
+      if (anyConditional) {
         return {
           ...syncResult,
           isValid: false,
-          status: SHORTCUT_STATUS.INVALID_SHORTCUT,
-          exactFailingStep: `Algebraic transformation from \`${casOrig}\` to \`${casShort}\``,
-          failureReason: 'ALGEBRAIC_NON_EQUIVALENCE',
-          casVerification: casRes,
-          explanation: `Deterministic CAS verification proved that \`${casOrig}\` is NOT equivalent to \`${casShort}\` (non-zero difference: ${casRes.details || 'algebraic mismatch'}).`,
-          pedagogicalDirective: 'Politely reject the proposed equivalence with mathematical evidence. Do not praise an incorrect shortcut.'
+          status: SHORTCUT_STATUS.CONDITIONALLY_VALID,
+          isUniversalIdentity: false,
+          domainRestrictions: conditionalRestrictions,
+          failureReason: 'MISSING_DOMAIN_RESTRICTION',
+          casVerification: lastCasRes,
+          explanation: `Symbolic CAS verification confirmed conditional equivalence ONLY under domain restrictions (${conditionalRestrictions.join(', ')}). Do not claim this is a universal identity.`,
+          pedagogicalDirective: 'Confirm conditional equivalence while explicitly requiring the domain restrictions.'
         };
       }
-      if (casRes && casRes.verified === true) {
+
+      if (allVerified && lastCasRes && lastCasRes.verified === true) {
         if (syncResult.status === SHORTCUT_STATUS.VALID_SHORTCUT) {
-          return { ...syncResult, casVerification: casRes };
+          return { ...syncResult, casVerification: lastCasRes };
         }
         return {
           ...syncResult,
@@ -1793,13 +1835,20 @@ async function auditProposedShortcutAsync({ userText = '', activeProblemState = 
           exactFailingStep: null,
           failureReason: null,
           isUniversalIdentity: true,
-          casVerification: casRes,
-          explanation: `Symbolic CAS verification confirmed algebraic equivalence between \`${casOrig}\` and \`${casShort}\`.`,
-          pedagogicalDirective: `Acknowledge that \`${casShort}\` is algebraically equivalent to \`${casOrig}\`. Explain why the equivalence holds.`
+          casVerification: lastCasRes,
+          explanation: `Symbolic CAS verification confirmed algebraic equivalence across all ${pairsToVerify.length} transition(s).`,
+          pedagogicalDirective: `Acknowledge that the transformation is algebraically equivalent across every step.`
         };
       }
+
       if (syncResult.status === SHORTCUT_STATUS.VALID_SHORTCUT) {
-        return { ...syncResult, casVerification: casRes };
+        return {
+          ...syncResult,
+          isValid: null,
+          status: SHORTCUT_STATUS.UNVERIFIABLE,
+          casVerification: lastCasRes,
+          failureReason: 'CAS_VERIFICATION_INCONCLUSIVE'
+        };
       }
     } catch (_) {}
   }
