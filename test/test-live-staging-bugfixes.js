@@ -83,6 +83,36 @@ async function runTests() {
     assert.strictEqual(gate.delivered, true, `Gate must accept valid product-rule answer (got ${gate.status}: ${gate.reason})`);
   });
 
+  await test('Bug 1c: Derivative fidelity accepts ln(x^2 + 1) matched against SymPy log(x^2 + 1)', async () => {
+    const prompt = 'Find the derivative of ln(x^2 + 1) with respect to x.';
+    const safeRes = constructSafeVerifiedResponse({
+      userPrompt: prompt,
+      preflightToolResult: {
+        tool: 'solve_calculus',
+        success: true,
+        status: 'VERIFIED',
+        operation: 'DIFFERENTIATION',
+        expression: 'ln(x^2 + 1)',
+        variable: 'x',
+        result: '2*x/(x**2 + 1)',
+        formattedResult: 'd/dx[log(x**2 + 1)] = 2*x/(x**2 + 1)',
+        derivationSteps: ['Order 1 derivative: 2*x/(x**2 + 1)']
+      }
+    });
+    assert(safeRes && safeRes.source === 'TOOL_SOLVE_CALCULUS');
+    const claims = extractClaims(safeRes.content, { prompt });
+    const bridge = await verifyResponseClaims(safeRes.content, prompt);
+    assert.strictEqual(bridge.invalidClaims.length, 0, `Unexpected invalid claims: ${JSON.stringify(bridge.invalidClaims)}`);
+    const gate = evaluateCandidateDelivery({
+      candidateAnswer: safeRes.content,
+      verifications: bridge.verificationResults,
+      contradictions: bridge.internalContradictions,
+      claims,
+      prompt
+    });
+    assert.strictEqual(gate.delivered, true, `Gate must accept ln derivative (got ${gate.status}: ${gate.reason})`);
+  });
+
   // 2. Repeated Isolated Linear Step ("4x = 28" after rejection hint)
   await test('Bug 2: Confirming "4x = 28" after tutor correction never emits "subtracted 0 from both sides"', async () => {
     const history = [

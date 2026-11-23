@@ -2851,6 +2851,7 @@ function checkPromptClaimFidelity(claim, userPrompt) {
       if (promptExpr && claimExpr) {
         const canonDerivExpr = (expr) => replaceLatexRadicalsAndFractions(String(expr))
           .replace(/\*\*/g, '^')
+          .replace(/\bln\b/g, 'log')
           .replace(/\{([^{}]+)\}/g, '$1')
           .replace(/\s+/g, '')
           .replace(/(\d)([a-zA-Z])/g, '$1*$2')
