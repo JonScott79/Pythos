@@ -487,7 +487,9 @@ function classifyStudentIntentCore(text, conversationHistory, activeProblemState
   }
 
   const stepPrefixMatch = clean.match(/^(?:so\s+then\s+(?:it\s+becomes|we\s+get|it's|it\s+is)?|then\s+(?:it\s+becomes|we\s+get|it's|it\s+is)?|so\s+(?:now\s+)?(?:we\s+get|it\s+becomes)?|next\s+step\s*(?:is|:)?|which\s+(?:gives|becomes|means))\s*(.+)$/i);
-  if (stepPrefixMatch && (containsMathSymbols(stepPrefixMatch[1]) || /\d/.test(stepPrefixMatch[1]))) {
+  if (stepPrefixMatch && (containsMathSymbols(stepPrefixMatch[1]) || /\d/.test(stepPrefixMatch[1])) &&
+      !/^(?:the\s+)?(?:(?:only|sole|unique|single|exact|final|correct|real)\s+)?(?:solution|root|answer|value)\b/i.test(stepPrefixMatch[1].trim()) &&
+      !/^(?:(?:[a-zA-Z]|theta)\s*=\s*(?:±|\\pm|\+-)?\s*(?:[-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?|[-+]?(?:\\?sqrt|√))|only\s+(?:[a-zA-Z]|theta)\s*=)/i.test(stepPrefixMatch[1].trim())) {
     signals.push('step_transition_prefix', 'contains_math');
     return {
       intent: INTENTS.PROPOSED_STEP,
@@ -550,22 +552,29 @@ function classifyStudentIntentCore(text, conversationHistory, activeProblemState
   }
 
   const strippedFillerClean = transpiledClean
-    .replace(/^(?:(?:actually|wait|sorry|no|well|ok|okay|um|uh|now|then|so)[,:\s]+)+/i, '')
-    .replace(/^(?:(?:i\s+(?:still\s+)?(?:got|have|think\s+it'?s?|meant|mean))|(?:still\s+got))\s+/i, '')
+    .replace(/^(?:(?:actually|wait|sorry|no|well|ok|okay|um|uh|now|then|so|oh|ah|oops|my\s+mistake|my\s+bad|got\s+it|i\s+see)[,!:\s]+)+/i, '')
+    .replace(/^(?:(?:it'?s|it\s+is|i\s+(?:still\s+)?(?:got|have|think\s+it'?s?|meant|mean))|(?:still\s+got))\s+/i, '')
     .trim();
 
-  const varAssignMatch = strippedFillerClean.match(/^((?:[a-zA-Z]|theta)\s*=\s*(?:±|\\pm|\+-)?\s*(?:[-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?|[-+]?(?:\\?sqrt|√)\s*[\({]?\s*\d+(?:\.\d+)?\s*[\)}]?)(?:(?:\*?pi|\*?θ)?)?)(?:[,\s!]+.*)?$/i);
+  const claimsOnlySingleSolution = /\b(?:(?:the\s+)?(?:only|sole|unique|single)\s+(?:solution|root|answer|value)\b|only\s+(?:[a-zA-Z]|theta)\s*=)/i.test(strippedFillerClean);
+  const strippedAnswerLead = strippedFillerClean
+    .replace(/^(?:the\s+)?(?:(?:only|sole|unique|single|exact|final|correct|real)\s+)?(?:solution|root|answer|value)\s+(?:is|would\s+be|=)\s+/i, '')
+    .replace(/^only\s+/i, '')
+    .trim();
+
+  const varAssignMatch = strippedAnswerLead.match(/^((?:[a-zA-Z]|theta)\s*=\s*(?:±|\\pm|\+-)?\s*(?:[-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?|[-+]?(?:\\?sqrt|√)\s*[\({]?\s*\d+(?:\.\d+)?\s*[\)}]?)(?:(?:\*?pi|\*?θ)?)?)(?:[.,;!\s]+.*)?$/i);
   if (varAssignMatch) {
     signals.push('variable_assignment');
     return {
       intent: INTENTS.PROPOSED_ANSWER,
       confidence: 'high',
       signals,
-      extractedExpression: varAssignMatch[1].trim()
+      extractedExpression: varAssignMatch[1].trim(),
+      claimsOnlySingleSolution
     };
   }
 
-  const stepEqMatch = strippedFillerClean.match(/^(\d*[a-zA-Z](?:\^[0-9]+|[²³⁴])?(?:\s*[-+]\s*\d+(?:\.\d+)?)?\s*=\s*[-+]?\d+(?:\.\d+)?(?:(?:\s*\/\s*\d+)?(?:\*?pi|\*?θ)?)?)(?:[,\s!]+.*)?$/i);
+  const stepEqMatch = strippedAnswerLead.match(/^(\d*[a-zA-Z](?:\^[0-9]+|[²³⁴])?(?:\s*[-+]\s*\d+(?:\.\d+)?)?\s*=\s*[-+]?\d+(?:\.\d+)?(?:(?:\s*\/\s*\d+)?(?:\*?pi|\*?θ)?)?)(?:[.,;!\s]+.*)?$/i);
   if (stepEqMatch) {
     signals.push('intermediate_equation_step');
     return {

@@ -1005,6 +1005,7 @@ function extractClaims(text, userPrompt = '') {
       .replace(/\\\(|\\\)/g, '')
       .replace(/\\log_\{?([a-zA-Z0-9]+)\}?\s*(?:\*|\s)*\(([^()]+)\)/g, '(log($2)/log($1))')
       .replace(/\\log_\{?([a-zA-Z0-9]+)\}?\s*(?:\*|\s)*([a-zA-Z0-9]+)/g, '(log($2)/log($1))')
+      .replace(/(?<=[a-zA-Z0-9)])\\(arcsin|arccos|arctan|asin|acos|atan|sin|cos|tan|sec|csc|cot|log|ln|exp|sqrt)\b/g, '*$1')
       .replace(/\\(arcsin|arccos|arctan|asin|acos|atan|sin|cos|tan|sec|csc|cot|log|ln|exp|sqrt)\b/g, '$1')
       .replace(/\bln\b/g, 'log')
       .replace(/\\pi\b/g, 'pi')
@@ -1016,6 +1017,7 @@ function extractClaims(text, userPrompt = '') {
       .replace(/(?<![a-zA-Z_])(\d)\s*\(/g, '$1*(')
       .replace(/\)\s*\(/g, ')*(')
       .replace(/\)\s*([a-zA-Z])/g, ')*$1')
+      .replace(/(?:^|(?<=[^a-zA-Z_]))([a-zA-Z])\s+(arcsin|arccos|arctan|asin|acos|atan|sin|cos|tan|sec|csc|cot|log|exp|sqrt)\b/g, '$1*$2')
       .replace(/([a-zA-Z])\s*(sqrt)/g, '$1*$2')
       .replace(/\b(?!sin|cos|tan|sec|csc|cot|log|log10|log2|ln|exp|sqrt|cbrt|asin|acos|atan|arcsin|arccos|arctan|abs|Abs\b)([a-zA-Z])\s*\(/g, '$1*(')
       .replace(/\s+/g, ' ')
@@ -2129,7 +2131,10 @@ function extractClaims(text, userPrompt = '') {
       }
 
       // 10c. Calculus Derivatives: Find the derivative of <expr> [with respect to <var>]
-      const derivPromptMatch = cleanPrompt.match(/^(?:find\s+the\s+derivative\s+of|calculate\s+the\s+derivative\s+of|what\s+is\s+the\s+derivative\s+of|compute\s+the\s+derivative\s+of|differentiate|find\s+d\/d[a-zA-Z]\s*)\s*\[?([a-zA-Z0-9^+\-*/().\s\\{}]+?)\]?(?:\s+with\s+respect\s+to\s+([a-zA-Z]))?$/i);
+      const strippedDerivPrompt = cleanPrompt
+        .replace(/\s+(?:and\s+(?:show|explain|use|identify|state|verify|check|simplify|apply|find|give)|using\s+(?:the\s+)?[a-zA-Z]+\s+rule|step\s+by\s+step|by\s+hand)\b.*$/i, '')
+        .trim();
+      const derivPromptMatch = strippedDerivPrompt.match(/^(?:find\s+the\s+derivative\s+of|calculate\s+the\s+derivative\s+of|what\s+is\s+the\s+derivative\s+of|compute\s+the\s+derivative\s+of|differentiate|find\s+d\/d[a-zA-Z]\s*)\s*\[?([a-zA-Z0-9^+\-*/().\s\\{}]+?)\]?(?:\s+with\s+respect\s+to\s+([a-zA-Z]))?$/i);
       if (derivPromptMatch) {
         const expr = derivPromptMatch[1].trim();
         if (/[a-zA-Z]/.test(expr)) {
@@ -2138,15 +2143,17 @@ function extractClaims(text, userPrompt = '') {
           const vMatch = cleanedVars.match(/[a-zA-Z]/);
           const v = derivPromptMatch[2] || (wrtPrompt ? wrtPrompt[1] : (vMatch ? vMatch[0] : 'x'));
           if (!claims.some(c => c.claim_type === 'derivative')) {
+            const normDerivVal = normalizeSymbolicSide(candidateBoxed) || candidateBoxed;
             claims.push({
               domain: 'calculus',
               claim_type: 'derivative',
-              raw_match: `d/d${v}[${expr}] = ${candidateBoxed}`,
+              raw_match: `d/d${v}[${expr}] = ${normDerivVal}`,
               data: {
                 expression: expr,
                 variable: v,
-                proposed_value: candidateBoxed,
-                proposed_derivative: candidateBoxed,
+                proposed_value: normDerivVal,
+                proposed_derivative: normDerivVal,
+                raw_val_str: candidateBoxed,
                 userPrompt: promptStr
               },
               userPrompt: promptStr
@@ -2327,16 +2334,18 @@ function extractClaims(text, userPrompt = '') {
               },
               userPrompt: promptStr
             });
-          } else if (lastCalc.claim_type === 'derivative' && lastCalc.data?.proposed_derivative !== cleanBoxedStr) {
+          } else if (lastCalc.claim_type === 'derivative' && lastCalc.data?.proposed_derivative !== (normalizeSymbolicSide(cleanBoxedStr) || cleanBoxedStr)) {
+            const normDerivBoxed = normalizeSymbolicSide(cleanBoxedStr) || cleanBoxedStr;
             claims.push({
               domain: 'calculus',
               claim_type: 'derivative',
-              raw_match: `d/d${lastCalc.data.variable || 'x'}[${lastCalc.data.expression}] = ${cleanBoxedStr}`,
+              raw_match: `d/d${lastCalc.data.variable || 'x'}[${lastCalc.data.expression}] = ${normDerivBoxed}`,
               data: {
                 expression: lastCalc.data.expression,
                 variable: lastCalc.data.variable || 'x',
-                proposed_derivative: cleanBoxedStr,
-                proposed_value: cleanBoxedStr,
+                proposed_derivative: normDerivBoxed,
+                proposed_value: normDerivBoxed,
+                raw_val_str: cleanBoxedStr,
                 from_boxed_conclusion: true,
                 userPrompt: promptStr
               },
@@ -2832,12 +2841,16 @@ function checkPromptClaimFidelity(claim, userPrompt) {
 
   // Calculus Derivative Expression Fidelity
   if (claim.claim_type === 'derivative') {
-    const derivPromptMatch = promptStr.match(/(?:find\s+the\s+derivative\s+of|calculate\s+the\s+derivative\s+of|what\s+is\s+the\s+derivative\s+of|compute\s+the\s+derivative\s+of|differentiate)\s+([^,;?\n]+?)(?:\s+with\s+respect\s+to\s+[a-zA-Z]|\s*[?!.]|\s*$)/i);
+    const cleanedDerivPromptStr = String(promptStr || '')
+      .replace(/\s+(?:and\s+(?:show|explain|use|identify|state|verify|check|simplify|apply|find|give)|using\s+(?:the\s+)?[a-zA-Z]+\s+rule|step\s+by\s+step|by\s+hand)\b.*$/i, '')
+      .trim();
+    const derivPromptMatch = cleanedDerivPromptStr.match(/(?:find\s+the\s+derivative\s+of|calculate\s+the\s+derivative\s+of|what\s+is\s+the\s+derivative\s+of|compute\s+the\s+derivative\s+of|differentiate)\s+([^,;?\n]+?)(?:\s+with\s+respect\s+to\s+[a-zA-Z]|\s*[?!.]|\s*$)/i);
     if (derivPromptMatch) {
       let promptExpr = derivPromptMatch[1].trim().replace(/^[a-zA-Z]\s*\([a-zA-Z]\)\s*=\s*/, '');
       const claimExpr = claim.data?.expression;
       if (promptExpr && claimExpr) {
         const canonDerivExpr = (expr) => replaceLatexRadicalsAndFractions(String(expr))
+          .replace(/\*\*/g, '^')
           .replace(/\{([^{}]+)\}/g, '$1')
           .replace(/\s+/g, '')
           .replace(/(\d)([a-zA-Z])/g, '$1*$2')

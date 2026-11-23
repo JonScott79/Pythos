@@ -542,12 +542,16 @@ function extractActiveProblemState(messages = [], preflightFacts = [], options =
       let targetForEq = cleanPrompt;
       // If the prompt contains prose words around an equation, try to isolate the embedded equation (including multi-term LHS with spaces, LaTeX, and trig)
       if (isProse(cleanPrompt)) {
-        const afterColonOrSolve = cleanPrompt.match(/(?::\s*|\bsolve(?:\s+for\s+[a-zA-Z])?\s+)([\\a-zA-Z0-9+\-*/^().π_{}\s]+?=\s*[\\a-zA-Z0-9+\-*/^().π_{}\s]+?)(?:[$,;\n\.?!]|\s+for\b|\s+where\b|\s+on\b|$)/i);
+        const strippedTail = cleanPrompt
+          .replace(/\s+(?:step[-\s]+by[-\s]+step|by\s+(?:hand|factoring|substitution|elimination|completing\s+the\s+square|quadratic\s+formula)|using\s+(?:the\s+)?[a-zA-Z\s]+|and\s+(?:show|check|explain|verify|state|simplify|graph|plot)\b).*$/i, '')
+          .trim();
+        const eqSearchText = strippedTail || cleanPrompt;
+        const afterColonOrSolve = eqSearchText.match(/(?::\s*|\bsolve(?:\s+for\s+[a-zA-Z])?\s+)([\\a-zA-Z0-9+\-*/^().π_{}\s]+?=\s*[\\a-zA-Z0-9+\-*/^().π_{}\s]+?)(?:[$,;\n\.?!]|\s+for\b|\s+where\b|\s+on\b|$)/i);
         const colonCandidate = afterColonOrSolve ? afterColonOrSolve[1].replace(/^(?:solve(?:\s+for\s+[a-zA-Z])?\s+)/i, '').trim() : null;
         const funcOrEqMatch = (colonCandidate && !isProse(colonCandidate))
           ? [null, colonCandidate]
-          : (cleanPrompt.match(/(?:^|\s)((?:f\(x\)|g\(x\)|h\(x\)|[a-zA-Z])\s*=\s*[^,;\n]+?)(?:[$,;\n\.]|\s+for\b|\s+where\b|\s+on\b|$)/i) ||
-             cleanPrompt.match(/(?:^|\s)([\\a-zA-Z0-9+\-*/^().π_{}]+(?:\s*[+\-*/^]\s*[\\a-zA-Z0-9+\-*/^().π_{}]+)*\s*=\s*[\\a-zA-Z0-9+\-*/^().π_{}]+(?:\s*[+\-*/^]\s*[\\a-zA-Z0-9+\-*/^().π_{}]+)*)(?:[$,;\n\.]|$)/));
+          : (eqSearchText.match(/(?:^|\s)((?:f\(x\)|g\(x\)|h\(x\)|[a-zA-Z])\s*=\s*[^,;\n]+?)(?:[$,;\n\.]|\s+for\b|\s+where\b|\s+on\b|$)/i) ||
+             eqSearchText.match(/(?:^|\s)([\\a-zA-Z0-9+\-*/^().π_{}]+(?:\s*[+\-*/^]\s*[\\a-zA-Z0-9+\-*/^().π_{}]+)*\s*=\s*[\\a-zA-Z0-9+\-*/^().π_{}]+(?:\s*[+\-*/^]\s*[\\a-zA-Z0-9+\-*/^().π_{}]+)*)(?:[$,;\n\.]|$)/));
         if (funcOrEqMatch) targetForEq = funcOrEqMatch[1].trim();
       }
 
@@ -704,7 +708,7 @@ function extractActiveProblemState(messages = [], preflightFacts = [], options =
         if (isValidIntermediateStepOfActive && (!excludeUnverifiedUserSteps || i < messages.length - 1) && !isRejectionAssistantMsg(messages[i + 1])) {
           currentActive.currentStepEquation = stepCandidateEq;
         }
-      } else if (!currentActive.activeExpression && activeMath && currentActive.domain !== 'PHYSICS' && !/^[a-zA-Z]\s*=\s*[-\d.]+$/.test(activeMath)) {
+      } else if (!currentActive.activeExpression && activeMath && currentActive.domain !== 'PHYSICS' && !/^[a-zA-Z]\s*=\s*[-\d.]+$/.test(activeMath) && !isQuestionOrValidation && !isRejectionAssistantMsg(messages[i + 1])) {
         currentActive.activeExpression = activeMath;
       }
       if (classification && Object.keys(classification.knownQuantities).length > 0) {

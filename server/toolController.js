@@ -654,6 +654,7 @@ async function executeTool(toolName, args, sessionContext = {}) {
           tool: toolName,
           operation: args.operation,
           expression: args.expression,
+          variable: args.variable || 'x',
           result: calcRes.exactResult,
           formattedResult: calcRes.formattedResult,
           derivationSteps: calcRes.derivationSteps || [],

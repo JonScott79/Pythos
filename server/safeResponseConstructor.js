@@ -217,15 +217,18 @@ function constructSafeVerifiedResponse({
 
     // 2f. Preflight Specialist Calculus / Geometry
     if (preflightToolResult.tool === 'solve_calculus' || preflightToolResult.tool === 'solve_geometry') {
-      const { status, operation, result, formattedResult, derivationSteps = [] } = preflightToolResult;
+      const { status, operation, expression, variable = 'x', result, formattedResult, derivationSteps = [] } = preflightToolResult;
       if (status !== 'VERIFIED' && status !== 'SUCCESS') {
         return null;
       }
       const boxContent = result !== undefined && result !== null && String(result).trim() !== '' ? result : formattedResult;
       if (!boxContent) return null;
+      const isDiffOp = preflightToolResult.tool === 'solve_calculus' && String(operation || '').toUpperCase().startsWith('DIFF') && expression;
+      const explicitFormulaLine = isDiffOp ? `$\\frac{d}{d${variable}}[${expression}] = ${boxContent}$` : null;
       const lines = [
         "Here's the verified step-by-step solution:",
         '',
+        ...(explicitFormulaLine ? [explicitFormulaLine, ''] : []),
         ...(Array.isArray(derivationSteps) && derivationSteps.length > 0 ? derivationSteps.map(s => `- ${s}`) : []),
         '',
         `$\\boxed{${boxContent}}$`

@@ -327,16 +327,27 @@ function evaluateLinearEquationStep(targetEqStr, activeEqStr) {
     if (isVarMatch && isCoeffMatch) {
       if (parsedTarget.c === parsedActive.expectedStepRhs) {
         // Correct step!
+        if (Math.abs(parsedActive.b) < 1e-12) {
+          return {
+            status: 'STEP_VERIFIED_CORRECT',
+            target: targetEqStr.trim(),
+            correctedStep: parsedActive.expectedStep,
+            nextOperation: parsedActive.nextOp,
+            details: `${parsedActive.expectedStep} matches the current isolated equation step. Next, ${parsedActive.nextOp}.`,
+            preferredResponse: `Yes. \`${parsedActive.expectedStep}\` is right.\n\nNext, ${parsedActive.nextOp}.`
+          };
+        }
         const bSign = parsedActive.b >= 0 ? `+ ${parsedActive.b}` : `- ${Math.abs(parsedActive.b)}`;
         const bUndo = parsedActive.b >= 0 ? `- ${parsedActive.b}` : `+ ${Math.abs(parsedActive.b)}`;
+        const opWord = parsedActive.b >= 0 ? `subtracted ${parsedActive.b} from` : `added ${Math.abs(parsedActive.b)} to`;
         const aPrefix = parsedActive.a !== 1 ? parsedActive.a : '';
         return {
           status: 'STEP_VERIFIED_CORRECT',
           target: targetEqStr.trim(),
           correctedStep: parsedActive.expectedStep,
           nextOperation: parsedActive.nextOp,
-          details: `You subtracted ${parsedActive.b} from both sides: ${aPrefix}${parsedActive.variable} ${bSign} ${bUndo} = ${parsedActive.c} ${bUndo} which gives ${parsedActive.expectedStep}.`,
-          preferredResponse: `Yes. \`${parsedActive.expectedStep}\` is correct.\nYou subtracted ${parsedActive.b} from both sides:\n\`${aPrefix}${parsedActive.variable} ${bSign} ${bUndo} = ${parsedActive.c} ${bUndo}\`\nwhich gives \`${parsedActive.expectedStep}\`.\n\nNext, ${parsedActive.nextOp}.`
+          details: `You ${opWord} both sides: ${aPrefix}${parsedActive.variable} ${bSign} ${bUndo} = ${parsedActive.c} ${bUndo} which gives ${parsedActive.expectedStep}.`,
+          preferredResponse: `Yes. \`${parsedActive.expectedStep}\` is correct.\nYou ${opWord} both sides:\n\`${aPrefix}${parsedActive.variable} ${bSign} ${bUndo} = ${parsedActive.c} ${bUndo}\`\nwhich gives \`${parsedActive.expectedStep}\`.\n\nNext, ${parsedActive.nextOp}.`
         };
       } else {
         // Check if this is specifically a sign error (e.g. adding instead of subtracting b, or subtracting instead of adding)
@@ -788,7 +799,7 @@ function splitInlineStepRestrictions(rawTargetExpr) {
 /**
  * Evaluates intermediate steps or candidate solutions for active equations (e.g. 3x + 7 = 22 or 3x^2 - 3 = 48).
  */
-function evaluateEquationCandidate(targetExpr, activeEq, originalEq = null) {
+function evaluateEquationCandidate(targetExpr, activeEq, originalEq = null, options = {}) {
   if (!targetExpr || !activeEq || !activeEq.includes('=')) return null;
   const origEq = (originalEq && originalEq.includes('=')) ? originalEq : activeEq;
 
@@ -1438,6 +1449,20 @@ function evaluateEquationCandidate(targetExpr, activeEq, originalEq = null) {
         const subExpr = eqParts[0].trim().replace(new RegExp(`(?<![a-zA-Z])${proposedVar}(?![a-zA-Z])`, 'g'), `(${isRadicalInput ? cleanRootLatex : proposedVal})`);
         const roundedLhs = Number.isFinite(lhsVal) ? Number(lhsVal.toFixed(6)) : lhsVal;
 
+        if (satisfies && options && options.claimsOnlySingleSolution && negAlsoSatisfies && !studentGaveBothSigns) {
+          const otherRoot = -proposedVal;
+          return {
+            status: 'STEP_VERIFIED_INCORRECT',
+            evaluationCategory: 'INCORRECT_TRANSFORMATION',
+            lostRoots: [otherRoot],
+            rawExpression: targetExpr,
+            variable: proposedVar,
+            proposedValue: proposedVal,
+            details: `${proposedVar} = ${proposedVal} satisfies ${origEq}, but it is NOT the only solution — ${proposedVar} = ${otherRoot} is also a solution (incomplete solution set).`,
+            preferredResponse: `Watch out — \`${proposedVar} = ${proposedVal}\` satisfies \`${origEq}\`, **but it is not the only solution**! Notice \`${proposedVar} = ${otherRoot}\` also satisfies \`${origEq}\`.`
+          };
+        }
+
         if (satisfies && (isRadicalInput || negAlsoSatisfies)) {
           const hasMissingNegRoot = Boolean(negAlsoSatisfies && !studentGaveBothSigns);
           const finalBoxedLatex = negAlsoSatisfies
@@ -1458,6 +1483,41 @@ function evaluateEquationCandidate(targetExpr, activeEq, originalEq = null) {
             preferredResponse: hasMissingNegRoot
               ? `Nice job jumping ahead—$${proposedVar} = ${cleanRootLatex}$ is a valid solution! Substituting $${proposedVar} = ${cleanRootLatex}$ into $${activeEq}$ gives $${roundedLhs} = ${rhsVal}$.\n\nFinishing the steps from $${activeEq}$:\n$$${proposedVar}^2 = ${Math.round(proposedVal * proposedVal)}$$\nRemember that taking the square root of both sides yields both a positive and a negative root, so $$-${cleanRootLatex}$$ is also a solution:\n$$${finalBoxedLatex}$$`
               : `Spot on—you jumped ahead and solved it! Substituting $${proposedVar} = ${negAlsoSatisfies ? '\\pm ' + cleanRootLatex : cleanRootLatex}$ into $${activeEq}$ gives $${roundedLhs} = ${rhsVal}$.\n\n$$${finalBoxedLatex}$$`
+          };
+        }
+
+        let missingRootDetected = null;
+        if (satisfies && !/\b(?:sin|cos|tan|sec|csc|cot|log|ln|exp)\b|sqrt/i.test(origEq) && !/non[-\s]?zero|positive|negative|greater\s+than|less\s+than/i.test(origEq)) {
+          const residualFn = (val) => {
+            const l = safeEvaluateRealAtPoint(normOrigLhs, { [proposedVar]: val });
+            const r = safeEvaluateRealAtPoint(normOrigRhs, { [proposedVar]: val });
+            return (l.isRealFinite && r.isRealFinite) ? (l.value - r.value) : NaN;
+          };
+          const probePoints = [-10, -9, -8, -7, -6, -5, -4, -3, -2, -1, -0.5, 0, 0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10];
+          for (const p of probePoints) {
+            if (Math.abs(p - proposedVal) < 1e-4) continue;
+            const diffP = residualFn(p);
+            if (Number.isFinite(diffP) && Math.abs(diffP) < 1e-6) {
+              missingRootDetected = p;
+              break;
+            }
+          }
+        }
+        if (missingRootDetected !== null) {
+          const onlyClaimed = Boolean(options && options.claimsOnlySingleSolution);
+          return {
+            status: 'STEP_VERIFIED_INCORRECT',
+            evaluationCategory: 'INCORRECT_TRANSFORMATION',
+            lostRoots: [missingRootDetected],
+            rawExpression: targetExpr,
+            variable: proposedVar,
+            proposedValue: proposedVal,
+            details: onlyClaimed
+              ? `${proposedVar} = ${proposedVal} satisfies ${origEq}, but it is NOT the only solution — ${proposedVar} = ${missingRootDetected} is also a solution (incomplete solution set).`
+              : `${proposedVar} = ${proposedVal} satisfies ${origEq}, but another valid solution (${proposedVar} = ${missingRootDetected}) was omitted (incomplete solution set).`,
+            preferredResponse: onlyClaimed
+              ? `Not quite the complete picture — \`${proposedVar} = ${proposedVal}\` does satisfy \`${origEq}\`, **but it is not the only solution**! Look for another solution (\`${proposedVar} = ${missingRootDetected}\` also satisfies \`${origEq}\`).`
+              : `\`${proposedVar} = ${proposedVal}\` satisfies \`${origEq}\`, but watch out — that's not the only solution! Another solution (\`${proposedVar} = ${missingRootDetected}\`) also works.`
           };
         }
 
@@ -1917,7 +1977,10 @@ function evaluateStudentWorkCore(rawInput, classification, conversationHistory =
           return eqStepEval;
         }
 
-        const candEval = evaluateEquationCandidate(target, activeEq, originalEq || activeEq);
+        const candEval = evaluateEquationCandidate(target, activeEq, originalEq || activeEq, {
+          claimsOnlySingleSolution: Boolean(classification?.claimsOnlySingleSolution || /\b(?:(?:the\s+)?(?:only|sole|unique|single)\s+(?:solution|root|answer|value)|only\s+(?:[a-zA-Z]|theta)\s*=)/i.test(rawInput)),
+          rawUserMessage: rawInput
+        });
         if (candEval) {
           candEval.intent = intent;
           candEval.rawExpression = target;
@@ -2038,7 +2101,10 @@ function evaluateStudentWorkCore(rawInput, classification, conversationHistory =
       eqStepEval.intent = intent;
       return eqStepEval;
     }
-    const candEval = evaluateEquationCandidate(targetExpr, activeEq, originalEq || activeEq);
+    const candEval = evaluateEquationCandidate(targetExpr, activeEq, originalEq || activeEq, {
+      claimsOnlySingleSolution: Boolean(classification?.claimsOnlySingleSolution || /\b(?:(?:the\s+)?(?:only|sole|unique|single)\s+(?:solution|root|answer|value)|only\s+(?:[a-zA-Z]|theta)\s*=)/i.test(rawInput)),
+      rawUserMessage: rawInput
+    });
     if (candEval) {
       candEval.intent = intent;
       if (classification.pragmatics?.isJumpAheadStepRhs) {

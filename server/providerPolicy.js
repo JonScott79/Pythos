@@ -92,7 +92,18 @@ function getProviderRegistry() {
       freeEligible: true, // Self-hosted / local / internal zero-API-cost
       enabled: () => process.env.OLLAMA_ENABLED !== 'false',
       isConfigured: () => {
-        return Boolean(process.env.OLLAMA_HOST || 'http://localhost:11434');
+        const explicit = process.env.OLLAMA_HOST ? process.env.OLLAMA_HOST.trim() : '';
+        if (explicit.length > 0) {
+          if (isRailway && /^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?(?:\/.*)?$/i.test(explicit) && process.env.OLLAMA_LOCAL_ENABLED !== 'true') {
+            return false;
+          }
+          return true;
+        }
+        // Inside Railway containers without an explicit remote OLLAMA_HOST, localhost:11434 does not exist.
+        if (isRailway && process.env.OLLAMA_LOCAL_ENABLED !== 'true') {
+          return false;
+        }
+        return Boolean('http://localhost:11434');
       }
     },
     {
