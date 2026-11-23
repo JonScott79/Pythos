@@ -182,8 +182,10 @@ function detectTopicTransitionIntent(userText) {
   }
 
   // 2. Explicit switch to new topic / problem
-  // e.g. "Let's switch topics", "New problem:", "Different question:", "Can we do physics instead?"
+  // e.g. "Let's switch topics", "New problem:", "Actually never mind, new problem: Solve 2y - 7 = 11", "Let us solve a new problem: 4m + 3 = 19"
   const switchMatch = lower.match(/^(?:let's\s+switch\s+topics?|switch\s+topics?|new\s+problem|next\s+problem|different\s+question|can\s+we\s+switch|let's\s+change\s+the\s+subject|moving\s+on\s+to)\b/i) ||
+                      lower.match(/\b(?:new|next|different)\s+problem\s*:/i) ||
+                      lower.match(/^(?:actually\s+)?never\s+mind\b/i) ||
                       lower.match(/(?:let's\s+do|can\s+we\s+do|how\s+about)\s+(?:physics|calculus|algebra|geometry|something\s+else)\s+(?:instead|now)/i);
   if (switchMatch) {
     return {
@@ -538,10 +540,14 @@ function extractActiveProblemState(messages = [], preflightFacts = [], options =
 
     if (cleanPrompt.includes('=')) {
       let targetForEq = cleanPrompt;
-      // If the prompt contains prose words around an equation, try to isolate the embedded equation (including LaTeX and trig)
+      // If the prompt contains prose words around an equation, try to isolate the embedded equation (including multi-term LHS with spaces, LaTeX, and trig)
       if (isProse(cleanPrompt)) {
-        const funcOrEqMatch = cleanPrompt.match(/(?:^|\s)((?:f\(x\)|g\(x\)|h\(x\)|[a-zA-Z])\s*=\s*[^,;\n]+?)(?:[$,;\n\.]|\s+for\b|\s+where\b|\s+on\b|$)/i) ||
-                              cleanPrompt.match(/(?:^|\s)([\\a-zA-Z0-9+\-*/^().π_{}]+\s*=\s*[\\a-zA-Z0-9+\-*/^().π_{}]+)(?:[$,;\n\.]|$)/);
+        const afterColonOrSolve = cleanPrompt.match(/(?::\s*|\bsolve(?:\s+for\s+[a-zA-Z])?\s+)([\\a-zA-Z0-9+\-*/^().π_{}\s]+?=\s*[\\a-zA-Z0-9+\-*/^().π_{}\s]+?)(?:[$,;\n\.?!]|\s+for\b|\s+where\b|\s+on\b|$)/i);
+        const colonCandidate = afterColonOrSolve ? afterColonOrSolve[1].replace(/^(?:solve(?:\s+for\s+[a-zA-Z])?\s+)/i, '').trim() : null;
+        const funcOrEqMatch = (colonCandidate && !isProse(colonCandidate))
+          ? [null, colonCandidate]
+          : (cleanPrompt.match(/(?:^|\s)((?:f\(x\)|g\(x\)|h\(x\)|[a-zA-Z])\s*=\s*[^,;\n]+?)(?:[$,;\n\.]|\s+for\b|\s+where\b|\s+on\b|$)/i) ||
+             cleanPrompt.match(/(?:^|\s)([\\a-zA-Z0-9+\-*/^().π_{}]+(?:\s*[+\-*/^]\s*[\\a-zA-Z0-9+\-*/^().π_{}]+)*\s*=\s*[\\a-zA-Z0-9+\-*/^().π_{}]+(?:\s*[+\-*/^]\s*[\\a-zA-Z0-9+\-*/^().π_{}]+)*)(?:[$,;\n\.]|$)/));
         if (funcOrEqMatch) targetForEq = funcOrEqMatch[1].trim();
       }
 
@@ -566,7 +572,7 @@ function extractActiveProblemState(messages = [], preflightFacts = [], options =
     // Distinguish genuine new problems from terse student work/follow-ups
     const isExplicitNewProblem = trans.type === 'NEW_TOPIC_EXPLICIT' ||
       /^(?:(?:now|can\s+you|please|let's)\s+)?(?:solve|do|try|calculate|work\s+out)\s+([a-zA-Z0-9+\-*/^()=.\s]+)$/i.test(msg.content) ||
-      /^(?:new|next|different)\s+problem/i.test(msg.content);
+      /\b(?:new|next|different)\s+problem\b/i.test(msg.content);
 
     const activeMath = (isExplicitNewProblem && extractedEq) ? extractedEq : (mathExpr || extractedEq || extractedExpr || null);
     const isAlgebraicEquation = Boolean(extractedEq);
@@ -1016,9 +1022,10 @@ function buildEffectivePrompt(messages = []) {
 
   // Guard: If latest turn is an independent general inquiry or pure standalone arithmetic,
   // do not contaminate it with prior problem parameters
+  const hasRootOrAnswerClaim = /[a-zA-Z]\s*=\s*[-+]?\d+(?:\.\d+)?|\b(?:the\s+)?(?:answer|solution|root)\s+is\b/i.test(latestUser);
   const isStandaloneQuery = /^(?:tell\s+me\s+about|who\s+(?:was|is)|what\s+is\s+(?:the\s+capital|photosynthesis|gravity|history)|explain\s+the\s+concept\s+of)\b/i.test(latestUser) ||
                             /^(?:what\s+is\s+)?\d+[\s+\-*/^]+\d+(?:\s*[\s+\-*/^]\s*\d+)*\??$/i.test(latestUser) ||
-                            /^(?:nope|nah|no|not\s+quite)[,.\s]+(?:future|actually|i\s+mean|it'?s|i\s+meant|not\s+that)\b/i.test(latestUser) ||
+                            (!hasRootOrAnswerClaim && /^(?:nope|nah|no|not\s+quite)[,.\s]+(?:future|actually|i\s+mean|it'?s|i\s+meant|not\s+that)\b/i.test(latestUser)) ||
                             /^(?:(?:nope|nah|no)[,.\s]+)?(?:that'?s|that\s+is)\s+not\s+what\s+i\s+(?:meant|said|asked|was\s+saying)\b/i.test(latestUser) ||
                             /^(?:nope|nah)[,.\s!]*$/i.test(latestUser);
   if (isStandaloneQuery && !/(?:from\s+that|to\s+that|previous\s+answer|earlier|that\s+result)/i.test(latestUser)) {
@@ -1091,8 +1098,8 @@ function buildEffectivePrompt(messages = []) {
   for (let i = 1; i < userMsgs.length; i++) {
     const turnText = userMsgs[i].content.trim();
 
-    // Equation correction (ignore simple single-variable numeric user claims like "Actually x = 7." unless explicit equation rewrite)
-    const eqMatch = turnText.match(/(?:i\s+meant|solve|typo,?\s+meant|(?:actually|wait|sorry|no)[,\s]*(?:the\s+)?equation\s+(?:is|was)|actually)\s+([a-zA-Z0-9+\-*/^().\s=]+=[a-zA-Z0-9+\-*/^().\s=]+)/i);
+    // Equation correction (ignore simple single-variable numeric user claims like "Actually x = 7." or "No, actually the answer is x = 11." unless explicit equation rewrite)
+    const eqMatch = turnText.match(/(?:i\s+meant|solve|typo,?\s+meant|(?:actually|wait|sorry|no)[,\s]*(?:the\s+)?equation\s+(?:is|was)|actually(?:\s+(?:the\s+)?(?:answer|solution|root)\s+is)?)\s+([a-zA-Z0-9+\-*/^().\s=]+=[a-zA-Z0-9+\-*/^().\s=]+)/i);
     const isSimpleUserRootClaim = eqMatch &&
       /^[a-zA-Z]\s*=\s*[-+]?\d+(?:\.\d+)?[.?!]*$/.test(eqMatch[1].trim()) &&
       !/\b(?:the\s+equation|solve)\b/i.test(turnText);

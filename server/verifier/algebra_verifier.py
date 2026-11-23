@@ -496,7 +496,23 @@ def verify_algebra(claim: dict) -> dict:
                 true_sol_vals = []
 
         if not true_solutions and not has_trig:
-            true_solutions = sp.solve(equation, var)
+            try:
+                true_solutions = sp.solve(equation, var)
+            except Exception:
+                true_solutions = []
+
+            if not true_solutions and str(claim.get("domain_mode", "real")).lower() != "complex" and not (
+                has_proposed and any(isinstance(p, str) and p.strip().lower() in ("i", "-i") for p in proposed_solutions)
+            ):
+                try:
+                    real_var = sp.Symbol(variable_str, real=True)
+                    real_eq = equation.subs(var, real_var)
+                    real_set = sp.solveset(real_eq, real_var, domain=sp.S.Reals)
+                    if isinstance(real_set, sp.FiniteSet):
+                        true_solutions = list(real_set)
+                except Exception:
+                    pass
+
             for s in true_solutions:
                 try:
                     if s.is_real is True:

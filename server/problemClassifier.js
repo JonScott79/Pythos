@@ -182,7 +182,7 @@ function extractKnownQuantities(text) {
 
   // Length / Distance: preserve all quantities (e.g. 6 m, 700 cm, 12 yards, 15 yards)
   // Ensure we don't match "m" in "m/s" or "m/s^2"
-  const lengthRegex = /(\d+(?:\.\d+)?)\s*(meters?|centimeters?|cm|feet|foot|ft|inches|inch|in|kilometers?|km|yards?|yd|m(?!\s*\/))\b/gi;
+  const lengthRegex = /(\d+(?:\.\d+)?)\s*(meters?|centimeters?|cm|feet|foot|ft|inches|inch|in|kilometers?|km|yards?|yd|m(?!\s*[\/+\-*^=()]))\b/gi;
   const lengthMatches = [...text.matchAll(lengthRegex)];
   if (lengthMatches.length > 0) {
     knowns.lengths = lengthMatches.map(m => m[0]);

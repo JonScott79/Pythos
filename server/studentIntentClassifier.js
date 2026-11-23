@@ -549,7 +549,12 @@ function classifyStudentIntentCore(text, conversationHistory, activeProblemState
     };
   }
 
-  const varAssignMatch = transpiledClean.match(/^((?:[a-zA-Z]|theta)\s*=\s*(?:±|\\pm|\+-)?\s*(?:[-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?|[-+]?(?:\\?sqrt|√)\s*[\({]?\s*\d+(?:\.\d+)?\s*[\)}]?)(?:(?:\*?pi|\*?θ)?)?)(?:[,\s!]+.*)?$/i);
+  const strippedFillerClean = transpiledClean
+    .replace(/^(?:(?:actually|wait|sorry|no|well|ok|okay|um|uh|now|then|so)[,:\s]+)+/i, '')
+    .replace(/^(?:(?:i\s+(?:still\s+)?(?:got|have|think\s+it'?s?|meant|mean))|(?:still\s+got))\s+/i, '')
+    .trim();
+
+  const varAssignMatch = strippedFillerClean.match(/^((?:[a-zA-Z]|theta)\s*=\s*(?:±|\\pm|\+-)?\s*(?:[-+]?\d+(?:\.\d+)?(?:\s*\/\s*\d+)?|[-+]?(?:\\?sqrt|√)\s*[\({]?\s*\d+(?:\.\d+)?\s*[\)}]?)(?:(?:\*?pi|\*?θ)?)?)(?:[,\s!]+.*)?$/i);
   if (varAssignMatch) {
     signals.push('variable_assignment');
     return {
@@ -560,7 +565,7 @@ function classifyStudentIntentCore(text, conversationHistory, activeProblemState
     };
   }
 
-  const stepEqMatch = transpiledClean.match(/^(\d*[a-zA-Z](?:\^[0-9]+|[²³⁴])?(?:\s*[-+]\s*\d+(?:\.\d+)?)?\s*=\s*[-+]?\d+(?:\.\d+)?(?:(?:\s*\/\s*\d+)?(?:\*?pi|\*?θ)?)?)(?:[,\s!]+.*)?$/i);
+  const stepEqMatch = strippedFillerClean.match(/^(\d*[a-zA-Z](?:\^[0-9]+|[²³⁴])?(?:\s*[-+]\s*\d+(?:\.\d+)?)?\s*=\s*[-+]?\d+(?:\.\d+)?(?:(?:\s*\/\s*\d+)?(?:\*?pi|\*?θ)?)?)(?:[,\s!]+.*)?$/i);
   if (stepEqMatch) {
     signals.push('intermediate_equation_step');
     return {
@@ -571,15 +576,15 @@ function classifyStudentIntentCore(text, conversationHistory, activeProblemState
     };
   }
 
-  if (hasActiveProblem && transpiledClean.includes('=') && transpiledClean.length <= 50) {
-    const eqSides = transpiledClean.split('=');
+  if (hasActiveProblem && strippedFillerClean.includes('=') && strippedFillerClean.length <= 50) {
+    const eqSides = strippedFillerClean.split('=');
     if (eqSides.length === 2 && isMathematicalExpression(eqSides[0].trim()) && isMathematicalExpression(eqSides[1].trim())) {
       signals.push('contextual_equation_step');
       return {
         intent: INTENTS.PROPOSED_STEP,
         confidence: 'high',
         signals,
-        extractedExpression: transpiledClean
+        extractedExpression: strippedFillerClean
       };
     }
   }

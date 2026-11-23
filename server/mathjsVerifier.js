@@ -531,39 +531,109 @@ const MathJSVerifier = {
       const normLhs = lhsStr.replace(/(\d)\s*([a-zA-Z])(?![a-zA-Z])/g, '$1*$2');
       const normRhs = rhsStr.replace(/(\d)\s*([a-zA-Z])(?![a-zA-Z])/g, '$1*$2');
 
-      // 1. Analyze polynomial degree and expected roots
+      // 1. Analyze polynomial degree and expected roots strictly on true univariate polynomials (AST-verified)
       const exprStr = `(${normLhs}) - (${normRhs})`;
       const f = x => math.evaluate(exprStr, { [variable]: x });
       let polyInfo = null;
+      const MATHJS_CONSTANTS = new Set(['pi', 'e', 'tau', 'phi', 'LN2', 'LN10', 'LOG2E', 'LOG10E', 'SQRT1_2', 'SQRT2']);
 
-      try {
-        const c = f(0);
-        const p1 = f(1);
-        const pm1 = f(-1);
-        const a = (p1 + pm1 - 2 * c) / 2;
-        const b = (p1 - pm1) / 2;
-        const p2 = f(2);
-        const expectedP2 = a * 4 + b * 2 + c;
-        const pm2 = f(-2);
-        const expectedPm2 = a * 4 - b * 2 + c;
-
-        if (Math.abs(p2 - expectedP2) < 1e-4 && Math.abs(pm2 - expectedPm2) < 1e-4) {
-          // Cross-check off-grid irrational sample so degree >= 3 polynomials zeroed on [-2,-1,0,1,2] don't fool degree inference
-          const irrX = 1.7320508075688772;
-          const pIrr = f(irrX);
-          const expectedIrr = a * irrX * irrX + b * irrX + c;
-          if (Math.abs(pIrr - expectedIrr) < 1e-4 * Math.max(1, Math.abs(expectedIrr))) {
-            if (Math.abs(a) > 1e-6) {
-              const disc = b * b - 4 * a * c;
-              polyInfo = { degree: 2, a, b, c, disc };
-            } else if (Math.abs(b) > 1e-6) {
-              polyInfo = { degree: 1, a: 0, b, c, root: -c / b };
-            } else {
-              polyInfo = { degree: 0, c };
+      const isPurePolynomialAst = (node, varName) => {
+        if (!node) return false;
+        if (node.isParenthesisNode) return isPurePolynomialAst(node.content, varName);
+        if (node.isConstantNode) return Number.isFinite(Number(node.value));
+        if (node.isSymbolNode) return node.name === varName || MATHJS_CONSTANTS.has(node.name);
+        if (node.isFunctionNode) return false; // abs, sqrt, trig, log, etc. are NEVER polynomials
+        if (node.isOperatorNode) {
+          if (node.op === '+' || node.op === '-' || node.op === '*') {
+            return node.args.every(arg => isPurePolynomialAst(arg, varName));
+          }
+          if (node.op === '/') {
+            // Rational division by a variable expression is not a polynomial
+            const denomHasVar = node.args[1] && node.args[1].filter(n => n.isSymbolNode && n.name === varName).length > 0;
+            if (denomHasVar) return false;
+            return isPurePolynomialAst(node.args[0], varName) && isPurePolynomialAst(node.args[1], varName);
+          }
+          if (node.op === '^') {
+            if (!isPurePolynomialAst(node.args[0], varName)) return false;
+            try {
+              const expVal = node.args[1].evaluate();
+              return Number.isInteger(expVal) && expVal >= 0 && expVal <= 12;
+            } catch (_) {
+              return false;
             }
           }
         }
-      } catch (_) {}
+        return false;
+      };
+
+      let isAstPolynomial = false;
+      try {
+        const parsedPolyAst = math.parse(exprStr);
+        isAstPolynomial = isPurePolynomialAst(parsedPolyAst, variable);
+      } catch (_) {
+        isAstPolynomial = false;
+      }
+
+      if (isAstPolynomial) {
+        try {
+          const rat = math.rationalize(exprStr, { pi: Math.PI, e: Math.E, tau: 2 * Math.PI, phi: (1 + Math.sqrt(5)) / 2 }, true);
+          if (rat && Array.isArray(rat.coefficients) && (rat.variables.length === 0 || (rat.variables.length === 1 && rat.variables[0] === variable))) {
+            const coeffs = rat.coefficients;
+            const maxCoeff = coeffs.reduce((mx, v) => Math.max(mx, Math.abs(v)), 0);
+            let deg = 0;
+            for (let i = coeffs.length - 1; i >= 1; i--) {
+              if (maxCoeff > 0 && Math.abs(coeffs[i]) > 1e-12 * maxCoeff) {
+                deg = i;
+                break;
+              }
+            }
+            if (deg === 2) {
+              const c = coeffs[0] || 0;
+              const b = coeffs[1] || 0;
+              const a = coeffs[2];
+              polyInfo = { degree: 2, a, b, c, disc: b * b - 4 * a * c };
+            } else if (deg === 1) {
+              const c = coeffs[0] || 0;
+              const b = coeffs[1];
+              polyInfo = { degree: 1, a: 0, b, c, root: -c / b };
+            } else if (deg === 0) {
+              polyInfo = { degree: 0, c: coeffs[0] || 0 };
+            } else {
+              polyInfo = { degree: deg };
+            }
+          }
+        } catch (_) {}
+
+        if (!polyInfo) {
+          try {
+            const c = f(0);
+            const p1 = f(1);
+            const pm1 = f(-1);
+            const a = (p1 + pm1 - 2 * c) / 2;
+            const b = (p1 - pm1) / 2;
+            const p2 = f(2);
+            const expectedP2 = a * 4 + b * 2 + c;
+            const pm2 = f(-2);
+            const expectedPm2 = a * 4 - b * 2 + c;
+
+            if (Math.abs(p2 - expectedP2) < 1e-4 && Math.abs(pm2 - expectedPm2) < 1e-4) {
+              const irrX = 1.7320508075688772;
+              const pIrr = f(irrX);
+              const expectedIrr = a * irrX * irrX + b * irrX + c;
+              if (Math.abs(pIrr - expectedIrr) < 1e-4 * Math.max(1, Math.abs(expectedIrr))) {
+                if (Math.abs(a) > 1e-6) {
+                  const disc = b * b - 4 * a * c;
+                  polyInfo = { degree: 2, a, b, c, disc };
+                } else if (Math.abs(b) > 1e-6) {
+                  polyInfo = { degree: 1, a: 0, b, c, root: -c / b };
+                } else {
+                  polyInfo = { degree: 0, c };
+                }
+              }
+            }
+          } catch (_) {}
+        }
+      }
 
       // 2. Perform scale-aware + stated-precision substitution verification
       const statedHalfUlp = (rawItem) => {
@@ -707,14 +777,81 @@ const MathJSVerifier = {
             details: `Linear equation can have only 1 root, but ${uniqueValid.length} were provided.`
           };
         }
+        return {
+          verified: true,
+          engine: 'mathjs',
+          status: 'VERIFIED',
+          valid_roots: validRoots,
+          details: `All proposed solution(s) [${validRoots.join(', ')}] satisfy ${equation}.`
+        };
+      }
+
+      // 5. Quadratic completeness already proved above when polyInfo.degree === 2
+      if (polyInfo && polyInfo.degree === 2) {
+        return {
+          verified: true,
+          engine: 'mathjs',
+          status: 'VERIFIED',
+          valid_roots: validRoots,
+          details: `All proposed solution(s) [${validRoots.join(', ')}] satisfy ${equation}.`
+        };
+      }
+
+      // 6. Higher-degree pure polynomials (deg >= 3): by Fundamental Theorem of Algebra, if all `deg`
+      // distinct valid roots are verified present with 0 extraneous roots, the real root set is complete.
+      const uniqueValidOuter = [];
+      for (const r of validRoots) {
+        if (!uniqueValidOuter.some(u => Math.abs(u - r) < 1e-4)) {
+          uniqueValidOuter.push(r);
+        }
+      }
+
+      if (polyInfo && polyInfo.degree >= 3) {
+        if (uniqueValidOuter.length > polyInfo.degree) {
+          return {
+            verified: false,
+            engine: 'mathjs',
+            status: 'EXTRANEOUS_ROOT',
+            error_type: 'EXTRANEOUS_ROOT',
+            details: `Polynomial of degree ${polyInfo.degree} can have at most ${polyInfo.degree} distinct roots, but ${uniqueValidOuter.length} were provided.`
+          };
+        }
+        if (uniqueValidOuter.length === polyInfo.degree) {
+          return {
+            verified: true,
+            engine: 'mathjs',
+            status: 'VERIFIED',
+            valid_roots: validRoots,
+            details: `All ${polyInfo.degree} distinct root(s) [${validRoots.join(', ')}] satisfy degree-${polyInfo.degree} polynomial ${equation}.`
+          };
+        }
+      }
+
+      // 7. Incomplete higher-degree polynomials (deg >= 3 with fewer than deg distinct roots) or
+      // non-polynomial equations (abs, sqrt, rational): substitution alone cannot prove completeness
+      // unless the user specifically asked for a single root or constrained geometric quantity.
+      const userPromptOuter = claim.userPrompt || claim.data?.userPrompt || '';
+      const hasSingleRootQuery =
+        /\b(?:which(?:\s+of\s+the\s+following)?(?:\s+numbers?)?\s+is\s+a\s+root|is\s+(?:the\s+)?(?:a\s+)?root|is\s+a\s+solution|find\s+a\s+root|one\s+root|a\s+root|is\s+the\s+solution)\b/i.test(userPromptOuter) ||
+        /\b(?:positive|negative|non-?zero|smaller|larger|greater|only|single)\s+(?:root|roots|solution|solutions|value|values)\b/i.test(userPromptOuter) ||
+        /\b(?:circle|radius|diameter|area|triangle|perimeter|length|width|height|distance|hypotenuse|side)\b/i.test(userPromptOuter);
+
+      if (hasSingleRootQuery && validRoots.length >= 1) {
+        return {
+          verified: true,
+          engine: 'mathjs',
+          status: 'VERIFIED',
+          valid_roots: validRoots,
+          details: `Verified requested root(s) [${validRoots.join(', ')}] satisfy ${equation}.`
+        };
       }
 
       return {
-        verified: true,
+        verified: false,
         engine: 'mathjs',
-        status: 'VERIFIED',
+        status: 'UNKNOWN',
         valid_roots: validRoots,
-        details: `All proposed solution(s) [${validRoots.join(', ')}] satisfy ${equation}.`
+        reason: `Symbolic completeness check required for equation ${equation} (cannot verify full root set via substitution alone).`
       };
 
     } catch (e) {
@@ -1096,8 +1233,19 @@ const MathJSVerifier = {
       };
     }
 
+    const claimsImpossible = Boolean(data.claims_impossible);
     const violates = (a + b <= c) || (a + c <= b) || (b + c <= a);
     if (violates) {
+      if (claimsImpossible) {
+        return {
+          verified: true,
+          engine: 'mathjs',
+          status: 'VERIFIED',
+          is_impossible: true,
+          claims_impossible: true,
+          details: `Confirmed geometric impossibility: triangle with side lengths ${a}, ${b}, ${c} violates the Triangle Inequality.`
+        };
+      }
       return {
         verified: false,
         engine: 'mathjs',
@@ -1105,6 +1253,18 @@ const MathJSVerifier = {
         error_type: 'TRIANGLE_INEQUALITY_VIOLATION',
         is_impossible: true,
         details: `Triangle with side lengths ${a}, ${b}, ${c} violates the Triangle Inequality: sum of any two sides must be strictly greater than the third side.`
+      };
+    }
+
+    if (claimsImpossible) {
+      return {
+        verified: false,
+        engine: 'mathjs',
+        status: 'INCORRECT_RESULT',
+        error_type: 'FALSE_IMPOSSIBILITY_CLAIM',
+        is_impossible: false,
+        claims_impossible: true,
+        details: `Triangle with side lengths ${a}, ${b}, ${c} satisfies the Triangle Inequality and is valid; impossibility claim is false.`
       };
     }
 

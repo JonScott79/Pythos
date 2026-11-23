@@ -790,7 +790,7 @@ app.get('/health/ready', async (req, res) => {
 });
 
 const learningStore = require('./learningStore');
-const { verifyResponseClaims, extractCandidateAnswer, evaluateCandidateDelivery, auditPromptClaimFidelity, evaluateVerificationState, buildVerificationTrustReport, extractBoxedMatches, cleanLatexUnits } = require('./verificationBridge');
+const { verifyResponseClaims, extractClaims, extractCandidateAnswer, evaluateCandidateDelivery, auditPromptClaimFidelity, evaluateVerificationState, buildVerificationTrustReport, extractBoxedMatches, cleanLatexUnits } = require('./verificationBridge');
 const {
   analyzeDeterministicIntent,
   extractPreflightDeterministicFacts,

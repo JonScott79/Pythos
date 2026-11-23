@@ -356,13 +356,19 @@ function evaluateCandidateDelivery({ candidateAnswer, verifications = [], contra
     const s2 = parseFloat(triSidesMatch[2]);
     const s3 = parseFloat(triSidesMatch[3]);
     if (s1 + s2 <= s3 || s1 + s3 <= s2 || s2 + s3 <= s1) {
-      return {
-        status: 'CONTRADICTORY_PREMISE',
-        delivered: false,
-        withheld: true,
-        answer: null,
-        reason: `Prompt describes an impossible triangle (sides ${s1}, ${s2}, ${s3} violate the Triangle Inequality).`
-      };
+      const verifiedImpossibilityVerdict =
+        Array.isArray(verifications) &&
+        verifications.some(v => v && v.verified === true && v.is_impossible === true && v.claims_impossible === true) &&
+        !/^[-+]?\d+(?:\.\d+)?$/.test(String(candidateAnswer).trim());
+      if (!verifiedImpossibilityVerdict) {
+        return {
+          status: 'CONTRADICTORY_PREMISE',
+          delivered: false,
+          withheld: true,
+          answer: null,
+          reason: `Prompt describes an impossible triangle (sides ${s1}, ${s2}, ${s3} violate the Triangle Inequality).`
+        };
+      }
     }
   }
 
@@ -914,12 +920,16 @@ function extractClaims(text, userPrompt = '') {
     const s2 = parseFloat(triMatch[2]);
     const s3 = parseFloat(triMatch[3]);
     if (!isNaN(s1) && !isNaN(s2) && !isNaN(s3)) {
+      const assertsImpossibility =
+        /\b(?:cannot\s+(?:exist|form|have)|impossible|violates?\s+(?:the\s+)?triangle\s+inequality|does\s+not\s+form\s+a\s+triangle|not\s+a\s+(?:valid|possible)\s+triangle|geometric\s+contradiction|no\s+(?:real\s+|such\s+)?triangle)\b/i.test(text) &&
+        !/\b(?:yes,?\s+(?:a\s+triangle\s+)?can\s+have|(?:the\s+)?(?:area|perimeter|angle)\s+(?:is|=))\b/i.test(text);
       claims.push({
         domain: 'geometry',
         claim_type: 'triangle_inequality',
         raw_match: triMatch[0],
         data: {
           sides: [s1, s2, s3],
+          claims_impossible: assertsImpossibility,
           userPrompt: promptStr
         },
         userPrompt: promptStr
@@ -1644,7 +1654,7 @@ function extractClaims(text, userPrompt = '') {
             proposed_solutions: solvedEqClaimForVar.data.proposed_solutions,
             userPrompt: promptStr
           });
-          if (stepSolRes && stepSolRes.verified === true) {
+          if (stepSolRes && (stepSolRes.verified === true || (stepSolRes.status === 'UNKNOWN' && Array.isArray(stepSolRes.valid_roots) && stepSolRes.valid_roots.length > 0))) {
             continue;
           }
         }
@@ -2443,7 +2453,7 @@ function auditInternalConsistency(claims) {
 
     if (c.domain === 'geometry' && c.claim_type === 'triangle_inequality' && c.data && Array.isArray(c.data.sides)) {
       const [s1, s2, s3] = c.data.sides;
-      if (s1 + s2 <= s3 || s1 + s3 <= s2 || s2 + s3 <= s1) {
+      if ((s1 + s2 <= s3 || s1 + s3 <= s2 || s2 + s3 <= s1) && !c.data.claims_impossible) {
         contradictions.push({
           type: 'GEOMETRIC_CONTRADICTION',
           details: `Geometric contradiction: Side lengths ${s1}, ${s2}, ${s3} violate the Triangle Inequality (${s1} + ${s2} <= ${s3}).`
