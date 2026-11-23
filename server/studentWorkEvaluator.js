@@ -925,6 +925,8 @@ function evaluateEquationCandidate(targetExpr, activeEq, originalEq = null) {
 
         const ratios = [];
         const validPairs = [];
+        let sampleLostRoot = null;
+        let sampleExtraneousRoot = null;
         for (const pt of sampleSet) {
           if (allOrigPoles.some(p => Math.abs(p - pt) < 1e-6)) continue;
           const aL = safeEvaluateRealAtPoint(normALhs, { [v]: pt });
@@ -968,7 +970,12 @@ function evaluateEquationCandidate(targetExpr, activeEq, originalEq = null) {
             const aDiff = aL.value - aR.value;
             const tDiff = tL.value - tR.value;
             validPairs.push({ pt, aDiff, tDiff });
-            if (Math.abs(aDiff) > 1e-7) {
+            if (Math.abs(aDiff) <= 1e-8 && Math.abs(tDiff) > 1e-5) {
+              if (sampleLostRoot === null) sampleLostRoot = pt;
+            } else if (Math.abs(tDiff) <= 1e-8 && Math.abs(aDiff) > 1e-5 && !studentExcludedNums.some(ex => Math.abs(ex - pt) < 1e-6)) {
+              if (sampleExtraneousRoot === null) sampleExtraneousRoot = pt;
+              ratios.push(tDiff / aDiff);
+            } else if (Math.abs(aDiff) > 1e-7) {
               ratios.push(tDiff / aDiff);
             }
           }
@@ -1043,6 +1050,40 @@ function evaluateEquationCandidate(targetExpr, activeEq, originalEq = null) {
             }
           }
         } catch (_) {}
+
+        if (sampleLostRoot !== null) {
+          const rDisp = Math.abs(sampleLostRoot - Math.round(sampleLostRoot)) < 1e-7 ? Math.round(sampleLostRoot) : Number(sampleLostRoot.toFixed(4));
+          return {
+            status: 'STEP_VERIFIED_INCORRECT',
+            evaluationCategory: 'INCORRECT_TRANSFORMATION',
+            verificationCategory: VERIFICATION_CATEGORIES.INVALID_TRANSFORMATION,
+            isExactSymbolicProof: false,
+            target: targetExpr.trim(),
+            correctedStep: activeEq,
+            details: `The proposed step ${targetExpr.trim()} loses the solution ${v} = ${rDisp} from ${activeEq}.`,
+            affirmation: 'Check that no valid solutions were dropped during the transformation.',
+            preferredResponse: `❌ Careful: \`${targetExpr.trim()}\` drops the solution \`${v} = ${rDisp}\` which satisfies \`${activeEq}\`.`
+          };
+        }
+
+        if (sampleExtraneousRoot !== null) {
+          const rDisp = Math.abs(sampleExtraneousRoot - Math.round(sampleExtraneousRoot)) < 1e-7 ? Math.round(sampleExtraneousRoot) : Number(sampleExtraneousRoot.toFixed(4));
+          const cause = classifyNonEquivalentCause();
+          const isSquaringOrMult = !targetDomain.hasSqrt && !activeDomain.hasSqrt;
+          return {
+            status: 'STEP_VERIFIED_INCORRECT',
+            evaluationCategory: 'INCORRECT_TRANSFORMATION',
+            verificationCategory: VERIFICATION_CATEGORIES.INVALID_TRANSFORMATION,
+            isExactSymbolicProof: false,
+            hasExtraneousSolutions: true,
+            domainViolation: cause || (isSquaringOrMult ? 'extraneous_roots_introduced' : undefined),
+            target: targetExpr.trim(),
+            correctedStep: activeEq,
+            details: `The proposed step ${targetExpr.trim()} introduces an extraneous root ${v} = ${rDisp} that does not satisfy ${activeEq}.`,
+            affirmation: 'Use reversible solution-preserving operations.',
+            preferredResponse: `❌ Careful: \`${targetExpr.trim()}\` introduces \`${v} = ${rDisp}\`, which does not satisfy \`${activeEq}\`.`
+          };
+        }
 
         if (validPairs.length === 0 || ratios.length === 0) {
           return {
@@ -1798,7 +1839,7 @@ function evaluateStudentWorkCore(rawInput, classification, conversationHistory =
           return eqStepEval;
         }
 
-        const candEval = evaluateEquationCandidate(target, activeEq);
+        const candEval = evaluateEquationCandidate(target, activeEq, originalEq || activeEq);
         if (candEval) {
           candEval.intent = intent;
           candEval.rawExpression = target;

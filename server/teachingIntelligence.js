@@ -780,7 +780,7 @@ function analyzeStepMath(stepStr, preferredVar = 'x') {
     const denomZeros = [];
     for (const dn of denomNodes) {
       for (const z of findZerosOfNode(dn, variable)) {
-        if (!denomZeros.some(e => Math.abs(e - z) < 1e-3)) denomZeros.push(z);
+        if (!denomZeros.some(e => Math.abs(e - z) < 1e-5)) denomZeros.push(z);
       }
     }
     const candidateRoots = findZerosOfNode(diffNode, variable);
@@ -800,6 +800,9 @@ function analyzeStepMath(stepStr, preferredVar = 'x') {
       variable,
       lhsNode,
       rhsNode,
+      diffNode,
+      lhsCompiled,
+      rhsCompiled,
       denomNodes,
       denomZeros,
       roots: validRoots
@@ -813,7 +816,7 @@ function analyzeStepMath(stepStr, preferredVar = 'x') {
   const denomZeros = [];
   for (const dn of denomNodes) {
     for (const z of findZerosOfNode(dn, variable)) {
-      if (!denomZeros.some(e => Math.abs(e - z) < 1e-3)) denomZeros.push(z);
+      if (!denomZeros.some(e => Math.abs(e - z) < 1e-5)) denomZeros.push(z);
     }
   }
   return {
@@ -828,9 +831,17 @@ function analyzeStepMath(stepStr, preferredVar = 'x') {
   };
 }
 
+function stripInlineRestrictionSuffix(str) {
+  if (typeof str !== 'string') return '';
+  return str
+    .replace(/(?:[,;]|\s+(?:for|where|with|given|assuming)\b)?\s*\b[a-zA-Z]\b\s*(?:!=|≠|<>|cannot\s+equal|not\s+equal\s+to)\s*[-+]?\d+(?:\.\d+)?(?:\s*\/\s*[-+]?\d+(?:\.\d+)?)?(?:\s*(?:,|and)\s*\b[a-zA-Z]\b\s*(?:!=|≠|<>|cannot\s+equal|not\s+equal\s+to)\s*[-+]?\d+(?:\.\d+)?(?:\s*\/\s*[-+]?\d+(?:\.\d+)?)?)*\s*$/i, '')
+    .replace(/[,;.\s]+$/, '')
+    .trim();
+}
+
 function extractTransformationSteps({ userText = '', activeProblemState = null, originalExpr = null, shortcutExpr = null }) {
   if (originalExpr && shortcutExpr) {
-    return [String(originalExpr).trim(), String(shortcutExpr).trim()];
+    return [stripInlineRestrictionSuffix(String(originalExpr)) || String(originalExpr).trim(), stripInlineRestrictionSuffix(String(shortcutExpr)) || String(shortcutExpr).trim()];
   }
 
   const clean = typeof userText === 'string' ? userText.trim() : '';
@@ -844,14 +855,15 @@ function extractTransformationSteps({ userText = '', activeProblemState = null, 
     const parts = clean.split(/\s*(?:=>|->|⇒)\s*/).map(p => p.trim()).filter(Boolean);
     const parsedParts = [];
     for (const part of parts) {
+      const cleanedPart = stripInlineRestrictionSuffix(part) || part;
       // Strip leading conversational filler before first math chunk if multi-word sentence
-      const eqMatch = part.match(/([a-zA-Z0-9()+\-*/^.\s]+=[^,;?!]+)$/);
-      const candidate = eqMatch ? eqMatch[1].trim() : part;
+      const eqMatch = cleanedPart.match(/([a-zA-Z0-9()+\-*/^.\s]+(?<![!<>=])=(?!=)[^,;?!]+)$/);
+      const candidate = eqMatch ? eqMatch[1].trim() : cleanedPart;
       if (parseMathSafe(candidate) || splitEquationSides(candidate)) {
         parsedParts.push(candidate);
       } else {
         // Try trimming leading words until it parses cleanly
-        const tokens = part.split(/\s+/);
+        const tokens = cleanedPart.split(/\s+/);
         for (let start = 1; start < tokens.length; start++) {
           const slice = tokens.slice(start).join(' ');
           if (parseMathSafe(slice) || splitEquationSides(slice)) {
@@ -867,8 +879,8 @@ function extractTransformationSteps({ userText = '', activeProblemState = null, 
   // "simplify/expand/rewrite <expr1> to <expr2>"
   const simplifyMatch = clean.match(/\b(?:simplify|expand|distribute|reduce|rewrite|convert|transform)\s+(.+?)\s+(?:to|into|as)\s+([^?!.;]+)/i);
   if (simplifyMatch) {
-    const s1 = simplifyMatch[1].trim();
-    const s2 = simplifyMatch[2].trim();
+    const s1 = stripInlineRestrictionSuffix(simplifyMatch[1]);
+    const s2 = stripInlineRestrictionSuffix(simplifyMatch[2]);
     if ((parseMathSafe(s1) || splitEquationSides(s1)) && (parseMathSafe(s2) || splitEquationSides(s2))) {
       return [s1, s2];
     }
@@ -878,7 +890,7 @@ function extractTransformationSteps({ userText = '', activeProblemState = null, 
   if (activeEq && (parseMathSafe(activeEq) || splitEquationSides(activeEq))) {
     const toGetMatch = clean.match(/\b(?:to\s+get|becomes|gives|yields)\s+([^?!;]+)/i);
     if (toGetMatch) {
-      const target = normalizeMathString(toGetMatch[1]);
+      const target = normalizeMathString(stripInlineRestrictionSuffix(toGetMatch[1]));
       if (target && (parseMathSafe(target) || splitEquationSides(target))) {
         return [activeEq, target];
       }
@@ -901,6 +913,8 @@ function evaluateTransformationSequence({ userText = '', activeProblemState = nu
     evaluated: false,
     steps,
     status: SHORTCUT_STATUS.UNVERIFIABLE,
+    verificationCategory: 'INDETERMINATE',
+    isExactSymbolicProof: false,
     isValid: null,
     exactFailingStep: null,
     invalidStepIndex: null,
@@ -922,8 +936,36 @@ function evaluateTransformationSequence({ userText = '', activeProblemState = nu
   for (const st of analyzedSteps) {
     for (const z of st.denomZeros) allDenomZeros.add(z);
   }
-  const domainRestrictions = Array.from(allDenomZeros).sort((a, b) => a - b).map(z => `${varName} != ${z}`);
-  const restrictionExplicitlyStated = new RegExp(`(?:!=|≠|cannot\\s+equal|not\\s+equal\\s+to)\\s*[-]?\\d+`, 'i').test(userText);
+  const allDenomZerosArr = Array.from(allDenomZeros);
+  const isExcludedPoint = (pt) => allDenomZerosArr.some(dz => Math.abs(dz - pt) < 1e-6);
+  const domainRestrictions = allDenomZerosArr.sort((a, b) => a - b).map(z => `${varName} != ${z}`);
+  const statedExclusions = [];
+  const exclRegex = new RegExp(`(?:\\b${varName}\\b\\s*)?(?:!=|≠|cannot\\s+equal|not\\s+equal\\s+to)\\s*([-+]?\\d+(?:\\.\\d+)?(?:\\s*\\/\\s*[-+]?\\d+(?:\\.\\d+)?)?)`, 'gi');
+  let exclMatch;
+  while ((exclMatch = exclRegex.exec(userText)) !== null) {
+    try {
+      const parsedVal = Number(math.evaluate(exclMatch[1]));
+      if (Number.isFinite(parsedVal)) statedExclusions.push(parsedVal);
+    } catch (_) {}
+  }
+  const allDroppedRestrictionsStated = (dropped) =>
+    dropped.every(d => statedExclusions.some(ex => Math.abs(ex - d) < 1e-4));
+
+  const testPoints = [-5, -3, -2, -1.5, -1, -0.5, 0, Math.PI / 7, 0.5, 1, Math.SQRT2 - 0.3, 1.5, 2, Math.E, 3, 4, 5, 7];
+  const proveScalarSymbolicEquivalence = (nodeA, strA, nodeB, strB, ratio, ratioCount, ratios) => {
+    const roundedInt = Math.round(ratio);
+    const scalarStr = Math.abs(ratio - roundedInt) < 1e-7 ? String(roundedInt) : String(Number(ratio.toFixed(10)));
+    try {
+      const diffStr = ratio === 1 ? `(${strB}) - (${strA})` : `(${strB}) - (${scalarStr}) * (${strA})`;
+      if (math.simplify(diffStr).toString() === '0') return true;
+    } catch (_) {}
+    if (nodeA && nodeB && isPurePolynomialNode(nodeA, varName, 6) && isPurePolynomialNode(nodeB, varName, 6)) {
+      if (ratioCount >= 8 && (!ratios || ratios.every(r => Math.abs(r - ratio) < 1e-6))) {
+        return true;
+      }
+    }
+    return false;
+  };
 
   const lostRoots = [];
   const extraneousRoots = [];
@@ -935,8 +977,8 @@ function evaluateTransformationSequence({ userText = '', activeProblemState = nu
     const curr = analyzedSteps[k + 1];
 
     if (prev.kind === 'equation' && curr.kind === 'equation') {
-      const dropped = prev.roots.filter(r => !curr.roots.some(cr => Math.abs(cr - r) < 1e-3));
-      const added = curr.roots.filter(r => !prev.roots.some(pr => Math.abs(pr - r) < 1e-3));
+      const dropped = prev.roots.filter(r => !curr.roots.some(cr => Math.abs(cr - r) < 1e-5));
+      const added = curr.roots.filter(r => !prev.roots.some(pr => Math.abs(pr - r) < 1e-5));
 
       if (dropped.length > 0) {
         invalidStepIndex = k;
@@ -950,6 +992,8 @@ function evaluateTransformationSequence({ userText = '', activeProblemState = nu
           ...baseEmpty,
           evaluated: true,
           status: SHORTCUT_STATUS.INVALID_SHORTCUT,
+          verificationCategory: 'INVALID_TRANSFORMATION',
+          isExactSymbolicProof: false,
           isValid: false,
           exactFailingStep: `Step ${k + 1} -> ${k + 2}: \`${prev.raw}\` => \`${curr.raw}\` drops valid solution(s) (${lostRoots.join(', ')})`,
           invalidStepIndex: k,
@@ -970,6 +1014,8 @@ function evaluateTransformationSequence({ userText = '', activeProblemState = nu
           ...baseEmpty,
           evaluated: true,
           status: SHORTCUT_STATUS.CONDITIONALLY_VALID,
+          verificationCategory: 'INVALID_TRANSFORMATION',
+          isExactSymbolicProof: false,
           isValid: false,
           exactFailingStep: `Step ${k + 1} -> ${k + 2}: \`${prev.raw}\` => \`${curr.raw}\` introduces extraneous root(s) (${extraneousRoots.join(', ')})`,
           invalidStepIndex: k,
@@ -984,12 +1030,14 @@ function evaluateTransformationSequence({ userText = '', activeProblemState = nu
       }
 
       // Also verify solution-set consistency if denominators were dropped
-      const droppedDenoms = prev.denomZeros.filter(dz => !curr.denomZeros.some(cd => Math.abs(cd - dz) < 1e-3));
-      if (droppedDenoms.length > 0 && !restrictionExplicitlyStated) {
+      const droppedDenoms = prev.denomZeros.filter(dz => !curr.denomZeros.some(cd => Math.abs(cd - dz) < 1e-5));
+      if (droppedDenoms.length > 0 && !allDroppedRestrictionsStated(droppedDenoms)) {
         return {
           ...baseEmpty,
           evaluated: true,
           status: SHORTCUT_STATUS.CONDITIONALLY_VALID,
+          verificationCategory: 'DOMAIN_VIOLATION',
+          isExactSymbolicProof: false,
           isValid: false,
           exactFailingStep: `Step ${k + 1} -> ${k + 2}: \`${prev.raw}\` => \`${curr.raw}\` omits domain restriction (${droppedDenoms.map(d => `${varName} != ${d}`).join(', ')})`,
           invalidStepIndex: k,
@@ -999,10 +1047,148 @@ function evaluateTransformationSequence({ userText = '', activeProblemState = nu
           pedagogicalDirective: `Remind the student to carry forward domain restrictions (${domainRestrictions.join(', ')}) whenever canceling factors containing variables.`
         };
       }
-    } else if (prev.kind === 'expression' && curr.kind === 'expression') {
-      const testPoints = [-5, -3, -2, -1.5, -1, -0.5, 0, Math.PI / 7, 0.5, 1, Math.SQRT2 - 0.3, 1.5, 2, Math.E, 3, 4, 5, 7];
+
+      // Verify equation-level domain & algebraic scalar/symbolic equivalence (never fall through unproven)
+      const eqRatios = [];
+      let eqValidPairs = 0;
       for (const pt of testPoints) {
-        if (allDenomZeros.has(pt)) continue;
+        if (isExcludedPoint(pt)) continue;
+        const pL = evalNodeReal(prev.lhsCompiled, varName, pt);
+        const pR = evalNodeReal(prev.rhsCompiled, varName, pt);
+        const cL = evalNodeReal(curr.lhsCompiled, varName, pt);
+        const cR = evalNodeReal(curr.rhsCompiled, varName, pt);
+        const pDef = pL !== null && pR !== null;
+        const cDef = cL !== null && cR !== null;
+
+        if (pDef !== cDef) {
+          return {
+            ...baseEmpty,
+            evaluated: true,
+            status: SHORTCUT_STATUS.CONDITIONALLY_VALID,
+            verificationCategory: 'DOMAIN_VIOLATION',
+            isExactSymbolicProof: false,
+            isValid: false,
+            exactFailingStep: `Step ${k + 1} -> ${k + 2}: \`${prev.raw}\` => \`${curr.raw}\` alters the real domain at ${varName} = ${Number(pt.toFixed(4))}`,
+            invalidStepIndex: k,
+            failureReason: 'DOMAIN_RESTRICTION_MISMATCH',
+            domainRestrictions,
+            explanation: `The transformation \`${prev.raw}\` => \`${curr.raw}\` changes the real-valued domain at ${varName} = ${Number(pt.toFixed(4))}.`,
+            pedagogicalDirective: `Point out that the two equations do not share the same real domain at ${varName} = ${Number(pt.toFixed(4))}.`
+          };
+        }
+
+        if (pDef && cDef) {
+          eqValidPairs++;
+          const pDiff = pL - pR;
+          const cDiff = cL - cR;
+          const ptDisp = Math.abs(pt - Math.round(pt)) < 1e-7 ? Math.round(pt) : Number(pt.toFixed(4));
+          if (Math.abs(pDiff) <= 1e-8 && Math.abs(cDiff) > 1e-5) {
+            return {
+              ...baseEmpty,
+              evaluated: true,
+              status: SHORTCUT_STATUS.INVALID_SHORTCUT,
+              verificationCategory: 'INVALID_TRANSFORMATION',
+              isExactSymbolicProof: false,
+              isValid: false,
+              exactFailingStep: `Step ${k + 1} -> ${k + 2}: \`${prev.raw}\` => \`${curr.raw}\` drops valid solution ${varName} = ${ptDisp}`,
+              invalidStepIndex: k,
+              failureReason: 'LOST_SOLUTION_IN_TRANSFORMATION',
+              domainRestrictions,
+              lostRoots: [`${varName} = ${ptDisp}`],
+              counterexample: { variable: varName, value: pt, originalValue: pDiff, transformedValue: cDiff },
+              explanation: `The transformation \`${prev.raw}\` => \`${curr.raw}\` fails at ${varName} = ${ptDisp}, which satisfies \`${prev.raw}\` but not \`${curr.raw}\`.`,
+              pedagogicalDirective: `Point out that ${varName} = ${ptDisp} solves Step ${k + 1} but fails Step ${k + 2}.`
+            };
+          }
+          if (Math.abs(cDiff) <= 1e-8 && Math.abs(pDiff) > 1e-5) {
+            return {
+              ...baseEmpty,
+              evaluated: true,
+              status: SHORTCUT_STATUS.CONDITIONALLY_VALID,
+              verificationCategory: 'INVALID_TRANSFORMATION',
+              isExactSymbolicProof: false,
+              isValid: false,
+              exactFailingStep: `Step ${k + 1} -> ${k + 2}: \`${prev.raw}\` => \`${curr.raw}\` introduces extraneous solution ${varName} = ${ptDisp}`,
+              invalidStepIndex: k,
+              failureReason: 'EXTRANEOUS_ROOTS_FROM_SQUARING',
+              domainRestrictions,
+              extraneousRoots: [`${varName} = ${ptDisp}`],
+              counterexample: { variable: varName, value: pt, originalValue: pDiff, transformedValue: cDiff },
+              explanation: `The transformation \`${prev.raw}\` => \`${curr.raw}\` introduces an extraneous solution ${varName} = ${ptDisp} that does not satisfy \`${prev.raw}\`.`,
+              pedagogicalDirective: `Point out that ${varName} = ${ptDisp} solves Step ${k + 2} but does not satisfy Step ${k + 1}.`
+            };
+          }
+          if (Math.abs(pDiff) > 1e-7) {
+            eqRatios.push(cDiff / pDiff);
+          }
+        }
+      }
+
+      if (eqValidPairs === 0) {
+        return {
+          ...baseEmpty,
+          evaluated: true,
+          status: SHORTCUT_STATUS.UNVERIFIABLE,
+          verificationCategory: 'INDETERMINATE',
+          isExactSymbolicProof: false,
+          isValid: null,
+          failureReason: 'SYMBOLIC_PROOF_INCONCLUSIVE',
+          domainRestrictions,
+          explanation: `Could not find shared finite real points to verify \`${prev.raw}\` => \`${curr.raw}\`.`,
+          pedagogicalDirective: 'State that equivalence could not be established on the checked domain.'
+        };
+      }
+
+      const isConstantRatio = eqRatios.length >= 4 && Math.abs(eqRatios[0]) > 1e-6 && eqRatios.every(r => Math.abs(r - eqRatios[0]) < 1e-4);
+      const bothDegLe2Poly = isPurePolynomialNode(prev.diffNode, varName, 2) && isPurePolynomialNode(curr.diffNode, varName, 2);
+
+      let isEqSymbolicallyProven = false;
+      if (isConstantRatio) {
+        isEqSymbolicallyProven = proveScalarSymbolicEquivalence(
+          prev.diffNode, prev.diffNode.toString(),
+          curr.diffNode, curr.diffNode.toString(),
+          eqRatios[0], eqRatios.length, eqRatios
+        );
+      } else if (bothDegLe2Poly && prev.roots.length > 0 && curr.roots.length > 0) {
+        isEqSymbolicallyProven = true;
+      }
+
+      if (!isEqSymbolicallyProven) {
+        if (!isConstantRatio && prev.roots.length === 0 && curr.roots.length === 0 && eqRatios.length >= 2) {
+          return {
+            ...baseEmpty,
+            evaluated: true,
+            status: SHORTCUT_STATUS.INVALID_SHORTCUT,
+            verificationCategory: 'INVALID_TRANSFORMATION',
+            isExactSymbolicProof: false,
+            isValid: false,
+            exactFailingStep: `Step ${k + 1} -> ${k + 2}: \`${prev.raw}\` => \`${curr.raw}\` does not preserve equation equivalence`,
+            invalidStepIndex: k,
+            failureReason: 'NON_EQUIVALENT_TRANSFORMATION',
+            domainRestrictions,
+            explanation: `The transformation \`${prev.raw}\` => \`${curr.raw}\` is not algebraically equivalent (their equation residuals do not differ by a nonzero constant factor).`,
+            pedagogicalDirective: `Point out that Step ${k + 1} -> ${k + 2} alters the equation without preserving algebraic equivalence.`
+          };
+        }
+
+        return {
+          ...baseEmpty,
+          evaluated: true,
+          status: SHORTCUT_STATUS.UNVERIFIABLE,
+          verificationCategory: (eqRatios.length >= 4 || (prev.roots.length > 0 && curr.roots.length > 0)) ? 'NUMERICALLY_SUPPORTED' : 'INDETERMINATE',
+          isExactSymbolicProof: false,
+          isValid: null,
+          failureReason: 'SYMBOLIC_PROOF_INCONCLUSIVE',
+          domainRestrictions,
+          isUniversalIdentity: false,
+          explanation: `The equations \`${prev.raw}\` and \`${curr.raw}\` agree at the checked values, but exact symbolic equivalence has not been proven in closed form.`,
+          pedagogicalDirective: 'State that the equations agree at the values checked, without claiming exact symbolic equivalence.'
+        };
+      }
+    } else if (prev.kind === 'expression' && curr.kind === 'expression') {
+      let exprValidPairs = 0;
+      for (const pt of testPoints) {
+        if (isExcludedPoint(pt)) continue;
         const v1 = evalNodeReal(prev.compiled, varName, pt);
         const v2 = evalNodeReal(curr.compiled, varName, pt);
         if ((v1 === null) !== (v2 === null)) {
@@ -1011,6 +1197,7 @@ function evaluateTransformationSequence({ userText = '', activeProblemState = nu
             evaluated: true,
             status: SHORTCUT_STATUS.CONDITIONALLY_VALID,
             verificationCategory: 'DOMAIN_VIOLATION',
+            isExactSymbolicProof: false,
             isValid: false,
             exactFailingStep: `Step ${k + 1} -> ${k + 2}: \`${prev.raw}\` => \`${curr.raw}\` alters the real domain at ${varName} = ${Number(pt.toFixed(4))}`,
             invalidStepIndex: k,
@@ -1020,31 +1207,36 @@ function evaluateTransformationSequence({ userText = '', activeProblemState = nu
             pedagogicalDirective: `Point out that the two expressions do not share the same real domain at ${varName} = ${Number(pt.toFixed(4))}.`
           };
         }
-        if (v1 !== null && v2 !== null && Math.abs(v1 - v2) > 1e-6) {
-          return {
-            ...baseEmpty,
-            evaluated: true,
-            status: SHORTCUT_STATUS.INVALID_SHORTCUT,
-            verificationCategory: 'INVALID_TRANSFORMATION',
-            isValid: false,
-            exactFailingStep: `Step ${k + 1} -> ${k + 2}: \`${prev.raw}\` => \`${curr.raw}\` fails at ${varName} = ${Number(pt.toFixed(4))} (${Number(v1.toFixed(4))} != ${Number(v2.toFixed(4))})`,
-            invalidStepIndex: k,
-            failureReason: 'NON_EQUIVALENT_TRANSFORMATION',
-            domainRestrictions,
-            counterexample: { variable: varName, value: pt, originalValue: v1, transformedValue: v2 },
-            explanation: `The transformation \`${prev.raw}\` => \`${curr.raw}\` is algebraically non-equivalent: substituting ${varName} = ${Number(pt.toFixed(4))} yields ${Number(v1.toFixed(4))} for the original expression versus ${Number(v2.toFixed(4))} for the transformed expression.`,
-            pedagogicalDirective: `Show the concrete counterexample at ${varName} = ${Number(pt.toFixed(4))} and help the student locate the algebraic error in Step ${k + 1} -> ${k + 2}.`
-          };
+        if (v1 !== null && v2 !== null) {
+          exprValidPairs++;
+          if (Math.abs(v1 - v2) > 1e-6) {
+            return {
+              ...baseEmpty,
+              evaluated: true,
+              status: SHORTCUT_STATUS.INVALID_SHORTCUT,
+              verificationCategory: 'INVALID_TRANSFORMATION',
+              isExactSymbolicProof: false,
+              isValid: false,
+              exactFailingStep: `Step ${k + 1} -> ${k + 2}: \`${prev.raw}\` => \`${curr.raw}\` fails at ${varName} = ${Number(pt.toFixed(4))} (${Number(v1.toFixed(4))} != ${Number(v2.toFixed(4))})`,
+              invalidStepIndex: k,
+              failureReason: 'NON_EQUIVALENT_TRANSFORMATION',
+              domainRestrictions,
+              counterexample: { variable: varName, value: pt, originalValue: v1, transformedValue: v2 },
+              explanation: `The transformation \`${prev.raw}\` => \`${curr.raw}\` is algebraically non-equivalent: substituting ${varName} = ${Number(pt.toFixed(4))} yields ${Number(v1.toFixed(4))} for the original expression versus ${Number(v2.toFixed(4))} for the transformed expression.`,
+              pedagogicalDirective: `Show the concrete counterexample at ${varName} = ${Number(pt.toFixed(4))} and help the student locate the algebraic error in Step ${k + 1} -> ${k + 2}.`
+            };
+          }
         }
       }
 
-      const droppedDenoms = prev.denomZeros.filter(dz => !curr.denomZeros.some(cd => Math.abs(cd - dz) < 1e-3));
-      if (droppedDenoms.length > 0 && !restrictionExplicitlyStated) {
+      const droppedDenoms = prev.denomZeros.filter(dz => !curr.denomZeros.some(cd => Math.abs(cd - dz) < 1e-5));
+      if (droppedDenoms.length > 0 && !allDroppedRestrictionsStated(droppedDenoms)) {
         return {
           ...baseEmpty,
           evaluated: true,
           status: SHORTCUT_STATUS.CONDITIONALLY_VALID,
           verificationCategory: 'DOMAIN_VIOLATION',
+          isExactSymbolicProof: false,
           isValid: false,
           exactFailingStep: `Step ${k + 1} -> ${k + 2}: \`${prev.raw}\` => \`${curr.raw}\` removes denominator without stating domain restriction (${droppedDenoms.map(d => `${varName} != ${d}`).join(', ')})`,
           invalidStepIndex: k,
@@ -1055,22 +1247,18 @@ function evaluateTransformationSequence({ userText = '', activeProblemState = nu
         };
       }
 
-      let isSymbolicallyProven = false;
-      try {
-        const diffSimp = math.simplify(`(${prev.normalized}) - (${curr.normalized})`).toString();
-        if (diffSimp === '0') {
-          isSymbolicallyProven = true;
-        } else if (isPurePolynomialNode(prev.exprNode, varName, 6) && isPurePolynomialNode(curr.exprNode, varName, 6)) {
-          isSymbolicallyProven = true;
-        }
-      } catch (_) {}
+      const isSymbolicallyProven = proveScalarSymbolicEquivalence(
+        prev.exprNode, prev.normalized,
+        curr.exprNode, curr.normalized,
+        1, exprValidPairs, null
+      );
 
       if (!isSymbolicallyProven) {
         return {
           ...baseEmpty,
           evaluated: true,
           status: SHORTCUT_STATUS.UNVERIFIABLE,
-          verificationCategory: 'NUMERICALLY_SUPPORTED',
+          verificationCategory: exprValidPairs >= 4 ? 'NUMERICALLY_SUPPORTED' : 'INDETERMINATE',
           isExactSymbolicProof: false,
           isValid: null,
           exactFailingStep: null,

@@ -354,6 +354,121 @@ function run() {
     assert(promptCtx.includes('DO NOT claim that the transformation is proven'));
   });
 
+  // =========================================================================
+  // 8. FINAL AUDIT REGRESSION CHECKS (SAMPLE ROOT MISMATCH, POLE PROPAGATION, EQUATION SEQUENCES)
+  // =========================================================================
+  console.log('▶ [8] Final Audit Regression Checks');
+
+  // Finding #1a: Piecewise / constant-ratio sample trap where activeDiff=0 at sample points while targetDiff!=0
+  check('ADVERSARIAL_SAMPLING', 'Detects lost solution set across sample points despite constant ratio elsewhere', () => {
+    const res = evaluateEquationCandidate('2*abs(x) = 0', 'abs(x) - x = 0');
+    assert.strictEqual(res.status, 'STEP_VERIFIED_INCORRECT');
+    assert.strictEqual(res.verificationCategory, VERIFICATION_CATEGORIES.INVALID_TRANSFORMATION);
+    assert.strictEqual(res.isExactSymbolicProof, false);
+  });
+
+  // Finding #1b: Identity equation 0 = 0 reduced incorrectly to x - 1 = 0 must not return INDETERMINATE
+  check('ADVERSARIAL_SAMPLING', 'Detects lost sample solutions when reducing 0 = 0 to x - 1 = 0', () => {
+    const res = evaluateEquationCandidate('x - 1 = 0', '0 = 0');
+    assert.strictEqual(res.status, 'STEP_VERIFIED_INCORRECT');
+    assert.strictEqual(res.verificationCategory, VERIFICATION_CATEGORIES.INVALID_TRANSFORMATION);
+    assert.strictEqual(res.isExactSymbolicProof, false);
+  });
+
+  // Finding #2: VALIDATION_REQUEST must propagate originalEq poles to evaluateEquationCandidate
+  check('RATIONAL_DOMAINS', 'VALIDATION_REQUEST propagates originalEq poles to reject excluded solution x = 2', () => {
+    const state = {
+      active: {
+        activeExpression: 'x/(x - 2) = 2/(x - 2)',
+        currentStepEquation: 'x = 2'
+      }
+    };
+    const msg = 'Is 2*x = 4 right?';
+    const intent = classifyStudentIntent(msg, [], state);
+    const evalRes = evaluateStudentWork(msg, intent, [], state);
+    assert.strictEqual(evalRes.status, 'STEP_VERIFIED_INCORRECT');
+    assert.strictEqual(evalRes.verificationCategory, VERIFICATION_CATEGORIES.DOMAIN_VIOLATION);
+    assert.strictEqual(evalRes.isExactSymbolicProof, false);
+  });
+
+  // Finding #3a: Empty-root equation pair (x^2 + 1 = 0 => x^2 + 2 = 0) must never pass as SYMBOLICALLY_VERIFIED
+  check('ALGEBRA_EQUIVALENCE', 'evaluateTransformationSequence rejects empty-root non-equivalent equation step x^2 + 1 = 0 => x^2 + 2 = 0', () => {
+    const res = evaluateTransformationSequence({
+      originalExpr: 'x^2 + 1 = 0',
+      shortcutExpr: 'x^2 + 2 = 0'
+    });
+    assert.strictEqual(res.status, SHORTCUT_STATUS.INVALID_SHORTCUT);
+    assert.strictEqual(res.verificationCategory, VERIFICATION_CATEGORIES.INVALID_TRANSFORMATION);
+    assert.strictEqual(res.isExactSymbolicProof, false);
+    assert.strictEqual(res.isValid, false);
+  });
+
+  // Finding #3b: Out-of-range cubic equation step ((x - 20)^3 = 0 => (x - 25)^3 = 0) rejected
+  check('ALGEBRA_EQUIVALENCE', 'evaluateTransformationSequence rejects out-of-range cubic equation step (x - 20)^3 = 0 => (x - 25)^3 = 0', () => {
+    const res = evaluateTransformationSequence({
+      originalExpr: '(x - 20)^3 = 0',
+      shortcutExpr: '(x - 25)^3 = 0'
+    });
+    assert.strictEqual(res.status, SHORTCUT_STATUS.INVALID_SHORTCUT);
+    assert.strictEqual(res.verificationCategory, VERIFICATION_CATEGORIES.INVALID_TRANSFORMATION);
+    assert.strictEqual(res.isExactSymbolicProof, false);
+  });
+
+  // Finding #3c: Closely spaced roots tolerance (1.001, 1.002 vs 1.0015) must not falsely match
+  check('ALGEBRA_EQUIVALENCE', 'evaluateTransformationSequence catches closely spaced root loss at 1.001 and 1.002', () => {
+    const res = evaluateTransformationSequence({
+      originalExpr: '(x - 1.001)*(x - 1.002) = 0',
+      shortcutExpr: 'x - 1.0015 = 0'
+    });
+    assert.strictEqual(res.status, SHORTCUT_STATUS.INVALID_SHORTCUT);
+    assert.strictEqual(res.verificationCategory, VERIFICATION_CATEGORIES.INVALID_TRANSFORMATION);
+    assert.strictEqual(res.isExactSymbolicProof, false);
+  });
+
+  // Finding #3d: Irrelevant stated exclusion (x != 99 when x = 2 is dropped) must not satisfy domain restriction check
+  check('RATIONAL_DOMAINS', 'evaluateTransformationSequence requires matching excluded pole value rather than any arbitrary != number', () => {
+    const res = evaluateTransformationSequence({
+      userText: '(x^2 - 4)/((x - 2)*(x + 3)) => (x + 2)/(x + 3), x != 99'
+    });
+    assert.strictEqual(res.status, SHORTCUT_STATUS.CONDITIONALLY_VALID);
+    assert.strictEqual(res.failureReason, 'MISSING_DOMAIN_RESTRICTION');
+    assert.strictEqual(res.verificationCategory, VERIFICATION_CATEGORIES.DOMAIN_VIOLATION);
+    assert.strictEqual(res.isExactSymbolicProof, false);
+  });
+
+  // Finding #3g: Inline matching domain restriction is cleanly stripped from parsed step expression and preserved
+  check('RATIONAL_DOMAINS', 'evaluateTransformationSequence preserves inline domain restriction without corrupting step math', () => {
+    const res = evaluateTransformationSequence({
+      userText: '(x^2 - 4)/(x - 2) => x + 2, x != 2'
+    });
+    assert.deepStrictEqual(res.steps, ['(x^2 - 4)/(x - 2)', 'x + 2']);
+    assert.notStrictEqual(res.failureReason, 'MISSING_DOMAIN_RESTRICTION');
+    assert.notStrictEqual(res.verificationCategory, VERIFICATION_CATEGORIES.INVALID_TRANSFORMATION);
+    assert(res.domainRestrictions.includes('x != 2'));
+  });
+
+  // Finding #3e: Logarithmic equation domain expansion (log(x) + log(x - 2) = 8 => log(x*(x - 2)) = 8) flagged as DOMAIN_VIOLATION
+  check('LOG_DOMAINS', 'evaluateTransformationSequence flags logarithmic equation domain expansion as DOMAIN_VIOLATION', () => {
+    const res = evaluateTransformationSequence({
+      originalExpr: 'log(x) + log(x - 2) = 8',
+      shortcutExpr: 'log(x*(x - 2)) = 8'
+    });
+    assert.strictEqual(res.verificationCategory, VERIFICATION_CATEGORIES.DOMAIN_VIOLATION);
+    assert.strictEqual(res.isExactSymbolicProof, false);
+    assert.strictEqual(res.isValid, false);
+  });
+
+  // Finding #3f: Unsimplified transcendental equation step returns NUMERICALLY_SUPPORTED rather than SYMBOLICALLY_VERIFIED
+  check('TRIG_IDENTITIES', 'evaluateTransformationSequence classifies unproven trig equation step as NUMERICALLY_SUPPORTED', () => {
+    const res = evaluateTransformationSequence({
+      originalExpr: 'sin(x) + 2 = 3',
+      shortcutExpr: 'sin(x) + sin(x)^2 + cos(x)^2 = 2'
+    });
+    assert.strictEqual(res.status, SHORTCUT_STATUS.UNVERIFIABLE);
+    assert.strictEqual(res.verificationCategory, VERIFICATION_CATEGORIES.NUMERICALLY_SUPPORTED);
+    assert.strictEqual(res.isExactSymbolicProof, false);
+  });
+
   // Performance check across 500 mixed symbolic/domain/adversarial candidate evaluations
   const perfStart = performance.now();
   for (let i = 0; i < 500; i++) {
