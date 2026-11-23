@@ -166,6 +166,22 @@ async function ensurePythosNamespace() {
  * @param {string|null} reporterUid - Optional Firebase UID of the submitting user
  * @returns {Promise<boolean>} true on success, false on failure/unavailable
  */
+function stripUndefinedDeep(value) {
+  if (Array.isArray(value)) {
+    return value.map(stripUndefinedDeep);
+  }
+  if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+    const out = {};
+    for (const [k, v] of Object.entries(value)) {
+      if (v !== undefined) {
+        out[k] = stripUndefinedDeep(v);
+      }
+    }
+    return out;
+  }
+  return value;
+}
+
 async function saveBugReport(reportId, reportData, reporterUid = null) {
   const col = bugReportsRef();
   if (!col) return false;
@@ -190,8 +206,8 @@ async function saveBugReport(reportId, reportData, reporterUid = null) {
       response: reportData.interaction?.response || '',
 
       // Structured data
-      claims: reportData.claims || [],
-      verificationResults: reportData.verification_results || [],
+      claims: stripUndefinedDeep(reportData.claims || []),
+      verificationResults: stripUndefinedDeep(reportData.verification_results || []),
 
       // Student note
       studentDescription: reportData.student_description || null,

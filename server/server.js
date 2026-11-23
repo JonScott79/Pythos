@@ -1107,6 +1107,9 @@ async function executeGroqVisionCall(provider, { messages, visionSystemPrompt, o
           const text = choice?.message?.content || '';
           const finishReason = choice?.finish_reason;
           const isTruncated = finishReason === 'length';
+          if (parsed.usage) {
+            console.log(`[PROVIDER USAGE] provider=${provider.name} model=${targetModel} prompt_tokens=${parsed.usage.prompt_tokens || 0} completion_tokens=${parsed.usage.completion_tokens || 0} total_tokens=${parsed.usage.total_tokens || 0}`);
+          }
           resolveGroq({
             model: targetModel,
             content: text,
@@ -1541,6 +1544,9 @@ ${m.content.slice(PYTHOS_SYSTEM_PROMPT.length).trim()}`;
           }
           const finishReason = choice?.finish_reason;
           const isTruncated = finishReason === 'length';
+          if (parsed.usage) {
+            console.log(`[PROVIDER USAGE] provider=${provider.name} model=${targetModel} prompt_tokens=${parsed.usage.prompt_tokens || 0} completion_tokens=${parsed.usage.completion_tokens || 0} total_tokens=${parsed.usage.total_tokens || 0}`);
+          }
           resolveGroq({
             model: targetModel,
             content: text,
@@ -1683,6 +1689,9 @@ async function executeGeminiTextCall(provider, { messages, options, timeoutMs = 
           const text = candidate?.content?.parts?.[0]?.text || '';
           const finishReason = candidate?.finishReason;
           const isTruncated = finishReason === 'MAX_TOKENS';
+          if (parsed.usageMetadata) {
+            console.log(`[PROVIDER USAGE] provider=${provider.name} model=${targetModel} prompt_tokens=${parsed.usageMetadata.promptTokenCount || 0} completion_tokens=${parsed.usageMetadata.candidatesTokenCount || 0} total_tokens=${parsed.usageMetadata.totalTokenCount || 0}`);
+          }
           resolveGemini({
             model: targetModel,
             content: text,

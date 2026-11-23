@@ -313,6 +313,57 @@ async function runTests() {
     assert.ok(learningDataMatch[0].includes('allow read, write: if false;'), 'learning_data must deny client reads and writes');
   });
 
+  await test('firestoreService.saveBugReport strips undefined properties before Firestore write', async () => {
+    const firestoreService = require('../server/firestoreService');
+    let capturedDoc = null;
+    firestoreService.setFirestoreAdapterForTesting({
+      isAvailable: true,
+      db: {
+        collection() {
+          return {
+            doc() {
+              return {
+                collection() {
+                  return {
+                    doc() {
+                      return {
+                        async set(doc) {
+                          const hasUndefined = (v) => {
+                            if (v === undefined) return true;
+                            if (Array.isArray(v)) return v.some(hasUndefined);
+                            if (v && typeof v === 'object') return Object.values(v).some(hasUndefined);
+                            return false;
+                          };
+                          if (hasUndefined(doc)) {
+                            throw new Error('Cannot use "undefined" as a Firestore value');
+                          }
+                          capturedDoc = doc;
+                        }
+                      };
+                    }
+                  };
+                }
+              };
+            }
+          };
+        }
+      }
+    });
+    try {
+      const ok = await firestoreService.saveBugReport('PY-test0001', {
+        source: 'system_auto_flag',
+        interaction: { question: 'q', response: 'r' },
+        claims: [{ domain: 'algebra', data: { expr1: 'x', expr2: 'x', condition: undefined } }],
+        verification_results: [{ verified: true, error_type: undefined }]
+      });
+      assert.strictEqual(ok, true, 'saveBugReport must strip nested undefined values');
+      assert.strictEqual('condition' in capturedDoc.claims[0].data, false);
+      assert.strictEqual('error_type' in capturedDoc.verificationResults[0], false);
+    } finally {
+      firestoreService.setFirestoreAdapterForTesting(null);
+    }
+  });
+
   console.log('\n======================================================================');
   console.log(`RESULTS: ${passed} / ${total} TESTS PASSED`);
   console.log('======================================================================\n');

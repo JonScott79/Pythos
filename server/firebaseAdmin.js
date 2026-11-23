@@ -69,9 +69,15 @@ function initAdminSDK() {
 
     _adminAuth = getAuth(_adminApp);
     _adminDb   = getFirestore(_adminApp);
+    try {
+      if (_adminDb && typeof _adminDb.settings === 'function') {
+        _adminDb.settings({ ignoreUndefinedProperties: true });
+      }
+    } catch (_) {}
     _initError = null;
 
-    console.log('[FIREBASE ADMIN] Admin SDK initialized successfully.');
+    const resolvedProject = _adminApp?.options?.projectId || 'unknown';
+    console.log(`[FIREBASE ADMIN] Admin SDK initialized successfully (project: ${resolvedProject}).`);
   } catch (err) {
     _initError = err.message;
     console.error('[FIREBASE ADMIN] Failed to initialize Admin SDK:', err.message);
