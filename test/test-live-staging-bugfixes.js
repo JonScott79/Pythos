@@ -9,7 +9,9 @@
 
 const assert = require('assert');
 const { constructSafeVerifiedResponse } = require('../server/safeResponseConstructor');
-const { extractClaims, verifyResponseClaims, evaluateCandidateDelivery } = require('../server/verificationBridge');
+const { extractClaims, verifyResponseClaims, evaluateCandidateDelivery, closeVerifierDaemon } = require('../server/verificationBridge');
+const { closeCalculusDaemon } = require('../server/engines/calculusEngine');
+const { closeRootDaemon } = require('../server/engines/rootSolver');
 const { classifyStudentIntent } = require('../server/studentIntentClassifier');
 const { evaluateStudentWork } = require('../server/studentWorkEvaluator');
 const { extractActiveProblemState } = require('../server/contextManager');
@@ -195,10 +197,16 @@ async function runTests() {
   console.log(`\n========================================`);
   console.log(`LIVE STAGING BUGFIX REGRESSION: ${passed}/${passed + failed} PASSED`);
   console.log(`========================================`);
-  if (failed > 0) process.exit(1);
+  if (failed > 0) process.exitCode = 1;
 }
 
-runTests().catch(err => {
-  console.error(err);
-  process.exit(1);
-});
+runTests()
+  .catch(err => {
+    console.error(err);
+    process.exitCode = 1;
+  })
+  .finally(() => {
+    try { closeVerifierDaemon(); } catch (_) {}
+    try { closeCalculusDaemon(); } catch (_) {}
+    try { closeRootDaemon(); } catch (_) {}
+  });
