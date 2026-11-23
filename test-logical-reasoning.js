@@ -6,7 +6,9 @@
  */
 
 const { auditLogicalEntailment, verifyTriAspect } = require('./server/reasoningVerifier');
-const { runDeterministicVerification } = require('./server/verificationBridge');
+const { runDeterministicVerification, closeVerifierDaemon } = require('./server/verificationBridge');
+const { closeCalculusDaemon } = require('./server/engines/calculusEngine');
+const { closeRootDaemon } = require('./server/engines/rootSolver');
 
 async function runLogicalReasoningTests() {
   console.log('==================================================');
@@ -130,11 +132,17 @@ async function runLogicalReasoningTests() {
   console.log('==================================================\n');
 
   if (passed !== total) {
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 
-runLogicalReasoningTests().catch(err => {
-  console.error('Test runner fatal error:', err);
-  process.exit(1);
-});
+runLogicalReasoningTests()
+  .catch(err => {
+    console.error('Test runner fatal error:', err);
+    process.exitCode = 1;
+  })
+  .finally(() => {
+    try { closeVerifierDaemon(); } catch (_) {}
+    try { closeCalculusDaemon(); } catch (_) {}
+    try { closeRootDaemon(); } catch (_) {}
+  });

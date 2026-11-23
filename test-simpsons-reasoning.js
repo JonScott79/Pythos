@@ -20,7 +20,9 @@
  */
 
 const { extractPreflightDeterministicFacts } = require('./server/deterministicRouter');
-const { extractClaims, runDeterministicVerification } = require('./server/verificationBridge');
+const { extractClaims, runDeterministicVerification, closeVerifierDaemon } = require('./server/verificationBridge');
+const { closeCalculusDaemon } = require('./server/engines/calculusEngine');
+const { closeRootDaemon } = require('./server/engines/rootSolver');
 const { auditPhenomenonEntailment } = require('./server/reasoningVerifier');
 
 async function runTests() {
@@ -212,11 +214,17 @@ Explain whether this demonstrates Simpson's paradox.
   console.log('==================================================\n');
 
   if (passed !== total) {
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 
-runTests().catch(err => {
-  console.error('Error running tests:', err);
-  process.exit(1);
-});
+runTests()
+  .catch(err => {
+    console.error('Error running tests:', err);
+    process.exitCode = 1;
+  })
+  .finally(() => {
+    try { closeVerifierDaemon(); } catch (_) {}
+    try { closeCalculusDaemon(); } catch (_) {}
+    try { closeRootDaemon(); } catch (_) {}
+  });

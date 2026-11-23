@@ -3,7 +3,9 @@
  * End-to-End Verification Engine Test across all 10 Milestones
  */
 
-const { runDeterministicVerification } = require('./server/verificationBridge');
+const { runDeterministicVerification, closeVerifierDaemon } = require('./server/verificationBridge');
+const { closeCalculusDaemon } = require('./server/engines/calculusEngine');
+const { closeRootDaemon } = require('./server/engines/rootSolver');
 
 async function runEndToEndTests() {
   console.log('==================================================');
@@ -131,8 +133,17 @@ async function runEndToEndTests() {
   console.log('==================================================\n');
 
   if (passed !== tests.length) {
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 
-runEndToEndTests();
+runEndToEndTests()
+  .catch(err => {
+    console.error('Fatal end-to-end verifier test error:', err);
+    process.exitCode = 1;
+  })
+  .finally(() => {
+    try { closeVerifierDaemon(); } catch (_) {}
+    try { closeCalculusDaemon(); } catch (_) {}
+    try { closeRootDaemon(); } catch (_) {}
+  });

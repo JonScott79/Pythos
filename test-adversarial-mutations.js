@@ -17,7 +17,9 @@
  * 9. POSITIVE CONTROLS MUTATION BATTERY
  */
 
-const { runDeterministicVerification } = require('./server/verificationBridge');
+const { runDeterministicVerification, closeVerifierDaemon } = require('./server/verificationBridge');
+const { closeCalculusDaemon } = require('./server/engines/calculusEngine');
+const { closeRootDaemon } = require('./server/engines/rootSolver');
 const {
   auditLogicalEntailment,
   auditPhenomenonEntailment,
@@ -424,12 +426,22 @@ async function runAdversarialMutationSuite() {
 }
 
 if (require.main === module) {
-  runAdversarialMutationSuite().then(({ passed, total, failureDetails }) => {
-    if (passed < total) {
-      console.error('Mutation failures occurred:', failureDetails);
+  runAdversarialMutationSuite()
+    .then(({ passed, total, failureDetails }) => {
+      if (passed < total) {
+        console.error('Mutation failures occurred:', failureDetails);
+        process.exitCode = 1;
+      }
+    })
+    .catch(err => {
+      console.error('Fatal adversarial mutation error:', err);
       process.exitCode = 1;
-    }
-  });
+    })
+    .finally(() => {
+      try { closeVerifierDaemon(); } catch (_) {}
+      try { closeCalculusDaemon(); } catch (_) {}
+      try { closeRootDaemon(); } catch (_) {}
+    });
 }
 
 module.exports = { runAdversarialMutationSuite };

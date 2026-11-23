@@ -22,7 +22,9 @@
  * O. Contradictory Evidence (Premise contradicted by data / facts)
  */
 
-const { runDeterministicVerification } = require('./server/verificationBridge');
+const { runDeterministicVerification, closeVerifierDaemon } = require('./server/verificationBridge');
+const { closeCalculusDaemon } = require('./server/engines/calculusEngine');
+const { closeRootDaemon } = require('./server/engines/rootSolver');
 const {
   auditLogicalEntailment,
   auditPhenomenonEntailment,
@@ -551,11 +553,21 @@ async function runEvidenceStrengthSuite() {
 }
 
 if (require.main === module) {
-  runEvidenceStrengthSuite().then(({ passed, total }) => {
-    if (passed < total) {
-      console.log(`\nNote: Running in baseline measurement mode. Failures will be classified.`);
-    }
-  });
+  runEvidenceStrengthSuite()
+    .then(({ passed, total }) => {
+      if (passed < total) {
+        console.log(`\nNote: Running in baseline measurement mode. Failures will be classified.`);
+      }
+    })
+    .catch(err => {
+      console.error('Fatal evidence strength suite error:', err);
+      process.exitCode = 1;
+    })
+    .finally(() => {
+      try { closeVerifierDaemon(); } catch (_) {}
+      try { closeCalculusDaemon(); } catch (_) {}
+      try { closeRootDaemon(); } catch (_) {}
+    });
 }
 
 module.exports = { runEvidenceStrengthSuite };

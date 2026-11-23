@@ -9,7 +9,9 @@
  */
 
 const { extractPreflightDeterministicFacts, buildDeterministicResponse } = require('./server/deterministicRouter');
-const { extractClaims, runDeterministicVerification } = require('./server/verificationBridge');
+const { extractClaims, runDeterministicVerification, closeVerifierDaemon } = require('./server/verificationBridge');
+const { closeCalculusDaemon } = require('./server/engines/calculusEngine');
+const { closeRootDaemon } = require('./server/engines/rootSolver');
 const { auditPremiseDataConsistency, auditPhenomenonEntailment } = require('./server/reasoningVerifier');
 
 async function runPremiseConsistencySuite() {
@@ -225,15 +227,21 @@ Analyze which treatment is better and explain the aggregated rates.
   console.log('====================================================\n');
 
   if (passed !== total) {
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 
 if (require.main === module) {
-  runPremiseConsistencySuite().catch(err => {
-    console.error('Error running premise consistency tests:', err);
-    process.exit(1);
-  });
+  runPremiseConsistencySuite()
+    .catch(err => {
+      console.error('Error running premise consistency tests:', err);
+      process.exitCode = 1;
+    })
+    .finally(() => {
+      try { closeVerifierDaemon(); } catch (_) {}
+      try { closeCalculusDaemon(); } catch (_) {}
+      try { closeRootDaemon(); } catch (_) {}
+    });
 }
 
 module.exports = { runPremiseConsistencySuite };

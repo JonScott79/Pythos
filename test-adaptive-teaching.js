@@ -42,7 +42,9 @@ const {
   formatAdaptiveTeachingContext
 } = require('./server/teachingIntelligence');
 const memoryService = require('./server/memoryService');
-const { verifyProposedShortcut } = require('./server/verificationBridge');
+const { verifyProposedShortcut, closeVerifierDaemon } = require('./server/verificationBridge');
+const { closeCalculusDaemon } = require('./server/engines/calculusEngine');
+const { closeRootDaemon } = require('./server/engines/rootSolver');
 
 async function runAdaptiveTeachingSuite() {
   console.log('================================================================');
@@ -52,6 +54,7 @@ async function runAdaptiveTeachingSuite() {
 
   let passed = 0;
   let total = 0;
+  try {
 
   function test(name, fn) {
     total++;
@@ -597,12 +600,17 @@ async function runAdaptiveTeachingSuite() {
   console.log(`📊 ADAPTIVE TEACHING RESULTS: ${passed}/${total} TESTS PASSED (0 failures)`);
   console.log('================================================================\n');
 
-  if (passed !== total) {
-    process.exit(1);
+    if (passed !== total) {
+      process.exitCode = 1;
+    }
+  } finally {
+    try { closeVerifierDaemon(); } catch (_) {}
+    try { closeCalculusDaemon(); } catch (_) {}
+    try { closeRootDaemon(); } catch (_) {}
   }
 }
 
 runAdaptiveTeachingSuite().catch(err => {
   console.error('Fatal test suite failure:', err);
-  process.exit(1);
+  process.exitCode = 1;
 });

@@ -23,6 +23,7 @@ const verificationBridge = require('./server/verificationBridge');
 const mathjsVerifier = require('./server/mathjsVerifier');
 const specialistAssist = require('./server/specialistAssist');
 const calculusEngine = require('./server/engines/calculusEngine');
+const rootSolver = require('./server/engines/rootSolver');
 const geometryEngine = require('./server/engines/geometryEngine');
 const problemClassifier = require('./server/problemClassifier');
 const studentIntentClassifier = require('./server/studentIntentClassifier');
@@ -675,22 +676,34 @@ async function runCampaign() {
   console.log('\n================================================================================');
   console.log(`🎯 END-TO-END DIAGNOSTIC ACCURACY: ${passedCases}/${totalCases} (${((passedCases / totalCases) * 100).toFixed(1)}%) — ${failedCases} FAILED`);
   console.log('================================================================================\n');
-
-  try {
-    calculusEngine.closeCalculusDaemon();
-  } catch (_) {}
-  try {
-    verificationBridge.closeVerifierDaemon();
-  } catch (_) {}
-
-  if (failedCases > 0) {
-    process.exit(1);
-  }
 }
 
-runCampaign().catch(err => {
-  console.error('Fatal diagnostic campaign error:', err);
+async function cleanupResources() {
   try { calculusEngine.closeCalculusDaemon(); } catch (_) {}
   try { verificationBridge.closeVerifierDaemon(); } catch (_) {}
-  process.exit(1);
-});
+  try { rootSolver.closeRootDaemon(); } catch (_) {}
+  try {
+    if (serverGateway && typeof serverGateway.clearActiveControllers === 'function') {
+      serverGateway.clearActiveControllers();
+    }
+    if (serverGateway && serverGateway.server && serverGateway.server.listening) {
+      if (typeof serverGateway.server.closeAllConnections === 'function') {
+        serverGateway.server.closeAllConnections();
+      }
+      await new Promise(resolve => serverGateway.server.close(resolve));
+    }
+  } catch (_) {}
+}
+
+runCampaign()
+  .then(() => {
+    const failedCases = RESULTS.filter(r => !r.passed).length;
+    if (failedCases > 0) {
+      process.exitCode = 1;
+    }
+  })
+  .catch(err => {
+    console.error('Fatal diagnostic campaign error:', err);
+    process.exitCode = 1;
+  })
+  .finally(() => cleanupResources());

@@ -37,8 +37,11 @@ const {
   extractClaims,
   extractCandidateAnswer,
   runDeterministicVerification,
-  evaluateCandidateDelivery
+  evaluateCandidateDelivery,
+  closeVerifierDaemon
 } = require(path.join(SERVER_DIR, 'verificationBridge'));
+const { closeCalculusDaemon } = require(path.join(SERVER_DIR, 'engines', 'calculusEngine'));
+const { closeRootDaemon } = require(path.join(SERVER_DIR, 'engines', 'rootSolver'));
 
 const {
   analyzeDeterministicIntent
@@ -700,10 +703,21 @@ async function runAdversarialBenchmark() {
 }
 
 if (require.main === module) {
-  runAdversarialBenchmark().catch(err => {
-    console.error('Fatal error during benchmark run:', err);
-    process.exit(1);
-  });
+  runAdversarialBenchmark()
+    .then(res => {
+      if (!res || res.incorrectDelivered > 0 || res.falsePositiveRejections > 0) {
+        process.exitCode = 1;
+      }
+    })
+    .catch(err => {
+      console.error('Fatal error during benchmark run:', err);
+      process.exitCode = 1;
+    })
+    .finally(() => {
+      try { closeVerifierDaemon(); } catch (_) {}
+      try { closeCalculusDaemon(); } catch (_) {}
+      try { closeRootDaemon(); } catch (_) {}
+    });
 }
 
 module.exports = {

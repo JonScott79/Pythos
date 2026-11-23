@@ -19,8 +19,11 @@ const {
   evaluateCandidateDelivery,
   verifyResponseClaims,
   extractClaims,
-  auditInternalConsistency
+  auditInternalConsistency,
+  closeVerifierDaemon
 } = require('./server/verificationBridge');
+const { closeCalculusDaemon } = require('./server/engines/calculusEngine');
+const { closeRootDaemon } = require('./server/engines/rootSolver');
 
 // ============================================================================
 // BENCHMARK DATASET: 28 MULTI-TURN TEST SCENARIOS
@@ -769,10 +772,21 @@ async function runMultiTurnBenchmark() {
 }
 
 if (require.main === module) {
-  runMultiTurnBenchmark().catch(err => {
-    console.error('Fatal benchmark error:', err);
-    process.exit(1);
-  });
+  runMultiTurnBenchmark()
+    .then(res => {
+      if (!res || res.staleContextLeaks > 0 || res.falsePositiveRejections > 0 || res.userTrustFailures > 0) {
+        process.exitCode = 1;
+      }
+    })
+    .catch(err => {
+      console.error('Fatal benchmark error:', err);
+      process.exitCode = 1;
+    })
+    .finally(() => {
+      try { closeVerifierDaemon(); } catch (_) {}
+      try { closeCalculusDaemon(); } catch (_) {}
+      try { closeRootDaemon(); } catch (_) {}
+    });
 }
 
 module.exports = { runMultiTurnBenchmark, BENCHMARK_TESTS };

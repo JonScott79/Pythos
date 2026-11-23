@@ -7,7 +7,9 @@
 */
 
 const MathJSVerifier = require('../../server/mathjsVerifier');
-const { runDeterministicVerification } = require('../../server/verificationBridge');
+const { runDeterministicVerification, closeVerifierDaemon } = require('../../server/verificationBridge');
+const { closeCalculusDaemon } = require('../../server/engines/calculusEngine');
+const { closeRootDaemon } = require('../../server/engines/rootSolver');
 const { AI_RELIABILITY_ATTACKS } = require('../ai-reliability/ai_reliability_tests');
 
 const GAUNTLET_TESTS = [
@@ -321,7 +323,8 @@ async function runFinalExamFromHell() {
   let passed = 0;
   const categorized = {};
 
-  for (const t of GAUNTLET_TESTS) {
+  try {
+    for (const t of GAUNTLET_TESTS) {
     const res = await runDeterministicVerification(t.payload);
     const isUnknown = (t.expectStatus === 'UNKNOWN' && res.status === 'UNKNOWN');
     const isPass = (res.verified === t.expectVerified && res.status === t.expectStatus);
@@ -351,13 +354,21 @@ async function runFinalExamFromHell() {
   }
   console.log('======================================================================\n');
 
-  if (passed !== GAUNTLET_TESTS.length) {
-    process.exit(1);
+    if (passed !== GAUNTLET_TESTS.length) {
+      process.exitCode = 1;
+    }
+  } finally {
+    try { closeVerifierDaemon(); } catch (_) {}
+    try { closeCalculusDaemon(); } catch (_) {}
+    try { closeRootDaemon(); } catch (_) {}
   }
 }
 
 module.exports = { runFinalExamFromHell, GAUNTLET_TESTS };
 
 if (require.main === module) {
-  runFinalExamFromHell();
+  runFinalExamFromHell().catch(err => {
+    console.error('Fatal error in final_exam_from_hell:', err);
+    process.exitCode = 1;
+  });
 }

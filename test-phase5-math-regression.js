@@ -20,6 +20,8 @@
  */
 const verificationBridge = require('./server/verificationBridge');
 const mathjsVerifier = require('./server/mathjsVerifier');
+const { closeCalculusDaemon } = require('./server/engines/calculusEngine');
+const { closeRootDaemon } = require('./server/engines/rootSolver');
 
 let passed = 0;
 let failed = 0;
@@ -227,10 +229,16 @@ async function runSuite() {
   );
 
   console.log(`\n=== PHASE 5.2 SUMMARY: ${passed} passed, ${failed} failed ===`);
-  if (failed > 0) process.exit(1);
+  if (failed > 0) process.exitCode = 1;
 }
 
-runSuite().catch(err => {
-  console.error(err);
-  process.exit(1);
-});
+runSuite()
+  .catch(err => {
+    console.error(err);
+    process.exitCode = 1;
+  })
+  .finally(() => {
+    try { verificationBridge.closeVerifierDaemon(); } catch (_) {}
+    try { closeCalculusDaemon(); } catch (_) {}
+    try { closeRootDaemon(); } catch (_) {}
+  });
