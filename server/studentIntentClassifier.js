@@ -103,7 +103,7 @@ function classifyStudentIntent(text, conversationHistory = [], activeProblemStat
   if (!activeProblemState && Array.isArray(conversationHistory) && conversationHistory.length > 0) {
     try {
       const { extractActiveProblemState } = require('./contextManager');
-      activeProblemState = extractActiveProblemState(conversationHistory);
+      activeProblemState = extractActiveProblemState(conversationHistory, [], { excludeUnverifiedUserSteps: true });
     } catch (_) {}
   }
 

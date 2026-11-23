@@ -1058,17 +1058,25 @@ function extractClaims(text, userPrompt = '') {
     // Guard against function notation e.g. f(x) = expr or g(t) = expr
     if (/(?:^|\s|\bwhere\s+|\bfor\s+)[a-zA-Z]\s*\([a-zA-Z0-9,\s]+\)\s*$/i.test(lhs.trim()) || /\b[a-zA-Z]\s*\([a-zA-Z]\)\s*$/i.test(lhs.trim())) return null;
 
-    // Strip common trailing conditions from RHS
+    // Strip common trailing conditions and sentence-separated parenthetical comments (e.g. ". (What was the answer again?)")
     let cleanRhsStr = rawRhs
+      .replace(/(?:\.\s*|\s+)\([^)]*[a-zA-Z]{2,}[^)]*\)\s*$/g, '')
       .replace(/\s+(?:where|with|for|when|if|given|assuming|provided)\b.*$/i, '')
       .trim();
 
-    // Strip English prose after math ends in RHS, respecting parentheses depth
+    // Strip English prose after math ends in RHS, respecting mathematical parentheses depth
     const rhsTokens = cleanRhsStr.split(/\s+/);
     let firstProse = -1;
     let rhsParenDepth = 0;
     for (let i = 0; i < rhsTokens.length; i++) {
       const t = rhsTokens[i];
+      const cleanWord = t.replace(/[^a-zA-Z]/g, '');
+      const isMathFnOrConst = /^(?:sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|asin|acos|atan|sinh|cosh|tanh|log|ln|exp|sqrt|cbrt|abs|pi|theta|deg|rad)$/i.test(cleanWord) ||
+        /^(?:sin|cos|tan|sec|csc|cot|log|ln|sqrt|cbrt|exp|abs)[a-zA-Z0-9]*$/i.test(cleanWord);
+      if (/^\([A-Za-z]{2,}/.test(t) && !isMathFnOrConst && rhsParenDepth === 0) {
+        firstProse = i;
+        break;
+      }
       const opens = (t.match(/[({]/g) || []).length;
       const closes = (t.match(/[)}]/g) || []).length;
       rhsParenDepth += (opens - closes);
@@ -1076,9 +1084,7 @@ function extractClaims(text, userPrompt = '') {
 
       if (/[+\-*/^=<>~_]/.test(t) || /\\(?:sqrt|frac|times|div)/.test(t)) continue;
 
-      const cleanWord = t.replace(/[^a-zA-Z]/g, '');
-      if (/^(?:sin|cos|tan|sec|csc|cot|log|ln|sqrt|cbrt|exp|abs|pi|theta)$/i.test(cleanWord)) continue;
-      if (/^(?:sin|cos|tan|sec|csc|cot|log|ln|sqrt|cbrt|exp|abs)[a-zA-Z0-9]*$/i.test(cleanWord)) continue;
+      if (isMathFnOrConst) continue;
       if (cleanWord.length <= 1) continue;
 
       firstProse = i;
@@ -1180,13 +1186,23 @@ function extractClaims(text, userPrompt = '') {
   }
 
   // Pattern 5c: Solved equation from prompt/context where candidate states solution (e.g. "x = -5", "\boxed{x = -5}", "\boxed{3, 9}", or "\boxed{\,x=3,\;9\,}")
-  const isSystemPrompt = ((promptStr.match(/=/g) || []).length >= 2) || /\bsystem\b/i.test(promptStr);
-  const isGraphPrompt = /\b(?:graph|plot|draw|sketch)\b/i.test(promptStr);
-  const isIdentityPrompt = /\b(?:does|is|whether|prove|verify|show)\b.*?[=≈]/i.test(promptStr) || /\b(?:identity|identities)\b/i.test(promptStr);
+  const cleanPromptForEq = (promptStr || '').replace(/\(\s*(?:User\s+claims|Student\s+proposes\s+answer):[^)]*\)/gi, '').trim();
+  const isSystemPrompt = ((cleanPromptForEq.match(/=/g) || []).length >= 2 && !/\b(?:solution|root|roots)\s+(?:to|of|for)\b/i.test(cleanPromptForEq)) || /\bsystem\b/i.test(cleanPromptForEq);
+  const isGraphPrompt = /\b(?:graph|plot|draw|sketch)\b/i.test(cleanPromptForEq);
+  const isSolutionCheckPrompt = /\b(?:solution|solutions|root|roots)\s+(?:to|of|for)\b/i.test(cleanPromptForEq);
+  const isIdentityPrompt = (!isSolutionCheckPrompt && /\b(?:does|is|whether|prove|verify|show)\b.*?[=≈]/i.test(cleanPromptForEq)) || /\b(?:identity|identities)\b/i.test(cleanPromptForEq);
+  const extractPromptEqRaw = (p) => {
+    const cleanP = (p || '').replace(/\(\s*(?:User\s+claims|Student\s+proposes\s+answer):[^)]*\)/gi, '').trim();
+    if (!cleanP) return null;
+    const solTargetMatch = cleanP.match(/\b(?:solution|solutions|root|roots)\s+(?:to|of|for)\s+([^\n\r;:=]+?=[^\n\r;:=]+)/i);
+    if (solTargetMatch) return solTargetMatch[1];
+    const eqM = cleanP.match(/([^\n\r;=]+=[^\n\r;=]+)/);
+    return eqM ? eqM[1] : null;
+  };
   if (!isSystemPrompt && !isGraphPrompt && !isIdentityPrompt) {
-    const promptEqMatch = promptStr ? promptStr.match(/([^\n\r;=]+=[^\n\r;=]+)/) : null;
-    let cleaned = promptEqMatch ? cleanAndNormalizeEquation(promptEqMatch[1]) : null;
-    if ((!cleaned || !isSingleVarEq(cleaned.equation)) && !promptEqMatch) {
+    const promptEqStr = extractPromptEqRaw(promptStr);
+    let cleaned = promptEqStr ? cleanAndNormalizeEquation(promptEqStr) : null;
+    if ((!cleaned || !isSingleVarEq(cleaned.equation)) && !promptEqStr) {
       const isNonAlgebraPrompt =
         /\b(?:derivative|differentiate|integral|integrate|limit|coterminal|matrix|determinant|eigenvalue|probability|bayes|velocity|acceleration|kinetic|momentum|triangle|hypotenuse|perimeter|area|simplify|factor|expand)\b/i.test(promptStr || '') ||
         /\[(?:GEOMETRY|VIZ):|\\int\b|\\frac\{d\}\{d/i.test(text);
@@ -1338,9 +1354,9 @@ function extractClaims(text, userPrompt = '') {
 
     // 5d-1: Prompt equation with approximate / subscripted / periodic numerical roots in text
     if (promptStr && !isSystemPrompt && !isGraphPrompt && !isIdentityPrompt) {
-      const promptEqMatch = promptStr.match(/([^\n\r;=]+=[^\n\r;=]+)/);
-      if (promptEqMatch) {
-        const cleaned = cleanAndNormalizeEquation(promptEqMatch[1]);
+      const promptEqStr = extractPromptEqRaw(promptStr);
+      if (promptEqStr) {
+        const cleaned = cleanAndNormalizeEquation(promptEqStr);
         if (cleaned && isSingleVarEq(cleaned.equation)) {
           const v = cleaned.variable;
           const approxSols = extractSubscriptedOrApprox(v, text);
@@ -2321,7 +2337,18 @@ function extractClaims(text, userPrompt = '') {
         const arithmeticClaims = claims.filter(c => c.domain === 'arithmetic' && c.data && c.data.expression);
         if (arithmeticClaims.length > 0) {
           const lastArith = arithmeticClaims[arithmeticClaims.length - 1];
-          if (Number.isFinite(boxedNum) && typeof lastArith.data.proposed_value === 'number') {
+          const beforeBox = typeof lastBoxed.startIndex === 'number'
+            ? text.slice(Math.max(0, lastBoxed.startIndex - 24), lastBoxed.startIndex)
+            : '';
+          const afterBox = typeof lastBoxed.endIndex === 'number'
+            ? text.slice(lastBoxed.endIndex, Math.min(text.length, lastBoxed.endIndex + 30))
+            : '';
+          const boxedIsRootOrVarConclusion =
+            /\b[a-zA-Z](?:_\{?\d+\}?)?\s*=\s*$/i.test(beforeBox) ||
+            /^[a-zA-Z](?:_\{?\d+\}?)?\s*=/i.test(lastBoxed.content.trim()) ||
+            /^\s*is\s+(?:a|the|an)\s+(?:root|solution|zero|valid\s+(?:root|solution))\b/i.test(afterBox) ||
+            (claims.some(c => c.claim_type === 'equation_solution') && /[a-zA-Z].*=/.test(promptStr || ''));
+          if (!boxedIsRootOrVarConclusion && Number.isFinite(boxedNum) && typeof lastArith.data.proposed_value === 'number') {
             if (Math.abs(boxedNum - lastArith.data.proposed_value) > 0.005) {
               // Boxed conclusion contradicts the preceding evaluated arithmetic expression
               claims.push({

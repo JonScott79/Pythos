@@ -1817,8 +1817,12 @@ function evaluateStudentWorkCore(rawInput, classification, conversationHistory =
         }
       }
       if (msg.role === 'user' && msg.content.includes('=') && msg.content.trim().length <= 60) {
-        activeEq = msg.content.trim().replace(/[.,;?!]+$/, '');
-        break;
+        const nextMsg = i + 1 < conversationHistory.length ? conversationHistory[i + 1] : null;
+        const wasRejected = nextMsg && nextMsg.role === 'assistant' && /(?:❌|\b(?:not\s+quite|incorrect|watch\s+the\s+sign|wrong|mistake|careful)\b)/i.test(nextMsg.content || '');
+        if (!wasRejected) {
+          activeEq = msg.content.trim().replace(/[.,;?!]+$/, '');
+          break;
+        }
       }
     }
   }

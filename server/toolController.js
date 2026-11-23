@@ -602,10 +602,23 @@ async function executeTool(toolName, args, sessionContext = {}) {
           ? studentStep.replace(/^(?:check\s+(?:my\s+)?(?:work|step)[:\s?]*|is\s+this\s+(?:step\s+)?(?:right|correct)[:\s?]*|did\s+i\s+(?:do\s+this\s+right|mess\s+up|make\s+a\s+mistake)[:\s?]*|is\s+my\s+work\s+(?:right|correct)[:\s?]*)/i, '').trim()
           : '';
         const stepToEval = cleanedStep || studentStep;
-        const activeProblemState = sessionContext.activeProblemState || (targetExpression ? { active: { activeExpression: targetExpression } } : null);
+        const rawMsgs = Array.isArray(sessionContext.messages) ? sessionContext.messages : [];
+        const historyBeforeStep = (rawMsgs.length > 0 && rawMsgs[rawMsgs.length - 1]?.role === 'user' && rawMsgs[rawMsgs.length - 1]?.content?.trim() === String(stepToEval || '').trim())
+          ? rawMsgs.slice(0, -1)
+          : rawMsgs;
+        let activeProblemState = sessionContext.activeProblemState || null;
+        if (!activeProblemState && historyBeforeStep.length > 0) {
+          try {
+            const { extractActiveProblemState } = require('./contextManager');
+            activeProblemState = extractActiveProblemState(historyBeforeStep, [], { excludeUnverifiedUserSteps: true });
+          } catch (_) {}
+        }
+        if (!activeProblemState && targetExpression) {
+          activeProblemState = { active: { activeExpression: targetExpression } };
+        }
         const { classifyStudentIntent } = require('./studentIntentClassifier');
-        const intent = classifyStudentIntent(stepToEval, sessionContext.messages || [], activeProblemState);
-        const evalResult = evaluateStudentWork(stepToEval, intent, sessionContext.messages || [], activeProblemState);
+        const intent = classifyStudentIntent(stepToEval, historyBeforeStep, activeProblemState);
+        const evalResult = evaluateStudentWork(stepToEval, intent, historyBeforeStep, activeProblemState);
 
         const isEqual = Boolean(evalResult.status === 'STEP_VERIFIED_CORRECT' || evalResult.status === 'ANSWER_VERIFIED_CORRECT' || evalResult.isEqual === true);
 

@@ -2366,39 +2366,60 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
   const preflightFacts = lastUserMsg ? extractPreflightDeterministicFacts(lastUserMsg.content, messages) : [];
   const preflightContext = buildPreflightContext(preflightFacts, classification);
 
-  // Phase B: Server-Side Bounded Conversation Context & Active Problem State
-  const boundedContext = contextManager.buildBoundedConversationContext(messages);
-  const activeProblemContext = boundedContext.activeProblemContext || '';
-  const activeProblemState = boundedContext.activeProblemState;
+  // Separate prior trusted conversation history from the unverified inbound user turn
+  const historyBefore = (lastUserMsg && messages.length > 0 && messages[messages.length - 1]?.role === 'user')
+    ? messages.slice(0, -1)
+    : messages;
+
+  // Phase B (Pre-Evaluation): Trusted active problem state from prior history ONLY (never polluted by unverified inbound turn)
+  const preEvalActiveState = (lastUserMsg && historyBefore.length > 0)
+    ? contextManager.extractActiveProblemState(historyBefore, preflightFacts, { excludeUnverifiedUserSteps: true })
+    : null;
 
   // Authoritative Front-Door Input Interpretation, Student Intent Classification & Proposed Work Evaluation
   let interpretedTurn = null;
   if (lastUserMsg && typeof lastUserMsg.content === 'string') {
     try {
-      interpretedTurn = inputInterpreter.interpretUserTurn(lastUserMsg.content, messages, activeProblemState);
+      interpretedTurn = inputInterpreter.interpretUserTurn(lastUserMsg.content, historyBefore, preEvalActiveState);
     } catch (interpErr) {
       console.warn('[INTERPRETER] Fallback to raw input:', interpErr.message);
     }
   }
-  const studentIntent = lastUserMsg ? classifyStudentIntent(lastUserMsg.content, messages, activeProblemState, interpretedTurn) : null;
-  const studentEvaluation = studentIntent ? evaluateStudentWork(lastUserMsg.content, studentIntent, messages, activeProblemState) : null;
-  if (studentEvaluation && activeProblemState && activeProblemState.active) {
-    if (studentEvaluation.status === 'STEP_VERIFIED_CORRECT' || studentEvaluation.status === 'STEP_VERIFIED_INCORRECT') {
+  const studentIntent = lastUserMsg ? classifyStudentIntent(lastUserMsg.content, historyBefore, preEvalActiveState, interpretedTurn) : null;
+  const studentEvaluation = studentIntent ? evaluateStudentWork(lastUserMsg.content, studentIntent, historyBefore, preEvalActiveState) : null;
+
+  // Phase B (Post-Evaluation Model Context): Build bounded context without promoting unverified steps;
+  // advance currentStepEquation / isCompleted ONLY on verified acceptance.
+  const boundedContext = contextManager.buildBoundedConversationContext(messages, {
+    preflightFacts,
+    excludeUnverifiedUserSteps: true
+  });
+  const activeProblemState = boundedContext.activeProblemState;
+  if (activeProblemState && activeProblemState.active) {
+    const trustedPrevStep = preEvalActiveState?.active?.activeExpression === activeProblemState.active.activeExpression
+      ? (preEvalActiveState.active.currentStepEquation || null)
+      : null;
+
+    if (studentEvaluation && studentEvaluation.status === 'STEP_VERIFIED_CORRECT') {
       if (studentEvaluation.correctedStep) {
         activeProblemState.active.currentStepEquation = studentEvaluation.correctedStep;
       }
       if (studentEvaluation.nextOperation) {
         activeProblemState.active.nextOperation = studentEvaluation.nextOperation;
       }
-      if (studentEvaluation.equalityEvaluated) {
+      if (studentEvaluation.equalityEvaluated && studentEvaluation.isEqual) {
         activeProblemState.active.isCompleted = true;
-        activeProblemState.active.verifiedSolution = studentEvaluation.isEqual ? 'Equality holds (True)' : 'Equality does not hold (False)';
+        activeProblemState.active.verifiedSolution = 'Equality holds (True)';
       }
-    } else if (studentEvaluation.status === 'ANSWER_VERIFIED_CORRECT') {
+    } else if (studentEvaluation && studentEvaluation.status === 'ANSWER_VERIFIED_CORRECT') {
       activeProblemState.active.verifiedSolution = `${studentEvaluation.variable || 'x'} = ${studentEvaluation.proposedValue}`;
       activeProblemState.active.isCompleted = true;
+    } else if (trustedPrevStep && !activeProblemState.active.currentStepEquation) {
+      // Failed, ambiguous, or indeterminate student turn must leave the prior trusted equation unchanged
+      activeProblemState.active.currentStepEquation = trustedPrevStep;
     }
   }
+  let activeProblemContext = activeProblemState ? contextManager.formatActiveProblemContext(activeProblemState) : (boundedContext.activeProblemContext || '');
   const studentWorkContext = formatStudentWorkContext(studentIntent, studentEvaluation, activeProblemState);
 
   // Learner-Aware Tutoring: Classify student state and generate pedagogical directives

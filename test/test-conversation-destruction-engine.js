@@ -357,14 +357,19 @@ function auditTurn(convoId, turnData, historySlice, expected) {
   const latestMsg = historySlice[historySlice.length - 1].content;
   const historyBefore = historySlice.slice(0, -1);
 
-  // 1. Context State Extraction
-  const state = extractActiveProblemState(historySlice);
+  // 1. Capture trusted pre-submission state from historyBefore (never polluted by unverified latestMsg)
+  const preEvalState = historyBefore.length > 0
+    ? extractActiveProblemState(historyBefore, [], { excludeUnverifiedUserSteps: true })
+    : null;
 
-  // 2. Intent Classification
-  const classification = classifyStudentIntent(latestMsg, historyBefore, state);
+  // 2. Intent Classification against pre-submission trusted state
+  const classification = classifyStudentIntent(latestMsg, historyBefore, preEvalState);
 
-  // 3. Student Work Evaluation
-  const evaluation = evaluateStudentWork(latestMsg, classification, historyBefore, state);
+  // 3. Student Work Evaluation against pre-submission trusted state
+  const evaluation = evaluateStudentWork(latestMsg, classification, historyBefore, preEvalState);
+
+  // Post-turn state (for structural topic/problem extraction & transition verification)
+  const state = extractActiveProblemState(historySlice, [], { excludeUnverifiedUserSteps: true });
 
   // 4. Deterministic Router Audit
   const routerIntent = analyzeDeterministicIntent(latestMsg, historyBefore);

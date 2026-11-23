@@ -20,7 +20,7 @@ const math = require('mathjs');
 const { classifyProblem, extractAnswerFormattingRequirements, extractRightTriangleTarget } = require('./problemClassifier');
 const { transpileSpokenMath } = require('./inputInterpreter');
 const { resolveReferentialContext } = require('./deterministicRouter');
-const { evaluateLinearEquationStep, evaluateEquationCandidate } = require('./studentWorkEvaluator');
+const { evaluateLinearEquationStep, evaluateEquationCandidate, checkAmbiguousNotation } = require('./studentWorkEvaluator');
 const mathjsVerifier = require('./mathjsVerifier');
 
 // Exact math instance with rational Fraction and BigNumber support
@@ -222,10 +222,16 @@ function detectTopicTransitionIntent(userText) {
  * Deterministically extracts the Active Problem State from conversation history.
  * Prefers Phase A referential resolver, problemClassifier, and verified facts.
  */
-function extractActiveProblemState(messages = [], preflightFacts = []) {
+function extractActiveProblemState(messages = [], preflightFacts = [], options = {}) {
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
     return null;
   }
+
+  const excludeUnverifiedUserSteps = Boolean(options && options.excludeUnverifiedUserSteps);
+  const isRejectionAssistantMsg = (asstMsg) => {
+    if (!asstMsg || asstMsg.role !== 'assistant' || typeof asstMsg.content !== 'string') return false;
+    return /(?:❌|\b(?:not\s+quite|incorrect|watch\s+the\s+sign|check\s+(?:the\s+sign|your\s+work|arithmetic)|wrong|mistake|careful|isn'?t\s+right|does\s+not\s+satisfy|doesn'?t\s+satisfy|extraneous|domain\s+violation)\b)/i.test(asstMsg.content);
+  };
 
   const userMessages = messages.filter(m => m && m.role === 'user');
   if (userMessages.length === 0) return null;
@@ -236,6 +242,7 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
   // Discover all explicit problems across the session to build current & archive state
   const sessionProblems = [];
   let currentActive = null;
+  let lastProblemResetIndex = 0;
 
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i];
@@ -481,6 +488,7 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
         }
         currentActive = sessionProblems.splice(foundIdx, 1)[0];
         currentActive.status = 'ACTIVE';
+        lastProblemResetIndex = i;
       }
       continue;
     }
@@ -525,7 +533,7 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
       if (!str || typeof str !== 'string') return false;
       // Strip LaTeX control sequences (e.g. \right, \left, \frac, \sqrt) before prose word checks
       const nonLatex = str.replace(/\\[a-zA-Z]+/g, '');
-      return /\b(?:the|this|that|and|what|with|from|have|got|think|know|like|please|maybe|because|about|step|definitely|actually|right|correct|wrong|why|how|where|when|can|could|would|should|if|whether|determine|find|calculate|amplitude|period|solve)\b/i.test(nonLatex);
+      return /\b(?:the|this|that|and|what|with|from|have|got|think|know|like|please|maybe|because|about|step|definitely|actually|right|correct|wrong|why|how|where|when|can|could|would|should|if|whether|determine|find|calculate|amplitude|period|solve|so|then|it|becomes|gives|means|equals|gets|made|typo|next|therefore|thus)\b/i.test(nonLatex);
     };
 
     if (cleanPrompt.includes('=')) {
@@ -585,21 +593,26 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
 
     // Check whether the extracted equation or referential expression is an intermediate step or candidate answer of the active problem
     let isIntermediateStepOfActive = false;
+    let isValidIntermediateStepOfActive = false;
     const stepCandidateEq = extractedEq || (activeMath && activeMath.includes('=') ? activeMath : null);
     if (stepCandidateEq && currentActive && currentActive.activeExpression && !isExplicitNewProblem) {
       try {
-        if (evaluateLinearEquationStep(stepCandidateEq, currentActive.activeExpression)) {
+        const trustedRefForStep = currentActive.currentStepEquation || currentActive.activeExpression;
+        const linStepRes = evaluateLinearEquationStep(stepCandidateEq, trustedRefForStep);
+        if (linStepRes) {
           isIntermediateStepOfActive = true;
+          isValidIntermediateStepOfActive = (linStepRes.status === 'STEP_VERIFIED_CORRECT');
         } else {
-          const candStep = evaluateEquationCandidate(stepCandidateEq, currentActive.activeExpression);
+          const candStep = evaluateEquationCandidate(stepCandidateEq, trustedRefForStep, currentActive.activeExpression);
           if (candStep && (candStep.status === 'STEP_VERIFIED_CORRECT' || candStep.status === 'STEP_NUMERICALLY_SUPPORTED' || candStep.status === 'ANSWER_VERIFIED_CORRECT' || candStep.isOmittedOperation || candStep.verificationCategory === 'DOMAIN_VIOLATION')) {
             isIntermediateStepOfActive = true;
+            isValidIntermediateStepOfActive = (candStep.status === 'STEP_VERIFIED_CORRECT' && candStep.isExactSymbolicProof !== false);
           }
         }
       } catch (_) {}
     }
 
-    const isStepOrValidation = /^(?:so|then|so\\s+then|which\\s+gives|which\\s+means|next\\s+step)\\b/i.test(msg.content.trim()) ||
+    const isStepOrValidation = /^(?:so|then|so\s+then|which\s+gives|which\s+means|next\s+step)\b/i.test(msg.content.trim()) ||
                                msg.content.trim().endsWith('?') ||
                                isQuestionOrValidation;
 
@@ -634,6 +647,7 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
         currentActive.status = 'ARCHIVED_IN_SESSION';
         sessionProblems.push(currentActive);
         currentActive = null;
+        lastProblemResetIndex = i;
       }
     }
 
@@ -641,6 +655,7 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
     const triTarget = extractRightTriangleTarget(msg.content);
 
     if (!currentActive && (isRecognizedProblem || activeMath || isTopicSwitch || fmtReqs || triTarget)) {
+      lastProblemResetIndex = i;
       const propCheck = activeMath ? verifyDeterministicProposition(activeMath) : null;
       const isPureNumericProposition = Boolean(propCheck && propCheck.isProposition);
       const isVerifiedPropositionTrue = Boolean(propCheck && propCheck.isVerified);
@@ -675,8 +690,14 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
       // Update active problem expression only on explicit correction of the problem itself (not an intermediate step) or if previously unset
       if (trans.type === 'CORRECTION' && activeMath && !isIntermediateStepOfActive) {
         currentActive.activeExpression = activeMath;
+        currentActive.currentStepEquation = null;
+        currentActive.verifiedSolution = null;
+        currentActive.isCompleted = false;
+        lastProblemResetIndex = i;
       } else if (trans.type === 'CORRECTION' && activeMath && isIntermediateStepOfActive) {
-        currentActive.currentStepEquation = activeMath;
+        if (isValidIntermediateStepOfActive && (!excludeUnverifiedUserSteps || i < messages.length - 1) && !isRejectionAssistantMsg(messages[i + 1])) {
+          currentActive.currentStepEquation = stepCandidateEq;
+        }
       } else if (!currentActive.activeExpression && activeMath && currentActive.domain !== 'PHYSICS' && !/^[a-zA-Z]\s*=\s*[-\d.]+$/.test(activeMath)) {
         currentActive.activeExpression = activeMath;
       }
@@ -695,12 +716,12 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
 
   // Track intermediate equation steps and problem completion across conversation dialogue
   if (currentActive) {
-    let activeTurnStartIndex = 0;
-    for (let idx = 0; idx < messages.length; idx++) {
+    let activeTurnStartIndex = lastProblemResetIndex;
+    for (let idx = lastProblemResetIndex; idx < messages.length; idx++) {
       const m = messages[idx];
       if (m && m.role === 'user') {
         const trans = detectTopicTransitionIntent(m.content);
-        if (trans.type === 'CORRECTION' || trans.type === 'NEW_TOPIC_EXPLICIT') {
+        if (trans.type === 'NEW_TOPIC_EXPLICIT') {
           activeTurnStartIndex = idx;
         }
       }
@@ -765,16 +786,48 @@ function extractActiveProblemState(messages = [], preflightFacts = []) {
       }
 
       // Check for intermediate linear equation step e.g. "3x = 15" or "2x = 8"
-      const stepEqMatch = text.match(/(?:^|\b)(\d*[a-zA-Z])\s*=\s*([-\d.]+)\b/);
-      if (stepEqMatch && currentActive.activeExpression && !currentActive.isCompleted) {
-        const stepLhs = stepEqMatch[1];
-        const stepRhs = stepEqMatch[2];
-        const varLetter = stepLhs.replace(/\d/g, '');
-        if (varLetter && currentActive.activeExpression.includes(varLetter)) {
-          currentActive.currentStepEquation = `${stepLhs} = ${stepRhs}`;
-          const coeff = parseInt(stepLhs, 10);
-          if (!isNaN(coeff) && coeff > 1) {
-            currentActive.nextOperation = `divide both sides by ${coeff}`;
+      // Strictly never promote unverified trailing user steps, rejected user steps, ambiguous notation, or invalid transformations.
+      if (currentActive.activeExpression && !currentActive.isCompleted) {
+        const isTrailingUserMsg = (j === messages.length - 1 && m.role === 'user');
+        const stepMatches = [...text.matchAll(/(?:^|[^\w.])([-+]?\d*[a-zA-Z])\s*=\s*([-\d.]+)\b/g)];
+        for (const sm of stepMatches) {
+          const stepLhs = sm[1];
+          const stepRhs = sm[2];
+          const varLetter = stepLhs.replace(/[^a-zA-Z]/g, '');
+          if (!varLetter || !currentActive.activeExpression.includes(varLetter)) continue;
+          const candidateStepEq = `${stepLhs} = ${stepRhs}`;
+
+          if (m.role === 'user') {
+            if (excludeUnverifiedUserSteps && isTrailingUserMsg) continue;
+            if (isRejectionAssistantMsg(messages[j + 1])) continue;
+            try {
+              const ambig = checkAmbiguousNotation(m.content, { active: currentActive });
+              if (ambig && ambig.ambiguous) continue;
+            } catch (_) {}
+          }
+
+          const trustedRefEq = currentActive.currentStepEquation || currentActive.activeExpression;
+          let isStepValid = false;
+          try {
+            const linCheck = evaluateLinearEquationStep(candidateStepEq, trustedRefEq);
+            if (linCheck && linCheck.status === 'STEP_VERIFIED_CORRECT') {
+              isStepValid = true;
+            } else if (linCheck && linCheck.status === 'STEP_VERIFIED_INCORRECT') {
+              isStepValid = false;
+            } else if (trustedRefEq !== currentActive.activeExpression) {
+              const origCheck = evaluateLinearEquationStep(candidateStepEq, currentActive.activeExpression);
+              if (origCheck && origCheck.status === 'STEP_VERIFIED_CORRECT') {
+                isStepValid = true;
+              }
+            }
+          } catch (_) {}
+
+          if (isStepValid) {
+            currentActive.currentStepEquation = candidateStepEq;
+            const coeff = parseInt(stepLhs, 10);
+            if (!isNaN(coeff) && Math.abs(coeff) > 1) {
+              currentActive.nextOperation = `divide both sides by ${coeff}`;
+            }
           }
         }
       }
@@ -897,7 +950,11 @@ function buildBoundedConversationContext(rawMessages = [], options = {}) {
   }
 
   // Deterministically extract active problem state
-  const state = extractActiveProblemState(dialogueMessages);
+  const state = extractActiveProblemState(
+    dialogueMessages,
+    options.preflightFacts || [],
+    { excludeUnverifiedUserSteps: Boolean(options && options.excludeUnverifiedUserSteps) }
+  );
   const activeProblemContext = formatActiveProblemContext(state);
 
   // The recent verbatim window takes the last (recentTurnsCount * 2) messages
@@ -1034,9 +1091,12 @@ function buildEffectivePrompt(messages = []) {
   for (let i = 1; i < userMsgs.length; i++) {
     const turnText = userMsgs[i].content.trim();
 
-    // Equation correction
+    // Equation correction (ignore simple single-variable numeric user claims like "Actually x = 7." unless explicit equation rewrite)
     const eqMatch = turnText.match(/(?:i\s+meant|solve|typo,?\s+meant|(?:actually|wait|sorry|no)[,\s]*(?:the\s+)?equation\s+(?:is|was)|actually)\s+([a-zA-Z0-9+\-*/^().\s=]+=[a-zA-Z0-9+\-*/^().\s=]+)/i);
-    if (eqMatch) {
+    const isSimpleUserRootClaim = eqMatch &&
+      /^[a-zA-Z]\s*=\s*[-+]?\d+(?:\.\d+)?[.?!]*$/.test(eqMatch[1].trim()) &&
+      !/\b(?:the\s+equation|solve)\b/i.test(turnText);
+    if (eqMatch && !isSimpleUserRootClaim) {
       const newEq = eqMatch[1].trim();
       if (/[-+*/^0-9a-zA-Z().\s]+=[-+\-*/^0-9a-zA-Z().\s]+/.test(effective)) {
         effective = effective.replace(/[-+*/^0-9a-zA-Z().\s]+=[-+\-*/^0-9a-zA-Z().\s]+/g, newEq);
