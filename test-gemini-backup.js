@@ -866,7 +866,7 @@ async function runRoutingTests() {
 
       // Step 4: Verify Pythos reasoning returned
       assert(data.message && data.message.content.includes('15 * 4 = 60'), 'Step 4: Pythos reasoning must be contained in message content');
-      assert.strictEqual(data.model, 'gemini-2.5-flash', 'Model must reflect fallback provider model');
+      assert.strictEqual(data.model, 'gemini-3.8-flash', 'Model must reflect fallback provider model');
 
       // Step 5: Verify deterministic claim extraction & mathematical verification
       assert(Array.isArray(data.claims) && data.claims.length > 0, 'Step 5a: Mathematical claims must be extracted');

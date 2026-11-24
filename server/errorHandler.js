@@ -105,13 +105,16 @@ function classifyUpstreamError(err, context = 'text') {
   const isAbort = err.name === 'AbortError' || msg.includes('aborted') || msg.includes('aborterror');
   const isNetworkRefused = err.code === 'ECONNREFUSED' || msg.includes('econnrefused') || err.code === 'ENOTFOUND' || msg.includes('enotfound');
   const isRateLimit = statusCode === 429 || err.code === 'UPSTREAM_RATE_LIMITED' || msg.includes('rate_limit') || msg.includes('rate limit') || msg.includes('tokens per day') || msg.includes('resource_exhausted') || msg.includes('quota');
+  const isPayloadTooLarge = statusCode === 413 || msg.includes('request too large') || msg.includes('payload too large');
+  const isModelNotFound = statusCode === 404 || msg.includes('not_found') || msg.includes('no longer available');
   const isEmptyResponse = err.code === 'PRIMARY_EMPTY_RESPONSE' || err.code === 'BACKUP_EMPTY_RESPONSE' || msg.includes('empty candidate response');
   const isAuthError = statusCode === 401 || statusCode === 403 || msg.includes('unauthorized') || msg.includes('forbidden') || msg.includes('invalid_api_key');
   const isBadRequest = statusCode === 400 || msg.includes('bad request') || msg.includes('invalid request');
   const isServerError = (statusCode >= 500 && statusCode < 600) || isEmptyResponse;
 
   const retrySeconds = extractRetrySeconds(err);
-  const retryNotice = formatRetryNotice(retrySeconds);
+  const effectiveRetrySeconds = retrySeconds || (isRateLimit && context === 'vision' ? 15 : undefined);
+  const retryNotice = formatRetryNotice(effectiveRetrySeconds);
 
   // 1. Rate Limit (HTTP 429)
   if (isRateLimit) {
@@ -122,7 +125,27 @@ function classifyUpstreamError(err, context = 'text') {
       message: isVision
         ? `⏳ The vision reasoning service is temporarily busy with high demand.${retryNotice || ' Please try again in a few moments.'}`
         : `⏳ Pythos is temporarily handling many queries.${retryNotice || ' Please wait a moment and try again.'}`,
-      retryAfter: retrySeconds || undefined,
+      retryAfter: effectiveRetrySeconds,
+      sanitizedDetail: sanitizeErrorDetail(err)
+    };
+  }
+
+  // 1b. Payload / Image Request Too Large (HTTP 413)
+  if (isPayloadTooLarge) {
+    return {
+      status: 413,
+      error: 'UPSTREAM_PAYLOAD_TOO_LARGE',
+      message: '⚠️ That image request was too large to process at once. Please crop more tightly around the problem and try again.',
+      sanitizedDetail: sanitizeErrorDetail(err)
+    };
+  }
+
+  // 1c. Deprecated / Missing Model Endpoint (HTTP 404)
+  if (isModelNotFound) {
+    return {
+      status: 502,
+      error: 'UPSTREAM_MODEL_UNAVAILABLE',
+      message: '⚙️ The configured AI model is temporarily unavailable. Please try sending your question again shortly.',
       sanitizedDetail: sanitizeErrorDetail(err)
     };
   }

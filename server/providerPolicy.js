@@ -126,7 +126,7 @@ function getProviderRegistry() {
     {
       name: 'gemini-text',
       capability: 'text',
-      model: process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash',
+      model: process.env.GEMINI_TEXT_MODEL || 'gemini-3.8-flash',
       freeEligible: process.env.GEMINI_FREE_TIER === 'true',
       enabled: () => process.env.GEMINI_ENABLED !== 'false',
       isConfigured: () => {
@@ -159,7 +159,7 @@ function getProviderRegistry() {
     {
       name: 'gemini-vision',
       capability: 'vision',
-      model: process.env.GEMINI_VISION_MODEL || 'gemini-2.5-flash',
+      model: process.env.GEMINI_VISION_MODEL || 'gemini-3.8-flash',
       freeEligible: process.env.GEMINI_FREE_TIER === 'true',
       enabled: () => process.env.GEMINI_ENABLED !== 'false',
       isConfigured: () => {

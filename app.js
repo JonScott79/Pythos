@@ -4048,7 +4048,7 @@ async function convertHeicToJpegBlob(file) {
  * Automatically respects and preserves EXIF orientation via createImageBitmap
  * or Image element, capping maximum dimension to 1600px.
  */
-async function compressAndResizeImage(sourceFile, maxDimension = 1200, quality = 0.80) {
+async function compressAndResizeImage(sourceFile, maxDimension = 1024, quality = 0.78) {
   if (!sourceFile) {
     throw new Error("No image file provided");
   }
@@ -5051,37 +5051,53 @@ async function askPythos(userText) {
         sanitizedReply = sanitizedReply.replace(/(?:\|\s*\\){2,}[^\n]*/gi, '');
         sanitizedReply = sanitizedReply.replace(/---\s*###\s*\d+\.\s*Visualizing\s+the\s+triangle[\s\S]*$/gi, '');
         let finalReply = sanitizedReply.trim() || "The Oracle is silent. (Empty response)";
-        if (isTruncated) {
-          finalReply += "\n\n> ⚠️ *[Response interrupted: reached maximum output token limit. Say \"continue\" to proceed.]*";
-        } else if (!isStreamError && !isStreamDone && !userStoppedGeneration && !isInterrupted && streamedText.length > 0) {
-          finalReply += "\n\n> ⚠️ *[Response interrupted: stream closed unexpectedly.]*";
-        }
-        messages.push({ role: "assistant", content: finalReply });
-        appendMessage("assistant", finalReply, null, {
-          question: cleanText,
-          claims: metaClaims,
-          verification: metaVerification,
-          verificationAudit: metaVerificationAudit,
-          model: metaModel,
-          truncated: isTruncated,
-          interrupted: isInterrupted || (!isStreamDone && !userStoppedGeneration),
-          finishReason: metaFinishReason,
-          withheld: metaWithheld,
-          withholdingReason: metaWithholdingReason,
-          withholdingExplanation: metaWithholdingExplanation,
-          withholdingDetails: metaWithholdingDetails,
-          verificationState: metaVerificationState,
-          verificationSummary: metaVerificationSummary,
-          handoffContract: metaHandoffContract,
-          isTutorHint: metaIsTutorHint
-        });
+        if (isStreamError) {
+          removeFailedUserMessage();
+          const errorDisplayReply = (finalReply.startsWith("⏳") || finalReply.startsWith("⚠️") || finalReply.startsWith("⚙️") || finalReply.startsWith("🌩️") || finalReply.startsWith("🔌") || finalReply.startsWith("❌"))
+            ? finalReply
+            : `⚠️ ${finalReply}`;
+          appendMessage("assistant", errorDisplayReply, null, {
+            question: cleanText,
+            model: metaModel,
+            interrupted: true,
+            isError: true
+          });
+          if (wasScrolledUpBeforePromotion && output) {
+            output.scrollTop = prePromotionScrollTop;
+          }
+        } else {
+          if (isTruncated) {
+            finalReply += "\n\n> ⚠️ *[Response interrupted: reached maximum output token limit. Say \"continue\" to proceed.]*";
+          } else if (!isStreamDone && !userStoppedGeneration && !isInterrupted && streamedText.length > 0) {
+            finalReply += "\n\n> ⚠️ *[Response interrupted: stream closed unexpectedly.]*";
+          }
+          messages.push({ role: "assistant", content: finalReply });
+          appendMessage("assistant", finalReply, null, {
+            question: cleanText,
+            claims: metaClaims,
+            verification: metaVerification,
+            verificationAudit: metaVerificationAudit,
+            model: metaModel,
+            truncated: isTruncated,
+            interrupted: isInterrupted || (!isStreamDone && !userStoppedGeneration),
+            finishReason: metaFinishReason,
+            withheld: metaWithheld,
+            withholdingReason: metaWithholdingReason,
+            withholdingExplanation: metaWithholdingExplanation,
+            withholdingDetails: metaWithholdingDetails,
+            verificationState: metaVerificationState,
+            verificationSummary: metaVerificationSummary,
+            handoffContract: metaHandoffContract,
+            isTutorHint: metaIsTutorHint
+          });
 
-        // If user was reading scrolled up during streaming, preserve their exact reading position
-        if (wasScrolledUpBeforePromotion && output) {
-          output.scrollTop = prePromotionScrollTop;
-        }
+          // If user was reading scrolled up during streaming, preserve their exact reading position
+          if (wasScrolledUpBeforePromotion && output) {
+            output.scrollTop = prePromotionScrollTop;
+          }
 
-        await saveChatState(userText, finalReply);
+          await saveChatState(userText, finalReply);
+        }
       }
     } else if (!res.ok) {
       removeThinking(thinking);

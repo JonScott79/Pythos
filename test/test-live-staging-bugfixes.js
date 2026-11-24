@@ -8,6 +8,9 @@
  */
 
 const assert = require('assert');
+const fs = require('fs');
+const https = require('https');
+const path = require('path');
 const { constructSafeVerifiedResponse } = require('../server/safeResponseConstructor');
 const { extractClaims, verifyResponseClaims, evaluateCandidateDelivery, closeVerifierDaemon } = require('../server/verificationBridge');
 const { closeCalculusDaemon } = require('../server/engines/calculusEngine');
@@ -15,7 +18,10 @@ const { closeRootDaemon } = require('../server/engines/rootSolver');
 const { classifyStudentIntent } = require('../server/studentIntentClassifier');
 const { evaluateStudentWork } = require('../server/studentWorkEvaluator');
 const { extractActiveProblemState } = require('../server/contextManager');
+const { classifyUpstreamError } = require('../server/errorHandler');
 const providerPolicy = require('../server/providerPolicy');
+if (!process.env.NODE_ENV) process.env.NODE_ENV = 'test';
+const { executeVisionCall, executeRevisionCall } = require('../server/server');
 
 async function runTests() {
   let passed = 0;
@@ -192,6 +198,252 @@ async function runTests() {
         else process.env[k] = v;
       }
     }
+  });
+
+  // 5. Vision OTPM Cap, 404 Model Auto-Discovery, Compact Revision & Client Error/Compression Safeguards
+  await test('Bug 5a: Groq Vision caps max_tokens <= 850 and shrinks to 450 on 429 OTPM limit', async () => {
+    const saved = {
+      PYTHOS_AI_BUDGET_MODE: process.env.PYTHOS_AI_BUDGET_MODE,
+      PYTHOS_AI_ENABLED: process.env.PYTHOS_AI_ENABLED,
+      GROQ_API_KEY: process.env.GROQ_API_KEY
+    };
+    const origHttpsRequest = https.request;
+    const seenMaxTokens = [];
+    try {
+      providerPolicy.clearRateLimits();
+      process.env.PYTHOS_AI_BUDGET_MODE = 'free_only';
+      process.env.PYTHOS_AI_ENABLED = 'true';
+      process.env.GROQ_API_KEY = 'gsk_dummy_vision_test_1234567890';
+      let callCount = 0;
+      https.request = function (opts, cb) {
+        let reqBody = '';
+        const reqMock = {
+          on: () => reqMock,
+          destroy: () => {},
+          write: (chunk) => { reqBody += String(chunk); },
+          end: () => {
+            callCount++;
+            const parsed = JSON.parse(reqBody);
+            seenMaxTokens.push(parsed.max_tokens);
+            const resMock = {
+              statusCode: callCount === 1 ? 429 : 200,
+              headers: {},
+              setEncoding: () => {},
+              on: (ev, fn) => {
+                if (ev === 'data') {
+                  fn(callCount === 1
+                    ? JSON.stringify({ error: { message: 'Request too large for model on output tokens per minute (OTPM): Limit 1000, Requested 1353, please reduce max_tokens.' } })
+                    : JSON.stringify({ choices: [{ message: { content: 'Step 1: Isolate $x$.' }, finish_reason: 'stop' }], usage: { prompt_tokens: 400, completion_tokens: 12, total_tokens: 412 } }));
+                }
+                if (ev === 'end') fn();
+              }
+            };
+            cb(resMock);
+          }
+        };
+        return reqMock;
+      };
+
+      const res = await executeVisionCall(
+        { name: 'groq-qwen-vision', model: 'qwen/qwen3.8-27b', freeEligible: true, enabled: true, isConfigured: () => true },
+        {
+          messages: [{ role: 'user', content: 'Solve this', images: ['data:image/jpeg;base64,/9j/4AAQSkZJRg=='] }],
+          visionSystemPrompt: 'Be concise.',
+          options: { num_predict: 4096 },
+          timeoutMs: 5000
+        }
+      );
+      assert.strictEqual(seenMaxTokens.length, 2, `Expected 2 Groq attempts, got ${seenMaxTokens.length}`);
+      assert(seenMaxTokens[0] <= 850, `Initial max_tokens must stay <= 850, got ${seenMaxTokens[0]}`);
+      assert.strictEqual(seenMaxTokens[1], 450, `Expected OTPM retry shrink to 450, got ${seenMaxTokens[1]}`);
+      assert.strictEqual(res.content, 'Step 1: Isolate $x$.');
+    } finally {
+      https.request = origHttpsRequest;
+      providerPolicy.clearRateLimits();
+      for (const [k, v] of Object.entries(saved)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
+  });
+
+  await test('Bug 5b: Gemini Vision defaults to gemini-3.8-flash and auto-discovers live model on 404', async () => {
+    const saved = {
+      PYTHOS_AI_BUDGET_MODE: process.env.PYTHOS_AI_BUDGET_MODE,
+      PYTHOS_AI_ENABLED: process.env.PYTHOS_AI_ENABLED,
+      GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+      GEMINI_FREE_TIER: process.env.GEMINI_FREE_TIER
+    };
+    const origHttpsRequest = https.request;
+    const requestedPaths = [];
+    try {
+      providerPolicy.clearRateLimits();
+      process.env.PYTHOS_AI_BUDGET_MODE = 'free_only';
+      process.env.PYTHOS_AI_ENABLED = 'true';
+      process.env.GEMINI_FREE_TIER = 'true';
+      process.env.GEMINI_API_KEY = 'AIza' + 'SyDummyGeminiTestKey1234567890';
+
+      const sel = providerPolicy.selectProvider({ capability: 'vision', providerName: 'gemini-vision' });
+      assert.strictEqual(sel.provider?.model, 'gemini-3.8-flash', `Default Gemini Vision model must be gemini-3.8-flash, got ${sel.provider?.model}`);
+
+      https.request = function (opts, cb) {
+        requestedPaths.push(`${opts.method} ${opts.path}`);
+        const reqMock = {
+          on: () => reqMock,
+          destroy: () => {},
+          write: () => {},
+          end: () => {
+            let statusCode = 200;
+            let body = '';
+            if (opts.path.includes('gemini-2.5-flash:generateContent')) {
+              statusCode = 404;
+              body = JSON.stringify({ error: { code: 404, message: 'models/gemini-2.5-flash is no longer available' } });
+            } else if (opts.path.startsWith('/v1beta/models?key=')) {
+              statusCode = 200;
+              body = JSON.stringify({
+                models: [
+                  { name: 'models/gemini-3.8-flash', supportedGenerationMethods: ['generateContent'] }
+                ]
+              });
+            } else if (opts.path.includes('gemini-3.8-flash:generateContent')) {
+              statusCode = 200;
+              body = JSON.stringify({
+                candidates: [{ content: { parts: [{ text: 'Verified via Gemini 3.8 Flash' }] }, finishReason: 'STOP' }],
+                usageMetadata: { promptTokenCount: 250, candidatesTokenCount: 20, total_tokens: 270 }
+              });
+            }
+            cb({
+              statusCode,
+              headers: {},
+              setEncoding: () => {},
+              on: (ev, fn) => {
+                if (ev === 'data') fn(body);
+                if (ev === 'end') fn();
+              }
+            });
+          }
+        };
+        return reqMock;
+      };
+
+      const res = await executeVisionCall(
+        { name: 'gemini-vision', model: 'gemini-2.5-flash', freeEligible: true, enabled: true, isConfigured: () => true },
+        {
+          messages: [{ role: 'user', content: 'Inspect problem', images: ['data:image/jpeg;base64,/9j/4AAQSkZJRg=='] }],
+          visionSystemPrompt: 'Be concise.',
+          options: { num_predict: 1024 },
+          timeoutMs: 5000
+        }
+      );
+      assert.strictEqual(res.model, 'gemini-3.8-flash');
+      assert.strictEqual(res.content, 'Verified via Gemini 3.8 Flash');
+      assert(requestedPaths.some(p => p.startsWith('GET /v1beta/models?key=')), 'Must query /v1beta/models on 404');
+    } finally {
+      https.request = origHttpsRequest;
+      providerPolicy.clearRateLimits();
+      for (const [k, v] of Object.entries(saved)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
+  });
+
+  await test('Bug 5c: Vision executeRevisionCall uses compact system prompt, <= 4 turns, and max_tokens <= 700', async () => {
+    const saved = {
+      PYTHOS_AI_BUDGET_MODE: process.env.PYTHOS_AI_BUDGET_MODE,
+      PYTHOS_AI_ENABLED: process.env.PYTHOS_AI_ENABLED,
+      GROQ_API_KEY: process.env.GROQ_API_KEY
+    };
+    const origHttpsRequest = https.request;
+    let capturedPayload = null;
+    try {
+      providerPolicy.clearRateLimits();
+      process.env.PYTHOS_AI_BUDGET_MODE = 'free_only';
+      process.env.PYTHOS_AI_ENABLED = 'true';
+      process.env.GROQ_API_KEY = 'gsk_dummy_revision_test_1234567890';
+      https.request = function (opts, cb) {
+        let reqBody = '';
+        const reqMock = {
+          on: () => reqMock,
+          destroy: () => {},
+          write: (chunk) => { reqBody += String(chunk); },
+          end: () => {
+            capturedPayload = JSON.parse(reqBody);
+            cb({
+              statusCode: 200,
+              headers: {},
+              setEncoding: () => {},
+              on: (ev, fn) => {
+                if (ev === 'data') fn(JSON.stringify({ choices: [{ message: { content: 'Revised answer: $x = 7$.' }, finish_reason: 'stop' }] }));
+                if (ev === 'end') fn();
+              }
+            });
+          }
+        };
+        return reqMock;
+      };
+
+      const longHistory = [
+        { role: 'user', content: 'Turn 1' },
+        { role: 'assistant', content: 'Reply 1' },
+        { role: 'user', content: 'Turn 2' },
+        { role: 'assistant', content: 'Reply 2' },
+        { role: 'user', content: 'Solve 4x = 28', images: ['data:image/jpeg;base64,/9j/4AAQSkZJRg=='] },
+        { role: 'user', content: 'Revise the draft to $x = 7$.' }
+      ];
+      const revText = await executeRevisionCall(
+        { reasoningPath: 'VISION', hasImages: true },
+        { revisionPrompt: longHistory, effectiveOptions: { num_predict: 4096 }, timeoutMs: 5000 }
+      );
+      assert.strictEqual(revText, 'Revised answer: $x = 7$.');
+      assert(capturedPayload, 'Revision call must hit Vision provider');
+      const sysMsg = capturedPayload.messages.find(m => m.role === 'system');
+      const nonSysMsgs = capturedPayload.messages.filter(m => m.role !== 'system');
+      assert(sysMsg && sysMsg.content.length < 1500, `Vision revision system prompt must stay compact (<1500 chars), got ${sysMsg?.content?.length}`);
+      assert(nonSysMsgs.length <= 4, `Vision revision must bound history <= 4 turns, got ${nonSysMsgs.length}`);
+      assert(capturedPayload.max_tokens <= 700, `Vision revision max_tokens must be <= 700, got ${capturedPayload.max_tokens}`);
+    } finally {
+      https.request = origHttpsRequest;
+      providerPolicy.clearRateLimits();
+      for (const [k, v] of Object.entries(saved)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
+  });
+
+  await test('Bug 5d: errorHandler classifies 404, 413, and Vision 429 without Retry-After with positive timer', async () => {
+    const err404 = Object.assign(new Error('Gemini Vision returned 404: NOT_FOUND'), { statusCode: 404 });
+    const c404 = classifyUpstreamError(err404, 'vision');
+    assert.strictEqual(c404.status, 502);
+    assert.strictEqual(c404.error, 'UPSTREAM_MODEL_UNAVAILABLE');
+
+    const err413 = Object.assign(new Error('Request too large for model on ITPM: Limit 7000, Requested 15542'), { statusCode: 413 });
+    const c413 = classifyUpstreamError(err413, 'vision');
+    assert.strictEqual(c413.status, 413);
+    assert.strictEqual(c413.error, 'UPSTREAM_PAYLOAD_TOO_LARGE');
+
+    const errOtpm429 = Object.assign(new Error('rate_limit_exceeded OTPM Limit 1000'), { statusCode: 429 });
+    const cOtpm = classifyUpstreamError(errOtpm429, 'vision');
+    assert.strictEqual(cOtpm.status, 429);
+    assert.strictEqual(cOtpm.error, 'UPSTREAM_RATE_LIMITED');
+    assert.strictEqual(cOtpm.retryAfter, 15, 'Vision 429 without explicit wait must still set fallback countdown timer');
+  });
+
+  await test('Bug 5e: app.js uses 1024px/0.78 image compression and rolls back failed stream errors without Firestore save', async () => {
+    const appSrc = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+    assert(
+      appSrc.includes('async function compressAndResizeImage(sourceFile, maxDimension = 1024, quality = 0.78)'),
+      'compressAndResizeImage must default to 1024px @ 0.78 quality'
+    );
+    const streamErrorIdx = appSrc.indexOf('if (isStreamError) {');
+    assert(streamErrorIdx !== -1, 'app.js must branch explicitly on isStreamError');
+    const elseMarker = appSrc.indexOf('} else {', streamErrorIdx);
+    assert(elseMarker !== -1, 'isStreamError branch must have matching else branch');
+    const isStreamErrorBranch = appSrc.slice(streamErrorIdx, elseMarker);
+    assert(isStreamErrorBranch.includes('removeFailedUserMessage()'), 'isStreamError branch must remove unconfirmed user message from context');
+    assert(!isStreamErrorBranch.includes('messages.push('), 'isStreamError branch must not push failed reply into messages[]');
+    assert(!isStreamErrorBranch.includes('saveChatState('), 'isStreamError branch must not invoke saveChatState');
   });
 
   console.log(`\n========================================`);

@@ -994,6 +994,64 @@ app.verifyAuthenticatedRequestUser = verifyAuthenticatedRequestUser;
 // =====================================
 
 /**
+ * Discovers an active Groq Vision-capable model via /openai/v1/models when the configured model returns 404/decommissioned.
+ */
+async function discoverAvailableGroqVisionModel(groqApiKey, excludeModel = '') {
+  if (!groqApiKey) return null;
+  const excludeLower = String(excludeModel || '').replace(/^models\//i, '').toLowerCase();
+  const preferredModels = [
+    'qwen/qwen3.8-27b',
+    'meta-llama/llama-4-scout-17b-16e-instruct',
+    'meta-llama/llama-4-maverick-17b-128e-instruct'
+  ];
+
+  return new Promise((resolve) => {
+    try {
+      const https = require('https');
+      const req = https.request({
+        hostname: 'api.groq.com',
+        port: 443,
+        path: '/openai/v1/models',
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${groqApiKey}`,
+          'User-Agent': 'Pythos-Vision/1.8.7'
+        },
+        timeout: 5000
+      }, (res) => {
+        if (typeof res.setEncoding === 'function') res.setEncoding('utf8');
+        let body = '';
+        res.on('data', chunk => { body += chunk; });
+        res.on('end', () => {
+          if (res.statusCode !== 200) return resolve(null);
+          try {
+            const parsed = JSON.parse(body);
+            const activeIds = (Array.isArray(parsed.data) ? parsed.data : [])
+              .filter(m => m && m.id && m.active !== false)
+              .map(m => String(m.id))
+              .filter(id => id.toLowerCase() !== excludeLower);
+
+            for (const pref of preferredModels) {
+              const hit = activeIds.find(id => id.toLowerCase() === pref.toLowerCase());
+              if (hit) return resolve(hit);
+            }
+            const regexHit = activeIds.find(id => /(?:vision|llama-4-(?:scout|maverick)|qwen.*vl|pixtral)/i.test(id) && !/whisper|guard|tts/i.test(id));
+            resolve(regexHit || null);
+          } catch (_) {
+            resolve(null);
+          }
+        });
+      });
+      req.on('timeout', () => { req.destroy(); resolve(null); });
+      req.on('error', () => resolve(null));
+      req.end();
+    } catch (_) {
+      resolve(null);
+    }
+  });
+}
+
+/**
  * Executes a vision inference call against the Groq vision model.
  */
 async function executeGroqVisionCall(provider, { messages, visionSystemPrompt, options, timeoutMs, signal }) {
@@ -1004,7 +1062,7 @@ async function executeGroqVisionCall(provider, { messages, visionSystemPrompt, o
     throw err;
   }
 
-  const targetModel = provider.model || process.env.OLLAMA_VISION_MODEL || OLLAMA_VISION_MODEL;
+  let currentModel = provider.model || process.env.OLLAMA_VISION_MODEL || OLLAMA_VISION_MODEL;
   const visionConversation = messages.filter(m => m.role !== 'system');
   // Bound conversational history to recent turns to keep total tokens safely within Groq TPM limits
   const boundedTurns = visionConversation.slice(-6);
@@ -1055,16 +1113,19 @@ async function executeGroqVisionCall(provider, { messages, visionSystemPrompt, o
     })
   ];
 
-  const groqPayload = JSON.stringify({
-    model: targetModel,
+  // Cap Vision max_tokens at 850 to stay under Groq on_demand OTPM 1,000 token ceiling
+  let currentMaxTokens = Math.min(options?.num_predict || options?.max_tokens || 850, 850);
+  const buildGroqVisionPayload = (modelName, maxTok) => JSON.stringify({
+    model: modelName,
     messages: formattedMessages,
     temperature: options?.temperature || 0.2,
-    max_tokens: Math.min(options?.num_predict || options?.max_tokens || 4096, 4096),
+    max_tokens: maxTok,
     stream: false
   });
 
   const groqHttps = require('https');
-  const executeCall = () => new Promise((resolveGroq, rejectGroq) => {
+  const executeCall = (modelName, maxTok) => new Promise((resolveGroq, rejectGroq) => {
+    const groqPayload = buildGroqVisionPayload(modelName, maxTok);
     const groqReq = groqHttps.request({
       hostname: 'api.groq.com',
       port: 443,
@@ -1108,10 +1169,10 @@ async function executeGroqVisionCall(provider, { messages, visionSystemPrompt, o
           const finishReason = choice?.finish_reason;
           const isTruncated = finishReason === 'length';
           if (parsed.usage) {
-            console.log(`[PROVIDER USAGE] provider=${provider.name} model=${targetModel} prompt_tokens=${parsed.usage.prompt_tokens || 0} completion_tokens=${parsed.usage.completion_tokens || 0} total_tokens=${parsed.usage.total_tokens || 0}`);
+            console.log(`[PROVIDER USAGE] provider=${provider.name} model=${modelName} prompt_tokens=${parsed.usage.prompt_tokens || 0} completion_tokens=${parsed.usage.completion_tokens || 0} total_tokens=${parsed.usage.total_tokens || 0}`);
           }
           resolveGroq({
-            model: targetModel,
+            model: modelName,
             content: text,
             provider: provider.name,
             finishReason: finishReason,
@@ -1144,13 +1205,24 @@ async function executeGroqVisionCall(provider, { messages, visionSystemPrompt, o
   });
 
   let attempts = 0;
+  let triedModelDiscovery = false;
   while (attempts < 3) {
     attempts++;
     try {
-      return await executeCall();
+      return await executeCall(currentModel, currentMaxTokens);
     } catch (callErr) {
       if (callErr.statusCode === 429) {
         const parsedWait = extractRetrySeconds(callErr);
+        const errBodyLower = String(callErr.body || callErr.message || '').toLowerCase();
+        const isOtpmLimit = /otpm|output tokens per minute|reduce max_tokens/.test(errBodyLower);
+
+        if (isOtpmLimit && currentMaxTokens > 450 && attempts < 3) {
+          currentMaxTokens = 450;
+          const retrySec = Math.min(parsedWait || 1, 5);
+          console.warn(`[VISION GATEWAY] Groq 429 OTPM ceiling hit. Reducing max_tokens=${currentMaxTokens} and retrying in ${retrySec}s (attempt ${attempts}/3)...`);
+          await new Promise(r => setTimeout(r, retrySec * 1000));
+          continue;
+        }
         if (parsedWait && parsedWait > 10) {
           throw callErr;
         }
@@ -1161,9 +1233,79 @@ async function executeGroqVisionCall(provider, { messages, visionSystemPrompt, o
           continue;
         }
       }
+      if (!triedModelDiscovery && (callErr.statusCode === 404 || /model_not_found|does not exist|decommissioned/i.test(String(callErr.body || callErr.message || '')))) {
+        triedModelDiscovery = true;
+        const discoveredModel = await discoverAvailableGroqVisionModel(groqApiKey, currentModel);
+        if (discoveredModel && discoveredModel !== currentModel) {
+          currentModel = discoveredModel;
+          console.warn(`[VISION GATEWAY] Groq vision model unavailable. Retrying with discovered model: ${currentModel}`);
+          attempts = Math.max(0, attempts - 1);
+          continue;
+        }
+      }
       throw callErr;
     }
   }
+}
+
+/**
+ * Discovers a live Gemini model supporting generateContent when the configured model returns 404/deprecated.
+ */
+async function discoverAvailableGeminiModel(geminiApiKey, excludeModel = '') {
+  if (!geminiApiKey) return null;
+  const excludeLower = String(excludeModel || '').replace(/^models\//i, '').toLowerCase();
+  const preferredModels = [
+    'gemini-3.8-flash',
+    'gemini-3.0-flash',
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-latest',
+    'gemini-2.0-flash',
+    'gemini-2.5-pro'
+  ];
+
+  return new Promise((resolve) => {
+    try {
+      const https = require('https');
+      const req = https.request({
+        hostname: 'generativelanguage.googleapis.com',
+        port: 443,
+        path: `/v1beta/models?key=${encodeURIComponent(geminiApiKey)}`,
+        method: 'GET',
+        headers: { 'User-Agent': 'Pythos-Vision/1.8.7' },
+        timeout: 5000
+      }, (res) => {
+        if (typeof res.setEncoding === 'function') res.setEncoding('utf8');
+        let body = '';
+        res.on('data', chunk => { body += chunk; });
+        res.on('end', () => {
+          if (res.statusCode !== 200) return resolve(null);
+          try {
+            const parsed = JSON.parse(body);
+            const candidates = (Array.isArray(parsed.models) ? parsed.models : [])
+              .filter(m => Array.isArray(m?.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
+              .map(m => String(m.name || '').replace(/^models\//i, ''))
+              .filter(id => id && id.toLowerCase() !== excludeLower && !/embedding|imagen|veo|tts|robotics|aqa/i.test(id));
+
+            for (const pref of preferredModels) {
+              const hit = candidates.find(id => id.toLowerCase() === pref.toLowerCase());
+              if (hit) return resolve(hit);
+            }
+            const flashCandidate = candidates.find(id => /^gemini-.*flash/i.test(id) && !/lite|image/i.test(id));
+            if (flashCandidate) return resolve(flashCandidate);
+            const anyGemini = candidates.find(id => /^gemini-/i.test(id));
+            resolve(anyGemini || null);
+          } catch (_) {
+            resolve(null);
+          }
+        });
+      });
+      req.on('timeout', () => { req.destroy(); resolve(null); });
+      req.on('error', () => resolve(null));
+      req.end();
+    } catch (_) {
+      resolve(null);
+    }
+  });
 }
 
 /**
@@ -1177,7 +1319,7 @@ async function executeGeminiVisionCall(provider, { messages, visionSystemPrompt,
     throw err;
   }
 
-  const targetModel = provider.model || process.env.GEMINI_VISION_MODEL || 'gemini-2.5-flash';
+  let currentModel = provider.model || process.env.GEMINI_VISION_MODEL || 'gemini-3.8-flash';
   const visionConversation = messages.filter(m => m.role !== 'system');
 
   // In multi-turn chat, identify the most recent turn containing images.
@@ -1248,11 +1390,11 @@ async function executeGeminiVisionCall(provider, { messages, visionSystemPrompt,
   });
 
   const geminiHttps = require('https');
-  const executeCall = () => new Promise((resolveGemini, rejectGemini) => {
+  const executeCall = (modelName) => new Promise((resolveGemini, rejectGemini) => {
     const geminiReq = geminiHttps.request({
       hostname: 'generativelanguage.googleapis.com',
       port: 443,
-      path: `/v1beta/models/${encodeURIComponent(targetModel)}:generateContent`,
+      path: `/v1beta/models/${encodeURIComponent(modelName)}:generateContent`,
       method: 'POST',
       headers: {
         'x-goog-api-key': geminiApiKey,
@@ -1304,8 +1446,11 @@ async function executeGeminiVisionCall(provider, { messages, visionSystemPrompt,
           const text = (candidate.content?.parts || []).map(p => p.text || '').join('');
           const finishReason = candidate.finishReason;
           const isTruncated = finishReason === 'MAX_TOKENS';
+          if (parsed.usageMetadata) {
+            console.log(`[PROVIDER USAGE] provider=${provider.name} model=${modelName} prompt_tokens=${parsed.usageMetadata.promptTokenCount || 0} completion_tokens=${parsed.usageMetadata.candidatesTokenCount || 0} total_tokens=${parsed.usageMetadata.totalTokenCount || 0}`);
+          }
           resolveGemini({
-            model: targetModel,
+            model: modelName,
             content: text,
             provider: provider.name,
             finishReason: finishReason,
@@ -1338,10 +1483,11 @@ async function executeGeminiVisionCall(provider, { messages, visionSystemPrompt,
   });
 
   let attempts = 0;
+  let triedModelDiscovery = false;
   while (attempts < 2) {
     attempts++;
     try {
-      return await executeCall();
+      return await executeCall(currentModel);
     } catch (callErr) {
       if (callErr.statusCode === 429) {
         const parsedWait = extractRetrySeconds(callErr);
@@ -1352,6 +1498,16 @@ async function executeGeminiVisionCall(provider, { messages, visionSystemPrompt,
           const retrySec = parsedWait || (attempts * 3);
           console.warn(`[VISION GATEWAY] Gemini 429 Rate limited. Retrying in ${retrySec}s (attempt ${attempts}/2)...`);
           await new Promise(r => setTimeout(r, retrySec * 1000));
+          continue;
+        }
+      }
+      if (!triedModelDiscovery && (callErr.statusCode === 404 || /not_found|no longer available/i.test(String(callErr.body || callErr.message || '')))) {
+        triedModelDiscovery = true;
+        const discoveredModel = await discoverAvailableGeminiModel(geminiApiKey, currentModel);
+        if (discoveredModel && discoveredModel !== currentModel) {
+          currentModel = discoveredModel;
+          console.warn(`[VISION GATEWAY] Gemini vision model unavailable (404). Retrying with discovered model: ${currentModel}`);
+          attempts = Math.max(0, attempts - 1);
           continue;
         }
       }
@@ -1609,7 +1765,7 @@ async function executeGeminiTextCall(provider, { messages, options, timeoutMs = 
     throw err;
   }
 
-  const targetModel = provider.model || process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash';
+  let currentModel = provider.model || process.env.GEMINI_TEXT_MODEL || 'gemini-3.8-flash';
   const sysMsg = messages.find(m => m.role === 'system');
   const chatMessages = messages.filter(m => m.role !== 'system');
 
@@ -1640,11 +1796,11 @@ async function executeGeminiTextCall(provider, { messages, options, timeoutMs = 
 
   const geminiPayload = JSON.stringify(payloadObj);
   const geminiHttps = require('https');
-  const executeCall = () => new Promise((resolveGemini, rejectGemini) => {
+  const executeCall = (modelName) => new Promise((resolveGemini, rejectGemini) => {
     const geminiReq = geminiHttps.request({
       hostname: 'generativelanguage.googleapis.com',
       port: 443,
-      path: `/v1beta/models/${encodeURIComponent(targetModel)}:generateContent?key=${encodeURIComponent(geminiApiKey)}`,
+      path: `/v1beta/models/${encodeURIComponent(modelName)}:generateContent?key=${encodeURIComponent(geminiApiKey)}`,
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -1690,10 +1846,10 @@ async function executeGeminiTextCall(provider, { messages, options, timeoutMs = 
           const finishReason = candidate?.finishReason;
           const isTruncated = finishReason === 'MAX_TOKENS';
           if (parsed.usageMetadata) {
-            console.log(`[PROVIDER USAGE] provider=${provider.name} model=${targetModel} prompt_tokens=${parsed.usageMetadata.promptTokenCount || 0} completion_tokens=${parsed.usageMetadata.candidatesTokenCount || 0} total_tokens=${parsed.usageMetadata.totalTokenCount || 0}`);
+            console.log(`[PROVIDER USAGE] provider=${provider.name} model=${modelName} prompt_tokens=${parsed.usageMetadata.promptTokenCount || 0} completion_tokens=${parsed.usageMetadata.candidatesTokenCount || 0} total_tokens=${parsed.usageMetadata.totalTokenCount || 0}`);
           }
           resolveGemini({
-            model: targetModel,
+            model: modelName,
             content: text,
             provider: provider.name,
             finishReason,
@@ -1725,7 +1881,18 @@ async function executeGeminiTextCall(provider, { messages, options, timeoutMs = 
     geminiReq.end();
   });
 
-  return await executeCall();
+  try {
+    return await executeCall(currentModel);
+  } catch (callErr) {
+    if (callErr.statusCode === 404 || /not_found|no longer available/i.test(String(callErr.body || callErr.message || ''))) {
+      const discoveredModel = await discoverAvailableGeminiModel(geminiApiKey, currentModel);
+      if (discoveredModel && discoveredModel !== currentModel) {
+        console.warn(`[BACKUP TEXT] Gemini model '${currentModel}' unavailable (404). Retrying with discovered model: ${discoveredModel}`);
+        return await executeCall(discoveredModel);
+      }
+    }
+    throw callErr;
+  }
 }
 
 /**
@@ -1872,10 +2039,18 @@ async function executeRevisionCall(candidateResult, { revisionPrompt, effectiveO
     const visionSelection = providerPolicy.selectProvider({ capability: 'vision' });
     if (visionSelection.provider) {
       try {
+        // Keep Vision revision prompt & token cap compact to avoid Groq 7k ITPM / 1k OTPM 413/429 limits
+        const compactVisionRevisionPrompt = 'You are Pythos, a mathematically rigorous, warm Socratic math and physics tutor. Revise the draft response so every mathematical claim, formula, unit, and final answer aligns strictly with verified ground truth while keeping clean LaTeX formatting and child-safe, encouraging tone. Never invent unverified calculations.';
+        const boundedRevisionMessages = Array.isArray(revisionPrompt) ? revisionPrompt.slice(-4) : revisionPrompt;
+        const revisionMaxTok = Math.min(effectiveOptions?.max_tokens || effectiveOptions?.num_predict || 700, 700);
         const revRes = await executeVisionCall(visionSelection.provider, {
-          messages: revisionPrompt,
-          visionSystemPrompt: PYTHOS_SYSTEM_PROMPT,
-          options: effectiveOptions,
+          messages: boundedRevisionMessages,
+          visionSystemPrompt: compactVisionRevisionPrompt,
+          options: {
+            ...(effectiveOptions || {}),
+            max_tokens: revisionMaxTok,
+            num_predict: revisionMaxTok
+          },
           timeoutMs,
           signal
         });
@@ -2737,7 +2912,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           console.warn(`[VISION GATEWAY] Provider '${provider.name}' failed:`, sanitizeErrorDetail(callErr));
 
           // Record rate limit or failure cooldown for this provider so selectProvider will try next candidate
-          const retrySec = extractRetrySeconds(callErr) || (callErr.statusCode === 429 ? 60 : 30);
+          const retrySec = extractRetrySeconds(callErr) || (callErr.statusCode === 429 ? 15 : 10);
           providerPolicy.recordRateLimit(provider.name, retrySec);
           // Loop continues to attempt next eligible provider (e.g. Gemini backup if Groq primary failed)
         }
@@ -2786,10 +2961,13 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           const isCostBlocked = lastSelection?.reason === 'COST_GUARDRAIL_BLOCKED';
           const isRateLimited = lastSelection?.reason === 'ALL_RATE_LIMITED';
           const isUnconfigured = lastSelection?.reason === 'NO_CONFIGURED_PROVIDER';
+          const resolvedRetryAfter = isRateLimited
+            ? Math.max(1, Math.ceil(Number(lastSelection?.retryAfter) || 15))
+            : (lastSelection?.retryAfter || 0);
           const errStatus = isCostBlocked ? 403 : (isRateLimited ? 429 : 503);
           const errCode = isRateLimited ? 'UPSTREAM_RATE_LIMITED' : 'UPSTREAM_UNAVAILABLE';
           const errMsg = isRateLimited
-            ? 'Vision model capacity is currently exhausted across all free providers. Please wait for the timer to complete.'
+            ? `Vision model capacity is currently exhausted across all free providers. Please wait ${resolvedRetryAfter}s for the timer to complete.`
             : (isCostBlocked
               ? 'Vision analysis requires a paid provider, but Pythos is currently locked to $0 cost guardrail (free_only mode).'
               : (isUnconfigured
@@ -2799,7 +2977,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
             status: errStatus,
             error: errCode,
             message: errMsg,
-            retryAfter: lastSelection?.retryAfter || 0
+            retryAfter: resolvedRetryAfter
           };
         }
 
@@ -4382,6 +4560,7 @@ module.exports = {
   getActiveControllers: () => activeControllers,
   clearActiveControllers,
   executeVisionCall,
+  executeRevisionCall,
   stripModelScratchpad,
   verifyAuthenticatedRequestUser
 };
