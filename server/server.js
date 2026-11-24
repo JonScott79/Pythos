@@ -2036,30 +2036,56 @@ function executeOllamaTextCall({ targetModel, ollamaMessages, effectiveOptions, 
  */
 async function executeRevisionCall(candidateResult, { revisionPrompt, effectiveOptions, timeoutMs = REVISION_TIMEOUT_MS, signal }) {
   if (candidateResult.reasoningPath === 'VISION' || candidateResult.hasImages) {
-    const visionSelection = providerPolicy.selectProvider({ capability: 'vision' });
-    if (visionSelection.provider) {
+    const compactVisionRevisionPrompt = 'You are Pythos, a mathematically rigorous, warm Socratic math and physics tutor. Revise the draft response so every mathematical claim, formula, unit, and final answer aligns strictly with verified ground truth while keeping clean LaTeX formatting and child-safe, encouraging tone. Never invent unverified calculations.';
+    const boundedRevisionMessages = Array.isArray(revisionPrompt) ? revisionPrompt.slice(-4) : revisionPrompt;
+    const revisionMaxTok = Math.min(effectiveOptions?.max_tokens || effectiveOptions?.num_predict || 700, 700);
+    const revisionOpts = {
+      ...(effectiveOptions || {}),
+      max_tokens: revisionMaxTok,
+      num_predict: revisionMaxTok
+    };
+
+    const triedVisionRev = [];
+    while (triedVisionRev.length < 2) {
+      const visionSelection = providerPolicy.selectProvider({ capability: 'vision', exclude: triedVisionRev });
+      if (!visionSelection.provider) break;
+      triedVisionRev.push(visionSelection.provider.name);
       try {
-        // Keep Vision revision prompt & token cap compact to avoid Groq 7k ITPM / 1k OTPM 413/429 limits
-        const compactVisionRevisionPrompt = 'You are Pythos, a mathematically rigorous, warm Socratic math and physics tutor. Revise the draft response so every mathematical claim, formula, unit, and final answer aligns strictly with verified ground truth while keeping clean LaTeX formatting and child-safe, encouraging tone. Never invent unverified calculations.';
-        const boundedRevisionMessages = Array.isArray(revisionPrompt) ? revisionPrompt.slice(-4) : revisionPrompt;
-        const revisionMaxTok = Math.min(effectiveOptions?.max_tokens || effectiveOptions?.num_predict || 700, 700);
         const revRes = await executeVisionCall(visionSelection.provider, {
           messages: boundedRevisionMessages,
           visionSystemPrompt: compactVisionRevisionPrompt,
-          options: {
-            ...(effectiveOptions || {}),
-            max_tokens: revisionMaxTok,
-            num_predict: revisionMaxTok
-          },
+          options: revisionOpts,
           timeoutMs,
           signal
         });
-        return revRes?.content || '';
+        if (revRes?.content && revRes.content.trim()) {
+          return revRes.content;
+        }
       } catch (revErr) {
-        console.warn('[VERIFIER] Vision revision call failed:', revErr.message);
-        return '';
+        console.warn('[VERIFIER] Vision revision call failed:', sanitizeErrorDetail(revErr));
       }
     }
+
+    // Fallback to text provider revision (draft text + verification feedback, without re-sending image bytes)
+    const textSelection = providerPolicy.selectProvider({ capability: 'text', exclude: ['ollama-text'] });
+    if (textSelection.provider) {
+      const textOnlyMessages = [
+        { role: 'system', content: compactVisionRevisionPrompt },
+        ...(Array.isArray(boundedRevisionMessages) ? boundedRevisionMessages : []).map(m => ({
+          role: m.role === 'assistant' ? 'assistant' : 'user',
+          content: (m.content && typeof m.content === 'string') ? m.content : 'Please revise the mathematical solution above.'
+        }))
+      ];
+      try {
+        const revRes = textSelection.provider.name === 'gemini-text'
+          ? await executeGeminiTextCall(textSelection.provider, { messages: textOnlyMessages, options: revisionOpts, timeoutMs, signal })
+          : await executeGroqTextCall(textSelection.provider, { messages: textOnlyMessages, options: revisionOpts, timeoutMs, signal });
+        return revRes?.content || '';
+      } catch (revTextErr) {
+        console.warn('[VERIFIER] Vision text-fallback revision failed:', sanitizeErrorDetail(revTextErr));
+      }
+    }
+    return '';
   }
 
   if (candidateResult.provider === 'groq-text') {
@@ -2074,7 +2100,7 @@ async function executeRevisionCall(candidateResult, { revisionPrompt, effectiveO
         });
         return revRes?.content || '';
       } catch (revErr) {
-        console.warn('[VERIFIER] Groq revision call failed:', revErr.message);
+        console.warn('[VERIFIER] Groq revision call failed:', sanitizeErrorDetail(revErr));
         return '';
       }
     }
@@ -2092,7 +2118,7 @@ async function executeRevisionCall(candidateResult, { revisionPrompt, effectiveO
         });
         return revRes?.content || '';
       } catch (revErr) {
-        console.warn('[VERIFIER] Gemini revision call failed:', revErr.message);
+        console.warn('[VERIFIER] Gemini revision call failed:', sanitizeErrorDetail(revErr));
         return '';
       }
     }

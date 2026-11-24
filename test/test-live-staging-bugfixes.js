@@ -446,6 +446,82 @@ async function runTests() {
     assert(!isStreamErrorBranch.includes('saveChatState('), 'isStreamError branch must not invoke saveChatState');
   });
 
+  await test('Bug 5f: Vision executeRevisionCall falls back to groq-text when Vision revision is rate-limited', async () => {
+    const saved = {
+      PYTHOS_AI_BUDGET_MODE: process.env.PYTHOS_AI_BUDGET_MODE,
+      PYTHOS_AI_ENABLED: process.env.PYTHOS_AI_ENABLED,
+      GROQ_API_KEY: process.env.GROQ_API_KEY
+    };
+    const origHttpsRequest = https.request;
+    const requestedModels = [];
+    let sawImageInFallback = false;
+    try {
+      providerPolicy.clearRateLimits();
+      process.env.PYTHOS_AI_BUDGET_MODE = 'free_only';
+      process.env.PYTHOS_AI_ENABLED = 'true';
+      process.env.GROQ_API_KEY = 'gsk_dummy_revfallback_test_123456';
+      https.request = function (opts, cb) {
+        let reqBody = '';
+        const reqMock = {
+          on: () => reqMock,
+          destroy: () => {},
+          write: (chunk) => { reqBody += String(chunk); },
+          end: () => {
+            const parsed = JSON.parse(reqBody);
+            requestedModels.push(parsed.model);
+            if (parsed.model === 'qwen/qwen3.8-27b') {
+              cb({
+                statusCode: 429,
+                headers: { 'retry-after': '20' },
+                setEncoding: () => {},
+                on: (ev, fn) => {
+                  if (ev === 'data') fn(JSON.stringify({ error: { message: 'TPM limit reached. Try again in 20s.' } }));
+                  if (ev === 'end') fn();
+                }
+              });
+              return;
+            }
+            sawImageInFallback = parsed.messages.some(m => Array.isArray(m.content) && m.content.some(p => p.type === 'image_url'));
+            cb({
+              statusCode: 200,
+              headers: {},
+              setEncoding: () => {},
+              on: (ev, fn) => {
+                if (ev === 'data') fn(JSON.stringify({ choices: [{ message: { content: 'Corrected via text fallback: $x = 21$.' }, finish_reason: 'stop' }] }));
+                if (ev === 'end') fn();
+              }
+            });
+          }
+        };
+        return reqMock;
+      };
+
+      const rev = await executeRevisionCall(
+        { reasoningPath: 'VISION', hasImages: true },
+        {
+          revisionPrompt: [
+            { role: 'user', content: 'Solve sqrt(x+4)=5', images: ['data:image/jpeg;base64,/9j/4AAQSkZJRg=='] },
+            { role: 'assistant', content: 'x = 1' },
+            { role: 'user', content: '[VERIFICATION FEEDBACK]: Expected x = 21.' }
+          ],
+          effectiveOptions: { num_predict: 1024 },
+          timeoutMs: 5000
+        }
+      );
+      assert.strictEqual(rev, 'Corrected via text fallback: $x = 21$.');
+      assert(requestedModels.includes('qwen/qwen3.8-27b'), 'Must try primary Vision revision first');
+      assert(requestedModels.some(m => m !== 'qwen/qwen3.8-27b'), 'Must fall back to groq-text when Vision revision fails');
+      assert.strictEqual(sawImageInFallback, false, 'Text fallback revision must strip image parts');
+    } finally {
+      https.request = origHttpsRequest;
+      providerPolicy.clearRateLimits();
+      for (const [k, v] of Object.entries(saved)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
+  });
+
   console.log(`\n========================================`);
   console.log(`LIVE STAGING BUGFIX REGRESSION: ${passed}/${passed + failed} PASSED`);
   console.log(`========================================`);
