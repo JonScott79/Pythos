@@ -21,6 +21,7 @@ const { classifyProblem, extractAnswerFormattingRequirements, extractRightTriang
 const { transpileSpokenMath } = require('./inputInterpreter');
 const { resolveReferentialContext } = require('./deterministicRouter');
 const { evaluateLinearEquationStep, evaluateEquationCandidate, checkAmbiguousNotation } = require('./studentWorkEvaluator');
+const { extractNotationClarificationContext, applyConfirmedNotationClarification } = require('./mathFormatDetector');
 const mathjsVerifier = require('./mathjsVerifier');
 
 // Exact math instance with rational Fraction and BigNumber support
@@ -1036,13 +1037,34 @@ function buildEffectivePrompt(messages = []) {
     return latestUser;
   }
 
-  // Guard: If latest turn is a fresh standalone equation (e.g. "tanx+cotx=1", "y=3x+2"),
-  // do not contaminate it with prior problem parameters unless relative references exist
+  // Guard: If latest turn is a fresh standalone equation or standalone math expression
+  // (e.g. "tanx+cotx=1", "y=3x+2", "\[\boxed{\frac{\sin^2(x)}{1-\cos(x)} + ...}\]"),
+  // do not contaminate it with prior non-math greetings or unrelated problem parameters unless relative references exist.
   const isStandaloneEquation = /^[a-zA-Z0-9().+\-*\/^\\_\s]+=[a-zA-Z0-9().+\-*\/^\\_\s]+$/i.test(latestUser) ||
-                               /^(?:does|is|solve|evaluate|find|calculate|graph|plot)\s+[a-zA-Z0-9().+\-*\/^\\_\s]+=[a-zA-Z0-9().+\-*\/^\\_\s]+$/i.test(latestUser);
+                               /^(?:does|is|solve|evaluate|find|calculate|graph|plot|simplify|verify|prove)\s+[a-zA-Z0-9().+\-*\/^\\_\s]+=[a-zA-Z0-9().+\-*\/^\\_\s]+$/i.test(latestUser);
+  const isStandaloneExpression =
+    /(?:\\(?:frac|dfrac|tfrac|sin|cos|tan|sec|csc|cot|sqrt|int|lim|boxed)\b|(?:sin|cos|tan|sec|csc|cot)\s*(?:\^|[⁰¹²³⁴⁵⁶⁷⁸⁹])|\$\$[\s\S]+\$\$|\\\[[\s\S]+\\\])/i.test(latestUser) &&
+    !/^\s*(?:yes|no|that|this|it)\b/i.test(latestUser);
   const hasBackReference = /\b(?:that|this|it|previous|earlier|instead|from\s+that|actually|meant|typo|sorry|wait|no|now)\b/i.test(latestUser);
-  if (isStandaloneEquation && !hasBackReference) {
+  if ((isStandaloneEquation || isStandaloneExpression) && !hasBackReference) {
     return latestUser;
+  }
+
+  // Clarification follow-up after formatting warning or confirmed trig power notation:
+  // Recover the disputed/latest substantive math problem and apply confirmed notation normalization.
+  const priorMessages = messages.slice(0, -1);
+  const clarificationCtx = extractNotationClarificationContext(latestUser, priorMessages);
+  if (clarificationCtx.hasExplicitClarification) {
+    const mathProblemTurn = clarificationCtx.disputedExpression ||
+      [...userMsgs.slice(0, -1)].reverse().find(m =>
+        m && typeof m.content === 'string' &&
+        /[\\^=()+\-*/]|sin|cos|tan|sec|csc|cot|solve|simplify|evaluate|find|graph|plot/i.test(m.content) &&
+        !/^(?:hi|hello|hey|yo|sup|hi\s+there|good\s+(?:morning|afternoon|evening)|how\s+are\s+you)[.!?\s]*$/i.test(m.content.trim())
+      )?.content;
+    if (mathProblemTurn) {
+      return applyConfirmedNotationClarification(mathProblemTurn, clarificationCtx);
+    }
+    return applyConfirmedNotationClarification(latestUser, clarificationCtx);
   }
 
   // 1. Explicit new problem reset
@@ -1059,8 +1081,13 @@ function buildEffectivePrompt(messages = []) {
     return 'Generate practice problem: ' + latestUser;
   }
 
-  // 2. Identify base problem
+  // 2. Identify base problem (skip casual greeting openers when a subsequent user turn states the math problem)
+  const isGreetingOnly = (txt) => /^(?:hi|hello|hey|yo|sup|hi\s+there|hello\s+there|good\s+(?:morning|afternoon|evening)|how\s+are\s+you(?:\s+doing)?|what'?s\s+up)[.!?\s]*$/i.test(String(txt || '').trim());
   let basePrompt = firstUser;
+  if (isGreetingOnly(basePrompt)) {
+    const firstMathTurn = userMsgs.find(m => m && !isGreetingOnly(m.content));
+    if (firstMathTurn) basePrompt = firstMathTurn.content.trim();
+  }
   for (let i = 0; i < userMsgs.length - 1; i++) {
     const um = userMsgs[i].content.trim();
     const npm = um.match(/^(?:never\s+mind[.,]?\s*|new\s+problem[:\s]+)(.*)/i);

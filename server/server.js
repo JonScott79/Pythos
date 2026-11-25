@@ -822,7 +822,7 @@ const { enforceVisualFidelity } = require('./vizEngine/visualFidelity');
 const toolController = require('./toolController');
 const specialistAssist = require('./specialistAssist');
 const { getSafeWithholding, WITHHOLDING_REASONS, resolveWithholdingDecision } = require('./withholdingTaxonomy');
-const { detectFormattingAnomaly } = require('./mathFormatDetector');
+const { detectFormattingAnomaly, extractNotationClarificationContext, applyConfirmedNotationClarification } = require('./mathFormatDetector');
 const { constructSafeVerifiedResponse } = require('./safeResponseConstructor');
 const { buildToolHandoffContract } = require('./toolHandoffBuilder');
 
@@ -2581,6 +2581,16 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
     ? messages.slice(0, -1)
     : messages;
 
+  // Detect explicit student clarification confirming intentional notation (e.g. sin^2(x) = (sin(x))^2)
+  const notationClarification = lastUserMsg
+    ? extractNotationClarificationContext(lastUserMsg.content || '', historyBefore, {
+        acknowledgedWarnings: req.body?.acknowledgedFormattingWarnings
+      })
+    : { hasExplicitClarification: false, suppressedKinds: [] };
+  const notationClarificationContext = notationClarification.hasExplicitClarification
+    ? `\n\n[STUDENT NOTATION CLARIFICATION]\nThe student explicitly confirmed that their trigonometric power/exponent notation (for example, sin^2(x) = (sin(x))^2, cos^2(x) = (cos(x))^2) is intentional and mathematically valid. Do NOT tell the student their notation is malformed, do NOT question their exponent formatting, and proceed directly to solving/simplifying the mathematical problem cleanly while preserving all required domain restrictions.`
+    : '';
+
   // Phase B (Pre-Evaluation): Trusted active problem state from prior history ONLY (never polluted by unverified inbound turn)
   const preEvalActiveState = (lastUserMsg && historyBefore.length > 0)
     ? contextManager.extractActiveProblemState(historyBefore, preflightFacts, { excludeUnverifiedUserSteps: true })
@@ -2831,7 +2841,7 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
   let preparedMessages = [...boundedContext.messagesForModel];
   preparedMessages.unshift({
     role: 'system',
-    content: PYTHOS_SYSTEM_PROMPT + identityContext + preflightContext + studentWorkContext + learnerStateContext + adaptiveTeachingContext + tutorModeContext + activeProblemContext + learningContext + memoryContext + projectKnowledgeContext + toolResultContext + specialistContext
+    content: PYTHOS_SYSTEM_PROMPT + identityContext + notationClarificationContext + preflightContext + studentWorkContext + learnerStateContext + adaptiveTeachingContext + tutorModeContext + activeProblemContext + learningContext + memoryContext + projectKnowledgeContext + toolResultContext + specialistContext
   });
 
   // Clean vision messages in conversation history
@@ -3041,7 +3051,10 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
   if (!candidateResult) {
     const textSelection = providerPolicy.selectProvider({ capability: 'text' });
     if (!textSelection.provider) {
-      const cooldownAnomaly = detectFormattingAnomaly(lastUserMsg?.content || '');
+      const cooldownAnomaly = detectFormattingAnomaly(lastUserMsg?.content || '', {
+        conversationHistory: historyBefore,
+        clarificationContext: notationClarification
+      });
       const safeRecovery = cooldownAnomaly.isWeird
         ? null
         : constructSafeVerifiedResponse({
@@ -3137,7 +3150,10 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
         // or because the conversational LLM is unavailable.
         // If Pythos possesses a trusted, independently verified solution, the delivery system must attempt to construct
         // a safe response from that solution rather than discarding it.
-        const upstreamAnomaly = detectFormattingAnomaly(lastUserMsg?.content || '');
+        const upstreamAnomaly = detectFormattingAnomaly(lastUserMsg?.content || '', {
+          conversationHistory: historyBefore,
+          clarificationContext: notationClarification
+        });
         const safeRecovery = upstreamAnomaly.isWeird
           ? null
           : constructSafeVerifiedResponse({
@@ -3380,6 +3396,9 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
       if (contextManager.buildEffectivePrompt && Array.isArray(messages)) {
         effectiveVerificationPrompt = contextManager.buildEffectivePrompt(messages);
       }
+      if (notationClarification.hasExplicitClarification) {
+        effectiveVerificationPrompt = applyConfirmedNotationClarification(effectiveVerificationPrompt, notationClarification);
+      }
     } catch (ctxErr) {
       console.warn('[CONTEXT] buildEffectivePrompt failed in post-verification:', ctxErr.message);
     }
@@ -3606,7 +3625,10 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
       req.body.image
     );
     const preDeliveryFormattingAnomaly = !hasTurnImages
-      ? detectFormattingAnomaly(lastUserMsg?.content || '')
+      ? detectFormattingAnomaly(lastUserMsg?.content || '', {
+          conversationHistory: historyBefore,
+          clarificationContext: notationClarification
+        })
       : { isWeird: false };
 
     const hasUnresolvableFailure =
@@ -3622,7 +3644,10 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
 
       const latestFormattingAnomaly = preDeliveryFormattingAnomaly?.isWeird
         ? preDeliveryFormattingAnomaly
-        : detectFormattingAnomaly(lastUserMsg?.content || '');
+        : detectFormattingAnomaly(lastUserMsg?.content || '', {
+            conversationHistory: historyBefore,
+            clarificationContext: notationClarification
+          });
       let safeRecovery = null;
       if (!latestFormattingAnomaly.isWeird) {
         try {
@@ -3705,7 +3730,9 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           unknownClaims,
           internalContradictions,
           classification,
-          studentIntent
+          studentIntent,
+          conversationHistory: historyBefore,
+          clarificationContext: notationClarification
         });
         const resolvedReason = decision.reason;
         console.warn(`[DELIVERY GATE] Withholding decision: reason=${resolvedReason}, anomaly=${decision.anomaly?.kind || 'NONE'}, userLen=${(lastUserMsg?.content || '').length}, userPreview=${JSON.stringify((lastUserMsg?.content || '').slice(0, 120))}`);

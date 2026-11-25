@@ -335,7 +335,9 @@ function resolveWithholdingDecision({
   internalContradictions = [],
   classification = null,
   studentIntent = null,
-  providerError = null
+  providerError = null,
+  conversationHistory = [],
+  clarificationContext = null
 } = {}) {
   const safeInvalid = (Array.isArray(invalidClaims) ? invalidClaims : []).filter(
     e => !e?.verification || e.verification.verified !== true
@@ -438,7 +440,10 @@ function resolveWithholdingDecision({
 
   // 5. Formatting anomalies on latest user expression
   if (typeof detectFormattingAnomaly === 'function' && typeof lastUserText === 'string' && lastUserText.trim()) {
-    const anomaly = detectFormattingAnomaly(lastUserText);
+    const anomaly = detectFormattingAnomaly(lastUserText, {
+      conversationHistory,
+      clarificationContext
+    });
     if (anomaly && anomaly.isWeird === true) {
       return {
         reason: WITHHOLDING_REASONS.MALFORMED_SYNTAX,

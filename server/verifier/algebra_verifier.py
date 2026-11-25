@@ -309,39 +309,57 @@ def _parse_inequality_restrictions(cond_str: str) -> list:
                 return True
             return False
 
-        # Resolve function constraints (e.g. sin(x) != 0 or x != n*pi) or symbolic constants
+        # Resolve function constraints (e.g. sin(x) != 0, cos(x) != 1, x != n*pi) or symbolic constants
         try:
             rhs_clean = _re.sub(r'\\pi\b', 'pi', rhs_v).replace('π', 'pi')
+            lhs_fn_norm = _re.sub(r'\\(sin|cos|tan|sec|csc|cot)\b', r'\1', lhs_clean)
+            rhs_fn_norm = _re.sub(r'\\(sin|cos|tan|sec|csc|cot)\b', r'\1', rhs_clean)
             local_env = {"pi": sp.pi, "sin": sp.sin, "cos": sp.cos, "tan": sp.tan, "sec": sp.sec, "csc": sp.csc, "cot": sp.cot}
-            if '(' not in lhs_clean:
-                if _re.search(r'\b[nk]\s*\*?\s*pi\b', rhs_clean):
-                    found.append(f"{lhs_clean} != {rhs_clean}")
-                    if _re.search(r'pi\s*/\s*2', rhs_clean):
-                        found.append(f"cos({lhs_clean}) != 0")
-                        found.append(f"{lhs_clean} != pi/2 + n*pi, n \u2208 Z")
+            if '(' not in lhs_fn_norm:
+                if _re.search(r'\b[nk]\s*\*?\s*pi\b', rhs_fn_norm):
+                    found.append(f"{lhs_fn_norm} != {rhs_fn_norm}")
+                    if _re.search(r'pi\s*/\s*2', rhs_fn_norm):
+                        if not _re.search(r'\b2\s*\*?\s*[nk]\s*\*?\s*pi\b', rhs_fn_norm):
+                            found.append(f"cos({lhs_fn_norm}) != 0")
+                            found.append(f"{lhs_fn_norm} != pi/2 + n*pi, n \u2208 Z")
+                        else:
+                            found.append(f"1 - sin({lhs_fn_norm}) != 0")
+                            found.append(f"sin({lhs_fn_norm}) - 1 != 0")
+                            found.append(f"sin({lhs_fn_norm}) != 1")
+                    elif _re.search(r'\b2\s*\*?\s*[nk]\s*\*?\s*pi\b', rhs_fn_norm):
+                        found.append(f"1 - cos({lhs_fn_norm}) != 0")
+                        found.append(f"cos({lhs_fn_norm}) - 1 != 0")
+                        found.append(f"cos({lhs_fn_norm}) != 1")
                     else:
-                        found.append(f"sin({lhs_clean}) != 0")
-                        found.append(f"{lhs_clean} != n*pi, n \u2208 Z")
+                        found.append(f"sin({lhs_fn_norm}) != 0")
+                        found.append(f"{lhs_fn_norm} != n*pi, n \u2208 Z")
                 else:
-                    rhs_sym_parsed = safe_sympify(rhs_clean, locals=local_env)
+                    rhs_sym_parsed = safe_sympify(rhs_fn_norm, locals=local_env)
                     rhs_val = complex(sp.N(rhs_sym_parsed))
                     if abs(rhs_val.imag) < 1e-12:
                         if rhs_sym_parsed.is_Rational or abs(rhs_val.real - round(rhs_val.real)) < 1e-12:
                             found.append(round(rhs_val.real, 10))
                         else:
-                            found.append(f"{lhs_clean} != {sp.simplify(rhs_sym_parsed)}")
+                            found.append(f"{lhs_fn_norm} != {sp.simplify(rhs_sym_parsed)}")
                     else:
-                        found.append(f"{lhs_clean} != {sp.simplify(rhs_sym_parsed)}")
+                        found.append(f"{lhs_fn_norm} != {sp.simplify(rhs_sym_parsed)}")
             else:
                 x_sym = sp.Symbol("x", real=True)
                 local_env["x"] = x_sym
-                lhs_sym = safe_sympify(lhs_clean, locals=local_env)
-                rhs_sym = safe_sympify(rhs_clean, locals=local_env)
-                free = sorted(lhs_sym.free_symbols, key=str)
+                lhs_sym = safe_sympify(lhs_fn_norm, locals=local_env)
+                rhs_sym = safe_sympify(rhs_fn_norm, locals=local_env)
+                free = sorted(lhs_sym.free_symbols | rhs_sym.free_symbols, key=str)
                 target = free[0] if free else x_sym
                 tmp_set = set()
                 if rhs_sym == 0 and _extract_periodic_trig_restrictions(lhs_sym, target, tmp_set):
                     found.extend(sorted(tmp_set))
+                elif (lhs_sym - rhs_sym).has(sp.sin, sp.cos, sp.tan, sp.sec, sp.csc, sp.cot):
+                    diff_lr = sp.simplify(lhs_sym - rhs_sym)
+                    diff_rl = sp.simplify(rhs_sym - lhs_sym)
+                    found.append(f"{diff_lr} != 0")
+                    found.append(f"{diff_rl} != 0")
+                    if rhs_sym != 0:
+                        found.append(f"{sp.simplify(lhs_sym)} != {sp.simplify(rhs_sym)}")
                 else:
                     for z in sp.solve(lhs_sym - rhs_sym, target):
                         val_c = complex(z.evalf())
@@ -353,10 +371,11 @@ def _parse_inequality_restrictions(cond_str: str) -> list:
             pass
 
     # 1. Standard inequality forms, including comma-separated lists like "x != 1, 2, 3"
+    # and LaTeX trig denominators/exclusions like "\cos(x) \neq 1 and \sin(x) \neq 1" or "1 - \cos(x) \neq 0"
     ineq_re = _re.compile(
-        r'((?:\\?(?:sin|cos|tan|sec|csc|cot)\s*\([^()]+\)|[a-zA-Z_][a-zA-Z0-9_]*(?:\([^()]+\))?))\s*'
+        r'((?:1\s*-\s*)?(?:\\?(?:sin|cos|tan|sec|csc|cot)\s*\([^()]+\)|[a-zA-Z_][a-zA-Z0-9_]*(?:\([^()]+\))?)(?:\s*-\s*1)?)\s*'
         r'(?:!=|\\neq|≠|<>)\s*'
-        r'([-+]?(?:\\?pi|[a-zA-Z0-9_./*\\]+)(?:\s*(?:,|\band\b)\s*(?![a-zA-Z_][a-zA-Z0-9_]*\s*(?:!=|\\neq|≠|<>))[-+]?(?:\\?pi|[a-zA-Z0-9_./*\\]+))*)'
+        r'([-+]?(?:\d+\s*\*?\s*)?(?:\\?pi|[a-zA-Z0-9_./*\\^{}\s+\-]+?)(?:\s*(?:,|\band\b)\s*(?![a-zA-Z_\\][a-zA-Z0-9_()\\]*\s*(?:!=|\\neq|≠|<>))[-+]?(?:\\?pi|[a-zA-Z0-9_./*\\^{}]+))*)?(?=\s*(?:[,;.)\]]|$|\band\b|\bor\b))'
     )
     for pair in ineq_re.finditer(cond_str):
         lhs_v = pair.group(1).strip()
@@ -1074,6 +1093,25 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
                             src_clean = src_s.replace(" ", "")
                             if _re.search(r'(?<![a-zA-Z0-9_-])' + _re.escape(r_norm), src_clean):
                                 return True
+                    # Symbolic inequality equivalence (e.g. "1 - cos(x) != 0" <-> "cos(x) != 1")
+                    if isinstance(r, str) and '!=' in r and ',' not in r:
+                        try:
+                            rl, rr = [p.strip() for p in r.split('!=', 1)]
+                            expr_r = sp.simplify(safe_sympify(rl, locals=local_syms) - safe_sympify(rr, locals=local_syms))
+                            for sr in stated_restrictions:
+                                if not isinstance(sr, str) or '!=' not in sr or ',' in sr:
+                                    continue
+                                sl, srhs = [p.strip() for p in sr.split('!=', 1)]
+                                sl_clean = _re.sub(r'\\(sin|cos|tan|sec|csc|cot)\b', r'\1', sl)
+                                srhs_clean = _re.sub(r'\\pi\b', 'pi', srhs).replace('π', 'pi')
+                                expr_s = sp.simplify(safe_sympify(sl_clean, locals=local_syms) - safe_sympify(srhs_clean, locals=local_syms))
+                                # Guard: never let a non-periodic single-point variable exclusion (e.g. x != 0) satisfy trig constraints
+                                if expr_r.has(sp.sin, sp.cos, sp.tan, sp.sec, sp.csc, sp.cot) and not expr_s.has(sp.sin, sp.cos, sp.tan, sp.sec, sp.csc, sp.cot):
+                                    continue
+                                if sp.simplify(expr_r - expr_s) == 0 or sp.simplify(expr_r + expr_s) == 0:
+                                    return True
+                        except Exception:
+                            pass
                     return False
 
                 if (stated_restrictions or any(isinstance(s, str) and (">" in s or ">=" in s) for s in extra_condSources)) and all(_is_restriction_stated(r) for r in mismatched):

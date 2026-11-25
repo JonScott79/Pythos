@@ -1227,13 +1227,16 @@ function extractClaims(text, userPrompt = '') {
         for (const seg of candidateEqSegments) {
           const trimSeg = seg.trim();
           if (!trimSeg || !trimSeg.includes('=') || /[<>≈~]|\\(?:approx|neq)\b/.test(trimSeg)) continue;
+          const segIdx = textUnboxed.indexOf(trimSeg);
+          const segPrefix = segIdx > 0 ? textUnboxed.slice(Math.max(0, segIdx - 45), segIdx) : '';
+          if (/\b(?:undefined\s+(?:when|at|if)|excluded?\s+(?:when|at|if)|denominator\s+(?:is|equals?)\s+zero\s+(?:when|at|if)|occurs\s+(?:when|at)|cannot\s+(?:be|equal)|domain\s+restriction)\s*$/i.test(segPrefix)) continue;
           const cand = cleanAndNormalizeEquation(trimSeg);
           if (!cand || !isSingleVarEq(cand.equation) || !/^[a-z]$/.test(cand.variable)) continue;
           const eqSides = cand.equation.split('=').map(s => s.trim());
           if (eqSides.length !== 2) continue;
           if (/^[a-zA-Z]$/.test(eqSides[0]) || /^[a-zA-Z]$/.test(eqSides[1])) continue;
           const hasExplicitVarAssign = new RegExp(
-            `(?:^|[^a-zA-Z0-9_*^/\\\\])${cand.variable}\\s*=\\s*[-+]?(?:\\\\frac\\{\\s*[-+]?\\d|\\d)`,
+            `(?:^|[^a-zA-Z0-9_*^/\\\\])${cand.variable}\\s*=\\s*[-+]?(?:\\\\frac\\{\\s*[-+]?\\d+(?:\\.\\d+)?\\s*\\}\\{\\s*\\d+(?:\\.\\d+)?\\s*\\}|\\d+(?:\\.\\d+)?)(?=$|[^a-zA-Z\\\\√⁰¹²³⁴⁵⁶⁷⁸⁹])(?!\\s*(?:pi|π|k|n|\\\\pi|\\\\sqrt|\\\\frac)\\b)`,
             'i'
           ).test(textUnboxed);
           if (!hasExplicitVarAssign) continue;
@@ -1300,11 +1303,14 @@ function extractClaims(text, userPrompt = '') {
         const assignAllRegex = new RegExp('\\b' + v + '\\s*=\\s*([-\\+]?(?:\\\\frac\\{\\s*[-\\+]?\\d+(?:\\.\\d+)?\\s*\\}\\{\\s*\\d+(?:\\.\\d+)?\\s*\\}|[-\\+]?\\d+(?:\\.\\d+)?(?:\\/\\d+(?:\\.\\d+)?)?))', 'gi');
         let m;
         while ((m = assignAllRegex.exec(text)) !== null) {
-          // Do not extract test substitutions, hypothetical assignments, or trig/log arguments (e.g. "sin X = 2/7")
-          const prefix = text.slice(Math.max(0, m.index - 30), m.index);
-          if (/\b(?:let|test|testing|try|trying|for|if|when|substitute|substituting|plug|plugging|check|checking|at|with|no\s+real)\s*$/i.test(prefix) ||
+          // Do not extract test substitutions, hypothetical assignments, parametric families (e.g. "x = 2k\pi"),
+          // domain-exclusion clauses, or trig/log arguments (e.g. "sin X = 2/7")
+          const prefix = text.slice(Math.max(0, m.index - 45), m.index);
+          const afterMatch = text.slice(m.index + m[0].length);
+          if (/\b(?:let|test|testing|try|trying|for|if|when|substitute|substituting|plug|plugging|check|checking|at|with|no\s+real|undefined|excluded?|occurs?\s+(?:at|when)|restriction|denominator|cannot\s+equal)\s*(?:\([^)]*\)\s*)?$/i.test(prefix) ||
               /(?:\\|\b)(?:sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|log|ln|exp|sqrt)\s*(?:\^\s*\{?\d+\}?\s*)?$/i.test(prefix) ||
-              /(?:[\^*\/+\-)]|\\(?:cdot|times|div))\s*$/i.test(prefix)) {
+              /(?:[\^*\/+\-)]|\\(?:cdot|times|div))\s*$/i.test(prefix) ||
+              /^(?:[a-zA-Z\\√⁰¹²³⁴⁵⁶⁷⁸⁹]|\s*\*?\s*(?:pi|π|k|n|e|i|theta|θ|\\pi|\\sqrt|\\frac)\b)/i.test(afterMatch)) {
             continue;
           }
           const parsedVals = parseSolutionNumbers(m[1]);
@@ -1531,18 +1537,34 @@ function extractClaims(text, userPrompt = '') {
 
   // Extract inline delimited math spans ($...$ and \(...\)) containing '=', preserving any trailing "for/where $cond$" restriction!
   const inlineDelimitedMathBlocks = [];
-  const inlineDollarMatches = text.matchAll(/(?<!\$)\$(?!\$)([^$\n]+?=[^$\n]+?)\$(?!\$)((?:\s*(?:,|;)?\s*(?:for|where|when|if|assuming|provided(?:\s+that)?)\s+(?:\$[^$\n]+?\$|\\\([^)\n]+?\\\)|[a-zA-Z_][a-zA-Z0-9_]*\s*(?:!=|\\neq|≠|<>|>=|<=|>|<)\s*[-+]?[a-zA-Z0-9_./\\^{},\s]+))?)/gi);
+  const trailingCondGroup = '((?:\\s*(?:,|;)?\\s*(?:for|where|when|if|assuming|with|provided(?:\\s+that)?)\\s+(?:\\$[^$\\n]+?\\$|\\\\\\([^)\\n]+?\\\\\\)|(?:1\\s*-\\s*)?\\\\?[a-zA-Z_][a-zA-Z0-9_]*(?:\\([^)]*\\))?\\s*(?:!=|\\\\neq|≠|<>|>=|<=|>|<|≥|≤)\\s*[-+]?(?:\\\\?pi|[a-zA-Z0-9_./\\\\^{}(),\\s+-])+(?:\\s*(?:,|and)\\s*(?:\\$[^$\\n]+?\\$|\\\\\\([^)\\n]+?\\\\\\)|(?:1\\s*-\\s*)?\\\\?[a-zA-Z_][a-zA-Z0-9_]*(?:\\([^)]*\\))?\\s*(?:!=|\\\\neq|≠|<>|>=|<=|>|<|≥|≤)\\s*[-+]?(?:\\\\?pi|[a-zA-Z0-9_./\\\\^{}(),\\s+-])+))*))?)';
+  const inlineDollarMatches = text.matchAll(new RegExp('(?<!\\$)\\$(?!\\$)([^$\\n]+?=[^$\\n]+?)\\$(?!\\$)' + trailingCondGroup, 'gi'));
   for (const im of inlineDollarMatches) {
     const core = im[1].replace(/\\boxed\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g, '$1').trim();
     const trailingCond = (im[2] || '').replace(/\$/g, ' ').trim();
     inlineDelimitedMathBlocks.push(trailingCond ? `${core} ${trailingCond}` : core);
   }
-  const inlineParenMatches = text.matchAll(/\\\(([\s\S]+?=[\s\S]+?)\\\)((?:\s*(?:,|;)?\s*(?:for|where|when|if|assuming|provided(?:\s+that)?)\s+(?:\$[^$\n]+?\$|\\\([^)\n]+?\\\)|[a-zA-Z_][a-zA-Z0-9_]*\s*(?:!=|\\neq|≠|<>|>=|<=|>|<)\s*[-+]?[a-zA-Z0-9_./\\^{},\s]+))?)/gi);
+  const inlineParenMatches = text.matchAll(new RegExp('\\\\\\(([\\s\\S]+?=[\\s\\S]+?)\\\\\\)' + trailingCondGroup, 'gi'));
   for (const ip of inlineParenMatches) {
     const core = ip[1].replace(/\\boxed\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g, '$1').trim();
     const trailingCond = (ip[2] || '').replace(/\\\(|\\\)/g, ' ').trim();
     inlineDelimitedMathBlocks.push(trailingCond ? `${core} ${trailingCond}` : core);
   }
+
+  // Extract explicit response-level domain restrictions (e.g. "Domain restrictions: \cos(x) \neq 1 and \sin(x) \neq 1")
+  const explicitResponseRestrictions = [];
+  const domDeclRegex = /(?:domain\s+restrictions?|excluded\s+values?|restrictions?|valid\s+(?:for|where|when|whenever)|provided(?:\s+that)?|assuming|subject\s+to|note\s+that)\s*[:,\s]*([^\n.;]{3,240}(?:\s*(?:,|and)\s*[^\n.;]{3,160})*)/gi;
+  let domDeclMatch;
+  while ((domDeclMatch = domDeclRegex.exec(text)) !== null) {
+    const clause = domDeclMatch[1].replace(/\$|\\\(|\\\)|\\quad|\\qquad|\\text\{[^}]*\}/g, ' ').replace(/\s+/g, ' ').trim();
+    const ineqParts = clause.match(/(?:1\s*-\s*)?(?:\\?(?:sin|cos|tan|sec|csc|cot)\s*\([^()]+\)|[a-zA-Z_][a-zA-Z0-9_]*)\s*(?:!=|\\neq|≠|<>|>=|<=|>|<|≥|≤)\s*[-+]?(?:\\?pi|[a-zA-Z0-9_./*\\^{}\s+-]+?)(?=(?:\s*(?:,|;|\band\b|\bor\b|\(|$)))/gi);
+    if (ineqParts && ineqParts.length > 0) {
+      ineqParts.forEach(p => explicitResponseRestrictions.push(p.trim()));
+    }
+  }
+  const explicitResponseCondition = explicitResponseRestrictions.length > 0
+    ? [...new Set(explicitResponseRestrictions)].join(' and ')
+    : null;
 
   const rawEquivBlocks = [
     ...inlineDelimitedMathBlocks,
@@ -1562,7 +1584,7 @@ function extractClaims(text, userPrompt = '') {
 
     // Extract inline domain restrictions BEFORE checking '<' / '>' so "for x > 0" or "for x >= 0" isn't skipped!
     let blockInlineCondition = null;
-    const condMatch = cleanBlock.match(/(?:(?:[,;]\s*|\s+)(?:for|where|when|if|assuming|provided(?:\s+that)?)\s+|[,;]\s*(?=[a-zA-Z_][a-zA-Z0-9_]*(?:\([^()]+\))?\s*(?:!=|\\neq|≠|<>|>=|<=|>|<|\\notin|\\not\\in)))([a-zA-Z_][a-zA-Z0-9_]*(?:\([^()]+\))?\s*(?:(?:!=|\\neq|≠|<>|>=|<=|>|<)\s*[-+]?[a-zA-Z0-9_.\/\\]+(?:\s*(?:,|and)\s*(?:[a-zA-Z_][a-zA-Z0-9_]*\s*(?:!=|\\neq|≠|<>|>=|<=|>|<)\s*)?[-+]?[a-zA-Z0-9_.\/\\]+)*|(?:\\notin|\\not\\in|not\s+in)\s*\\?\{[^}]+\})).*$/i);
+    const condMatch = cleanBlock.match(/(?:(?:[,;]\s*|\s+)(?:for|where|when|if|with|assuming|provided(?:\s+that)?)\s+|[,;]\s*(?=(?:1\s*-\s*)?\\?[a-zA-Z_][a-zA-Z0-9_]*(?:\([^()]+\))?\s*(?:!=|\\neq|≠|<>|>=|<=|>|<|\\notin|\\not\\in)))((?:1\s*-\s*)?\\?[a-zA-Z_][a-zA-Z0-9_]*(?:\([^()]+\))?\s*(?:(?:!=|\\neq|≠|<>|>=|<=|>|<)\s*[-+]?(?:\\?pi|[a-zA-Z0-9_.\/\\]+)(?:\s*(?:,|and)\s*(?:(?:1\s*-\s*)?\\?[a-zA-Z_][a-zA-Z0-9_]*(?:\([^()]+\))?\s*(?:!=|\\neq|≠|<>|>=|<=|>|<)\s*)?[-+]?(?:\\?pi|[a-zA-Z0-9_.\/\\]+))*|(?:\\notin|\\not\\in|not\s+in)\s*\\?\{[^}]+\})).*$/i);
     if (condMatch) {
       blockInlineCondition = condMatch[1].trim();
       cleanBlock = cleanBlock.slice(0, condMatch.index).trim();
@@ -1583,7 +1605,7 @@ function extractClaims(text, userPrompt = '') {
       // Strip leading conversational/prose prefixes from LHS
       lhsRaw = lhsRaw.replace(/^(?:.*?\b(?:gives?|yields?|is|equals?|becomes?|have|get|find|that|as)\s+)+/i, '').trim();
       lhsRaw = lhsRaw.replace(/^(?:for\s+all\s+real\s+(?:numbers?\s*)?(?:[a-zA-Z]\s*)?,?\s*)+/i, '').trim();
-      lhsRaw = lhsRaw.replace(/^(?:(?:notice|observe|note|we\s+(?:have|see|get|find)|factors?|factorizations?|yields?|gives?|since|because|that|so|then|therefore|thus|hence|here|first|second|third|term\s*\d*|rhs|lhs)\s+)+/i, '').trim();
+      lhsRaw = lhsRaw.replace(/^(?:(?:notice|observe|note|using|applying|recalling|remembering|simplifying|writing|rewriting|substituting|replacing|expanding|factoring|multiplying|dividing|combining|canceling|cancelling|we\s+(?:have|see|get|find|use|know)|factors?|factorizations?|yields?|gives?|since|because|from|by|with|that|so|then|therefore|thus|hence|here|first|second|third|step\s*\d*|term\s*\d*|rhs|lhs)\s+[:,-]?\s*)+/i, '').trim();
       // Strip trailing conversational/prose suffixes from RHS
       rhsRaw = rhsRaw.replace(/[.,;:]+$/, '').trim();
       rhsRaw = rhsRaw.replace(/\s+(?:factors?|over|the|integers?|polynomials?|which|is|are|valid|holds?|for|all|identity|identities|where)\b.*$/i, '').trim();
@@ -1664,10 +1686,11 @@ function extractClaims(text, userPrompt = '') {
 
       const vMatch = [lhsVarList[0], lhsVarList[0]];
 
+      const effectiveBlockCondition = blockInlineCondition || explicitResponseCondition || undefined;
       const existingEquiv = claims.find(c => c.claim_type === 'symbolic_equivalence' && c.data?.expr1 === normLhs && c.data?.expr2 === normRhs);
       if (existingEquiv) {
-        if (!existingEquiv.data.condition && blockInlineCondition) {
-          existingEquiv.data.condition = blockInlineCondition;
+        if (!existingEquiv.data.condition && effectiveBlockCondition) {
+          existingEquiv.data.condition = effectiveBlockCondition;
         }
       } else {
         claims.push({
@@ -1678,7 +1701,7 @@ function extractClaims(text, userPrompt = '') {
             expr1: normLhs,
             expr2: normRhs,
             variable: vMatch[1],
-            condition: blockInlineCondition || undefined,
+            condition: effectiveBlockCondition,
             userPrompt: promptStr
           },
           userPrompt: promptStr

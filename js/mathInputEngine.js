@@ -208,8 +208,13 @@
       score += 0.75;
     }
 
-    // Math functions: sqrt, sin, cos, tan, ln, log, roots -> strong math signal
-    if (/(?:\b(?:sin|cos|tan|sec|csc|cot|ln|log|exp|sqrt|cbrt)\b|[√∛])\s*\(/i.test(s)) {
+    // Math functions: sqrt, sin, cos, tan, ln, log, roots (including trig powers like sin^2(x), sin²(x), \sin²(x)) -> strong math signal
+    if (/(?:\\?\b(?:sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|sinh|cosh|tanh|ln|log|exp|sqrt|cbrt)\b|[√∛])\s*(?:(?:\^(?:\{[^{}]+\}|\([^)]+\)|[-+0-9a-zA-Z]+)|[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱˣʸ]+)\s*)?\(/i.test(s)) {
+      score += 0.80;
+    }
+
+    // Explicit LaTeX structures (\frac, \dfrac, \tfrac, \boxed) -> strong math signal
+    if (/\\(?:d|t)?frac\s*\{|\\boxed\s*\{|\\sqrt\s*\{/i.test(s)) {
       score += 0.80;
     }
 
@@ -283,7 +288,7 @@
     let globalIndex = 0;
 
     // Step 1: Pattern matchers for candidate math regions
-    const candidateRegex = /(\$\$[\s\S]*?\$\$|\$[^$]+?\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\b[-+0-9a-zA-Z()^*/.+-πθαβΔλμω⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞⁄]+(?:\s*[-+*^/]\s*[-+0-9a-zA-Z()^*/.+-πθαβΔλμω⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞⁄]+)*\s*=\s*[-+0-9a-zA-Z()^*/.+-πθαβΔλμω⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞⁄]+(?:\s*[-+*^/]\s*[-+0-9a-zA-Z()^*/.+-πθαβΔλμω⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞⁄]+)*|(?:(?:\\b\d+\s*\*?\s*)?(?:sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|sinh|cosh|tanh|ln|log|exp|sqrt|cbrt)\b|[√∛])\s*\([^)]*\)(?:\^[-+0-9a-zA-Z({]+|[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱˣʸ]+)?|\b(?:d\/dx|dy\/dx)\b(?:\s*[a-zA-Z0-9(\[])?|[a-zA-Z0-9)\]πθαβΔλμω]\^[-+0-9a-zA-Z({]+|[a-zA-Z0-9)\]πθαβΔλμω][⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱˣʸ]+|[½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞](?:[⁰¹²³⁴⁵⁶⁷⁸⁹]+)?|[⁰¹²³⁴⁵⁶⁷⁸⁹]+⁄[₀₁₂₃₄₅₆₇₈₉]+(?:[⁰¹²³⁴⁵⁶⁷⁸⁹]+)?|(?:\([a-zA-Z0-9+\-*/^.,\s]+\)|[a-zA-Z0-9]+)\s*\/\s*(?:\([a-zA-Z0-9+\-*/^.,\s]+\)|[a-zA-Z0-9]+(?:[⁰¹²³⁴⁵⁶⁷⁸⁹]+)?)(?:(?:\s*[*·]\s*|\s+)(?:[a-zA-ZπθαβΔλμω]\b)|[πθαβΔλμω])?|\b(?:\d+\s*\*?\s*)?(?:(?:pi|theta|alpha|beta|delta|lambda|mu|omega)\b|[πθαβΔλμω∞≤≥≠±√∛∫∑])(?:\s*[*\/^+\-=]\s*[-+0-9a-zA-Z()πθαβΔλμω∞≤≥≠±√∛∫∑]+)*|[-+0-9a-zA-Z()]*[πθαβΔλμω∞≤≥≠±√∛∫∑][-+0-9a-zA-Z()^*/.+-⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱˣʸ]*|\b\d+\s*\*\s*[a-zA-Z0-9*^/+-]+|\b\d+(?!(?:sin|cos|tan|sec|csc|cot|ln|log|exp|sqrt|cbrt)\b)[a-zA-Z](?:\s*[-+*^/]\s*[a-zA-Z0-9]+)*)/g;
+    const candidateRegex = /(\$\$[\s\S]*?\$\$|\$[^$]+?\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\\(?:boxed|d?t?frac)\{[^{}]*(?:\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}[^{}]*)*\}(?:\{[^{}]*(?:\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}[^{}]*)*\})?|\b[-+0-9a-zA-Z()^*/.+-πθαβΔλμω⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞⁄]+(?:\s*[-+*^/]\s*[-+0-9a-zA-Z()^*/.+-πθαβΔλμω⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞⁄]+)*\s*=\s*[-+0-9a-zA-Z()^*/.+-πθαβΔλμω⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞⁄]+(?:\s*[-+*^/]\s*[-+0-9a-zA-Z()^*/.+-πθαβΔλμω⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞⁄]+)*|(?:\\?\b|\b\d+\s*\*?\s*)(?:sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|sinh|cosh|tanh|ln|log|exp|sqrt|cbrt)\b(?:\s*(?:\^(?:\{[^{}]+\}|\([^)]+\)|[-+0-9a-zA-Z]+)|[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱˣʸ]+))?\s*\((?:[^()]|\([^()]*\))*\)(?:\^(?:\{[^{}]*\}|\([^()]*\)|[-+0-9a-zA-Z]+)|[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱˣʸ]+)?|[√∛]\s*\((?:[^()]|\([^()]*\))*\)(?:\^(?:\{[^{}]*\}|\([^()]*\)|[-+0-9a-zA-Z]+)|[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱˣʸ]+)?|\b(?:d\/dx|dy\/dx)\b(?:\s*[a-zA-Z0-9(\[])?|[a-zA-Z0-9)\]πθαβΔλμω]\^(?:\{[^{}]*\}|\([^()]*\)|[-+0-9a-zA-Z]+)|[a-zA-Z0-9)\]πθαβΔλμω][⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱˣʸ]+|[½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞](?:[⁰¹²³⁴⁵⁶⁷⁸⁹]+)?|[⁰¹²³⁴⁵⁶⁷⁸⁹]+⁄[₀₁₂₃₄₅₆₇₈₉]+(?:[⁰¹²³⁴⁵⁶⁷⁸⁹]+)?|(?:\([a-zA-Z0-9+\-*/^.,\s]+\)|[a-zA-Z0-9]+)\s*\/\s*(?:\([a-zA-Z0-9+\-*/^.,\s]+\)|[a-zA-Z0-9]+(?:[⁰¹²³⁴⁵⁶⁷⁸⁹]+)?)(?:(?:\s*[*·]\s*|\s+)(?:[a-zA-ZπθαβΔλμω]\b)|[πθαβΔλμω])?|\b(?:\d+\s*\*?\s*)?(?:(?:pi|theta|alpha|beta|delta|lambda|mu|omega)\b|[πθαβΔλμω∞≤≥≠±√∛∫∑])(?:\s*[*\/^+\-=]\s*[-+0-9a-zA-Z()πθαβΔλμω∞≤≥≠±√∛∫∑]+)*|[-+0-9a-zA-Z()]*[πθαβΔλμω∞≤≥≠±√∛∫∑][-+0-9a-zA-Z()^*/.+-⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱˣʸ]*|\b\d+\s*\*\s*[a-zA-Z0-9*^/+-]+|\b\d+(?!(?:sin|cos|tan|sec|csc|cot|ln|log|exp|sqrt|cbrt)\b)[a-zA-Z](?:\s*[-+*^/]\s*[a-zA-Z0-9]+)*)/g;
 
     let lastIndex = 0;
     let match;
@@ -462,7 +467,7 @@
       .replace(/\\pi\b/g, "pi")
       .replace(/\\theta\b/g, "theta")
       .replace(/\\div\b/g, "/")
-      .replace(/\\(?:times|cdot)\b/g, "*");
+      .replace(/\\(arcsin|arccos|arctan|sinh|cosh|tanh|sin|cos|tan|sec|csc|cot|ln|log|exp|sqrt|cbrt)\b/g, "$1");
 
     for (let i = 0; i < 5; i++) {
       s = s.replace(/\^\s*\{([^{}]+)\}/g, "^($1)");
@@ -478,6 +483,29 @@
       });
       if (next === s) break;
       s = next;
+    }
+
+    // Rewrite conventional trig powers like sin^(2)(x) or sin^2(x) -> (sin(x))^(2)
+    for (let pass = 0; pass < 4; pass++) {
+      const trigPowRe = /\b(sin|cos|tan|sec|csc|cot|sinh|cosh|tanh)\s*\^\s*(?:\(([^()]+)\)|(\d+(?:\.\d+)?))\s*\(/;
+      const m = trigPowRe.exec(s);
+      if (!m) break;
+      const expStr = (m[2] !== undefined ? m[2] : m[3]).trim();
+      if (expStr === "-1") break;
+      const argOpenIdx = m.index + m[0].length - 1;
+      let depth = 0;
+      let argCloseIdx = -1;
+      for (let k = argOpenIdx; k < s.length; k++) {
+        if (s[k] === "(") depth++;
+        else if (s[k] === ")") {
+          depth--;
+          if (depth === 0) { argCloseIdx = k; break; }
+        }
+      }
+      if (argCloseIdx === -1) break;
+      const argInner = s.slice(argOpenIdx + 1, argCloseIdx);
+      const wrapped = "(" + m[1] + "(" + argInner + "))^(" + expStr + ")";
+      s = s.slice(0, m.index) + wrapped + s.slice(argCloseIdx + 1);
     }
 
     return s;
@@ -507,7 +535,8 @@
       .replace(/!=/g, "≠")
       .replace(/(?:\+\/-|\+-)/g, "±")
       .replace(/->/g, "→")
-      .replace(/([a-zA-Z0-9)\]πθαβΔλμω])\^([0-9+\-=()nixy]+)/g, function (match, base, exp) {
+      .replace(/([a-zA-Z0-9)\]πθαβΔλμω])\^(?:\(([0-9+\-=nixy]+)\)|([0-9+\-=nixy]+))/g, function (match, base, parenExp, bareExp) {
+        const exp = parenExp !== undefined ? ("(" + parenExp + ")") : bareExp;
         let superExp = "";
         for (let j = 0; j < exp.length; j++) {
           const ch = exp[j];
@@ -660,9 +689,16 @@
    * Reuses segmentation and Unicode superscript mappings without creating a competing parser.
    * Never throws and never rewrites ambiguous expressions automatically.
    */
-  function detectInputFormattingIssue(raw) {
+  function detectInputFormattingIssue(raw, options) {
     const cleanNone = { hasIssue: false, kind: "NONE", message: "", snippet: "", suggestedFix: null, uncertain: false };
     if (!raw || typeof raw !== "string") return cleanNone;
+    const suppressedList = Array.isArray(options && options.suppressedIssues) ? options.suppressedIssues : [];
+    const isSuppressed = function (kind, snippet) {
+      return suppressedList.some(function (item) {
+        if (typeof item === "string") return item === kind;
+        return item && item.kind === kind && (!item.snippet || item.snippet === snippet);
+      });
+    };
     const trimmed = decodeSuperscriptsForFormatCheck(raw).trim();
     if (!trimmed || trimmed.length > 4000) return cleanNone;
 
@@ -804,6 +840,8 @@
       const trigPrefix = s.slice(0, i).match(/\\?(sin|cos|tan|csc|sec|cot)\s*$/);
       const innerTrigArg = inner.match(trigArgRe);
       if (trigPrefix && innerTrigArg && !/^(?:\(|\\left\s*\()/.test(after)) {
+        const snippet = trigPrefix[0] + s.slice(i, closeIdx + 1);
+        if (isSuppressed("TRIG_POWER_ARG_MISMATCH", snippet)) continue;
         const safeAfter = !after || /^[+\-*/=<>]/.test(after);
         const suggestedFix = safeAfter
           ? (s.slice(0, i) + "^" + innerTrigArg[1] + innerTrigArg[2] + (after ? " " + after : "")).trim()
@@ -812,7 +850,7 @@
           hasIssue: true,
           kind: "TRIG_POWER_ARG_MISMATCH",
           message: "(" + innerTrigArg[3] + ") looks stuck inside the exponent of " + trigPrefix[1] + " instead of acting as its argument.",
-          snippet: trigPrefix[0] + s.slice(i, closeIdx + 1),
+          snippet: snippet,
           suggestedFix: suggestedFix,
           uncertain: !suggestedFix
         };
@@ -834,9 +872,14 @@
 
     // 5. Dangling / doubled operators on pure/hybrid math segments (check math segments to skip natural English punctuation)
     const segments = segmentInput(raw);
-    const scanTargets = segments.some(function (seg) { return seg.type === "math"; })
+    const hasMathSeg = segments.some(function (seg) { return seg.type === "math"; });
+    const scanTargets = hasMathSeg
       ? segments.filter(function (seg) { return seg.type === "math"; }).map(function (seg) { return decodeSuperscriptsForFormatCheck(seg.raw).trim(); })
       : [s];
+    if (hasMathSeg && segments.length >= 2 && segments[segments.length - 1].type === "text" &&
+        /^\s*[+\-*/^]+\s*$/.test(segments[segments.length - 1].raw) && segments[segments.length - 2].type === "math") {
+      scanTargets.push(s);
+    }
 
     for (let k = 0; k < scanTargets.length; k++) {
       const t = scanTargets[k].replace(/^\$\$?|\$\$?$/g, "").trim();

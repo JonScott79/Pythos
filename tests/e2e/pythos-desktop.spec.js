@@ -233,4 +233,38 @@ test.describe('Pythos Desktop E2E User Journeys', () => {
     expect(pageErrors).toEqual([]);
     expect(consoleErrors).toEqual([]);
   });
+
+  test('valid trigonometric power notation (sin^2(x)..cot^2(x) and QA rational expression) never corrupts input or shows false warning', async ({ page }) => {
+    const { pageErrors, consoleErrors } = attachErrorCollectors(page);
+    await page.goto('/');
+    await waitForMathLibs(page);
+
+    const input = page.locator('#userInput');
+
+    for (const expr of ['sin^2(x)', 'cos^2(x)', 'tan^2(x)', 'sec^2(x)', 'csc^2(x)', 'cot^2(x)']) {
+      await input.fill(expr);
+      const val = await input.inputValue();
+      expect(val).not.toContain('⁽');
+      expect(val).not.toContain('⁾');
+      await expect(page.locator('#mathPreview')).toBeVisible();
+      await expect(page.locator('#mathPreviewGuard')).toBeHidden();
+    }
+
+    const qaExpr = '\\[\\boxed{\\frac{\\sin^2(x)}{1-\\cos(x)} + \\frac{\\cos^2(x)}{1-\\sin(x)}}\\]';
+    await input.fill(qaExpr);
+    const qaVal = await input.inputValue();
+    expect(qaVal).not.toContain('²⁽ˣ⁾');
+    await expect(page.locator('#mathPreview')).toBeVisible();
+    await expect(page.locator('#mathPreviewGuard')).toBeHidden();
+
+    // User clarification / suppression flow on explicit ambiguous notation (\sin^{2(x)})
+    await input.fill('\\sin^{2(x)}');
+    await expect(page.locator('#mathPreviewGuard')).toBeVisible();
+    await expect(page.locator('#mathPreviewIgnoreBtn')).toBeVisible();
+    await page.locator('#mathPreviewIgnoreBtn').click();
+    await expect(page.locator('#mathPreviewGuard')).toBeHidden();
+
+    expect(pageErrors).toEqual([]);
+    expect(consoleErrors).toEqual([]);
+  });
 });

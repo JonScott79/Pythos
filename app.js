@@ -375,11 +375,20 @@ function renderMath(element) {
 // Track current rendered preview LaTeX string for copy button & reversible formatting fix state
 let currentPreviewLatex = "";
 let formattingUndoSnapshot = null;
+let acknowledgedFormattingWarnings = [];
+
+function isFormattingWarningAcknowledged(issue) {
+  if (!issue || !issue.hasIssue) return false;
+  return acknowledgedFormattingWarnings.some(a =>
+    a.kind === issue.kind && a.snippet === issue.snippet
+  );
+}
 
 function updateMathPreviewGuard(engine, raw) {
   const guardEl = document.getElementById("mathPreviewGuard");
   const msgEl = document.getElementById("mathPreviewGuardMsg");
   const fixBtn = document.getElementById("mathPreviewFixBtn");
+  const ignoreBtn = document.getElementById("mathPreviewIgnoreBtn");
   const undoBtn = document.getElementById("mathPreviewUndoBtn");
   if (!guardEl || !msgEl) return { hasIssue: false };
 
@@ -388,10 +397,10 @@ function updateMathPreviewGuard(engine, raw) {
   }
 
   const issue = (engine && typeof engine.detectInputFormattingIssue === "function")
-    ? engine.detectInputFormattingIssue(raw)
+    ? engine.detectInputFormattingIssue(raw, { suppressedIssues: acknowledgedFormattingWarnings })
     : { hasIssue: false };
 
-  if (issue && issue.hasIssue) {
+  if (issue && issue.hasIssue && !isFormattingWarningAcknowledged(issue)) {
     guardEl.classList.remove("is-fixed");
     guardEl.style.display = "flex";
     msgEl.textContent = `⚠ Formatting check: ${issue.message}`;
@@ -402,6 +411,17 @@ function updateMathPreviewGuard(engine, raw) {
       } else {
         fixBtn.style.display = "none";
         delete fixBtn.dataset.suggestedFix;
+      }
+    }
+    if (ignoreBtn) {
+      if (issue.kind === "TRIG_POWER_ARG_MISMATCH") {
+        ignoreBtn.style.display = "inline-block";
+        ignoreBtn.dataset.issueKind = issue.kind || "";
+        ignoreBtn.dataset.issueSnippet = issue.snippet || "";
+      } else {
+        ignoreBtn.style.display = "none";
+        delete ignoreBtn.dataset.issueKind;
+        delete ignoreBtn.dataset.issueSnippet;
       }
     }
     if (undoBtn) {
@@ -415,6 +435,7 @@ function updateMathPreviewGuard(engine, raw) {
     guardEl.style.display = "flex";
     msgEl.textContent = "✓ Applied formatting suggestion (original preserved).";
     if (fixBtn) fixBtn.style.display = "none";
+    if (ignoreBtn) ignoreBtn.style.display = "none";
     if (undoBtn) undoBtn.style.display = "inline-block";
     return { hasIssue: false, fixedApplied: true };
   }
@@ -425,6 +446,11 @@ function updateMathPreviewGuard(engine, raw) {
   if (fixBtn) {
     fixBtn.style.display = "none";
     delete fixBtn.dataset.suggestedFix;
+  }
+  if (ignoreBtn) {
+    ignoreBtn.style.display = "none";
+    delete ignoreBtn.dataset.issueKind;
+    delete ignoreBtn.dataset.issueSnippet;
   }
   if (undoBtn) undoBtn.style.display = "none";
   return { hasIssue: false };
@@ -538,6 +564,19 @@ setTimeout(() => {
       if (typeof syncInputOverlay === "function") syncInputOverlay();
       renderInputPreview();
       input.focus();
+    });
+  }
+
+  const ignoreBtn = document.getElementById("mathPreviewIgnoreBtn");
+  if (ignoreBtn) {
+    ignoreBtn.addEventListener("click", () => {
+      const kind = ignoreBtn.dataset.issueKind || "";
+      const snippet = ignoreBtn.dataset.issueSnippet || "";
+      if (kind) {
+        acknowledgedFormattingWarnings.push({ kind, snippet });
+      }
+      renderInputPreview();
+      if (input) input.focus();
     });
   }
 
@@ -2994,6 +3033,8 @@ function clearChatUI() {
     renderWelcomeCard();
   }
   messages = [];
+  acknowledgedFormattingWarnings = [];
+  formattingUndoSnapshot = null;
   // Clear the preview
   const preview = document.getElementById("mathPreview");
   if (preview) preview.style.display = "none";
@@ -4733,7 +4774,8 @@ async function askPythos(userText) {
         tutorMode: Boolean(isTutorModeEnabled),
         options: { temperature: 0.3 },
         chatId: currentChatId || null,
-        displayName: (currentUser && currentUser.displayName) ? currentUser.displayName : null
+        displayName: (currentUser && currentUser.displayName) ? currentUser.displayName : null,
+        acknowledgedFormattingWarnings: acknowledgedFormattingWarnings.length > 0 ? acknowledgedFormattingWarnings : undefined
       })
     });
 

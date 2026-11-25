@@ -200,13 +200,96 @@ function cleanBracedExponentInner(raw) {
     .trim();
 }
 
+const EXPLICIT_CLARIFICATION_RE = /\b(?:formatting|syntax|notation|input|expression|exponent|superscript)\s+(?:is|was|are)\s+(?:intentional|correct|fine|right|valid|proper|not\s+(?:an?\s+)?error|no\s+error|exact|what\s+i\s+(?:meant|intended|wrote))\b|\b(?:no\s+(?:formatting|syntax|input)\s+error|there\s+is\s+no\s+(?:formatting\s+)?error|it\s+is\s+not\s+malformed|not\s+malformed|that'?s\s+intentional|this\s+is\s+intentional|intentional(?:ly)?\s+(?:written|formatted)|meant\s+(?:it\s+)?that\s+way|means?\s*(?:\(?\s*\\?(?:sin|cos|tan|sec|csc|cot)\s*\(|[^.\n]*squared)|ignore\s+(?:the\s+)?(?:formatting|warning))\b/i;
+
+const PRIOR_TRIG_WARNING_RE = /(?:ended\s+up\s+inside\s+the\s+exponent\s+of|trapped\s+inside\s+the\s+exponent|formatting\s+(?:check|issue)|Input\s+Formatting\s+Issue|looks\s+malformed|could\s+not\s+verify\s+(?:the\s+)?syntax|TRIG_POWER_ARG_MISMATCH)/i;
+
+const STANDALONE_ACK_AFTER_WARNING_RE = /^(?:yes|yeah|yep|correct|intentional|that'?s\s+(?:right|intentional)|no\s+error|proceed|solve\s+it(?:\s+anyway)?|simplify\s+it(?:\s+anyway)?|keep\s+(?:it\s+)?as\s+is)[.!?\s]*$/i;
+
+function extractNotationClarificationContext(lastUserText = '', historyBefore = [], options = {}) {
+  const safeHistory = Array.isArray(historyBefore) ? historyBefore : [];
+  const acknowledgedWarnings = Array.isArray(options?.acknowledgedWarnings) ? options.acknowledgedWarnings : [];
+
+  let priorFormattingWarningDetected = false;
+  let disputedExpression = null;
+
+  for (let i = 0; i < safeHistory.length; i++) {
+    const msg = safeHistory[i];
+    if (!msg) continue;
+    if (
+      msg.role === 'assistant' &&
+      (msg.withholdingReason === 'MALFORMED_SYNTAX' ||
+       (typeof msg.content === 'string' && PRIOR_TRIG_WARNING_RE.test(msg.content)))
+    ) {
+      priorFormattingWarningDetected = true;
+      for (let j = i - 1; j >= 0; j--) {
+        const u = safeHistory[j];
+        if (u && u.role === 'user' && typeof u.content === 'string' && /[\\^=()]|sin|cos|tan|sec|csc|cot/i.test(u.content)) {
+          disputedExpression = u.content;
+          break;
+        }
+      }
+    }
+  }
+
+  const userTurnsToCheck = [
+    ...safeHistory.filter(m => m && m.role === 'user').map(m => m.content || ''),
+    typeof lastUserText === 'string' ? lastUserText : ''
+  ];
+
+  const hasClarificationPhrase = userTurnsToCheck.some(t => typeof t === 'string' && EXPLICIT_CLARIFICATION_RE.test(t));
+  const hasShortAckAfterWarning = priorFormattingWarningDetected && typeof lastUserText === 'string' && STANDALONE_ACK_AFTER_WARNING_RE.test(lastUserText.trim());
+  const hasExplicitTrigPowerAck = acknowledgedWarnings.some(w =>
+    w && (w === 'TRIG_POWER_ARG_MISMATCH' || w.kind === 'TRIG_POWER_ARG_MISMATCH')
+  );
+
+  const hasExplicitClarification = hasClarificationPhrase || hasShortAckAfterWarning || hasExplicitTrigPowerAck;
+  const suppressedKinds = hasExplicitClarification ? ['TRIG_POWER_ARG_MISMATCH'] : [];
+
+  return {
+    hasExplicitClarification,
+    priorFormattingWarningDetected,
+    disputedExpression,
+    suppressedKinds,
+    acknowledgedWarnings
+  };
+}
+
+function applyConfirmedNotationClarification(text, clarificationCtx = null) {
+  if (typeof text !== 'string' || !text) return text;
+  if (clarificationCtx && clarificationCtx.hasExplicitClarification === false) return text;
+  let out = decodeUnicodeSuperscripts(text);
+  out = out.replace(
+    /(\\?(?:sin|cos|tan|csc|sec|cot))\s*\^\{\s*(\d+)\s*((?:\\left\s*)?\(\s*[a-zA-Z0-9]+\s*(?:\\right\s*)?\))\s*\}/g,
+    '$1^{$2}$3'
+  );
+  return out;
+}
+
 /**
  * Detects structural formatting anomalies in mathematical input.
  * @param {string} input
+ * @param {object} [options]
  * @returns {{ isWeird: boolean, kind: string, snippet: string, explanation: string, suggestedFix?: string }}
  */
-function detectFormattingAnomaly(input) {
+function detectFormattingAnomaly(input, options = {}) {
   if (typeof input !== 'string') return noAnomaly();
+  const clarificationCtx = options?.clarificationContext ||
+    (Array.isArray(options?.conversationHistory)
+      ? extractNotationClarificationContext(input, options.conversationHistory, options)
+      : null);
+  const suppressedSet = new Set([
+    ...(Array.isArray(options?.suppressedKinds) ? options.suppressedKinds : []),
+    ...(clarificationCtx?.suppressedKinds || [])
+  ]);
+  const acknowledgedList = [
+    ...(Array.isArray(options?.acknowledgedWarnings) ? options.acknowledgedWarnings : []),
+    ...(clarificationCtx?.acknowledgedWarnings || [])
+  ];
+  const isTrigMismatchSuppressed = (snippet) =>
+    suppressedSet.has('TRIG_POWER_ARG_MISMATCH') ||
+    acknowledgedList.some(w => w && (w === 'TRIG_POWER_ARG_MISMATCH' || (w.kind === 'TRIG_POWER_ARG_MISMATCH' && (!w.snippet || w.snippet === snippet))));
+
   const trimmed = normalizeInvisibleMathChars(input).trim();
   if (!trimmed || trimmed.length > MAX_SCAN_LEN) return noAnomaly();
 
@@ -274,6 +357,10 @@ function detectFormattingAnomaly(input) {
       const trigPrefix = s.slice(0, i).match(/\\?(sin|cos|tan|csc|sec|cot)\s*$/);
       const innerTrigArg = inner.match(trigArgRe);
       if (trigPrefix && innerTrigArg && !/^(?:\(|\\left\s*\()/.test(after)) {
+        const snippet = `${trigPrefix[0]}${s.slice(i, closeIdx + 1)}`;
+        if (isTrigMismatchSuppressed(snippet)) {
+          continue;
+        }
         const pow = innerTrigArg[1];
         const argWrap = innerTrigArg[2];
         const arg = innerTrigArg[3];
@@ -285,7 +372,7 @@ function detectFormattingAnomaly(input) {
         return {
           isWeird: true,
           kind: 'TRIG_POWER_ARG_MISMATCH',
-          snippet: `${trigPrefix[0]}${s.slice(i, closeIdx + 1)}`,
+          snippet,
           explanation: `It looks like (${arg}) ended up inside the exponent of ${trigPrefix[1]} instead of acting as its angle argument.`,
           ...(suggestedFix ? { suggestedFix } : {})
         };
@@ -340,5 +427,7 @@ function detectFormattingAnomaly(input) {
 }
 
 module.exports = {
-  detectFormattingAnomaly
+  detectFormattingAnomaly,
+  extractNotationClarificationContext,
+  applyConfirmedNotationClarification
 };
