@@ -309,24 +309,28 @@ def _parse_inequality_restrictions(cond_str: str) -> list:
                 return True
             return False
 
-        # Resolve function constraints (e.g. sin(x) != 0, cos(x) != 1, x != n*pi) or symbolic constants
+        # Resolve function constraints (e.g. sin(x) != 0, cos(x) != 1, x != n*pi, x != 2k\pi) or symbolic constants
         try:
-            rhs_clean = _re.sub(r'\\pi\b', 'pi', rhs_v).replace('π', 'pi')
+            rhs_expanded = _expand_latex_structures(rhs_v)
+            rhs_clean = _re.sub(r'\\pi\b', 'pi', rhs_expanded).replace('π', 'pi')
             lhs_fn_norm = _re.sub(r'\\(sin|cos|tan|sec|csc|cot)\b', r'\1', lhs_clean)
             rhs_fn_norm = _re.sub(r'\\(sin|cos|tan|sec|csc|cot)\b', r'\1', rhs_clean)
+            rhs_fn_norm = _re.sub(r'(\d)\s*([nk])\s*(?=\*?\s*pi\b)', r'\1*\2', rhs_fn_norm)
+            rhs_fn_norm = _re.sub(r'([0-9nk)])\s*(pi\b)', r'\1*\2', rhs_fn_norm)
+            rhs_fn_norm = _re.sub(r'\b(pi)\s*([nk]\b)', r'\1*\2', rhs_fn_norm)
             local_env = {"pi": sp.pi, "sin": sp.sin, "cos": sp.cos, "tan": sp.tan, "sec": sp.sec, "csc": sp.csc, "cot": sp.cot}
             if '(' not in lhs_fn_norm:
-                if _re.search(r'\b[nk]\s*\*?\s*pi\b', rhs_fn_norm):
+                if _re.search(r'(?:^|[^a-zA-Z])[nk]\s*\*?\s*pi\b|\bpi\s*\*?\s*[nk]\b', rhs_fn_norm):
                     found.append(f"{lhs_fn_norm} != {rhs_fn_norm}")
-                    if _re.search(r'pi\s*/\s*2', rhs_fn_norm):
-                        if not _re.search(r'\b2\s*\*?\s*[nk]\s*\*?\s*pi\b', rhs_fn_norm):
+                    if _re.search(r'pi\s*\)*\s*/\s*\(*\s*2', rhs_fn_norm):
+                        if not _re.search(r'(?:^|[^0-9a-zA-Z])2\s*\*?\s*[nk]\s*\*?\s*pi\b', rhs_fn_norm):
                             found.append(f"cos({lhs_fn_norm}) != 0")
                             found.append(f"{lhs_fn_norm} != pi/2 + n*pi, n \u2208 Z")
                         else:
                             found.append(f"1 - sin({lhs_fn_norm}) != 0")
                             found.append(f"sin({lhs_fn_norm}) - 1 != 0")
                             found.append(f"sin({lhs_fn_norm}) != 1")
-                    elif _re.search(r'\b2\s*\*?\s*[nk]\s*\*?\s*pi\b', rhs_fn_norm):
+                    elif _re.search(r'(?:^|[^0-9a-zA-Z])2\s*\*?\s*[nk]\s*\*?\s*pi\b', rhs_fn_norm):
                         found.append(f"1 - cos({lhs_fn_norm}) != 0")
                         found.append(f"cos({lhs_fn_norm}) - 1 != 0")
                         found.append(f"cos({lhs_fn_norm}) != 1")

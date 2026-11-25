@@ -288,7 +288,7 @@
     let globalIndex = 0;
 
     // Step 1: Pattern matchers for candidate math regions
-    const candidateRegex = /(\$\$[\s\S]*?\$\$|\$[^$]+?\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\\(?:boxed|d?t?frac)\{[^{}]*(?:\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}[^{}]*)*\}(?:\{[^{}]*(?:\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}[^{}]*)*\})?|\b[-+0-9a-zA-Z()^*/.+-πθαβΔλμω⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞⁄]+(?:\s*[-+*^/]\s*[-+0-9a-zA-Z()^*/.+-πθαβΔλμω⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞⁄]+)*\s*=\s*[-+0-9a-zA-Z()^*/.+-πθαβΔλμω⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞⁄]+(?:\s*[-+*^/]\s*[-+0-9a-zA-Z()^*/.+-πθαβΔλμω⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞⁄]+)*|(?:\\?\b|\b\d+\s*\*?\s*)(?:sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|sinh|cosh|tanh|ln|log|exp|sqrt|cbrt)\b(?:\s*(?:\^(?:\{[^{}]+\}|\([^)]+\)|[-+0-9a-zA-Z]+)|[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱˣʸ]+))?\s*\((?:[^()]|\([^()]*\))*\)(?:\^(?:\{[^{}]*\}|\([^()]*\)|[-+0-9a-zA-Z]+)|[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱˣʸ]+)?|[√∛]\s*\((?:[^()]|\([^()]*\))*\)(?:\^(?:\{[^{}]*\}|\([^()]*\)|[-+0-9a-zA-Z]+)|[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱˣʸ]+)?|\b(?:d\/dx|dy\/dx)\b(?:\s*[a-zA-Z0-9(\[])?|[a-zA-Z0-9)\]πθαβΔλμω]\^(?:\{[^{}]*\}|\([^()]*\)|[-+0-9a-zA-Z]+)|[a-zA-Z0-9)\]πθαβΔλμω][⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱˣʸ]+|[½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞](?:[⁰¹²³⁴⁵⁶⁷⁸⁹]+)?|[⁰¹²³⁴⁵⁶⁷⁸⁹]+⁄[₀₁₂₃₄₅₆₇₈₉]+(?:[⁰¹²³⁴⁵⁶⁷⁸⁹]+)?|(?:\([a-zA-Z0-9+\-*/^.,\s]+\)|[a-zA-Z0-9]+)\s*\/\s*(?:\([a-zA-Z0-9+\-*/^.,\s]+\)|[a-zA-Z0-9]+(?:[⁰¹²³⁴⁵⁶⁷⁸⁹]+)?)(?:(?:\s*[*·]\s*|\s+)(?:[a-zA-ZπθαβΔλμω]\b)|[πθαβΔλμω])?|\b(?:\d+\s*\*?\s*)?(?:(?:pi|theta|alpha|beta|delta|lambda|mu|omega)\b|[πθαβΔλμω∞≤≥≠±√∛∫∑])(?:\s*[*\/^+\-=]\s*[-+0-9a-zA-Z()πθαβΔλμω∞≤≥≠±√∛∫∑]+)*|[-+0-9a-zA-Z()]*[πθαβΔλμω∞≤≥≠±√∛∫∑][-+0-9a-zA-Z()^*/.+-⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱˣʸ]*|\b\d+\s*\*\s*[a-zA-Z0-9*^/+-]+|\b\d+(?!(?:sin|cos|tan|sec|csc|cot|ln|log|exp|sqrt|cbrt)\b)[a-zA-Z](?:\s*[-+*^/]\s*[a-zA-Z0-9]+)*)/g;
+    const candidateRegex = /(\$\$[\s\S]*?\$\$|\$[^$]+?\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\\(?:boxed|d?t?frac)\{[^{}]*(?:\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}[^{}]*)*\}(?:\{[^{}]*(?:\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}[^{}]*)*\})?|\b[-+0-9a-zA-Z()^*/.+-πθαβΔλμω⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞⁄]+(?:\s+[-+*^/]\s*[-+0-9a-zA-Z()^*/.+-πθαβΔλμω⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞⁄]+)*\s*=\s*[-+0-9a-zA-Z()^*/.+-πθαβΔλμω⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞⁄]+(?:\s+[-+*^/]\s*[-+0-9a-zA-Z()^*/.+-πθαβΔλμω⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞⁄]+)*|(?:\\?\b|\b\d+\s*\*?\s*)(?:sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|sinh|cosh|tanh|ln|log|exp|sqrt|cbrt)\b(?:\s*(?:\^(?:\{[^{}]+\}|\([^)]+\)|[-+0-9a-zA-Z]+)|[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱˣʸ]+))?\s*\((?:[^()]|\((?:[^()]|\([^()]*\))*\))*\)(?:\^(?:\{[^{}]*\}|\([^()]*\)|[-+0-9a-zA-Z]+)|[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱˣʸ]+)?|[√∛]\s*\((?:[^()]|\((?:[^()]|\([^()]*\))*\))*\)(?:\^(?:\{[^{}]*\}|\([^()]*\)|[-+0-9a-zA-Z]+)|[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱˣʸ]+)?|\b(?:d\/dx|dy\/dx)\b(?:\s*[a-zA-Z0-9(\[])?|[a-zA-Z0-9)\]πθαβΔλμω]\^(?:\{[^{}]*\}|\([^()]*\)|[-+0-9a-zA-Z]+)|[a-zA-Z0-9)\]πθαβΔλμω][⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱˣʸ]+|[½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞](?:[⁰¹²³⁴⁵⁶⁷⁸⁹]+)?|[⁰¹²³⁴⁵⁶⁷⁸⁹]+⁄[₀₁₂₃₄₅₆₇₈₉]+(?:[⁰¹²³⁴⁵⁶⁷⁸⁹]+)?|(?:\([a-zA-Z0-9+\-*/^.,\s]+\)|[a-zA-Z0-9]+)\s*\/\s*(?:\([a-zA-Z0-9+\-*/^.,\s]+\)|[a-zA-Z0-9]+(?:[⁰¹²³⁴⁵⁶⁷⁸⁹]+)?)(?:(?:\s*[*·]\s*|\s+)(?:[a-zA-ZπθαβΔλμω]\b)|[πθαβΔλμω])?|\b(?:\d+\s*\*?\s*)?(?:(?:pi|theta|alpha|beta|delta|lambda|mu|omega)\b|[πθαβΔλμω∞≤≥≠±√∛∫∑])(?:\s*[*\/^+\-=]\s*[-+0-9a-zA-Z()πθαβΔλμω∞≤≥≠±√∛∫∑]+)*|[-+0-9a-zA-Z()]*[πθαβΔλμω∞≤≥≠±√∛∫∑][-+0-9a-zA-Z()^*/.+-⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱˣʸ]*|\b\d+\s*\*\s*[a-zA-Z0-9*^/+-]+|\b\d+(?!(?:sin|cos|tan|sec|csc|cot|ln|log|exp|sqrt|cbrt)\b)[a-zA-Z](?:\s*[-+*^/]\s*[a-zA-Z0-9]+)*)/g;
 
     let lastIndex = 0;
     let match;
@@ -462,15 +462,20 @@
         for (let j = 0; j < match.length; j++) {
           ascii += REVERSE_SUPERSCRIPT_MAP[match[j]] || match[j];
         }
+        while (/^\([^()]+\)$/.test(ascii)) {
+          ascii = ascii.slice(1, -1);
+        }
         return "^(" + ascii + ")";
       })
       .replace(/\\pi\b/g, "pi")
       .replace(/\\theta\b/g, "theta")
       .replace(/\\div\b/g, "/")
+      .replace(/\\(?:times|cdot)\b/g, "*")
       .replace(/\\(arcsin|arccos|arctan|sinh|cosh|tanh|sin|cos|tan|sec|csc|cot|ln|log|exp|sqrt|cbrt)\b/g, "$1");
 
     for (let i = 0; i < 5; i++) {
       s = s.replace(/\^\s*\{([^{}]+)\}/g, "^($1)");
+      s = s.replace(/\(\(([^()]+)\)\)/g, "($1)");
       s = s.replace(/\\sqrt\[(\d+)\]\{([^{}]+)\}/g, "(($2)^(1/$1))");
       s = s.replace(/\\sqrt\{([^{}]+)\}/g, "sqrt($1)");
       s = s.replace(/\\(?:d|t)?frac\{([^{}]+)\}\{([^{}]+)\}/g, "(($1)/($2))");
@@ -486,26 +491,32 @@
     }
 
     // Rewrite conventional trig powers like sin^(2)(x) or sin^2(x) -> (sin(x))^(2)
-    for (let pass = 0; pass < 4; pass++) {
-      const trigPowRe = /\b(sin|cos|tan|sec|csc|cot|sinh|cosh|tanh)\s*\^\s*(?:\(([^()]+)\)|(\d+(?:\.\d+)?))\s*\(/;
-      const m = trigPowRe.exec(s);
-      if (!m) break;
-      const expStr = (m[2] !== undefined ? m[2] : m[3]).trim();
-      if (expStr === "-1") break;
-      const argOpenIdx = m.index + m[0].length - 1;
-      let depth = 0;
-      let argCloseIdx = -1;
-      for (let k = argOpenIdx; k < s.length; k++) {
-        if (s[k] === "(") depth++;
-        else if (s[k] === ")") {
-          depth--;
-          if (depth === 0) { argCloseIdx = k; break; }
+    // Skip exponent -1 (inverse trig convention) while continuing to scan subsequent trig powers in the expression.
+    for (let pass = 0; pass < 6; pass++) {
+      const trigPowRe = /\b(sin|cos|tan|sec|csc|cot|sinh|cosh|tanh)\s*\^\s*(?:\(([^()]+)\)|(\d+(?:\.\d+)?))\s*\(/g;
+      let m;
+      let replacedInPass = false;
+      while ((m = trigPowRe.exec(s)) !== null) {
+        const expStr = (m[2] !== undefined ? m[2] : m[3]).trim();
+        if (expStr === "-1") continue;
+        const argOpenIdx = m.index + m[0].length - 1;
+        let depth = 0;
+        let argCloseIdx = -1;
+        for (let k = argOpenIdx; k < s.length; k++) {
+          if (s[k] === "(") depth++;
+          else if (s[k] === ")") {
+            depth--;
+            if (depth === 0) { argCloseIdx = k; break; }
+          }
         }
+        if (argCloseIdx === -1) continue;
+        const argInner = s.slice(argOpenIdx + 1, argCloseIdx);
+        const wrapped = "(" + m[1] + "(" + argInner + "))^(" + expStr + ")";
+        s = s.slice(0, m.index) + wrapped + s.slice(argCloseIdx + 1);
+        replacedInPass = true;
+        break;
       }
-      if (argCloseIdx === -1) break;
-      const argInner = s.slice(argOpenIdx + 1, argCloseIdx);
-      const wrapped = "(" + m[1] + "(" + argInner + "))^(" + expStr + ")";
-      s = s.slice(0, m.index) + wrapped + s.slice(argCloseIdx + 1);
+      if (!replacedInPass) break;
     }
 
     return s;

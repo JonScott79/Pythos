@@ -3423,6 +3423,9 @@ async function deleteChat(chatId) {
 async function loadChat(chatId) {
   if (!currentUser || currentUser.isLanzarId || !db) return;
   currentChatId = chatId;
+  acknowledgedFormattingWarnings = [];
+  formattingUndoSnapshot = null;
+  updateMathPreviewGuard(null, "");
   
   output.innerHTML = "";
   try {
@@ -3786,10 +3789,17 @@ window.DeterministicMath = {
   verifyEquationSolution: function(leftExpr, rightExpr, variable, proposedValue) {
     try {
       if (!window.math) return null;
+      const engine = window.PythosMathInputEngine;
+      const normLeft = engine && typeof engine.normalizeMathInputForParser === "function"
+        ? engine.normalizeMathInputForParser(leftExpr)
+        : leftExpr;
+      const normRight = engine && typeof engine.normalizeMathInputForParser === "function"
+        ? engine.normalizeMathInputForParser(rightExpr)
+        : rightExpr;
       const scope = {};
       scope[variable] = proposedValue;
-      const leftVal = window.math.evaluate(leftExpr, scope);
-      const rightVal = window.math.evaluate(rightExpr, scope);
+      const leftVal = window.math.evaluate(normLeft, scope);
+      const rightVal = window.math.evaluate(normRight, scope);
       const isCorrect = Math.abs(leftVal - rightVal) < 1e-9;
       return {
         isCorrect,

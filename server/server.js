@@ -2588,7 +2588,7 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
       })
     : { hasExplicitClarification: false, suppressedKinds: [] };
   const notationClarificationContext = notationClarification.hasExplicitClarification
-    ? `\n\n[STUDENT NOTATION CLARIFICATION]\nThe student explicitly confirmed that their trigonometric power/exponent notation (for example, sin^2(x) = (sin(x))^2, cos^2(x) = (cos(x))^2) is intentional and mathematically valid. Do NOT tell the student their notation is malformed, do NOT question their exponent formatting, and proceed directly to solving/simplifying the mathematical problem cleanly while preserving all required domain restrictions.`
+    ? `\n\n[STUDENT NOTATION CLARIFICATION]\nThe student explicitly confirmed that their trigonometric power/exponent notation (for example, sin^2(x) = (sin(x))^2, cos^2(x) = (cos(x))^2) is intentional and mathematically valid. Do NOT tell the student their notation is malformed and do NOT question their exponent formatting; interpret the notation as standard trigonometric powers while strictly adhering to the active tutoring or response mode and preserving all required domain restrictions.`
     : '';
 
   // Phase B (Pre-Evaluation): Trusted active problem state from prior history ONLY (never polluted by unverified inbound turn)

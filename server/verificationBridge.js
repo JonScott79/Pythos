@@ -1535,9 +1535,9 @@ function extractClaims(text, userPrompt = '') {
     }
   }
 
-  // Extract inline delimited math spans ($...$ and \(...\)) containing '=', preserving any trailing "for/where $cond$" restriction!
+  // Extract inline delimited math spans ($...$ and \(...\)) containing '=', preserving any trailing "for/where/valid for $cond$" restriction!
   const inlineDelimitedMathBlocks = [];
-  const trailingCondGroup = '((?:\\s*(?:,|;)?\\s*(?:for|where|when|if|assuming|with|provided(?:\\s+that)?)\\s+(?:\\$[^$\\n]+?\\$|\\\\\\([^)\\n]+?\\\\\\)|(?:1\\s*-\\s*)?\\\\?[a-zA-Z_][a-zA-Z0-9_]*(?:\\([^)]*\\))?\\s*(?:!=|\\\\neq|≠|<>|>=|<=|>|<|≥|≤)\\s*[-+]?(?:\\\\?pi|[a-zA-Z0-9_./\\\\^{}(),\\s+-])+(?:\\s*(?:,|and)\\s*(?:\\$[^$\\n]+?\\$|\\\\\\([^)\\n]+?\\\\\\)|(?:1\\s*-\\s*)?\\\\?[a-zA-Z_][a-zA-Z0-9_]*(?:\\([^)]*\\))?\\s*(?:!=|\\\\neq|≠|<>|>=|<=|>|<|≥|≤)\\s*[-+]?(?:\\\\?pi|[a-zA-Z0-9_./\\\\^{}(),\\s+-])+))*))?)';
+  const trailingCondGroup = '((?:\\s*(?:,|;)?\\s*(?:valid\\s+(?:for|where|when|whenever)|for|where|when|if|assuming|with|provided(?:\\s+that)?)\\s+(?:\\$[^$\\n]+?\\$|\\\\\\([^)\\n]+?\\\\\\)|(?:1\\s*-\\s*)?\\\\?[a-zA-Z_][a-zA-Z0-9_]*(?:\\([^)]*\\))?\\s*(?:!=|\\\\neq|≠|<>|>=|<=|>|<|≥|≤)\\s*[-+]?(?:\\\\?pi|[a-zA-Z0-9_./\\\\^{}(),\\s+-])+(?:\\s*(?:,|and)\\s*(?:\\$[^$\\n]+?\\$|\\\\\\([^)\\n]+?\\\\\\)|(?:1\\s*-\\s*)?\\\\?[a-zA-Z_][a-zA-Z0-9_]*(?:\\([^)]*\\))?\\s*(?:!=|\\\\neq|≠|<>|>=|<=|>|<|≥|≤)\\s*[-+]?(?:\\\\?pi|[a-zA-Z0-9_./\\\\^{}(),\\s+-])+))*))?)';
   const inlineDollarMatches = text.matchAll(new RegExp('(?<!\\$)\\$(?!\\$)([^$\\n]+?=[^$\\n]+?)\\$(?!\\$)' + trailingCondGroup, 'gi'));
   for (const im of inlineDollarMatches) {
     const core = im[1].replace(/\\boxed\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g, '$1').trim();
@@ -1551,11 +1551,17 @@ function extractClaims(text, userPrompt = '') {
     inlineDelimitedMathBlocks.push(trailingCond ? `${core} ${trailingCond}` : core);
   }
 
-  // Extract explicit response-level domain restrictions (e.g. "Domain restrictions: \cos(x) \neq 1 and \sin(x) \neq 1")
+  // Extract explicit standalone/concluding response-level domain restrictions
+  // (e.g. "Domain restrictions: \cos(x) \neq 1 and \sin(x) \neq 1")
+  // Exclude inline clauses trailing after a specific '=' equation on the same line so one equation's
+  // inline restriction is never broadcast to a different equation earlier in the response.
   const explicitResponseRestrictions = [];
   const domDeclRegex = /(?:domain\s+restrictions?|excluded\s+values?|restrictions?|valid\s+(?:for|where|when|whenever)|provided(?:\s+that)?|assuming|subject\s+to|note\s+that)\s*[:,\s]*([^\n.;]{3,240}(?:\s*(?:,|and)\s*[^\n.;]{3,160})*)/gi;
   let domDeclMatch;
   while ((domDeclMatch = domDeclRegex.exec(text)) !== null) {
+    const lineStartIdx = text.lastIndexOf('\n', domDeclMatch.index) + 1;
+    const prefixOnSameLine = text.slice(lineStartIdx, domDeclMatch.index);
+    if (prefixOnSameLine.includes('=')) continue;
     const clause = domDeclMatch[1].replace(/\$|\\\(|\\\)|\\quad|\\qquad|\\text\{[^}]*\}/g, ' ').replace(/\s+/g, ' ').trim();
     const ineqParts = clause.match(/(?:1\s*-\s*)?(?:\\?(?:sin|cos|tan|sec|csc|cot)\s*\([^()]+\)|[a-zA-Z_][a-zA-Z0-9_]*)\s*(?:!=|\\neq|≠|<>|>=|<=|>|<|≥|≤)\s*[-+]?(?:\\?pi|[a-zA-Z0-9_./*\\^{}\s+-]+?)(?=(?:\s*(?:,|;|\band\b|\bor\b|\(|$)))/gi);
     if (ineqParts && ineqParts.length > 0) {
@@ -1584,7 +1590,7 @@ function extractClaims(text, userPrompt = '') {
 
     // Extract inline domain restrictions BEFORE checking '<' / '>' so "for x > 0" or "for x >= 0" isn't skipped!
     let blockInlineCondition = null;
-    const condMatch = cleanBlock.match(/(?:(?:[,;]\s*|\s+)(?:for|where|when|if|with|assuming|provided(?:\s+that)?)\s+|[,;]\s*(?=(?:1\s*-\s*)?\\?[a-zA-Z_][a-zA-Z0-9_]*(?:\([^()]+\))?\s*(?:!=|\\neq|≠|<>|>=|<=|>|<|\\notin|\\not\\in)))((?:1\s*-\s*)?\\?[a-zA-Z_][a-zA-Z0-9_]*(?:\([^()]+\))?\s*(?:(?:!=|\\neq|≠|<>|>=|<=|>|<)\s*[-+]?(?:\\?pi|[a-zA-Z0-9_.\/\\]+)(?:\s*(?:,|and)\s*(?:(?:1\s*-\s*)?\\?[a-zA-Z_][a-zA-Z0-9_]*(?:\([^()]+\))?\s*(?:!=|\\neq|≠|<>|>=|<=|>|<)\s*)?[-+]?(?:\\?pi|[a-zA-Z0-9_.\/\\]+))*|(?:\\notin|\\not\\in|not\s+in)\s*\\?\{[^}]+\})).*$/i);
+    const condMatch = cleanBlock.match(/(?:(?:[,;]\s*|\s+)(?:valid\s+(?:for|where|when|whenever)|for|where|when|if|with|assuming|provided(?:\s+that)?)\s+|[,;]\s*(?=(?:1\s*-\s*)?\\?[a-zA-Z_][a-zA-Z0-9_]*(?:\([^()]+\))?\s*(?:!=|\\neq|≠|<>|>=|<=|>|<|\\notin|\\not\\in)))((?:1\s*-\s*)?\\?[a-zA-Z_][a-zA-Z0-9_]*(?:\([^()]+\))?\s*(?:(?:!=|\\neq|≠|<>|>=|<=|>|<)\s*[-+]?(?:\\?pi|[a-zA-Z0-9_.\/\\^{}()\s+-]+)(?:\s*(?:,|and)\s*(?:(?:1\s*-\s*)?\\?[a-zA-Z_][a-zA-Z0-9_]*(?:\([^()]+\))?\s*(?:!=|\\neq|≠|<>|>=|<=|>|<)\s*)?[-+]?(?:\\?pi|[a-zA-Z0-9_.\/\\^{}()\s+-]+))*|(?:\\notin|\\not\\in|not\s+in)\s*\\?\{[^}]+\})).*$/i);
     if (condMatch) {
       blockInlineCondition = condMatch[1].trim();
       cleanBlock = cleanBlock.slice(0, condMatch.index).trim();

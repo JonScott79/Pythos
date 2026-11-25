@@ -200,18 +200,27 @@ function cleanBracedExponentInner(raw) {
     .trim();
 }
 
-const EXPLICIT_CLARIFICATION_RE = /\b(?:formatting|syntax|notation|input|expression|exponent|superscript)\s+(?:is|was|are)\s+(?:intentional|correct|fine|right|valid|proper|not\s+(?:an?\s+)?error|no\s+error|exact|what\s+i\s+(?:meant|intended|wrote))\b|\b(?:no\s+(?:formatting|syntax|input)\s+error|there\s+is\s+no\s+(?:formatting\s+)?error|it\s+is\s+not\s+malformed|not\s+malformed|that'?s\s+intentional|this\s+is\s+intentional|intentional(?:ly)?\s+(?:written|formatted)|meant\s+(?:it\s+)?that\s+way|means?\s*(?:\(?\s*\\?(?:sin|cos|tan|sec|csc|cot)\s*\(|[^.\n]*squared)|ignore\s+(?:the\s+)?(?:formatting|warning))\b/i;
+const EXPLICIT_CLARIFICATION_RE = /\b(?:formatting|syntax|notation|input|expression|exponent|superscript)\s+(?:is|was|are)\s+(?:intentional|correct|fine|right|valid|proper|not\s+(?:an?\s+)?error|no\s+error|exact|what\s+i\s+(?:meant|intended|wrote))\b|\b(?:no\s+(?:formatting|syntax|input)\s+error|there\s+is\s+no\s+(?:formatting\s+)?error|it\s+is\s+not\s+malformed|not\s+malformed|that'?s\s+intentional|this\s+is\s+intentional|intentional(?:ly)?\s+(?:written|formatted)|meant\s+(?:it\s+)?that\s+way|ignore\s+(?:the\s+)?(?:formatting|warning))\b|(?:\\?(?:sin|cos|tan|sec|csc|cot)\s*(?:\^|[⁰¹²³⁴⁵⁶⁷⁸⁹])[^\n.]*?\bmeans?\b|\bmeans?\s*\(\s*\\?(?:sin|cos|tan|sec|csc|cot)\s*\([^)]+\)\s*\)\s*(?:\^|[⁰¹²³⁴⁵⁶⁷⁸⁹]|squared))/i;
 
 const PRIOR_TRIG_WARNING_RE = /(?:ended\s+up\s+inside\s+the\s+exponent\s+of|trapped\s+inside\s+the\s+exponent|formatting\s+(?:check|issue)|Input\s+Formatting\s+Issue|looks\s+malformed|could\s+not\s+verify\s+(?:the\s+)?syntax|TRIG_POWER_ARG_MISMATCH)/i;
 
 const STANDALONE_ACK_AFTER_WARNING_RE = /^(?:yes|yeah|yep|correct|intentional|that'?s\s+(?:right|intentional)|no\s+error|proceed|solve\s+it(?:\s+anyway)?|simplify\s+it(?:\s+anyway)?|keep\s+(?:it\s+)?as\s+is)[.!?\s]*$/i;
+
+function extractTrigMismatchSnippets(rawText) {
+  if (typeof rawText !== 'string' || !rawText) return [];
+  const norm = normalizeInvisibleMathChars(rawText);
+  const matches = norm.match(/\\?(?:sin|cos|tan|csc|sec|cot)\s*\^\{\s*\d+\s*(?:\\left\s*)?\(\s*[a-zA-Z0-9]+\s*(?:\\right\s*)?\)\s*\}/g);
+  return matches ? [...new Set(matches.map(m => m.trim()))] : [];
+}
 
 function extractNotationClarificationContext(lastUserText = '', historyBefore = [], options = {}) {
   const safeHistory = Array.isArray(historyBefore) ? historyBefore : [];
   const acknowledgedWarnings = Array.isArray(options?.acknowledgedWarnings) ? options.acknowledgedWarnings : [];
 
   let priorFormattingWarningDetected = false;
+  let immediatelyPrecededByWarning = false;
   let disputedExpression = null;
+  const disputedSnippets = new Set();
 
   for (let i = 0; i < safeHistory.length; i++) {
     const msg = safeHistory[i];
@@ -222,32 +231,54 @@ function extractNotationClarificationContext(lastUserText = '', historyBefore = 
        (typeof msg.content === 'string' && PRIOR_TRIG_WARNING_RE.test(msg.content)))
     ) {
       priorFormattingWarningDetected = true;
+      if (i === safeHistory.length - 1) {
+        immediatelyPrecededByWarning = true;
+      }
       for (let j = i - 1; j >= 0; j--) {
         const u = safeHistory[j];
         if (u && u.role === 'user' && typeof u.content === 'string' && /[\\^=()]|sin|cos|tan|sec|csc|cot/i.test(u.content)) {
           disputedExpression = u.content;
+          extractTrigMismatchSnippets(u.content).forEach(s => disputedSnippets.add(s));
           break;
         }
       }
     }
   }
 
-  const userTurnsToCheck = [
-    ...safeHistory.filter(m => m && m.role === 'user').map(m => m.content || ''),
-    typeof lastUserText === 'string' ? lastUserText : ''
-  ];
+  const currentText = typeof lastUserText === 'string' ? lastUserText : '';
+  const isCurrentTurnClarification =
+    EXPLICIT_CLARIFICATION_RE.test(currentText) ||
+    (immediatelyPrecededByWarning && STANDALONE_ACK_AFTER_WARNING_RE.test(currentText.trim()));
 
-  const hasClarificationPhrase = userTurnsToCheck.some(t => typeof t === 'string' && EXPLICIT_CLARIFICATION_RE.test(t));
-  const hasShortAckAfterWarning = priorFormattingWarningDetected && typeof lastUserText === 'string' && STANDALONE_ACK_AFTER_WARNING_RE.test(lastUserText.trim());
-  const hasExplicitTrigPowerAck = acknowledgedWarnings.some(w =>
-    w && (w === 'TRIG_POWER_ARG_MISMATCH' || w.kind === 'TRIG_POWER_ARG_MISMATCH')
+  const hasHistoricalClarification =
+    priorFormattingWarningDetected &&
+    safeHistory.some(m => m && m.role === 'user' && typeof m.content === 'string' &&
+      (EXPLICIT_CLARIFICATION_RE.test(m.content) || STANDALONE_ACK_AFTER_WARNING_RE.test(m.content.trim())));
+
+  if (hasHistoricalClarification || isCurrentTurnClarification) {
+    disputedSnippets.forEach(snip => {
+      if (!acknowledgedWarnings.some(w => w && w.kind === 'TRIG_POWER_ARG_MISMATCH' && w.snippet === snip)) {
+        acknowledgedWarnings.push({ kind: 'TRIG_POWER_ARG_MISMATCH', snippet: snip });
+      }
+    });
+  }
+
+  const currentSnippets = extractTrigMismatchSnippets(currentText);
+  const hasMatchingAcknowledgedSnippet = currentSnippets.length > 0 && currentSnippets.every(snip =>
+    acknowledgedWarnings.some(w =>
+      w && (w === 'TRIG_POWER_ARG_MISMATCH' || (w.kind === 'TRIG_POWER_ARG_MISMATCH' && (!w.snippet || w.snippet === snip)))
+    )
   );
 
-  const hasExplicitClarification = hasClarificationPhrase || hasShortAckAfterWarning || hasExplicitTrigPowerAck;
-  const suppressedKinds = hasExplicitClarification ? ['TRIG_POWER_ARG_MISMATCH'] : [];
+  const hasExplicitClarification = isCurrentTurnClarification || hasHistoricalClarification || hasMatchingAcknowledgedSnippet;
+  // Only apply blanket kind suppression on the active clarification turn itself;
+  // all other turns enforce snippet-specific matching via acknowledgedWarnings.
+  const suppressedKinds = isCurrentTurnClarification ? ['TRIG_POWER_ARG_MISMATCH'] : [];
 
   return {
     hasExplicitClarification,
+    isCurrentTurnClarification,
+    hasHistoricalClarification,
     priorFormattingWarningDetected,
     disputedExpression,
     suppressedKinds,

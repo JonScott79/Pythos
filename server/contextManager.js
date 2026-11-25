@@ -1028,7 +1028,7 @@ function buildEffectivePrompt(messages = []) {
   // Guard: If latest turn is an independent general inquiry or pure standalone arithmetic,
   // do not contaminate it with prior problem parameters
   const hasRootOrAnswerClaim = /[a-zA-Z]\s*=\s*[-+]?\d+(?:\.\d+)?|\b(?:the\s+)?(?:answer|solution|root)\s+is\b/i.test(latestUser);
-  const isStandaloneQuery = /^(?:tell\s+me\s+about|who\s+(?:was|is)|what\s+is\s+(?:the\s+capital|photosynthesis|gravity|history)|explain\s+the\s+concept\s+of)\b/i.test(latestUser) ||
+  const isStandaloneQuery = /^(?:tell\s+me\s+about|who\s+(?:was|is)|what\s+is\s+(?:the\s+capital|photosynthesis|gravity|history)|what\s+does\s+[a-zA-Z\s]+\s+mean\b|explain\s+the\s+concept\s+of)\b/i.test(latestUser) ||
                             /^(?:what\s+is\s+)?\d+[\s+\-*/^]+\d+(?:\s*[\s+\-*/^]\s*\d+)*\??$/i.test(latestUser) ||
                             (!hasRootOrAnswerClaim && /^(?:nope|nah|no|not\s+quite)[,.\s]+(?:future|actually|i\s+mean|it'?s|i\s+meant|not\s+that)\b/i.test(latestUser)) ||
                             /^(?:(?:nope|nah|no)[,.\s]+)?(?:that'?s|that\s+is)\s+not\s+what\s+i\s+(?:meant|said|asked|was\s+saying)\b/i.test(latestUser) ||
@@ -1037,24 +1037,34 @@ function buildEffectivePrompt(messages = []) {
     return latestUser;
   }
 
-  // Guard: If latest turn is a fresh standalone equation or standalone math expression
-  // (e.g. "tanx+cotx=1", "y=3x+2", "\[\boxed{\frac{\sin^2(x)}{1-\cos(x)} + ...}\]"),
+  // 1. Explicit new problem reset (must take precedence over prior problem or clarification state)
+  const newProblemMatch = latestUser.match(/^(?:never\s+mind[.,]?\s*|(?:let'?s\s+do\s+a\s+)?new\s+problem[:\s]+|different\s+question[:\s]+)(.*)/i);
+  if (newProblemMatch && newProblemMatch[1].trim()) {
+    let np = newProblemMatch[1].trim();
+    if (!/^(?:solve|calculate|what|find|integrate|differentiate|simplify|evaluate)\b/i.test(np)) np = 'Solve ' + np;
+    return np;
+  }
+
+  // 1b. Practice problem request: prompt is practice generation, not prior math solution
+  if (/\b(?:give|gimme)\s+(?:me\s+)?(?:another|a\s+similar|one\s+more|a\s+practice|a\s+harder|an\s+easier|a\s+different)\s+(?:problem|question|one|exercise)\b/i.test(latestUser) ||
+      /\b(?:quiz|test)\s+me\b/i.test(latestUser)) {
+    return 'Generate practice problem: ' + latestUser;
+  }
+
+  // Guard: If latest turn is a fresh standalone equation or standalone math expression/task
+  // (e.g. "tanx+cotx=1", "y=3x+2", "\[\boxed{\frac{\sin^2(x)}{1-\cos(x)} + ...}\]", "Integrate x^2 + 3x dx"),
   // do not contaminate it with prior non-math greetings or unrelated problem parameters unless relative references exist.
   const isStandaloneEquation = /^[a-zA-Z0-9().+\-*\/^\\_\s]+=[a-zA-Z0-9().+\-*\/^\\_\s]+$/i.test(latestUser) ||
                                /^(?:does|is|solve|evaluate|find|calculate|graph|plot|simplify|verify|prove)\s+[a-zA-Z0-9().+\-*\/^\\_\s]+=[a-zA-Z0-9().+\-*\/^\\_\s]+$/i.test(latestUser);
   const isStandaloneExpression =
-    /(?:\\(?:frac|dfrac|tfrac|sin|cos|tan|sec|csc|cot|sqrt|int|lim|boxed)\b|(?:sin|cos|tan|sec|csc|cot)\s*(?:\^|[⁰¹²³⁴⁵⁶⁷⁸⁹])|\$\$[\s\S]+\$\$|\\\[[\s\S]+\\\])/i.test(latestUser) &&
+    (/(?:\\(?:frac|dfrac|tfrac|sin|cos|tan|sec|csc|cot|sqrt|int|lim|boxed)\b|(?:sin|cos|tan|sec|csc|cot)\s*(?:\^|[⁰¹²³⁴⁵⁶⁷⁸⁹])|\$\$[\s\S]+\$\$|\\\[[\s\S]+\\\]|^(?:integrate|differentiate|(?:what\s+is|find|compute|calculate)\s+the\s+(?:derivative|integral|antiderivative|limit)\s+of)\s+[a-zA-Z0-9().+\-*\/^\\_\s]+\??$)/i.test(latestUser)) &&
     !/^\s*(?:yes|no|that|this|it)\b/i.test(latestUser);
   const hasBackReference = /\b(?:that|this|it|previous|earlier|instead|from\s+that|actually|meant|typo|sorry|wait|no|now)\b/i.test(latestUser);
-  if ((isStandaloneEquation || isStandaloneExpression) && !hasBackReference) {
-    return latestUser;
-  }
-
-  // Clarification follow-up after formatting warning or confirmed trig power notation:
-  // Recover the disputed/latest substantive math problem and apply confirmed notation normalization.
   const priorMessages = messages.slice(0, -1);
   const clarificationCtx = extractNotationClarificationContext(latestUser, priorMessages);
-  if (clarificationCtx.hasExplicitClarification) {
+
+  // Active clarification turn recovery: ONLY when the latest turn itself is clarifying notation
+  if (clarificationCtx.isCurrentTurnClarification) {
     const mathProblemTurn = clarificationCtx.disputedExpression ||
       [...userMsgs.slice(0, -1)].reverse().find(m =>
         m && typeof m.content === 'string' &&
@@ -1067,18 +1077,8 @@ function buildEffectivePrompt(messages = []) {
     return applyConfirmedNotationClarification(latestUser, clarificationCtx);
   }
 
-  // 1. Explicit new problem reset
-  const newProblemMatch = latestUser.match(/^(?:never\s+mind[.,]?\s*|(?:let'?s\s+do\s+a\s+)?new\s+problem[:\s]+|different\s+question[:\s]+)(.*)/i);
-  if (newProblemMatch && newProblemMatch[1].trim()) {
-    let np = newProblemMatch[1].trim();
-    if (!/^(?:solve|calculate|what|find)\b/i.test(np)) np = 'Solve ' + np;
-    return np;
-  }
-
-  // 1b. Practice problem request: prompt is practice generation, not prior math solution
-  if (/\b(?:give|gimme)\s+(?:me\s+)?(?:another|a\s+similar|one\s+more|a\s+practice|a\s+harder|an\s+easier|a\s+different)\s+(?:problem|question|one|exercise)\b/i.test(latestUser) ||
-      /\b(?:quiz|test)\s+me\b/i.test(latestUser)) {
-    return 'Generate practice problem: ' + latestUser;
+  if ((isStandaloneEquation || isStandaloneExpression) && !hasBackReference) {
+    return latestUser;
   }
 
   // 2. Identify base problem (skip casual greeting openers when a subsequent user turn states the math problem)
@@ -1087,6 +1087,9 @@ function buildEffectivePrompt(messages = []) {
   if (isGreetingOnly(basePrompt)) {
     const firstMathTurn = userMsgs.find(m => m && !isGreetingOnly(m.content));
     if (firstMathTurn) basePrompt = firstMathTurn.content.trim();
+  }
+  if (clarificationCtx.hasHistoricalClarification) {
+    basePrompt = applyConfirmedNotationClarification(basePrompt, clarificationCtx);
   }
   for (let i = 0; i < userMsgs.length - 1; i++) {
     const um = userMsgs[i].content.trim();
@@ -1260,8 +1263,8 @@ function buildEffectivePrompt(messages = []) {
       continue;
     }
 
-    // Conversational & simulation follow-ups (e.g. "what would my hypot. be?", "what if I double the angle?", "why did it hit the ground at 63 meters?")
-    if (/\b(?:what\s+was\s+the\s+answer|explain|what\s+about\s+at\s+x\s*=\s*\d+|what|why|how|can|is|does|where|if|hypot|angle|height|range|period|velocity|speed|radius)\b/i.test(turnText)) {
+    // Conversational & simulation follow-ups (e.g. "what would my hypot. be?", "what if I double the angle?", "why did it hit the ground at 63 meters?", "Evaluate that at x = pi/3")
+    if (/\b(?:what\s+was\s+the\s+answer|explain|evaluate|plug\s+in|substitute|what\s+about\s+at\s+x\s*=\s*\d+|what|why|how|can|is|does|where|if|hypot|angle|height|range|period|velocity|speed|radius)\b/i.test(turnText)) {
       if (!effective.includes(turnText)) {
         effective += ' (' + turnText + ')';
       }

@@ -253,6 +253,159 @@ async function run() {
     assert(domMismatch, `Unconditional cancellation without domain exclusions must STILL raise DOMAIN_RESTRICTION_MISMATCH, got: ${JSON.stringify(uncondAudit.verificationResults)}`);
   });
 
+  await test('7. Finding 1: Post-clarification follow-ups, "New problem:" resets, and "mean squared" queries are never hijacked', () => {
+    const disputed = '\\[\\boxed{\\frac{\\sin²⁽ˣ⁾}{1-\\cos(x)} + \\frac{\\cos²⁽ˣ⁾}{1-\\sin(x)}}\\]';
+    const histAfterClarify = [
+      { role: 'user', content: 'hi there' },
+      { role: 'user', content: disputed },
+      {
+        role: 'assistant',
+        content: 'It looks like (x) ended up inside the exponent of sin.',
+        withheld: true,
+        withholdingReason: 'MALFORMED_SYNTAX'
+      },
+      { role: 'user', content: 'The formatting is intentional, sin^2(x) means (sin(x))^2.' },
+      { role: 'assistant', content: 'Simplified expression: 2 + sin(x) + cos(x)...' }
+    ];
+
+    const eff1 = buildEffectivePrompt([...histAfterClarify, { role: 'user', content: 'Integrate x^2 + 3x dx' }]);
+    assert(eff1.includes('Integrate x^2 + 3x dx') && !eff1.includes('1-\\cos(x)'), `Follow-up 1 hijacked: ${eff1}`);
+
+    const eff2 = buildEffectivePrompt([...histAfterClarify, { role: 'user', content: 'What is the derivative of sin(x) cos(x)?' }]);
+    assert(eff2.includes('derivative of sin(x) cos(x)') && !eff2.includes('1-\\cos(x)'), `Follow-up 2 hijacked: ${eff2}`);
+
+    const eff3 = buildEffectivePrompt([...histAfterClarify, { role: 'user', content: 'Evaluate that at x = pi/3' }]);
+    assert(eff3.includes('Evaluate that at x = pi/3'), `Follow-up 3 dropped referential evaluation: ${eff3}`);
+
+    const eff4 = buildEffectivePrompt([...histAfterClarify, { role: 'user', content: 'New problem: Integrate x^2 dx' }]);
+    assert(eff4.includes('Integrate x^2 dx') && !eff4.includes('1-\\cos(x)'), `New problem reset hijacked: ${eff4}`);
+
+    const eff5 = buildEffectivePrompt([...histAfterClarify, { role: 'user', content: 'What does mean squared error mean?' }]);
+    assert.strictEqual(eff5, 'What does mean squared error mean?', `Conceptual MSE query hijacked: ${eff5}`);
+
+    const mseCtx = extractNotationClarificationContext('What does mean squared error mean?', []);
+    assert.strictEqual(mseCtx.hasExplicitClarification, false, 'Conceptual "mean squared error" must not trigger notation clarification');
+  });
+
+  await test('8. Finding 2: Acknowledged warnings stay snippet-scoped across client/server and reset on loadChat', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const acks = [{ kind: 'TRIG_POWER_ARG_MISMATCH', snippet: '\\sin^{2(x)}' }];
+
+    // Exact acknowledged snippet is suppressed on both client and server
+    assert.strictEqual(engine.detectInputFormattingIssue('\\sin^{2(x)}', { suppressedIssues: acks }).hasIssue, false);
+    const sameCtx = extractNotationClarificationContext('\\sin^{2(x)}', [], { acknowledgedWarnings: acks });
+    assert.strictEqual(detectFormattingAnomaly('\\sin^{2(x)}', { clarificationContext: sameCtx }).isWeird, false);
+
+    // Different expression (\cos^{2(y)}) must NOT be suppressed on either client or server
+    assert.strictEqual(engine.detectInputFormattingIssue('\\cos^{2(y)}', { suppressedIssues: acks }).hasIssue, true);
+    const diffCtx = extractNotationClarificationContext('\\cos^{2(y)}', [], { acknowledgedWarnings: acks });
+    const serverCos = detectFormattingAnomaly('\\cos^{2(y)}', { clarificationContext: diffCtx });
+    assert.strictEqual(serverCos.isWeird, true, 'Server must not suppress unrelated \\cos^{2(y)} from \\sin^{2(x)} ack');
+    assert.strictEqual(serverCos.kind, 'TRIG_POWER_ARG_MISMATCH');
+
+    // Verify loadChat in app.js resets acknowledgedFormattingWarnings and formattingUndoSnapshot
+    const appSrc = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+    const loadChatMatch = appSrc.match(/async function loadChat\(chatId\)\s*\{[\s\S]{0,400}/);
+    assert(loadChatMatch && loadChatMatch[0].includes('acknowledgedFormattingWarnings = []') && loadChatMatch[0].includes('formattingUndoSnapshot = null'),
+      'loadChat(chatId) in app.js must reset acknowledgedFormattingWarnings and formattingUndoSnapshot');
+  });
+
+  await test('9. Finding 3: Clarification directive never forces full solutions or overrides Tutor Mode', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const serverSrc = fs.readFileSync(path.join(__dirname, '..', 'server', 'server.js'), 'utf8');
+    assert(!serverSrc.includes('proceed directly to solving/simplifying the mathematical problem'),
+      'server.js notationClarificationContext must not instruct the model to bypass Tutor Mode');
+    const { buildTutorModeDirective } = require('../server/teachingIntelligence');
+    const tutorDir = buildTutorModeDirective({
+      tutorMode: true,
+      userText: 'The formatting is intentional, sin^2(x) means (sin(x))^2.',
+      messages: [
+        { role: 'user', content: '\\frac{\\sin^2(x)}{1-\\cos(x)} + \\frac{\\cos^2(x)}{1-\\sin(x)}' },
+        { role: 'user', content: 'The formatting is intentional, sin^2(x) means (sin(x))^2.' }
+      ]
+    });
+    assert(tutorDir.includes('[TUTOR MODE ACTIVE'), 'Tutor Mode must remain active during notation clarification');
+    assert(tutorDir.includes('Do NOT reveal the final answer'), 'Tutor Mode must preserve answer withholding during clarification');
+  });
+
+  await test('10. Finding 4: Parenthesized trig powers, mixed inverse+squared trig, 3-level nested segmentation & bounded performance', () => {
+    // Parenthesized exponents evaluated in Math.js (Calc / Grapher / Check Work pipeline)
+    for (const [raw, scope, expected] of [
+      ['sin^(2)(x)', { x: 0.7 }, Math.pow(Math.sin(0.7), 2)],
+      ['sin^(n+1)(x)', { x: 0.7, n: 1 }, Math.pow(Math.sin(0.7), 2)],
+      ['sin^(1/2)(x)', { x: 0.7 }, Math.pow(Math.sin(0.7), 0.5)],
+      ['sin^2(x^2)', { x: 0.7 }, Math.pow(Math.sin(0.49), 2)]
+    ]) {
+      const af = engine.autoFormatMathText(raw);
+      const norm = engine.normalizeMathInputForParser(af);
+      const val = math.evaluate(norm, scope);
+      assert(Math.abs(val - expected) < 1e-12, `Failed Math.js eval for ${raw} -> af="${af}" -> norm="${norm}": got ${val}, expected ${expected}`);
+    }
+
+    // Mixed inverse trig + squared trig rewrites cos^2 regardless of order while preserving sin^(-1) semantics
+    const mixed1 = engine.normalizeMathInputForParser(engine.autoFormatMathText('sin^{-1}(0.5) + cos^2(0.5)'));
+    const mixed2 = engine.normalizeMathInputForParser(engine.autoFormatMathText('cos^2(0.5) + sin^{-1}(0.5)'));
+    assert(mixed1.includes('(cos(0.5))^(2)'), `Expected cos^2 rewritten after sin^{-1}, got: ${mixed1}`);
+    assert(mixed2.includes('(cos(0.5))^(2)'), `Expected cos^2 rewritten before sin^{-1}, got: ${mixed2}`);
+    assert(!mixed1.includes('(sin(0.5))^(-1)'), `Must not blindly rewrite sin^{-1} as reciprocal power: ${mixed1}`);
+
+    // 3-level nested trig expression segments as a single intact math token
+    for (const nested3 of ['sin^2(cos(tan(x)))', 'sin²(cos(tan(x)))']) {
+      const segs = engine.MathIntentEngine.segmentInput(nested3);
+      assert.strictEqual(segs.length, 1, `Expected 1 segment for ${nested3}, got ${JSON.stringify(segs)}`);
+      assert.strictEqual(segs[0].type, 'math');
+      assert.strictEqual(segs[0].raw, nested3);
+    }
+
+    // Pathological deeply nested unmatched parens must complete in < 50ms (no ReDoS)
+    const deepTrap = 'sin^2('.repeat(80) + 'x' + ')'.repeat(80);
+    const t0 = Date.now();
+    engine.MathIntentEngine.segmentInput(deepTrap);
+    const elapsedMs = Date.now() - t0;
+    assert(elapsedMs < 50, `Deeply nested unmatched parens took ${elapsedMs}ms (expected < 50ms)`);
+  });
+
+  await test('11. Finding 5: Compact LaTeX parametric domain restrictions (x != 2k\\pi, \\frac{\\pi}{2} + 2k\\pi) verify conditionally', async () => {
+    const prompt = '\\[\\boxed{\\frac{\\sin^2(x)}{1-\\cos(x)} + \\frac{\\cos^2(x)}{1-\\sin(x)}}\\]';
+    const latexParamResp = [
+      '$$\\frac{\\sin^2(x)}{1-\\cos(x)} + \\frac{\\cos^2(x)}{1-\\sin(x)} = 2 + \\sin(x) + \\cos(x)$$',
+      'Domain restrictions: $x \\neq 2k\\pi$ and $x \\neq \\frac{\\pi}{2} + 2k\\pi$.'
+    ].join('\n');
+    const audit = await verifyResponseClaims(latexParamResp, prompt);
+    assert.strictEqual(audit.invalidClaims.length, 0, `Expected 0 invalid claims on LaTeX parametric restrictions, got: ${JSON.stringify(audit.invalidClaims)}`);
+    const equivRes = audit.verificationResults.find(v => v && v.verified === true && v.status === 'CONDITIONALLY_EQUIVALENT');
+    assert(equivRes, `Expected CONDITIONALLY_EQUIVALENT for LaTeX parametric restrictions, got: ${JSON.stringify(audit.verificationResults)}`);
+
+    // Partial parametric restriction (only 2k\pi, missing \pi/2 + 2k\pi) must STILL fail DOMAIN_RESTRICTION_MISMATCH
+    const partialParamResp = [
+      '$$\\frac{\\sin^2(x)}{1-\\cos(x)} + \\frac{\\cos^2(x)}{1-\\sin(x)} = 2 + \\sin(x) + \\cos(x)$$',
+      'Domain restrictions: $x \\neq 2k\\pi$.'
+    ].join('\n');
+    const partialAudit = await verifyResponseClaims(partialParamResp, prompt);
+    assert(partialAudit.verificationResults.some(v => v && v.error_type === 'DOMAIN_RESTRICTION_MISMATCH'),
+      'Incomplete parametric restrictions must still fail with DOMAIN_RESTRICTION_MISMATCH');
+  });
+
+  await test('12. Finding 6: Unrelated earlier claims do not inherit inline restrictions from a different later equation', async () => {
+    const multiPartResp = [
+      'Part 1: $\\frac{x^2 - 4}{x - 2} = x + 2$.',
+      'Part 2: $\\frac{(x - 2)(x - 3)}{x - 2} = x - 3$, valid for $x \\neq 2$.'
+    ].join('\n\n');
+    const audit = await verifyResponseClaims(multiPartResp, 'Simplify both expressions');
+    const part1Res = audit.verificationResults.find((v, idx) =>
+      audit.claims[idx]?.data?.expr2 === 'x + 2'
+    );
+    const part2Res = audit.verificationResults.find((v, idx) =>
+      audit.claims[idx]?.data?.expr2 === 'x - 3'
+    );
+    assert(part1Res && part1Res.verified === false && part1Res.error_type === 'DOMAIN_RESTRICTION_MISMATCH',
+      `Part 1 omitted x != 2 and must NOT inherit Part 2 inline restriction: ${JSON.stringify(part1Res)}`);
+    assert(part2Res && part2Res.verified === true && part2Res.status === 'CONDITIONALLY_EQUIVALENT',
+      `Part 2 explicitly stated x != 2 and must verify conditionally: ${JSON.stringify(part2Res)}`);
+  });
+
   console.log(`\n======================================================================`);
   console.log(`RESULTS: ${passed}/${passed + failed} PASSED (${failed} failed)`);
   console.log(`======================================================================`);

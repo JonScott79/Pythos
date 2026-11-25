@@ -264,6 +264,26 @@ test.describe('Pythos Desktop E2E User Journeys', () => {
     await page.locator('#mathPreviewIgnoreBtn').click();
     await expect(page.locator('#mathPreviewGuard')).toBeHidden();
 
+    // Unrelated trig mismatch (\cos^{2(y)}) still warns (snippet-scoped acknowledgment)
+    await input.fill('\\cos^{2(y)}');
+    await expect(page.locator('#mathPreviewGuard')).toBeVisible();
+    await input.fill('');
+
+    // Calculator, Check Work & Function Grapher evaluate trig powers & parenthesized exponents cleanly
+    await page.locator('#toolCalcBtn').click();
+    await page.locator('#calcDisplay').fill('sin^(2)(30) + cos^2(30)');
+    await page.locator('#calcDisplay').press('Enter');
+    await expect(page.locator('#calcDisplay')).toHaveValue('1');
+    await page.locator('#calcCloseBtn').click();
+
+    await page.locator('#toolCheckBtn').click();
+    await page.locator('#checkEqInput').fill('sin^(2)(x) + cos^2(x) = 1');
+    await page.locator('#checkVarInput').fill('x');
+    await page.locator('#checkAnsInput').fill('pi/3');
+    await page.locator('#checkRunBtn').click();
+    await expect(page.locator('#checkResultArea')).toContainText('✓ Correct!');
+    await page.locator('#checkCloseBtn').click();
+
     expect(pageErrors).toEqual([]);
     expect(consoleErrors).toEqual([]);
   });
