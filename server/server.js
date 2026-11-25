@@ -2567,15 +2567,6 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
     studentDisplayName = sanitizeDisplayName(req.body.displayName);
   }
 
-  // Pre-Flight Track: Classify problem domain and extract embedded mathematical calculations
-  const classification = lastUserMsg ? classifyProblem(lastUserMsg.content) : null;
-  if (classification) {
-    console.log(`[ROUTER] Classified Domain: ${classification.problemDomain} | Subtype: ${classification.problemSubtype} (Confidence: ${classification.confidence})`);
-  }
-
-  const preflightFacts = lastUserMsg ? extractPreflightDeterministicFacts(lastUserMsg.content, messages) : [];
-  const preflightContext = buildPreflightContext(preflightFacts, classification);
-
   // Separate prior trusted conversation history from the unverified inbound user turn
   const historyBefore = (lastUserMsg && messages.length > 0 && messages[messages.length - 1]?.role === 'user')
     ? messages.slice(0, -1)
@@ -2587,30 +2578,63 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
         acknowledgedWarnings: req.body?.acknowledgedFormattingWarnings
       })
     : { hasExplicitClarification: false, suppressedKinds: [] };
+
+  // When the student explicitly confirms their intended notation, reinterpret the original
+  // disputed expression in conversation history and use the reinterpreted expression as the
+  // active mathematical problem text on the clarification turn.
+  const effectiveMessages = notationClarification.hasExplicitClarification
+    ? messages.map((m, idx) => {
+        if (!m || typeof m.content !== 'string') return m;
+        if (m.role === 'user' && idx < messages.length - 1) {
+          const rewritten = applyConfirmedNotationClarification(m.content, notationClarification);
+          if (rewritten !== m.content) return { ...m, content: rewritten };
+        }
+        return m;
+      })
+    : messages;
+  const effectiveHistoryBefore = (lastUserMsg && effectiveMessages.length > 0 && effectiveMessages[effectiveMessages.length - 1]?.role === 'user')
+    ? effectiveMessages.slice(0, -1)
+    : effectiveMessages;
+  const effectiveProblemText = (notationClarification.isCurrentTurnClarification && notationClarification.reinterpretedExpression)
+    ? notationClarification.reinterpretedExpression
+    : (lastUserMsg?.content || '');
+
+  // Pre-Flight Track: Classify problem domain and extract embedded mathematical calculations
+  const classification = lastUserMsg ? classifyProblem(effectiveProblemText) : null;
+  if (classification) {
+    console.log(`[ROUTER] Classified Domain: ${classification.problemDomain} | Subtype: ${classification.problemSubtype} (Confidence: ${classification.confidence})`);
+  }
+
+  const preflightFacts = lastUserMsg ? extractPreflightDeterministicFacts(effectiveProblemText, effectiveMessages) : [];
+  const preflightContext = buildPreflightContext(preflightFacts, classification);
+
+  const reinterpretedNote = notationClarification.reinterpretedExpression
+    ? `\nConfirmed reinterpreted expression: ${notationClarification.reinterpretedExpression}`
+    : '';
   const notationClarificationContext = notationClarification.hasExplicitClarification
-    ? `\n\n[STUDENT NOTATION CLARIFICATION]\nThe student explicitly confirmed that their trigonometric power/exponent notation (for example, sin^2(x) = (sin(x))^2, cos^2(x) = (cos(x))^2) is intentional and mathematically valid. Do NOT tell the student their notation is malformed and do NOT question their exponent formatting; interpret the notation as standard trigonometric powers while strictly adhering to the active tutoring or response mode and preserving all required domain restrictions.`
+    ? `\n\n[STUDENT NOTATION CLARIFICATION]\nThe student explicitly confirmed that their trigonometric power/exponent notation (for example, sin^2(x) = (sin(x))^2, cos^2(x) = (cos(x))^2) is intentional and mathematically valid.${reinterpretedNote}\nAccept this clarification, treat the formatting warning for that expression as resolved, do NOT repeat any malformed-input warning for this confirmed expression, and continue with normal solving or tutoring according to the active mode while preserving all required domain restrictions.`
     : '';
 
   // Phase B (Pre-Evaluation): Trusted active problem state from prior history ONLY (never polluted by unverified inbound turn)
-  const preEvalActiveState = (lastUserMsg && historyBefore.length > 0)
-    ? contextManager.extractActiveProblemState(historyBefore, preflightFacts, { excludeUnverifiedUserSteps: true })
+  const preEvalActiveState = (lastUserMsg && effectiveHistoryBefore.length > 0)
+    ? contextManager.extractActiveProblemState(effectiveHistoryBefore, preflightFacts, { excludeUnverifiedUserSteps: true })
     : null;
 
   // Authoritative Front-Door Input Interpretation, Student Intent Classification & Proposed Work Evaluation
   let interpretedTurn = null;
   if (lastUserMsg && typeof lastUserMsg.content === 'string') {
     try {
-      interpretedTurn = inputInterpreter.interpretUserTurn(lastUserMsg.content, historyBefore, preEvalActiveState);
+      interpretedTurn = inputInterpreter.interpretUserTurn(lastUserMsg.content, effectiveHistoryBefore, preEvalActiveState);
     } catch (interpErr) {
       console.warn('[INTERPRETER] Fallback to raw input:', interpErr.message);
     }
   }
-  const studentIntent = lastUserMsg ? classifyStudentIntent(lastUserMsg.content, historyBefore, preEvalActiveState, interpretedTurn) : null;
-  const studentEvaluation = studentIntent ? evaluateStudentWork(lastUserMsg.content, studentIntent, historyBefore, preEvalActiveState) : null;
+  const studentIntent = lastUserMsg ? classifyStudentIntent(lastUserMsg.content, effectiveHistoryBefore, preEvalActiveState, interpretedTurn) : null;
+  const studentEvaluation = studentIntent ? evaluateStudentWork(lastUserMsg.content, studentIntent, effectiveHistoryBefore, preEvalActiveState) : null;
 
   // Phase B (Post-Evaluation Model Context): Build bounded context without promoting unverified steps;
   // advance currentStepEquation / isCompleted ONLY on verified acceptance.
-  const boundedContext = contextManager.buildBoundedConversationContext(messages, {
+  const boundedContext = contextManager.buildBoundedConversationContext(effectiveMessages, {
     preflightFacts,
     excludeUnverifiedUserSteps: true
   });
@@ -2805,7 +2829,7 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
   // Tool Utilization Layer: Analyze intent and select/execute appropriate allowlisted tool
   let toolResultContext = '';
   let preflightToolResult = null;
-  const toolSelection = toolController.selectAppropriateTool(studentIntent, lastUserMsg?.content || '', messages, activeProblemState);
+  const toolSelection = toolController.selectAppropriateTool(studentIntent, effectiveProblemText, effectiveMessages, activeProblemState);
   if (toolSelection) {
     if (toolSelection.isCapabilityGap) {
       console.log(`[TOOL CONTROLLER] Capability gap detected: ${toolSelection.gapName}`);
@@ -2813,7 +2837,7 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
     } else if (toolSelection.tool) {
       console.log(`[TOOL CONTROLLER] Preflight tool selected: ${toolSelection.tool} (reason: ${toolSelection.reason})`);
       preflightToolResult = await toolController.executeTool(toolSelection.tool, { ...toolSelection.arguments, trigModel: toolSelection.trigModel || null }, {
-        messages,
+        messages: effectiveMessages,
         activeProblemState
       });
       if (preflightToolResult && preflightToolResult.success) {
@@ -2825,14 +2849,14 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
 
   // Specialist Assist Ground Truth Evaluation (Calculus & Geometry)
   const specialistEval = lastUserMsg
-    ? await specialistAssist.evaluateSpecialistAssist(lastUserMsg.content, messages)
+    ? await specialistAssist.evaluateSpecialistAssist(effectiveProblemText, effectiveMessages)
     : { contextString: '' };
   const specialistContext = specialistEval?.contextString || '';
 
   const tutorModeContext = teachingIntelligence.buildTutorModeDirective({
     tutorMode,
     userText: lastUserMsg?.content || '',
-    messages,
+    messages: effectiveMessages,
     studentIntent,
     studentEvaluation
   });

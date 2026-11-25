@@ -246,10 +246,18 @@ function extractActiveProblemState(messages = [], preflightFacts = [], options =
   const sessionProblems = [];
   let currentActive = null;
   let lastProblemResetIndex = 0;
+  const lastUserMsgForClarify = [...messages].reverse().find(m => m && m.role === 'user' && typeof m.content === 'string');
+  const historyBeforeClarify = lastUserMsgForClarify ? messages.slice(0, messages.lastIndexOf(lastUserMsgForClarify)) : messages;
+  const activeClarificationCtx = lastUserMsgForClarify
+    ? extractNotationClarificationContext(lastUserMsgForClarify.content, historyBeforeClarify)
+    : { hasExplicitClarification: false };
 
   for (let i = 0; i < messages.length; i++) {
-    const msg = messages[i];
-    if (!msg || !msg.content) continue;
+    const rawMsg = messages[i];
+    if (!rawMsg || !rawMsg.content) continue;
+    const msg = (activeClarificationCtx.hasExplicitClarification && rawMsg.role === 'user' && typeof rawMsg.content === 'string')
+      ? { ...rawMsg, content: applyConfirmedNotationClarification(rawMsg.content, activeClarificationCtx) }
+      : rawMsg;
 
     // We process user messages as primary problem statements, but when a user message
     // did not establish a problem (e.g. image-based upload or terse prompt), we inspect
@@ -568,10 +576,18 @@ function extractActiveProblemState(messages = [], preflightFacts = [], options =
       }
     }
     let extractedExpr = null;
-    if (!cleanPrompt.includes('=') && !isProse(cleanPrompt) && /^[-+*/^0-9.()\s\\a-zA-Zπ_{}]+$/.test(cleanPrompt) &&
-        (/\d/.test(cleanPrompt) || /[a-zA-Zπ]/.test(cleanPrompt)) && cleanPrompt.length <= 80 &&
-        (/[-+*/^]/.test(cleanPrompt) || /\b(?:pi|π|sqrt|sin|cos|tan)\b/i.test(cleanPrompt))) {
-      extractedExpr = cleanPrompt;
+    const exprCandidate = cleanPrompt
+      .replace(/^\\\[([\s\S]*)\\\]$/g, '$1')
+      .replace(/^\$\$([\s\S]*)\$\$$/g, '$1')
+      .replace(/^\\\(([\s\S]*)\\\)$/g, '$1')
+      .replace(/^\$([^$]+)\$$/g, '$1')
+      .trim()
+      .replace(/^\\boxed\{([\s\S]*)\}$/g, '$1')
+      .trim();
+    if (!exprCandidate.includes('=') && !isProse(exprCandidate) && /^[-+*/^0-9.()\s\\a-zA-Zπ_{}]+$/.test(exprCandidate) &&
+        (/\d/.test(exprCandidate) || /[a-zA-Zπ]/.test(exprCandidate)) && exprCandidate.length <= 160 &&
+        (/[-+*/^]/.test(exprCandidate) || /\\?(?:pi|π|sqrt|sin|cos|tan|sec|csc|cot|frac|dfrac|tfrac)\b/i.test(exprCandidate))) {
+      extractedExpr = exprCandidate;
     }
 
     // Distinguish genuine new problems from terse student work/follow-ups
@@ -1065,6 +1081,9 @@ function buildEffectivePrompt(messages = []) {
 
   // Active clarification turn recovery: ONLY when the latest turn itself is clarifying notation
   if (clarificationCtx.isCurrentTurnClarification) {
+    if (clarificationCtx.reinterpretedExpression) {
+      return clarificationCtx.reinterpretedExpression;
+    }
     const mathProblemTurn = clarificationCtx.disputedExpression ||
       [...userMsgs.slice(0, -1)].reverse().find(m =>
         m && typeof m.content === 'string' &&

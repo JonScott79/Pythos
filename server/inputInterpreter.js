@@ -406,11 +406,13 @@ function detectMathNotationAmbiguities(rawText, canonicalText = null, activeProb
   }
 
   // 5. Trig Function Power / Argument Ambiguity: e.g. "sin x squared", "cos x^2", "sin theta squared"
-  const trigPowMatch = s.match(/\b(sin|cos|tan|sec|csc|cot)\s+([a-zA-Z]|theta|θ)\s+(squared|cubed|\^2|\^3|²|³)\b/i);
+  // Skip when the student is explicitly clarifying what their notation means (e.g. "sin x^2 means (sin(x))^2")
+  const isClarifyingTrigMeaning = /\b(?:means?|is\s+intentional|meant|intended|not\s+malformed|no\s+(?:formatting\s+)?error)\b/i.test(s);
+  const trigPowMatch = !isClarifyingTrigMeaning && s.match(/\b(sin|cos|tan|sec|csc|cot)\s+([a-zA-Z]|theta|θ)(?:\s+(squared|cubed)|\s*(\^2|\^3|²|³))(?=\b|\s|$|[+\-*/=),;.?!])/i);
   if (trigPowMatch) {
     const fn = trigPowMatch[1].toLowerCase();
     const arg = trigPowMatch[2];
-    const rawPow = trigPowMatch[3].toLowerCase();
+    const rawPow = (trigPowMatch[3] || trigPowMatch[4] || '').toLowerCase();
     const exp = (rawPow === 'cubed' || rawPow === '^3' || rawPow === '³') ? '3' : '2';
     const rawSpan = trigPowMatch[0];
     const cand1 = `${fn}(${arg}^${exp})`;

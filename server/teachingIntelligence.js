@@ -1869,8 +1869,19 @@ function buildTutorModeDirective({ tutorMode = false, userText = '', messages = 
     /\b(?:reveal|show|give)\s+(?:me\s+)?(?:the\s+)?(?:(?:full|complete|entire|verified|step-by-step)\s+)*(?:solution|answer)\b/i.test(clean);
 
   // Preserve the earliest substantive problem statement in the thread so hints never drift
-  const userTurns = Array.isArray(messages) ? messages.filter(m => m && m.role === 'user' && typeof m.content === 'string') : [];
-  const originalProblem = userTurns.length > 0 ? userTurns[0].content.trim().slice(0, 400) : clean;
+  const { extractNotationClarificationContext, applyConfirmedNotationClarification } = require('./mathFormatDetector');
+  const isCasualGreeting = (txt) => /^(?:hi|hello|hey|yo|sup|hi\s+there|hello\s+there|good\s+(?:morning|afternoon|evening)|how\s+are\s+you(?:\s+doing)?|what'?s\s+up)[.!?\s]*$/i.test(String(txt || '').trim());
+  const safeMessages = Array.isArray(messages) ? messages : [];
+  const lastUserInMessages = [...safeMessages].reverse().find(m => m && m.role === 'user' && typeof m.content === 'string');
+  const historyBeforeLast = lastUserInMessages ? safeMessages.slice(0, safeMessages.lastIndexOf(lastUserInMessages)) : safeMessages;
+  const clarificationCtx = extractNotationClarificationContext(clean || (lastUserInMessages?.content || ''), historyBeforeLast);
+  const userTurns = safeMessages.filter(m => m && m.role === 'user' && typeof m.content === 'string');
+  const firstSubstantiveTurn = userTurns.find(m => !isCasualGreeting(m.content)) || userTurns[0];
+  let originalProblem = firstSubstantiveTurn ? firstSubstantiveTurn.content.trim() : clean;
+  if (clarificationCtx.hasExplicitClarification) {
+    originalProblem = applyConfirmedNotationClarification(originalProblem, clarificationCtx);
+  }
+  originalProblem = originalProblem.slice(0, 400);
 
   if (revealRequested) {
     return [

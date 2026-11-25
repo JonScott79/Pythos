@@ -406,6 +406,153 @@ async function run() {
       `Part 2 explicitly stated x != 2 and must verify conditionally: ${JSON.stringify(part2Res)}`);
   });
 
+  await test('13. Student-Confirmed Mathematical Notation UX Refinement (8-step end-to-end flow + Tutor Mode + expression scoping)', () => {
+    const { extractActiveProblemState } = require('../server/contextManager');
+    const { interpretUserTurn, detectMathNotationAmbiguities } = require('../server/inputInterpreter');
+    const { buildTutorModeDirective } = require('../server/teachingIntelligence');
+
+    // Step 1: Submit a trigonometric expression that triggers a notation ambiguity warning
+    const ambiguousExpr = '\\[\\boxed{\\frac{\\sin^{2(x)}}{1-\\cos(x)} + \\frac{\\cos^{2(x)}}{1-\\sin(x)}}\\]';
+    const step1Check = detectFormattingAnomaly(ambiguousExpr);
+    assert.strictEqual(step1Check.isWeird, true, 'Step 1: Ambiguous trig power notation must trigger clarification warning');
+    assert.strictEqual(step1Check.kind, 'TRIG_POWER_ARG_MISMATCH');
+
+    const historyAfterStep1 = [
+      { role: 'user', content: 'hi there' },
+      { role: 'assistant', content: 'Hello! What math or physics problem would you like to explore today?' },
+      { role: 'user', content: ambiguousExpr },
+      {
+        role: 'assistant',
+        content: 'It looks like `(x)` ended up inside the exponent of `sin`. Could you confirm what you intended?',
+        withheld: true,
+        withholdingReason: 'MALFORMED_SYNTAX'
+      }
+    ];
+
+    // Step 2: Student explicitly confirms that the notation is intentional
+    const studentConfirmation = 'The formatting is intentional, sin^2(x) means (sin(x))^2 and cos^2(x) means (cos(x))^2. There is no formatting error.';
+
+    // Step 3: Verify that Pythos accepts the clarification and reinterprets the original expression
+    const clarifyCtx = extractNotationClarificationContext(studentConfirmation, historyAfterStep1);
+    assert.strictEqual(clarifyCtx.hasExplicitClarification, true, 'Step 3: Pythos must accept the student clarification');
+    assert.strictEqual(clarifyCtx.isCurrentTurnClarification, true, 'Step 3: Current turn must be recognized as active clarification');
+    assert(
+      clarifyCtx.reinterpretedExpression &&
+      clarifyCtx.reinterpretedExpression.includes('\\sin^{2}(x)') &&
+      clarifyCtx.reinterpretedExpression.includes('\\cos^{2}(x)') &&
+      !clarifyCtx.reinterpretedExpression.includes('2(x)'),
+      `Step 3: Original expression must be reinterpreted using confirmed meaning, got: ${clarifyCtx.reinterpretedExpression}`
+    );
+
+    // Step 4: Verify that the formatting warning is resolved and NOT repeated for the same expression
+    const step4OnClarification = detectFormattingAnomaly(studentConfirmation, {
+      conversationHistory: historyAfterStep1,
+      clarificationContext: clarifyCtx
+    });
+    assert.strictEqual(step4OnClarification.isWeird, false, 'Step 4a: Clarification message itself must not trigger formatting warning');
+
+    const historyAfterConfirmation = [
+      ...historyAfterStep1,
+      { role: 'user', content: studentConfirmation },
+      { role: 'assistant', content: 'Understood! Let us work with (sin(x))^2 / (1 - cos(x)) + (cos(x))^2 / (1 - sin(x)).' }
+    ];
+    const step4SameExprRepeat = detectFormattingAnomaly(ambiguousExpr, {
+      conversationHistory: historyAfterConfirmation
+    });
+    assert.strictEqual(step4SameExprRepeat.isWeird, false, 'Step 4b: Warning must not be repeated for the confirmed expression');
+
+    // Step 5: Verify Pythos continues solving or tutoring according to active mode (including Tutor Mode)
+    const effectiveOnClarify = buildEffectivePrompt([...historyAfterStep1, { role: 'user', content: studentConfirmation }]);
+    assert(
+      effectiveOnClarify.includes('\\sin^{2}(x)') && effectiveOnClarify.includes('\\cos^{2}(x)'),
+      `Step 5a: Effective prompt must recover the reinterpreted expression, got: ${effectiveOnClarify}`
+    );
+
+    const activeState = extractActiveProblemState([...historyAfterStep1, { role: 'user', content: studentConfirmation }]);
+    assert(
+      activeState.active &&
+      typeof activeState.active.activeExpression === 'string' &&
+      activeState.active.activeExpression.includes('\\sin^{2}(x)'),
+      `Step 5b: Active problem state must hold the reinterpreted expression, got: ${JSON.stringify(activeState.active)}`
+    );
+
+    // Tutor Mode must remain fully functional on the clarification turn
+    const tutorDirective = buildTutorModeDirective({
+      tutorMode: true,
+      userText: studentConfirmation,
+      messages: [...historyAfterStep1, { role: 'user', content: studentConfirmation }]
+    });
+    assert(tutorDirective.includes('[TUTOR MODE ACTIVE'), 'Step 5c: Tutor Mode directive must be active');
+    assert(tutorDirective.includes('Do NOT reveal the final answer'), 'Step 5d: Tutor Mode must withhold final answer');
+    assert(
+      tutorDirective.includes('\\sin^{2}(x)') && !tutorDirective.includes('Target Problem: "hi there"'),
+      `Step 5e: Tutor Mode target problem must be the reinterpreted math expression (not greeting), got: ${tutorDirective}`
+    );
+
+    // Also verify spoken trig power ambiguity ("sin x^2") is resolved when student confirms meaning
+    const spokenAmbig = detectMathNotationAmbiguities('Simplify sin x^2 + cos x^2');
+    assert(spokenAmbig.some(a => a.type === 'TRIG_POWER_AMBIGUITY'), 'Spoken "sin x^2" must initially flag TRIG_POWER_AMBIGUITY');
+    const spokenClarifyTurn = interpretUserTurn(
+      'I meant sin^2(x) means (sin(x))^2 and cos^2(x) means (cos(x))^2',
+      [
+        { role: 'user', content: 'Simplify sin x^2 + cos x^2' },
+        { role: 'assistant', content: 'Did you mean (sin(x))^2 or sin(x^2)?' }
+      ]
+    );
+    assert(
+      !spokenClarifyTurn.normalizedMath.ambiguities.some(a => a.type === 'TRIG_POWER_AMBIGUITY'),
+      'Clarification turn explaining sin^2(x) = (sin(x))^2 must not re-trigger TRIG_POWER_AMBIGUITY'
+    );
+    const spokenRewritten = applyConfirmedNotationClarification('Simplify sin x^2 + cos x^2', {
+      userClarificationText: 'sin^2(x) means (sin(x))^2'
+    });
+    assert(
+      spokenRewritten.includes('(sin(x))^2') && spokenRewritten.includes('(cos(x))^2'),
+      `Spoken ambiguity must be reinterpreted to (sin(x))^2 + (cos(x))^2, got: ${spokenRewritten}`
+    );
+
+    // Step 6 & 7: Submit genuinely malformed expressions in the same conversation and verify detection still works
+    for (const [malformedInput, expectedKind] of [
+      ['\\[ 2\\sin^{2(x)+}\\csc(x)-9=0 \\]', 'TRAPPED_OPERATOR_IN_EXPONENT'],
+      ['\\frac{}{1-\\cos(x)}', 'EMPTY_LATEX_BLOCK'],
+      ['((\\sin^2(x))', 'UNBALANCED_DELIMITERS']
+    ]) {
+      const check = detectFormattingAnomaly(malformedInput, {
+        conversationHistory: historyAfterConfirmation
+      });
+      assert.strictEqual(check.isWeird, true, `Step 7: Genuinely malformed "${malformedInput}" must STILL be detected after confirmation`);
+      assert.strictEqual(check.kind, expectedKind, `Step 7: Expected ${expectedKind} for "${malformedInput}", got ${check.kind}`);
+    }
+
+    // Step 8: Submit a DIFFERENT ambiguous expression (\tan^{2(y)}) in the same conversation;
+    // verify it still triggers clarification and is NOT retroactively auto-confirmed by the earlier sin/cos clarification
+    const differentAmbiguous = '\\tan^{2(y)} + 1 = \\sec^{2(y)}';
+    const step8Initial = detectFormattingAnomaly(differentAmbiguous, {
+      conversationHistory: historyAfterConfirmation
+    });
+    assert.strictEqual(step8Initial.isWeird, true, 'Step 8a: Different ambiguous expression \\tan^{2(y)} must still trigger clarification');
+    assert.strictEqual(step8Initial.kind, 'TRIG_POWER_ARG_MISMATCH');
+
+    const historyAfterDifferentWarning = [
+      ...historyAfterConfirmation,
+      { role: 'user', content: differentAmbiguous },
+      {
+        role: 'assistant',
+        content: 'It looks like `(y)` ended up inside the exponent of `tan`.',
+        withheld: true,
+        withholdingReason: 'MALFORMED_SYNTAX'
+      }
+    ];
+    const step8BeforeNewConfirm = detectFormattingAnomaly(differentAmbiguous, {
+      conversationHistory: historyAfterDifferentWarning
+    });
+    assert.strictEqual(
+      step8BeforeNewConfirm.isWeird,
+      true,
+      'Step 8b: Earlier sin/cos confirmation must NOT retroactively confirm a later unclarified \\tan^{2(y)} warning'
+    );
+  });
+
   console.log(`\n======================================================================`);
   console.log(`RESULTS: ${passed}/${passed + failed} PASSED (${failed} failed)`);
   console.log(`======================================================================`);

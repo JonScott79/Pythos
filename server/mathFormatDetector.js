@@ -213,14 +213,46 @@ function extractTrigMismatchSnippets(rawText) {
   return matches ? [...new Set(matches.map(m => m.trim()))] : [];
 }
 
+function applyConfirmedNotationClarification(text, clarificationCtx = null) {
+  if (typeof text !== 'string' || !text) return text;
+  if (clarificationCtx && clarificationCtx.hasExplicitClarification === false) return text;
+  const allowedSnippets = Array.isArray(clarificationCtx?.confirmedSnippets) && clarificationCtx.confirmedSnippets.length > 0
+    ? new Set(clarificationCtx.confirmedSnippets)
+    : null;
+  let out = decodeUnicodeSuperscripts(text);
+  out = out.replace(
+    /(\\?(?:sin|cos|tan|csc|sec|cot))\s*\^\{\s*(\d+)\s*((?:\\left\s*)?\(\s*[a-zA-Z0-9]+\s*(?:\\right\s*)?\))\s*\}/g,
+    (full, fn, pow, argWrap) => {
+      const trimmedFull = full.trim();
+      if (allowedSnippets && !allowedSnippets.has(trimmedFull)) {
+        return full;
+      }
+      return `${fn}^{${pow}}${argWrap}`;
+    }
+  );
+  // Also reinterpret spoken/unparenthesized trig power ambiguity (e.g. "sin x^2" / "sin x squared") when confirmed
+  const userClarText = String(clarificationCtx?.userClarificationText || '');
+  const prefersAngleSquared = /\b(?:angle|argument)\s+is\s+squared\b|\b(?:sin|cos|tan|sec|csc|cot)\s*\(\s*[a-zA-Z]\s*(?:\^2|²)\s*\)/i.test(userClarText);
+  out = out.replace(
+    /\b(sin|cos|tan|sec|csc|cot)\s+([a-zA-Z]|theta|θ)(?:\s+(squared|cubed)|\s*\^\{?([23])\}?)(?=\b|\s|$|[+\-*/=),;.?!])/gi,
+    (_, fn, arg, wordPow, numPow) => {
+      const exp = ((wordPow && wordPow.toLowerCase() === 'cubed') || numPow === '3') ? '3' : '2';
+      return prefersAngleSquared ? `${fn}(${arg}^${exp})` : `(${fn}(${arg}))^${exp}`;
+    }
+  );
+  return out;
+}
+
 function extractNotationClarificationContext(lastUserText = '', historyBefore = [], options = {}) {
   const safeHistory = Array.isArray(historyBefore) ? historyBefore : [];
-  const acknowledgedWarnings = Array.isArray(options?.acknowledgedWarnings) ? options.acknowledgedWarnings : [];
+  const acknowledgedWarnings = Array.isArray(options?.acknowledgedWarnings)
+    ? options.acknowledgedWarnings.map(w => (typeof w === 'string' ? { kind: w } : { ...w }))
+    : [];
 
   let priorFormattingWarningDetected = false;
-  let immediatelyPrecededByWarning = false;
-  let disputedExpression = null;
-  const disputedSnippets = new Set();
+  let pendingDispute = null;
+  let lastConfirmedExpression = null;
+  const confirmedSnippets = new Set();
 
   for (let i = 0; i < safeHistory.length; i++) {
     const msg = safeHistory[i];
@@ -228,40 +260,62 @@ function extractNotationClarificationContext(lastUserText = '', historyBefore = 
     if (
       msg.role === 'assistant' &&
       (msg.withholdingReason === 'MALFORMED_SYNTAX' ||
-       (typeof msg.content === 'string' && PRIOR_TRIG_WARNING_RE.test(msg.content)))
+       (typeof msg.content === 'string' && (PRIOR_TRIG_WARNING_RE.test(msg.content) || /Ambiguous\s+trig\s+exponent/i.test(msg.content))))
     ) {
       priorFormattingWarningDetected = true;
-      if (i === safeHistory.length - 1) {
-        immediatelyPrecededByWarning = true;
-      }
       for (let j = i - 1; j >= 0; j--) {
         const u = safeHistory[j];
         if (u && u.role === 'user' && typeof u.content === 'string' && /[\\^=()]|sin|cos|tan|sec|csc|cot/i.test(u.content)) {
-          disputedExpression = u.content;
-          extractTrigMismatchSnippets(u.content).forEach(s => disputedSnippets.add(s));
+          pendingDispute = {
+            expression: u.content,
+            snippets: extractTrigMismatchSnippets(u.content),
+            warningIndex: i
+          };
           break;
         }
+      }
+    } else if (msg.role === 'user' && typeof msg.content === 'string' && pendingDispute && i > pendingDispute.warningIndex) {
+      const isTurnClarifyingPending =
+        EXPLICIT_CLARIFICATION_RE.test(msg.content) ||
+        (i === pendingDispute.warningIndex + 1 && STANDALONE_ACK_AFTER_WARNING_RE.test(msg.content.trim()));
+      if (isTurnClarifyingPending) {
+        lastConfirmedExpression = pendingDispute.expression;
+        pendingDispute.snippets.forEach(s => confirmedSnippets.add(s));
+        pendingDispute = null;
       }
     }
   }
 
   const currentText = typeof lastUserText === 'string' ? lastUserText : '';
+  const immediatelyPrecededByWarning = Boolean(pendingDispute && pendingDispute.warningIndex === safeHistory.length - 1);
   const isCurrentTurnClarification =
     EXPLICIT_CLARIFICATION_RE.test(currentText) ||
     (immediatelyPrecededByWarning && STANDALONE_ACK_AFTER_WARNING_RE.test(currentText.trim()));
 
-  const hasHistoricalClarification =
-    priorFormattingWarningDetected &&
-    safeHistory.some(m => m && m.role === 'user' && typeof m.content === 'string' &&
-      (EXPLICIT_CLARIFICATION_RE.test(m.content) || STANDALONE_ACK_AFTER_WARNING_RE.test(m.content.trim())));
-
-  if (hasHistoricalClarification || isCurrentTurnClarification) {
-    disputedSnippets.forEach(snip => {
-      if (!acknowledgedWarnings.some(w => w && w.kind === 'TRIG_POWER_ARG_MISMATCH' && w.snippet === snip)) {
-        acknowledgedWarnings.push({ kind: 'TRIG_POWER_ARG_MISMATCH', snippet: snip });
+  let activeDisputedExpression = null;
+  if (isCurrentTurnClarification) {
+    if (pendingDispute) {
+      activeDisputedExpression = pendingDispute.expression;
+      lastConfirmedExpression = pendingDispute.expression;
+      pendingDispute.snippets.forEach(s => confirmedSnippets.add(s));
+      pendingDispute = null;
+    } else {
+      // Single-turn inline clarification (e.g. "Solve \sin^{2(x)} (formatting is intentional)")
+      extractTrigMismatchSnippets(currentText).forEach(s => confirmedSnippets.add(s));
+      if (/[\\^=()]|sin|cos|tan|sec|csc|cot/i.test(currentText)) {
+        activeDisputedExpression = currentText;
+        lastConfirmedExpression = currentText;
       }
-    });
+    }
   }
+
+  const hasHistoricalClarification = confirmedSnippets.size > 0 || Boolean(lastConfirmedExpression);
+
+  confirmedSnippets.forEach(snip => {
+    if (!acknowledgedWarnings.some(w => w && w.kind === 'TRIG_POWER_ARG_MISMATCH' && w.snippet === snip)) {
+      acknowledgedWarnings.push({ kind: 'TRIG_POWER_ARG_MISMATCH', snippet: snip });
+    }
+  });
 
   const currentSnippets = extractTrigMismatchSnippets(currentText);
   const hasMatchingAcknowledgedSnippet = currentSnippets.length > 0 && currentSnippets.every(snip =>
@@ -271,9 +325,21 @@ function extractNotationClarificationContext(lastUserText = '', historyBefore = 
   );
 
   const hasExplicitClarification = isCurrentTurnClarification || hasHistoricalClarification || hasMatchingAcknowledgedSnippet;
-  // Only apply blanket kind suppression on the active clarification turn itself;
-  // all other turns enforce snippet-specific matching via acknowledgedWarnings.
-  const suppressedKinds = isCurrentTurnClarification ? ['TRIG_POWER_ARG_MISMATCH'] : [];
+  const disputedExpression = activeDisputedExpression || lastConfirmedExpression || (pendingDispute ? pendingDispute.expression : null);
+  const confirmedSnippetsList = Array.from(confirmedSnippets);
+  const reinterpretedExpression = (hasExplicitClarification && disputedExpression)
+    ? applyConfirmedNotationClarification(disputedExpression, {
+        hasExplicitClarification: true,
+        confirmedSnippets: confirmedSnippetsList,
+        userClarificationText: currentText
+      })
+    : null;
+
+  // Never use blanket kind suppression when specific snippets are tracked;
+  // only suppress the specific confirmed snippets.
+  const suppressedKinds = (isCurrentTurnClarification && confirmedSnippetsList.length === 0)
+    ? ['TRIG_POWER_ARG_MISMATCH']
+    : [];
 
   return {
     hasExplicitClarification,
@@ -281,20 +347,11 @@ function extractNotationClarificationContext(lastUserText = '', historyBefore = 
     hasHistoricalClarification,
     priorFormattingWarningDetected,
     disputedExpression,
+    reinterpretedExpression,
+    confirmedSnippets: confirmedSnippetsList,
     suppressedKinds,
     acknowledgedWarnings
   };
-}
-
-function applyConfirmedNotationClarification(text, clarificationCtx = null) {
-  if (typeof text !== 'string' || !text) return text;
-  if (clarificationCtx && clarificationCtx.hasExplicitClarification === false) return text;
-  let out = decodeUnicodeSuperscripts(text);
-  out = out.replace(
-    /(\\?(?:sin|cos|tan|csc|sec|cot))\s*\^\{\s*(\d+)\s*((?:\\left\s*)?\(\s*[a-zA-Z0-9]+\s*(?:\\right\s*)?\))\s*\}/g,
-    '$1^{$2}$3'
-  );
-  return out;
 }
 
 /**
