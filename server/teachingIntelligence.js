@@ -126,7 +126,9 @@ function resolveStudentAgencyMode({ text = '', studentIntent = null, learnerStat
   // 4. Walkthrough Request ("Walk me through this", "Guide me step by step", or explicit multi-part derivation mission)
   const isExplicitMultiPartDerivation =
     (/\b(?:derive\s+and\s+explain|show\s+the\s+intermediate\s+derivation|derive\s+the\s+geodesic|your\s+mission\s*:)\b/i.test(clean) &&
-     /(?:^|\n)\s*1\.\s+[\s\S]*(?:^|\n)\s*2\.\s+/.test(clean));
+     /(?:^|\n)\s*1\.\s+[\s\S]*(?:^|\n)\s*2\.\s+/.test(clean)) ||
+    (/\b(?:compute|calculate|differentiate|integrate|derive|simplify|evaluate)\b/i.test(clean) &&
+     /\b(?:first\s+derivative|second\s+derivative|V''|f''|critical\s+impact\s+parameter|photon\s+sphere|and\s+(?:the\s+)?second\s+derivative|and\s+simplify|and\s+evaluate|and\s+box)\b/i.test(clean));
   if (studentIntent?.intent === INTENTS.WALKTHROUGH_REQUEST ||
       learnerState?.state === 'EXPLICIT_STEP_BY_STEP' ||
       isExplicitMultiPartDerivation ||
