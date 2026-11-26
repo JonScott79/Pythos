@@ -1964,7 +1964,7 @@ function extractClaims(text, userPrompt = '') {
       const pairCleanBlock = `${lhsRaw} = ${rhsRaw}`;
 
       // Strip leading markdown bullets and conversational/prose prefixes from LHS
-      lhsRaw = lhsRaw.replace(/^(?:[*•-]+\s*|\(\s*)+/, '').trim();
+      lhsRaw = lhsRaw.replace(/^[*•]+\s*/, '').trim();
       lhsRaw = lhsRaw.replace(/^(?:.*?\b(?:gives?|yields?|is|equals?|becomes?|have|get|find|that|as|using|also)\s+)+/i, '').trim();
       lhsRaw = lhsRaw.replace(/^(?:for\s+all\s+real\s+(?:numbers?\s*)?(?:[a-zA-Z]\s*)?,?\s*)+/i, '').trim();
       lhsRaw = lhsRaw.replace(/^(?:(?:notice|observe|note|using|applying|recalling|remembering|simplifying|writing|rewriting|substituting|replacing|expanding|factoring|multiplying|dividing|combining|canceling|cancelling|we\s+(?:have|see|get|find|use|know)|factors?|factorizations?|yields?|gives?|since|because|from|by|with|that|so|then|therefore|thus|hence|here|first|second|third|step\s*\d*|term\s*\d*|rhs|lhs)\s+[:,-]?\s*)+/i, '').trim();

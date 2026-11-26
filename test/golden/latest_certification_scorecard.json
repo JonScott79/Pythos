@@ -1,8 +1,8 @@
 {
-  "startedAt": "2026-11-26T21:24:23.486Z",
-  "completedAt": "2026-11-26T21:25:06.563Z",
-  "timestamp": "2026-11-26T21:25:06.563Z",
-  "durationMs": 43075.77,
+  "startedAt": "2026-11-26T22:09:43.263Z",
+  "completedAt": "2026-11-26T22:10:20.522Z",
+  "timestamp": "2026-11-26T22:10:20.522Z",
+  "durationMs": 37258.34,
   "branch": "staging/trig-notation-diagnostics-fix",
   "productionMasterCommit": "773ce8f2eac765c8d8cdf9177e0f04eb8a2f0f7a",
   "seed": 20261126,
@@ -26,37 +26,37 @@
     "solverAndAlternativeMethodRoutingAccuracyPct": 100,
     "metamorphicInvarianceAccuracyPct": 100,
     "seededRandomizedCorpusAccuracyPct": 100,
-    "medianLatencyMs": 2.79,
-    "p95LatencyMs": 35.47
+    "medianLatencyMs": 2.61,
+    "p95LatencyMs": 34.67
   },
   "latencyBoundaries": {
     "canonicalParserAndDualOracle": {
       "sampleCount": 25,
-      "p50Ms": 0.17,
-      "p95Ms": 0.55,
-      "minMs": 0.08,
-      "maxMs": 0.85
+      "p50Ms": 0.18,
+      "p95Ms": 0.57,
+      "minMs": 0.09,
+      "maxMs": 0.88
     },
     "deterministicCasSolvers": {
       "sampleCount": 9,
-      "p50Ms": 23.2,
-      "p95Ms": 384.52,
-      "minMs": 0.16,
-      "maxMs": 384.52
+      "p50Ms": 14.91,
+      "p95Ms": 248.42,
+      "minMs": 0.18,
+      "maxMs": 248.42
     },
     "independentVerificationPipeline": {
       "sampleCount": 518,
-      "p50Ms": 2.79,
-      "p95Ms": 35.47,
+      "p50Ms": 2.61,
+      "p95Ms": 34.67,
       "minMs": 0.01,
-      "maxMs": 967.02
+      "maxMs": 1064.59
     },
     "endToEndHostedLlmResponse": {
       "sampleCount": 7,
-      "p50Ms": 2319,
-      "p95Ms": 4368,
-      "minMs": 663,
-      "maxMs": 4368
+      "p50Ms": 2170,
+      "p95Ms": 4445,
+      "minMs": 683,
+      "maxMs": 4445
     }
   },
   "confusionMatrix": {
@@ -832,8 +832,8 @@
       "hostedModel": "openai/gpt-oss-120b",
       "totalScenarios": 7,
       "passedScenarios": 7,
-      "totalExtractedClaims": 39,
-      "totalVerifiedClaims": 39,
+      "totalExtractedClaims": 30,
+      "totalVerifiedClaims": 30,
       "totalInvalidClaims": 0,
       "totalUnknownClaims": 0
     },
@@ -843,42 +843,42 @@
         "exitCode": 0,
         "hasPassEvidence": true,
         "passed": true,
-        "durationMs": 68.16
+        "durationMs": 59.68
       },
       {
         "suite": "test/test-trig-notation-diagnostics.js",
         "exitCode": 0,
         "hasPassEvidence": true,
         "passed": true,
-        "durationMs": 3872.41
+        "durationMs": 3094.43
       },
       {
         "suite": "test/test-alternative-method-context.js",
         "exitCode": 0,
         "hasPassEvidence": true,
         "passed": true,
-        "durationMs": 2693.9
+        "durationMs": 2561.13
       },
       {
         "suite": "test/test-schwarzschild-photon-sphere.js",
         "exitCode": 0,
         "hasPassEvidence": true,
         "passed": true,
-        "durationMs": 3350.16
+        "durationMs": 2901.92
       },
       {
         "suite": "test/test-equivalence-authority-audit.js",
         "exitCode": 0,
         "hasPassEvidence": true,
         "passed": true,
-        "durationMs": 22077.61
+        "durationMs": 18197.54
       },
       {
         "suite": "test/runner.js",
         "exitCode": 0,
         "hasPassEvidence": true,
         "passed": true,
-        "durationMs": 2328.79
+        "durationMs": 2352.35
       }
     ]
   },

@@ -2,9 +2,9 @@
 
 - **Branch:** `staging/trig-notation-diagnostics-fix`
 - **Production Master Commit:** `773ce8f2eac765c8d8cdf9177e0f04eb8a2f0f7a`
-- **Started At:** `2026-11-26T21:24:23.486Z`
-- **Completed At:** `2026-11-26T21:25:06.563Z`
-- **Total Duration:** `43075.77 ms`
+- **Started At:** `2026-11-26T22:09:43.263Z`
+- **Completed At:** `2026-11-26T22:10:20.522Z`
+- **Total Duration:** `37258.34 ms`
 - **Certification Status:** **PASS**
 
 ## 1. Separated Confusion Matrix & Accuracy Metrics
@@ -19,7 +19,7 @@
 | **Metamorphic Invariance Accuracy** | **100%** | `7/7` metamorphic transformation families |
 | **Multi-Surface & Adversarial Parser Accuracy** | **100%** | `21/21` surface variants + `4/4` 1-char adversarial pairs |
 | **Expanded 5-Seed 9-Domain Randomized Corpus** | **100%** | `310/310` across seeds `20261126, 31415926, 27182818, 16180339, 20260420` |
-| **Live-LLM 7-Scenario Acceptance Corpus** | **100%** | `7/7` scenarios (`39/39` claims verified, `0` invalid, `0` unknown) |
+| **Live-LLM 7-Scenario Acceptance Corpus** | **100%** | `7/7` scenarios (`30/30` claims verified, `0` invalid, `0` unknown) |
 
 ## 2. Single-Ledger Per-Section Scorecard Breakdown (Zero Duplicates)
 
@@ -44,7 +44,7 @@
 
 | Subsystem Boundary | Sample Count | Median (`p50`) | `p95` | Min | Max |
 |---|---|---|---|---|---|
-| **1. Canonical Parser & 20-Pt Numerical Dual-Oracle** | 25 | **0.17 ms** | **0.55 ms** | 0.08 ms | 0.85 ms |
-| **2. Deterministic CAS Solvers (`calculusEngine`, `geometryEngine`, `specialistAssist`)** | 9 | **23.2 ms** | **384.52 ms** | 0.16 ms | 384.52 ms |
-| **3. Independent Verification Pipeline (`verifyResponseClaims`)** | 518 | **2.79 ms** | **35.47 ms** | 0.01 ms | 967.02 ms |
-| **4. End-to-End Hosted LLM Response (`groq-text` / `openai/gpt-oss-120b`)** | 7 | **2319 ms** | **4368 ms** | 663 ms | 4368 ms |
+| **1. Canonical Parser & 20-Pt Numerical Dual-Oracle** | 25 | **0.18 ms** | **0.57 ms** | 0.09 ms | 0.88 ms |
+| **2. Deterministic CAS Solvers (`calculusEngine`, `geometryEngine`, `specialistAssist`)** | 9 | **14.91 ms** | **248.42 ms** | 0.18 ms | 248.42 ms |
+| **3. Independent Verification Pipeline (`verifyResponseClaims`)** | 518 | **2.61 ms** | **34.67 ms** | 0.01 ms | 1064.59 ms |
+| **4. End-to-End Hosted LLM Response (`groq-text` / `openai/gpt-oss-120b`)** | 7 | **2170 ms** | **4445 ms** | 683 ms | 4445 ms |
