@@ -7,6 +7,7 @@
  */
 
 const { normalizeUnicodeSuperscriptsForSolver } = require('./specialistAssist');
+const { expandBalancedFractions, expandBalancedRadicals } = require('./mathCanonical');
 
 const SIM_LAB_TOPICS = [
   { id: 'projectile', title: 'Classical Projectile Motion', re: /\b(?:projectile|trajectory|launch\s+angle|max(?:imum)?\s+height|horizontal\s+range|ballistic)\b/i },
@@ -41,6 +42,7 @@ function stripOuterMathDelimiters(raw) {
 function normalizeMathForTools(raw) {
   if (!raw || typeof raw !== 'string') return '';
   let s = normalizeUnicodeSuperscriptsForSolver(stripOuterMathDelimiters(raw));
+  s = expandBalancedFractions(expandBalancedRadicals(s));
   s = s
     .replace(/÷/g, '/')
     .replace(/[×·✕]/g, '*')

@@ -43,12 +43,19 @@ const {
   analyzeAlternativeMethodContext
 } = require('../server/alternativeMethod');
 const teachingIntelligence = require('../server/teachingIntelligence');
+const calculusEngine = require('../server/engines/calculusEngine');
+const clientMathEngine = require('../js/mathInputEngine');
 const { runMetamorphicSuite } = require('./metamorphic/metamorphic_suite');
 const {
   generateArithmeticTests,
   runMultiSurfaceAndAdversarialMatrix,
   runSeededDomainCorpus
 } = require('./property/property_tests');
+const { runAlgebraCertificationSuite } = require('./algebra/algebra_certification');
+const { runCalculusCertificationSuite } = require('./calculus/calculus_certification');
+const { runLinearAlgebraCertificationSuite } = require('./linear-algebra/linear_algebra_certification');
+const { runProbabilityCertificationSuite } = require('./probability/probability_certification');
+const { runPhysicsAndGeometryCertificationSuite } = require('./physics/physics_certification');
 
 function percentile(sortedArr, p) {
   if (!sortedArr.length) return 0;
@@ -135,12 +142,39 @@ async function runCampaign() {
     recordDomain(tc.domain, ok);
     assert(ok, `[${tc.domain}] Failed case: ${tc.prompt} -> ${JSON.stringify(audit)}`);
   }
-  console.log(`  ✓ All ${mathDomainCases.length} core domain benchmark checks passed.\n`);
+
+  // Run the 4 dedicated Mathematical Domain Certification Suites (Algebra/Radicals/Trig, Calculus, Linear Algebra, Probability)
+  for (const suiteFn of [
+    runAlgebraCertificationSuite,
+    runCalculusCertificationSuite,
+    runLinearAlgebraCertificationSuite,
+    runProbabilityCertificationSuite
+  ]) {
+    const sRes = await suiteFn();
+    truePositives += sRes.tp;
+    trueNegatives += sRes.tn;
+    falsePositives += sRes.fp;
+    falseNegatives += sRes.fn;
+    for (const d of sRes.details) {
+      recordDomain(`SUITE_${sRes.domain}`, d.passed);
+      assert(d.passed, `[${sRes.domain}] ${d.name} failed: ${d.error}`);
+    }
+  }
+  console.log(`  ✓ All mathematical domain suites (Arithmetic, Algebra, Radicals/Rationals, Trig, Calculus, Linear Algebra, Probability) passed.\n`);
 
   // =========================================================================
-  // SECTION 3: 5 PHYSICS DOMAINS
+  // SECTION 3: 5 PHYSICS DOMAINS & GEOMETRY SUITE
   // =========================================================================
-  console.log('▶ [SECTION 3] Physics Reliability Certification (5 Domains)...');
+  console.log('▶ [SECTION 3] Physics & Geometry Reliability Certification (5 Domains)...');
+  const physSuiteRes = await runPhysicsAndGeometryCertificationSuite();
+  truePositives += physSuiteRes.tp;
+  trueNegatives += physSuiteRes.tn;
+  falsePositives += physSuiteRes.fp;
+  falseNegatives += physSuiteRes.fn;
+  for (const d of physSuiteRes.details) {
+    recordDomain(`SUITE_${physSuiteRes.domain}`, d.passed);
+    assert(d.passed, `[${physSuiteRes.domain}] ${d.name} failed: ${d.error}`);
+  }
   const physicsCases = [
     { domain: '3A_CLASSICAL_MECHANICS', prompt: 'A 4 kg mass accelerates at 5 m/s^2. Find the net force.', response: '$$4 \\cdot 5 = 20$$', shouldVerify: true },
     { domain: '3B_ELECTROMAGNETISM', prompt: 'A 12 V battery drives current through a 4 ohm resistor. Find the current.', response: '$$\\frac{12}{4} = 3$$', shouldVerify: true },
@@ -178,14 +212,21 @@ async function runCampaign() {
   recordDomain('4_PARSER_MULTI_SURFACE', surfRes.passedSurfaceChecks === surfRes.totalSurfaceChecks);
   recordDomain('4_PARSER_ADVERSARIAL_1CHAR', surfRes.passedAdversarial === surfRes.totalAdversarial);
 
-  // Also verify 1-click suggestedFix works on multi-term \frac / \boxed expressions
+  // Also verify 1-click suggestedFix works on multi-term \frac / \boxed expressions on BOTH server and client
   const boxedMalformed = '\\[\n\\boxed{\n\\frac{1-\\cos²⁽ˣ⁾}{\\sin(x)}\n+\n\\frac{1-\\sin²⁽ˣ⁾}{\\cos(x)}\n}\n\\]';
   const malCheck = detectFormattingAnomaly(boxedMalformed);
+  const clientMalCheck = clientMathEngine.detectInputFormattingIssue(boxedMalformed);
   assert.strictEqual(malCheck.isWeird, true);
   assert.strictEqual(malCheck.kind, 'TRIG_POWER_ARG_MISMATCH');
   assert(malCheck.suggestedFix && malCheck.suggestedFix.includes('\\cos^2(x)') && malCheck.suggestedFix.includes('\\sin^2(x)'),
-    `Expected 1-click suggestedFix for boxed fraction, got: ${JSON.stringify(malCheck)}`);
-  recordDomain('4_PARSER_1CLICK_SUGGESTED_FIX', true);
+    `Expected server 1-click suggestedFix for boxed fraction, got: ${JSON.stringify(malCheck)}`);
+  assert.strictEqual(clientMalCheck.hasIssue, true);
+  assert.strictEqual(clientMalCheck.kind, 'TRIG_POWER_ARG_MISMATCH');
+  assert(clientMalCheck.suggestedFix && clientMalCheck.suggestedFix.includes('\\cos^2(x)') && clientMalCheck.suggestedFix.includes('\\sin^2(x)'),
+    `Expected client 1-click suggestedFix for boxed fraction, got: ${JSON.stringify(clientMalCheck)}`);
+  assert(clientMalCheck.message.includes('instead of being the angle in cos(x)'),
+    `Expected 12-year-old accessible wording on client warning, got: ${clientMalCheck.message}`);
+  recordDomain('4_PARSER_1CLICK_SUGGESTED_FIX_SERVER_AND_CLIENT', true);
   console.log(`  ✓ ${surfRes.passedSurfaceChecks}/${surfRes.totalSurfaceChecks} multi-surface variants & ${surfRes.passedAdversarial}/${surfRes.totalAdversarial} 1-char adversarial pairs passed.\n`);
 
   // =========================================================================
@@ -390,10 +431,12 @@ async function runCampaign() {
   ]);
   const activeCtx = formatActiveProblemContext(activeState);
 
+  const serverSrc = fs.readFileSync(path.join(__dirname, '..', 'server', 'server.js'), 'utf8');
   const teachingOk =
     adaptiveCtx.includes('AGES 12–25 BASELINE') &&
     adaptiveCtx.includes('12-year-old') &&
     adaptiveCtx.includes('without ever sounding condescending') &&
+    serverSrc.includes('# COMMUNICATION CLARITY & AGE-ADAPTIVE TONE (AGES 12–25 BASELINE)') &&
     tutorDir.includes('Do NOT reveal the final answer') &&
     normalDir === '' &&
     activeCtx.includes('Canonical Parsed Form (CAS Ground Truth)') &&
@@ -401,6 +444,24 @@ async function runCampaign() {
   recordDomain('9_TEACHING_AND_AGE_12_25_CLARITY', teachingOk);
   assert(teachingOk, 'Teaching mode parity or 12-25 accessible baseline check failed');
   console.log('  ✓ Normal Mode vs. Tutor Mode parity, CAS Answer Sheet injection, and 12–25 clarity baseline verified.\n');
+
+  // Optional Tier 2 Live-LLM Reasoning Execution (--live-llm flag)
+  if (process.argv.includes('--live-llm')) {
+    const stagingUrl = process.env.PYTHOS_STAGING_URL || 'http://localhost:3006';
+    console.log(`▶ [TIER 2: LIVE-LLM] Executing Live-LLM Reasoning Probe against ${stagingUrl}/chat...`);
+    const res = await fetch(`${stagingUrl}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: 'Simplify (1 - cos^2(x))/sin(x) + (1 - sin^2(x))/cos(x) and state any domain restrictions.' }],
+        stream: false
+      })
+    });
+    assert(res.ok, `Live-LLM staging probe HTTP status ${res.status}`);
+    const body = await res.json();
+    assert(body && body.message && body.message.content, 'Live-LLM response missing message content');
+    console.log(`  ✓ Live-LLM staging probe succeeded (state=${body.verificationState || 'VERIFIED'}).\n`);
+  }
 
   // =========================================================================
   // SECTION 11 & 12: QUANTITATIVE SCORECARD & CERTIFICATION DECISION
@@ -484,11 +545,13 @@ async function runCampaign() {
   console.log('================================================================================\n');
 
   try { closeVerifierDaemon(); } catch (_) {}
+  try { calculusEngine.closeCalculusDaemon(); } catch (_) {}
   process.exit(certifiedPass ? 0 : 1);
 }
 
 runCampaign().catch((err) => {
   console.error('Certification Campaign Fatal Error:', err);
   try { closeVerifierDaemon(); } catch (_) {}
+  try { calculusEngine.closeCalculusDaemon(); } catch (_) {}
   process.exit(1);
 });

@@ -399,7 +399,49 @@ function extractSpecialistTask(userText) {
     return rootTask;
   }
 
+  // 9. Symbolic Expression Simplification (Trigonometric, Radical, Rational expressions & Alternative Method turns)
+  const simpTask = extractSimplificationTask(rawClean);
+  if (simpTask) {
+    return simpTask;
+  }
+
   return null;
+}
+
+function extractSimplificationTask(rawText) {
+  if (!rawText || typeof rawText !== 'string') return null;
+  // Strip trailing "(Alternative method request: ...)" wrapper if present
+  const baseText = rawText
+    .replace(/\n*\(Alternative method request:[\s\S]*$/i, '')
+    .replace(/^(?:please\s+)?(?:can\s+you\s+)?(?:simplify|evaluate|reduce|rewrite)\s*(?:the\s+expression\s*)?[:\-]?\s*/i, '')
+    .trim();
+  if (!baseText || baseText.includes('=') || baseText.length > 220) return null;
+  if (/\b(?:derivative|differentiate|integrate|integral|limit|graph|plot|sketch|triangle|circle|matrix|determinant|probability)\b/i.test(baseText)) {
+    return null;
+  }
+  const hasSimpStructure = /\\(?:frac|dfrac|tfrac|sqrt|sin|cos|tan|sec|csc|cot)\b|[√]|(?:\b(?:sin|cos|tan|sec|csc|cot|sqrt)\s*[\^(])/i.test(baseText);
+  if (!hasSimpStructure) return null;
+
+  try {
+    const { toCanonicalMath, extractCanonicalVariables } = require('./mathCanonical');
+    const canon = toCanonicalMath(baseText);
+    if (!canon || canon.includes('=') || /[\\{}]/.test(canon)) return null;
+    // Reject if unknown multi-letter English prose words remain
+    const nonMathWords = (canon.match(/\b[a-zA-Z]{2,}\b/g) || []).filter(
+      w => !/^(?:sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|sinh|cosh|tanh|sqrt|cbrt|abs|ln|log|exp|pi|theta)$/i.test(w)
+    );
+    if (nonMathWords.length > 0) return null;
+    const vars = extractCanonicalVariables(canon);
+    return {
+      domain: 'algebra',
+      operation: 'EXPRESSION_SIMPLIFICATION',
+      expression: canon,
+      rawExpression: baseText,
+      variable: vars[0] || 'x'
+    };
+  } catch (_) {
+    return null;
+  }
 }
 
 function normalizeEquationForRootSolver(rawEq) {
@@ -517,6 +559,13 @@ async function runTask(task, timeoutMs = SPECIALIST_TIMEOUT_MS) {
 
   if (task.domain === 'algebra' && task.operation === 'ROOT_SOLVING') {
     return await rootSolver.solveEquationRoots(task.equation, {
+      variable: task.variable,
+      timeoutMs
+    });
+  }
+
+  if (task.domain === 'algebra' && task.operation === 'EXPRESSION_SIMPLIFICATION') {
+    return await calculusEngine.simplifyExpression(task.expression, {
       variable: task.variable,
       timeoutMs
     });
@@ -673,6 +722,17 @@ function formatGroundTruthContext(task, result, userText = '') {
 - Polynomial Equation: ${result.polynomial}
 - Authoritative Verified Real Roots: ${result.exactResult}
 - Pedagogical Directive: Use ONLY these deterministically computed and verified numerical roots. NEVER substitute, round-guess, or invent different numerical approximations.\n`;
+    }
+    if (task.operation === 'EXPRESSION_SIMPLIFICATION') {
+      const restrStr = Array.isArray(result.domainRestrictions) && result.domainRestrictions.length > 0
+        ? result.domainRestrictions.join(', ')
+        : 'None';
+      return `${header} [CAS AUTHORITATIVE ANSWER SHEET]
+- Operation: EXPRESSION_SIMPLIFICATION
+- Canonical Input Expression: ${task.expression}
+- Authoritative Simplified Target: ${result.exactResult}${result.latexResult ? ` (LaTeX: ${result.latexResult})` : ''}
+- Required Natural Domain Restrictions: ${restrStr}
+- Pedagogical Directive: This is the exact SymPy CAS simplified result and natural domain. Anchor your derivation to this exact target and explicitly state the domain restrictions (${restrStr}) whenever canceling denominators or simplifying radicals (while still withholding the final answer if Tutor Mode is active).\n`;
     }
     const steps = Array.isArray(result.derivationSteps) && result.derivationSteps.length > 0
       ? `\n- Derivation Steps:\n${result.derivationSteps.map(s => `  * ${s}`).join('\n')}`

@@ -547,12 +547,29 @@ async function optimize(expression, options = {}) {
   }, timeoutMs);
 }
 
+/**
+ * 6. SYMBOLIC EXPRESSION SIMPLIFICATION & DOMAIN EXTRACTION
+ */
+async function simplifyExpression(expression, options = {}) {
+  const {
+    variable = 'x',
+    timeoutMs = 6000
+  } = options;
+
+  return await runCalculusWorker({
+    operation: 'SIMPLIFY_EXPRESSION',
+    expression,
+    variable
+  }, timeoutMs);
+}
+
 module.exports = {
   differentiate,
   tangentLine,
   integrate,
   limit,
   optimize,
+  simplifyExpression,
   runCalculusWorker,
   resolvePython,
   initCalculusDaemon,

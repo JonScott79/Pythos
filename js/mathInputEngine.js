@@ -862,14 +862,29 @@
       if (trigPrefix && innerTrigArg && !/^(?:\(|\\left\s*\()/.test(after)) {
         const snippet = trigPrefix[0] + s.slice(i, closeIdx + 1);
         if (isSuppressed("TRIG_POWER_ARG_MISMATCH", snippet)) continue;
-        const safeAfter = !after || /^[+\-*/=<>]/.test(after);
-        const suggestedFix = safeAfter
-          ? (s.slice(0, i) + "^" + innerTrigArg[1] + innerTrigArg[2] + (after ? " " + after : "")).trim()
-          : null;
+        const safeAfter = !after || /^[+\-*/=<>})\]]/.test(after);
+        let suggestedFix = null;
+        if (safeAfter) {
+          let allSafe = true;
+          const rewritten = s.replace(
+            /(\\?(?:sin|cos|tan|csc|sec|cot))\s*\^\{\s*(\d+)\s*((?:\\left\s*)?\(\s*[a-zA-Z]\s*(?:\\right\s*)?\))\s*\}/g,
+            function (fullMatch, fnTok, pTok, argTok, offset) {
+              const tail = s.slice(offset + fullMatch.length).trimStart();
+              if (tail && !/^[+\-*/=<>})\]]/.test(tail)) {
+                allSafe = false;
+                return fullMatch;
+              }
+              return fnTok + "^" + pTok + argTok;
+            }
+          );
+          if (allSafe && rewritten !== s) {
+            suggestedFix = rewritten.replace(/\s+/g, " ").trim();
+          }
+        }
         return {
           hasIssue: true,
           kind: "TRIG_POWER_ARG_MISMATCH",
-          message: "(" + innerTrigArg[3] + ") looks stuck inside the exponent of " + trigPrefix[1] + " instead of acting as its argument.",
+          message: "(" + innerTrigArg[3] + ") looks stuck inside the exponent of " + trigPrefix[1] + " instead of being the angle in " + trigPrefix[1] + "(" + innerTrigArg[3] + ").",
           snippet: snippet,
           suggestedFix: suggestedFix,
           uncertain: !suggestedFix

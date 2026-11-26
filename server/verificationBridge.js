@@ -825,9 +825,15 @@ function extractClaims(text, userPrompt = '') {
   const claims = [];
   if (!text || typeof text !== 'string') return claims;
 
-  const promptStr = typeof userPrompt === 'string'
+  let promptStr = typeof userPrompt === 'string'
     ? userPrompt.trim()
     : (userPrompt?.prompt && typeof userPrompt.prompt === 'string' ? userPrompt.prompt.trim() : '');
+
+  // Support Greek \lambda / λ as an equation/eigenvalue variable when L is not already in use
+  if ((/\\lambda\b|λ/.test(text) || /\\lambda\b|λ/.test(promptStr)) && !/\bL\b/.test(text) && !/\bL\b/.test(promptStr)) {
+    text = text.replace(/\\lambda(?![a-zA-Z])|λ/g, 'L');
+    promptStr = promptStr.replace(/\\lambda(?![a-zA-Z])|λ/g, 'L');
+  }
 
   const lower = text.toLowerCase();
   const hasAbstractFunctionPlaceholder = (s) =>
@@ -944,7 +950,7 @@ function extractClaims(text, userPrompt = '') {
           }
         }
       } else {
-        const simpleArgMatch = text.slice(cursor).match(/^([a-zA-Z0-9_^+\-*/.{}\s\\]+?)(?=\s*=)/);
+        const simpleArgMatch = text.slice(cursor).match(/^([a-zA-Z0-9_^+\-*/.(){}\s\\]+?)(?=\s*=)/);
         if (simpleArgMatch) {
           rawExpr = simpleArgMatch[1].trim();
           afterExprIdx = cursor + simpleArgMatch[0].length;
@@ -1139,26 +1145,33 @@ function extractClaims(text, userPrompt = '') {
     }
   }
 
-  // 4. Matrix Determinants (e.g. \det(A) = -2 or det([[1,2],[3,4]]) = -2)
-  const detRegex = /(?:\\det|det)\s*(?:\((?:\\begin\{pmatrix\}|\[\[)(.+?)(?:\\end\{pmatrix\}|\]\])\)|(\[\[.+?\]\]))\s*=\s*([-\d.]+)/g;
+  // 4. Matrix Determinants (e.g. \det(A) = -2 or det([[1,2],[3,4]]) = -2 or \det\begin{bmatrix}...\end{bmatrix} = 10)
+  const detRegex = /(?:\\det|det)\s*(?:\(\s*(?:\\begin\{[bpv]?matrix\}([\s\S]+?)\\end\{[bpv]?matrix\}|(\[\[[\s\S]+?\]\]))\s*\)|\\begin\{[bpv]?matrix\}([\s\S]+?)\\end\{[bpv]?matrix\}|(\[\[[\s\S]+?\]\]))\s*=\s*([-\d.]+)/g;
   while ((match = detRegex.exec(text)) !== null) {
-    const rawMatrix = match[1] || match[2];
+    const rawLatexMat = match[1] || match[3];
+    const rawJsonMat = match[2] || match[4];
     try {
       let mat = [];
-      if (rawMatrix.includes('\\\\')) {
-        mat = rawMatrix.split('\\\\').map(row => row.trim().split('&').map(cell => parseFloat(cell.trim())));
-      } else {
-        mat = JSON.parse(rawMatrix.replace(/'/g, '"'));
+      if (rawLatexMat) {
+        mat = rawLatexMat.trim().split(/\\\\/).map(row => row.trim().split('&').map(cell => parseFloat(cell.trim())));
+      } else if (rawJsonMat) {
+        mat = JSON.parse(rawJsonMat.replace(/'/g, '"'));
       }
-      claims.push({
-        domain: 'matrix',
-        claim_type: 'matrix_determinant',
-        raw_match: match[0],
-        data: {
-          matrix: mat,
-          proposed_value: parseFloat(match[3])
-        }
-      });
+      if (Array.isArray(mat) && mat.length > 0) {
+        const propDetVal = parseFloat(match[5]);
+        claims.push({
+          domain: 'matrix',
+          claim_type: 'matrix_determinant',
+          raw_match: match[0],
+          data: {
+            operation: 'determinant',
+            matrix: mat,
+            matrixA: mat,
+            proposed_value: propDetVal,
+            proposed_result: propDetVal
+          }
+        });
+      }
     } catch (_) {}
   }
 
@@ -1918,8 +1931,8 @@ function extractClaims(text, userPrompt = '') {
         normRhs = normRhs.replace(/\brs\b/g, 'r_s');
       }
 
-      // Skip bare single-identifier variable assignments (e.g. b_crit = ..., r_ph = ..., r = ...)
-      if (/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(normLhs) || /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(normRhs)) continue;
+      // Skip bare subscripted parameter definitions on the LHS (e.g. b_crit = ..., r_ph = ..., r_s = ...)
+      if (/^[a-zA-Z]+_[a-zA-Z0-9_]+$/.test(normLhs)) continue;
 
       const reservedFnTokens = new Set(['sin', 'cos', 'tan', 'sec', 'csc', 'cot', 'arcsin', 'arccos', 'arctan', 'asin', 'acos', 'atan', 'sinh', 'cosh', 'tanh', 'log', 'log10', 'log2', 'ln', 'exp', 'sqrt', 'cbrt', 'abs', 'pi']);
       const extractVarList = (exprStr) =>
@@ -2941,9 +2954,13 @@ function getCasTelemetry() {
  * Rejects mathematically true claims that solve an unintended or amputated problem.
  */
 function checkPromptClaimFidelity(claim, userPrompt) {
-  const promptStr = typeof userPrompt === 'string'
+  let promptStr = typeof userPrompt === 'string'
     ? userPrompt.trim()
     : (userPrompt?.prompt && typeof userPrompt.prompt === 'string' ? userPrompt.prompt.trim() : '');
+
+  if (/\\lambda\b|λ/.test(promptStr) && !/\bL\b/.test(promptStr)) {
+    promptStr = promptStr.replace(/\\lambda(?![a-zA-Z])|λ/g, 'L');
+  }
 
   if (!promptStr || !claim || !claim.data) {
     return { ok: true };
@@ -3098,6 +3115,30 @@ function checkPromptClaimFidelity(claim, userPrompt) {
                   const targetSubVals = targetAst.args ? targetAst.args.map(a => Number(a.evaluate())) : [];
                   const claimSubVals = claimAst.args ? claimAst.args.map(a => Number(a.evaluate())) : [];
                   if (targetSubVals.length === claimSubVals.length && targetSubVals.every((tv, idx) => Math.abs(tv - claimSubVals[idx]) < 1e-4)) {
+                    return { ok: true };
+                  }
+                }
+
+                // Common-denominator fraction combination: e.g. 17/20 + 13/25 -> (85 + 52)/100 where 85/100 = 17/20 and 52/100 = 13/25
+                const commonDenomMatch = claimExpr.replace(/\s+/g, '').match(/^\(?(\(?[-+]?\d+(?:\.\d+)?(?:[+\-]\d+(?:\.\d+)?)+\)?)\/\(?(\d+(?:\.\d+)?)\)?\)?$/);
+                if (commonDenomMatch && targetAst.isOperatorNode && (targetAst.op === '+' || targetAst.op === '-')) {
+                  const denom = Number(commonDenomMatch[2]);
+                  const numTerms = (commonDenomMatch[1].replace(/[()]/g, '').match(/[-+]?\d+(?:\.\d+)?/g) || []).map(Number);
+                  const targetTermVals = [];
+                  const collectAdditiveTerms = (node, sign = 1) => {
+                    if (node.isOperatorNode && node.op === '+' && node.args?.length === 2) {
+                      collectAdditiveTerms(node.args[0], sign);
+                      collectAdditiveTerms(node.args[1], sign);
+                    } else if (node.isOperatorNode && node.op === '-' && node.args?.length === 2) {
+                      collectAdditiveTerms(node.args[0], sign);
+                      collectAdditiveTerms(node.args[1], -sign);
+                    } else {
+                      targetTermVals.push(sign * Number(node.evaluate()));
+                    }
+                  };
+                  collectAdditiveTerms(targetAst, 1);
+                  if (denom > 0 && numTerms.length === targetTermVals.length &&
+                      numTerms.every((nt, idx) => Math.abs(nt / denom - targetTermVals[idx]) < 1e-4)) {
                     return { ok: true };
                   }
                 }

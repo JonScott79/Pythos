@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-11-26T16:08:00.274Z",
+  "timestamp": "2026-11-26T16:28:39.836Z",
   "branch": "staging/trig-notation-diagnostics-fix",
   "seed": 20261126,
   "certificationStatus": "PASS",
@@ -14,12 +14,12 @@
     "solverAndAlternativeMethodRoutingAccuracyPct": 100,
     "metamorphicInvarianceAccuracyPct": 100,
     "seededRandomizedCorpusAccuracyPct": 100,
-    "medianLatencyMs": 13.78,
-    "p95LatencyMs": 248.06
+    "medianLatencyMs": 10.04,
+    "p95LatencyMs": 119.57
   },
   "confusionMatrix": {
-    "truePositives": 112,
-    "trueNegatives": 79,
+    "truePositives": 142,
+    "trueNegatives": 89,
     "falsePositives": 0,
     "falseNegatives": 0
   },
@@ -56,6 +56,26 @@
       "passed": 1,
       "total": 1
     },
+    "SUITE_ALGEBRA_RADICALS_TRIG": {
+      "passed": 15,
+      "total": 15
+    },
+    "SUITE_CALCULUS": {
+      "passed": 7,
+      "total": 7
+    },
+    "SUITE_LINEAR_ALGEBRA": {
+      "passed": 5,
+      "total": 5
+    },
+    "SUITE_PROBABILITY_STATISTICS": {
+      "passed": 5,
+      "total": 5
+    },
+    "SUITE_PHYSICS_AND_GEOMETRY": {
+      "passed": 8,
+      "total": 8
+    },
     "3A_CLASSICAL_MECHANICS": {
       "passed": 1,
       "total": 1
@@ -84,7 +104,7 @@
       "passed": 1,
       "total": 1
     },
-    "4_PARSER_1CLICK_SUGGESTED_FIX": {
+    "4_PARSER_1CLICK_SUGGESTED_FIX_SERVER_AND_CLIENT": {
       "passed": 1,
       "total": 1
     },

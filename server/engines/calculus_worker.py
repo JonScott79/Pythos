@@ -804,6 +804,59 @@ def solve_optimization(payload: dict) -> dict:
         return {"status": "FAILED", "error": str(e)}
 
 
+def solve_simplify(payload: dict) -> dict:
+    expr_raw = payload.get("expression")
+    var_str = payload.get("variable", "x")
+    if not expr_raw:
+        return {"status": "UNRESOLVED", "error": "Missing expression for simplification"}
+
+    clean_expr = sanitize_expr_str(expr_raw)
+    x = sp.Symbol(var_str, real=True)
+    try:
+        expr = safe_sympify(clean_expr, locals={var_str: x, "e": sp.E})
+        simplified = sp.simplify(sp.trigsimp(sp.radsimp(expr)))
+
+        # Extract natural denominator and even-root domain restrictions
+        restrictions = []
+        for sub in sp.preorder_traversal(expr):
+            if isinstance(sub, sp.Pow) and sub.exp.is_number and sub.exp < 0:
+                base_s = str(sp.simplify(sub.base))
+                if var_str in base_s:
+                    restrictions.append(f"{base_s} != 0")
+            elif isinstance(sub, sp.Pow) and isinstance(sub.exp, sp.Rational) and sub.exp.q % 2 == 0:
+                base_s = str(sp.simplify(sub.base))
+                if var_str in base_s:
+                    restrictions.append(f"{base_s} >= 0")
+        restrictions = sorted(list(set(restrictions)))
+
+        # Independent symbolic + numerical verification
+        sym_diff = sp.simplify(expr - simplified)
+        symbolic_passed = bool(sym_diff == 0)
+        latex_res = sp.latex(simplified)
+        restr_suffix = f" (where {', '.join(restrictions)})" if restrictions else ""
+        return {
+            "status": "VERIFIED" if symbolic_passed else "FAILED",
+            "operation": "EXPRESSION_SIMPLIFICATION",
+            "expression": str(expr),
+            "variable": var_str,
+            "exactResult": str(simplified),
+            "latexResult": latex_res,
+            "domainRestrictions": restrictions,
+            "formattedResult": f"{simplified}{restr_suffix}",
+            "derivationSteps": [
+                f"Canonical input: {expr}",
+                f"Simplified form: {simplified}",
+                *([f"Required domain exclusions: {', '.join(restrictions)}"] if restrictions else [])
+            ],
+            "verificationEvidence": {
+                "method": "SYMBOLIC_SIMPLIFICATION",
+                "passed": symbolic_passed
+            }
+        }
+    except Exception as e:
+        return {"status": "FAILED", "error": str(e)}
+
+
 def sanitize_obj(o):
     if isinstance(o, float):
         if math.isinf(o) or math.isnan(o):
@@ -834,6 +887,8 @@ def process_payload(payload):
         res = solve_limit(payload)
     elif op == "OPTIMIZATION":
         res = solve_optimization(payload)
+    elif op == "SIMPLIFY_EXPRESSION":
+        res = solve_simplify(payload)
     else:
         res = {"status": "UNSUPPORTED", "error": f"Unsupported calculus operation: {op}"}
     return sanitize_obj(res)

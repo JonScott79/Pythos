@@ -864,18 +864,21 @@ const MathJSVerifier = {
    */
   verifyMatrix(claim) {
     const { operation, matrixA, matrixB, proposed_result, tolerance = 1e-4 } = claim;
+    const effOp = operation || (claim.matrix ? 'determinant' : null);
+    const effMatA = matrixA || claim.matrix;
+    const effProp = proposed_result !== undefined ? proposed_result : claim.proposed_value;
     try {
-      if (operation === 'determinant' && matrixA) {
-        const det = math.det(matrixA);
-        if (typeof proposed_result === 'number') {
-          const matches = Math.abs(det - proposed_result) < tolerance;
+      if (effOp === 'determinant' && effMatA) {
+        const det = math.det(effMatA);
+        if (typeof effProp === 'number') {
+          const matches = Math.abs(det - effProp) < tolerance;
           return {
             verified: matches,
             engine: 'mathjs',
             status: matches ? 'VERIFIED' : 'INCORRECT_RESULT',
             error_type: matches ? undefined : 'INCORRECT_RESULT',
             determinant: det,
-            details: matches ? `det(A) = ${det} (Verified)` : `Calculated det(A) = ${det}, but proposed was ${proposed_result}`
+            details: matches ? `det(A) = ${det} (Verified)` : `Calculated det(A) = ${det}, but proposed was ${effProp}`
           };
         }
         return { verified: true, engine: 'mathjs', status: 'VERIFIED', determinant: det };
