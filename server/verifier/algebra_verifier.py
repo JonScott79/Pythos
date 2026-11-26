@@ -845,7 +845,7 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
                 word = m.group(0)
                 if word in RESERVED_WORDS or len(word) <= 1:
                     return word
-                if all(ch.isalpha() for ch in word) and any(ch in single_letter_tokens for ch in word):
+                if all(ch.isalpha() for ch in word) and (any(ch in single_letter_tokens for ch in word) or (len(word) == 2 and word.isupper())):
                     return "*".join(list(word))
                 return word
             return _re.sub(r'\b[a-zA-Z]{2,}\b', _repl, expr_norm)

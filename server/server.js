@@ -1640,11 +1640,12 @@ ${m.content.slice(PYTHOS_SYSTEM_PROMPT.length).trim()}`;
   });
 
   const isReasoningModel = targetModel.includes('gpt-oss') || targetModel.includes('o1') || targetModel.includes('o3');
+  const maxAllowedForModel = (isReasoningModel || targetModel.includes('qwen')) ? 8192 : 4096;
   const payloadObj = {
     model: targetModel,
     messages: textMessages,
     temperature: options?.temperature || 0.2,
-    max_tokens: Math.min(options?.num_predict || options?.max_tokens || 4096, 4096),
+    max_tokens: Math.min(options?.num_predict || options?.max_tokens || maxAllowedForModel, maxAllowedForModel),
     stream: false
   };
   if (isReasoningModel) {
@@ -1739,6 +1740,11 @@ ${m.content.slice(PYTHOS_SYSTEM_PROMPT.length).trim()}`;
   try {
     return await executeCall();
   } catch (firstErr) {
+    if (firstErr.statusCode === 400 && payloadObj.max_tokens > 4096 && /max_tokens|max_completion_tokens/i.test(String(firstErr.body || firstErr.message || ''))) {
+      payloadObj.max_tokens = 4096;
+      groqPayload = JSON.stringify(payloadObj);
+      return await executeCall();
+    }
     if (firstErr.statusCode === 404 || (firstErr.message && firstErr.message.includes('model_not_found'))) {
       console.warn(`[GROQ RETRY] Model '${targetModel}' returned 404 model_not_found. Auto-discovering accessible model...`);
       const discovered = await discoverAvailableGroqModel(groqApiKey);
@@ -1785,7 +1791,7 @@ async function executeGeminiTextCall(provider, { messages, options, timeoutMs = 
     contents,
     generationConfig: {
       temperature: options?.temperature || 0.2,
-      maxOutputTokens: 4096
+      maxOutputTokens: Math.min(options?.num_predict || options?.max_tokens || 8192, 8192)
     }
   };
   if (sysMsg && sysMsg.content) {
@@ -2595,9 +2601,18 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
   const effectiveHistoryBefore = (lastUserMsg && effectiveMessages.length > 0 && effectiveMessages[effectiveMessages.length - 1]?.role === 'user')
     ? effectiveMessages.slice(0, -1)
     : effectiveMessages;
+  const lastPriorAsstForRepair = effectiveHistoryBefore.length > 0 ? effectiveHistoryBefore[effectiveHistoryBefore.length - 1] : null;
+  const isPostFormattingWarningRepair = Boolean(
+    lastPriorAsstForRepair &&
+    lastPriorAsstForRepair.role === 'assistant' &&
+    (lastPriorAsstForRepair.withholdingReason === 'MALFORMED_SYNTAX' ||
+     (typeof lastPriorAsstForRepair.content === 'string' && /(?:formatting\s+on\s+this\s+problem\s+looks\s+a\s+little\s+weird|got\s+stuck\s+inside\s+the\s+exponent|ended\s+up\s+inside\s+the\s+exponent)/i.test(lastPriorAsstForRepair.content)))
+  );
   const effectiveProblemText = (notationClarification.isCurrentTurnClarification && notationClarification.reinterpretedExpression)
     ? notationClarification.reinterpretedExpression
-    : (lastUserMsg?.content || '');
+    : (isPostFormattingWarningRepair && typeof contextManager.buildEffectivePrompt === 'function'
+      ? contextManager.buildEffectivePrompt(effectiveMessages)
+      : (lastUserMsg?.content || ''));
 
   // Pre-Flight Track: Classify problem domain and extract embedded mathematical calculations
   const classification = lastUserMsg ? classifyProblem(effectiveProblemText) : null;
@@ -2862,10 +2877,16 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
   });
 
   // Ensure system instructions are always present, up-to-date, and enriched with deterministic ground truth
+  const isMultiPartDerivationPrompt =
+    /\b(?:derive|derivation|geodesic|lagrangian|perturbation|impact\s+parameter|photon\s+sphere)\b/i.test(effectiveProblemText) &&
+    (/(?:^|\n)\s*[2-9]\.\s+/.test(effectiveProblemText) || effectiveProblemText.length > 280);
+  const multiPartDerivationContext = isMultiPartDerivationPrompt
+    ? `\n\n[MULTI-PART DERIVATION DISCIPLINE]\nThis problem requires a multi-step mathematical and physical derivation across multiple parts. Derive every requested equation, conserved quantity, radial equation, circular-orbit condition, perturbation stability analysis, and critical parameter rigorously and concisely without redundant prose padding so the full derivation completes within a single response. Write intermediate calculus/algebraic steps and the final boxed conclusion as explicit symbolic equalities (for example, \\frac{d}{dr}\\left[\\frac{1}{r^2}\\left(1 - \\frac{r_s}{r}\\right)\\right] = -\\frac{2}{r^3} + \\frac{3r_s}{r^4}, r_{\\text{ph}} = \\frac{3}{2}r_s = \\frac{3GM}{c^2}, and \\boxed{b_{\\text{crit}} = \\frac{3\\sqrt{3}}{2}r_s = \\frac{3\\sqrt{3}GM}{c^2}}) so each step can be independently verified by symbolic CAS.`
+    : '';
   let preparedMessages = [...boundedContext.messagesForModel];
   preparedMessages.unshift({
     role: 'system',
-    content: PYTHOS_SYSTEM_PROMPT + identityContext + notationClarificationContext + preflightContext + studentWorkContext + learnerStateContext + adaptiveTeachingContext + tutorModeContext + activeProblemContext + learningContext + memoryContext + projectKnowledgeContext + toolResultContext + specialistContext
+    content: PYTHOS_SYSTEM_PROMPT + identityContext + notationClarificationContext + preflightContext + studentWorkContext + learnerStateContext + adaptiveTeachingContext + tutorModeContext + activeProblemContext + learningContext + memoryContext + projectKnowledgeContext + toolResultContext + specialistContext + multiPartDerivationContext
   });
 
   // Clean vision messages in conversation history
@@ -2891,11 +2912,12 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
   let primaryFailureError = null;
   let backupFailureError = null;
 
+  const defaultMaxPredict = isMultiPartDerivationPrompt ? 8192 : 4096;
   const effectiveOptions = Object.assign(
     {
       temperature: 0.3,
       num_ctx: contextManager.TOTAL_CONTEXT_LIMIT,
-      num_predict: Math.min(options?.num_predict || options?.max_tokens || 4096, 4096)
+      num_predict: Math.min(options?.num_predict || options?.max_tokens || defaultMaxPredict, 8192)
     },
     options || {}
   );
@@ -2903,7 +2925,7 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
     effectiveOptions.num_ctx = contextManager.TOTAL_CONTEXT_LIMIT;
   }
   if (!effectiveOptions.num_predict) {
-    effectiveOptions.num_predict = 4096;
+    effectiveOptions.num_predict = defaultMaxPredict;
   }
 
   // Multimodal Hosted Vision Gateway Bridge
@@ -3362,6 +3384,51 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
   }
 
     // =====================================
+    // Automatic Seamless Continuation for Long Multi-Step Derivations
+    // =====================================
+    if (
+      candidateResult &&
+      typeof candidateResult.content === 'string' &&
+      candidateResult.content.trim().length > 0 &&
+      !candidateResult.hasImages &&
+      (candidateResult.truncated === true ||
+       (!candidateResult.content.includes('\\boxed') &&
+        /(?:##\s*Final\s*answer|\*\*Final\s*Answer\*\*|###\s*Answer|###\s*Final\s*Result)[:\s]*$/i.test(candidateResult.content.trim()))) &&
+      !abortController.signal.aborted &&
+      !res.writableEnded
+    ) {
+      try {
+        console.log('[CONTINUATION] Candidate response reached output token limit mid-derivation. Executing seamless continuation pass...');
+        const continuationPrompt = [
+          ...preparedMessages,
+          { role: 'assistant', content: candidateResult.content },
+          {
+            role: 'user',
+            content: '[CONTINUATION DIRECTIVE]: Continue the mathematical derivation seamlessly from the exact point where your previous output cut off. Do NOT repeat earlier sections; complete all remaining steps, intermediate equations, and conclude with the final result inside \\boxed{...}.'
+          }
+        ];
+        const continuationText = await executeRevisionCall(candidateResult, {
+          revisionPrompt: continuationPrompt,
+          effectiveOptions,
+          timeoutMs: REVISION_TIMEOUT_MS,
+          signal: abortController.signal
+        });
+        if (continuationText && continuationText.trim()) {
+          const cleanCont = stripModelScratchpad(continuationText.trim());
+          candidateResult.content = candidateResult.content.trimEnd() + '\n' + cleanCont;
+          candidateResult.truncated = false;
+          candidateResult.finishReason = 'stop';
+          if (isStreaming && res.headersSent && !res.writableEnded) {
+            res.write(JSON.stringify({ type: 'token', content: '\n' + cleanCont }) + '\n');
+          }
+          console.log(`[CONTINUATION] Seamless continuation succeeded (+${cleanCont.length} chars).`);
+        }
+      } catch (contErr) {
+        console.warn('[CONTINUATION] Seamless continuation attempt failed:', contErr.message);
+      }
+    }
+
+    // =====================================
     // Deterministic Verification & Revision Loop
     // =====================================
     if (abortController.signal.aborted || res.writableEnded) return;
@@ -3764,6 +3831,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
 
         finalContent = safeWithholding.formattedContent;
         ollamaResponse.withheld = true;
+        ollamaResponse.truncated = false;
         ollamaResponse.withholdingReason = resolvedReason;
         ollamaResponse.withholdingExplanation = safeWithholding.explanation;
         ollamaResponse.withholdingDetails = {

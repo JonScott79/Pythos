@@ -183,16 +183,21 @@ def _normalize_calculus_expr(raw_str: str, strip_constant: bool = False, var_nam
     s = re.sub(r'(?<![a-zA-Z_.])(\d+)\s*(?![eE][+-]?\d+\b)([a-zA-Z(])', r'\1*\2', s)
     s = re.sub(r'\)\s*\(', ')*(', s)
     s = re.sub(r'\)\s*([a-zA-Z0-9])', r')*\1', s)
+    s = re.sub(r'\b(?!sin|cos|tan|sec|csc|cot|log|log10|log2|ln|exp|sqrt|cbrt|real_root|asin|acos|atan|arcsin|arccos|arctan|sinh|cosh|tanh|asinh|acosh|atanh|atan2|Abs\b)([a-zA-Z_][a-zA-Z0-9_]*)\s*\(', r'\1*(', s)
     return s.strip()
 
 
 def verify_derivative(claim: dict) -> dict:
     """
-    Verifies claimed derivative: d/dx [ expression ] = proposed_derivative
+    Verifies claimed derivative: d^n/dx^n [ expression ] = proposed_derivative
     """
     expr_str = claim.get("expression") or claim.get("function")
     proposed_str = claim.get("proposed_derivative") or claim.get("proposed_value")
     var_str = claim.get("variable", "x")
+    try:
+        order = max(1, int(claim.get("order", 1) or 1))
+    except Exception:
+        order = 1
 
     if not expr_str or not proposed_str:
         return {"verified": False, "status": "UNKNOWN", "reason": "Missing expression or proposed derivative"}
@@ -204,11 +209,14 @@ def verify_derivative(claim: dict) -> dict:
         if not expr_clean or not prop_clean:
             return {"verified": False, "status": "UNKNOWN", "reason": "Empty normalized derivative expression"}
         local_syms = {"e": sp.E, "pi": sp.pi, "ln": sp.log}
+        RESERVED = {'sin', 'cos', 'tan', 'sec', 'csc', 'cot', 'asin', 'acos', 'atan', 'arcsin', 'arccos', 'arctan', 'sinh', 'cosh', 'tanh', 'log', 'ln', 'exp', 'sqrt', 'cbrt', 'Abs', 'abs', 'pi', 'e'}
+        for ident in set(re.findall(r'\b([a-zA-Z_][a-zA-Z0-9_]*)\b', expr_clean + ' ' + prop_clean)) - RESERVED:
+            local_syms[ident] = sp.Symbol(ident, real=True)
         local_syms[var_str] = x
         expr = safe_sympify(expr_clean, locals=local_syms)
         proposed = safe_sympify(prop_clean, locals=local_syms)
 
-        actual_deriv = sp.diff(expr, x)
+        actual_deriv = sp.diff(expr, x, order)
         diff = sp.simplify(sp.trigsimp(actual_deriv - proposed))
 
         if diff == 0:

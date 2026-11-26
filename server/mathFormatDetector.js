@@ -175,11 +175,16 @@ const UNICODE_SUPER_TO_ASCII = {
 
 function decodeUnicodeSuperscripts(str) {
   // Preserve inline Unicode slash fractions (e.g. ⁵⁄₄) while decoding Unicode superscript exponent runs (e.g. ²⁽ˣ⁾⁺ -> ^{2(x)+})
-  return str.replace(/([⁰¹²³⁴⁵⁶⁷⁸⁹]+\u2044[₀₁₂₃₄₅₆₇₈₉]+)|\^?([⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱˣʸ]+)/g, (full, frac, run) => {
-    if (frac) return frac;
-    const decoded = [...run].map(c => UNICODE_SUPER_TO_ASCII[c] || c).join('');
-    return `^{${decoded}}`;
-  });
+  // Also restore any relational '=' (⁼) that was glued after a completed superscript power (e.g. ds²⁼⁻ -> ds²=-)
+  return str
+    .replace(/([⁰¹²³⁴⁵⁶⁷⁸⁹ⁿⁱˣʸ⁾]+)⁼([⁺⁻]?)/g, (_, pre, sign) => {
+      return pre + '=' + (sign === '⁻' ? '-' : (sign === '⁺' ? '+' : ''));
+    })
+    .replace(/([⁰¹²³⁴⁵⁶⁷⁸⁹]+\u2044[₀₁₂₃₄₅₆₇₈₉]+)|\^?([⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱˣʸ]+)/g, (full, frac, run) => {
+      if (frac) return frac;
+      const decoded = [...run].map(c => UNICODE_SUPER_TO_ASCII[c] || c).join('');
+      return `^{${decoded}}`;
+    });
 }
 
 function normalizeInvisibleMathChars(str) {
@@ -410,19 +415,22 @@ function detectFormattingAnomaly(input, options = {}) {
         const fullExp = s.slice(i, closeIdx + 1);
 
         // High-confidence suggestion ONLY when a non-empty math operand follows the closing '}'
-        // (never suggest a dangling expression like "x^{2} +" when nothing follows '}'!)
+        // and the input is a concise standalone mathematical expression (never wrap multi-sentence prose!)
         const trigMatch = s.slice(0, i).match(/\\?(sin|cos|tan|csc|sec|cot)\s*$/);
         const trigArgMatch = beforeOp.match(trigArgRe);
         const hasValidFollowingTerm = /^(?:\\[a-zA-Z]+|[a-zA-Z0-9(])/.test(after);
+        const isStandaloneConciseMath =
+          s.length <= 160 &&
+          !/\b[a-zA-Z]{4,}\s+[a-zA-Z]{4,}\s+[a-zA-Z]{4,}\b/.test(s.replace(/\\[a-zA-Z]+/g, ''));
         let suggestedFix;
-        if (trigMatch && trigArgMatch && hasValidFollowingTerm) {
+        if (isStandaloneConciseMath && trigMatch && trigArgMatch && hasValidFollowingTerm) {
           const pow = trigArgMatch[1];
           const argWrap = trigArgMatch[2];
           const fixedExp = `^${pow}${argWrap} ${op} `;
           suggestedFix = (s.slice(0, i) + fixedExp + after)
             .replace(/\s+/g, ' ')
             .trim();
-        } else if (beforeOp && hasValidFollowingTerm) {
+        } else if (isStandaloneConciseMath && beforeOp && hasValidFollowingTerm) {
           suggestedFix = (s.slice(0, i) + `^{${beforeOp}} ${op} ` + after)
             .replace(/\s+/g, ' ')
             .trim();

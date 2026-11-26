@@ -5118,9 +5118,9 @@ async function askPythos(userText) {
             output.scrollTop = prePromotionScrollTop;
           }
         } else {
-          if (isTruncated) {
+          if (isTruncated && !metaWithheld) {
             finalReply += "\n\n> ⚠️ *[Response interrupted: reached maximum output token limit. Say \"continue\" to proceed.]*";
-          } else if (!isStreamDone && !userStoppedGeneration && !isInterrupted && streamedText.length > 0) {
+          } else if (!isStreamDone && !userStoppedGeneration && !isInterrupted && streamedText.length > 0 && !metaWithheld) {
             finalReply += "\n\n> ⚠️ *[Response interrupted: stream closed unexpectedly.]*";
           }
           messages.push({ role: "assistant", content: finalReply });

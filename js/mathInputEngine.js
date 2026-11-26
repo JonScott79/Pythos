@@ -546,7 +546,7 @@
       .replace(/!=/g, "≠")
       .replace(/(?:\+\/-|\+-)/g, "±")
       .replace(/->/g, "→")
-      .replace(/([a-zA-Z0-9)\]πθαβΔλμω])\^(?:\(([0-9+\-=nixy]+)\)|([0-9+\-=nixy]+))/g, function (match, base, parenExp, bareExp) {
+      .replace(/([a-zA-Z0-9)\]πθαβΔλμω])\^(?:\(([0-9+\-nixy]+)\)|(-?[0-9]+|[nixy]))/g, function (match, base, parenExp, bareExp) {
         const exp = parenExp !== undefined ? ("(" + parenExp + ")") : bareExp;
         let superExp = "";
         for (let j = 0; j < exp.length; j++) {
@@ -612,11 +612,15 @@
 
   function decodeSuperscriptsForFormatCheck(raw) {
     // Reuse REVERSE_SUPERSCRIPT_MAP while preserving valid slash fractions like ⁵⁄₄
+    // and restoring any relational '=' (⁼) that was glued after a completed superscript power (e.g. ds²⁼⁻ -> ds²=-)
     return String(raw || "")
       .replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u2064\uFEFF\u00AD]/g, "")
       .replace(/[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g, " ")
       .replace(/\u2212/g, "-")
       .replace(/\uFF0B/g, "+")
+      .replace(/([⁰¹²³⁴⁵⁶⁷⁸⁹ⁿⁱˣʸ⁾]+)⁼([⁺⁻]?)/g, function (_, pre, sign) {
+        return pre + "=" + (sign === "⁻" ? "-" : (sign === "⁺" ? "+" : ""));
+      })
       .replace(/([⁰¹²³⁴⁵⁶⁷⁸⁹]+\u2044[₀₁₂₃₄₅₆₇₈₉]+)|\^?([⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱˣʸ]+)/g, function (full, frac, run) {
         if (frac) return frac;
         let out = "";
@@ -710,10 +714,13 @@
         return item && item.kind === kind && (!item.snippet || item.snippet === snippet);
       });
     };
-    const trimmed = decodeSuperscriptsForFormatCheck(raw).trim();
+    const normalizedRaw = raw.replace(/([⁰¹²³⁴⁵⁶⁷⁸⁹ⁿⁱˣʸ⁾]+)⁼([⁺⁻]?)/g, function (_, pre, sign) {
+      return pre + "=" + (sign === "⁻" ? "-" : (sign === "⁺" ? "+" : ""));
+    });
+    const trimmed = decodeSuperscriptsForFormatCheck(normalizedRaw).trim();
     if (!trimmed || trimmed.length > 4000) return cleanNone;
 
-    const hasMathSignal = detectMathInInput(raw) || /\\(?:frac|dfrac|tfrac|sqrt|sin|cos|tan|csc|sec|cot|log|ln)\b|[=^√∛⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁽⁾]/.test(raw);
+    const hasMathSignal = detectMathInInput(normalizedRaw) || /\\(?:frac|dfrac|tfrac|sqrt|sin|cos|tan|csc|sec|cot|log|ln)\b|[=^√∛⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁽⁾]/.test(normalizedRaw);
     if (!hasMathSignal) return cleanNone;
 
     let s = trimmed;
@@ -791,7 +798,9 @@
     }
 
     // Double/chained exponent like x^2^3 or x^{2}^{3} (ambiguous precedence)
-    const chainedExp = s.match(/(\^(?:\{[^{}]+\}|[a-zA-Z0-9]+)\s*\^(?:\{[^{}]+\}|[a-zA-Z0-9]+))/);
+    // Note: an unbraced numeric exponent is \d+ and an unbraced variable exponent is a single letter [a-zA-Z],
+    // so juxtaposed terms like c^2dt^2 or x^2y^2 are never mistaken for chained exponents.
+    const chainedExp = s.match(/(\^(?:\{[^{}]+\}|\d+|[a-zA-Z])\s*\^(?:\{[^{}]+\}|\d+|[a-zA-Z]))/);
     if (chainedExp) {
       return {
         hasIssue: true,
@@ -882,7 +891,7 @@
     }
 
     // 5. Dangling / doubled operators on pure/hybrid math segments (check math segments to skip natural English punctuation)
-    const segments = segmentInput(raw);
+    const segments = segmentInput(normalizedRaw);
     const hasMathSeg = segments.some(function (seg) { return seg.type === "math"; });
     const scanTargets = hasMathSeg
       ? segments.filter(function (seg) { return seg.type === "math"; }).map(function (seg) { return decodeSuperscriptsForFormatCheck(seg.raw).trim(); })

@@ -1469,6 +1469,15 @@ const MathJSVerifier = {
       };
     }
 
+    if (claim && claim.order && Number(claim.order) > 1) {
+      return {
+        verified: false,
+        engine: "mathjs",
+        status: "UNKNOWN",
+        reason: "Higher-order derivative deferred to SymPy CAS"
+      };
+    }
+
     const varStr = typeof variable === "string" && variable.trim() ? variable.trim() : "x";
 
     // Strip leading conversational/prompt prefixes if present

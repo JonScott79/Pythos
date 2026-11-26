@@ -1096,6 +1096,29 @@ function buildEffectivePrompt(messages = []) {
     return applyConfirmedNotationClarification(latestUser, clarificationCtx);
   }
 
+  // Post-formatting-warning equation repair:
+  // When the immediately preceding assistant turn was a MALFORMED_SYNTAX warning and the student
+  // resubmits a repaired or plain-text equation without repeating the multi-part instructions from
+  // their withheld turn, preserve the mission/instructions alongside the repaired equation.
+  if (priorMessages.length >= 2) {
+    const lastPriorMsg = priorMessages[priorMessages.length - 1];
+    const prevUserBeforeWarning = priorMessages[priorMessages.length - 2];
+    const wasFormattingWarning =
+      lastPriorMsg &&
+      lastPriorMsg.role === 'assistant' &&
+      (lastPriorMsg.withholdingReason === 'MALFORMED_SYNTAX' ||
+       (typeof lastPriorMsg.content === 'string' && /(?:formatting\s+on\s+this\s+problem\s+looks\s+a\s+little\s+weird|got\s+stuck\s+inside\s+the\s+exponent|ended\s+up\s+inside\s+the\s+exponent)/i.test(lastPriorMsg.content)));
+    if (wasFormattingWarning && prevUserBeforeWarning && prevUserBeforeWarning.role === 'user' && typeof prevUserBeforeWarning.content === 'string') {
+      const prevText = prevUserBeforeWarning.content.trim();
+      const missionIdx = prevText.search(/(?:^|\n)\s*(?:your\s+mission\b|mission\s*:|tasks?\s*:|questions?\s*:|1\.\s+)/i);
+      const latestHasMission = /(?:^|\n)\s*(?:your\s+mission\b|mission\s*:|tasks?\s*:|1\.\s+)/i.test(latestUser);
+      if (missionIdx !== -1 && !latestHasMission) {
+        const preservedInstructions = prevText.slice(missionIdx).trim();
+        return `${latestUser}\n\n${preservedInstructions}`;
+      }
+    }
+  }
+
   if ((isStandaloneEquation || isStandaloneExpression) && !hasBackReference) {
     return latestUser;
   }

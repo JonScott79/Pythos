@@ -238,7 +238,12 @@ function getSafeWithholding(reasonCode, overrides = null) {
 
   if (overrides && typeof overrides === 'object' && !Array.isArray(overrides)) {
     const weirdSnippet = sanitizePublicDetail(overrides.weirdSnippet, 120);
-    const suggestedFix = sanitizePublicDetail(overrides.suggestedFix, 200);
+    const rawSuggestedFix = typeof overrides.suggestedFix === 'string' ? overrides.suggestedFix.trim() : '';
+    const isSuggestedFixConciseMath =
+      rawSuggestedFix.length > 0 &&
+      rawSuggestedFix.length <= 180 &&
+      !/\b[a-zA-Z]{4,}\s+[a-zA-Z]{4,}\s+[a-zA-Z]{4,}\b/.test(rawSuggestedFix.replace(/\\[a-zA-Z]+/g, ''));
+    const suggestedFix = isSuggestedFixConciseMath ? sanitizePublicDetail(rawSuggestedFix, 200) : '';
     const anomalyExplanation = sanitizePublicDetail(overrides.anomalyExplanation, 260);
     const diagnosticHeadline = sanitizePublicDetail(overrides.diagnosticHeadline, 140);
     const diagnosticExplanation = sanitizePublicDetail(overrides.diagnosticExplanation, 280);
