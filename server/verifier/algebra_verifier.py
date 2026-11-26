@@ -1052,6 +1052,8 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
                             if arg.free_symbols and arg.is_nonnegative is not True and arg.is_positive is not True:
                                 if not (isinstance(arg, sp.Pow) and arg.exp.is_Integer and arg.exp % 2 == 0 and arg.base.is_real):
                                     arg_s = sp.simplify(arg)
+                                    if not arg_s.free_symbols or arg_s.is_nonnegative is True or arg_s.is_positive is True:
+                                        continue
                                     if isinstance(arg_s, sp.Mul):
                                         rem_factors = []
                                         for fac in arg_s.args:
