@@ -5,37 +5,48 @@ Audits boundary convergence conditions and closed-form values.
 
 import sympy as sp
 from safe_sympify import safe_sympify
+from calculus_verifier import _normalize_calculus_expr
 
 def verify_improper_integral(claim: dict) -> dict:
     """
-    Verifies improper integrals:
-    e.g. I(a) = int_0^infty x^(a-1)/(1+x) dx
+    Verifies definite and improper integrals:
+    e.g. I(a) = int_0^infty x^(a-1)/(1+x) dx or int_0^2 4x dx = 8
     Checks:
     1. Endpoint singularity & convergence conditions (e.g. 0 < a < 1)
-    2. Closed form value: pi / sin(pi * a)
+    2. Closed form or exact definite integral value
     """
-    integrand_str = claim.get("integrand") # "x**(a - 1)/(1 + x)"
+    raw_integrand = claim.get("integrand") or claim.get("expression")
     var_str = claim.get("variable", "x")
     param_str = claim.get("parameter")
-    lower_bound = claim.get("lower_bound", 0)
-    upper_bound = claim.get("upper_bound", "oo")
+    lower_bound = claim.get("lower_bound", claim.get("lower_limit", 0))
+    upper_bound = claim.get("upper_bound", claim.get("upper_limit", "oo"))
     claimed_convergence_domain = claim.get("claimed_convergence_domain") # e.g. "0 < a < 1"
-    proposed_closed_form = claim.get("proposed_closed_form") # e.g. "pi / sin(pi*a)"
+    proposed_closed_form = claim.get("proposed_closed_form")
+    if proposed_closed_form is None:
+        proposed_closed_form = claim.get("proposed_value")
 
-    if not integrand_str:
+    if not raw_integrand:
         return {"verified": False, "status": "UNKNOWN", "reason": "Missing integrand"}
 
     try:
+        integrand_str = _normalize_calculus_expr(str(raw_integrand), strip_constant=False, var_name=var_str)
+        low_str = _normalize_calculus_expr(str(lower_bound).replace(r"\infty", "oo").replace("∞", "oo"), strip_constant=False, var_name=var_str)
+        up_str = _normalize_calculus_expr(str(upper_bound).replace(r"\infty", "oo").replace("∞", "oo"), strip_constant=False, var_name=var_str)
+        prop_norm_str = (
+            _normalize_calculus_expr(str(proposed_closed_form), strip_constant=False, var_name=var_str)
+            if proposed_closed_form is not None else None
+        )
         x = sp.Symbol(var_str, positive=True)
-        temp_sym = safe_sympify(integrand_str, locals={var_str: x})
+        local_base = {var_str: x, "pi": sp.pi, "e": sp.E, "oo": sp.oo, "ln": sp.log}
+        temp_sym = safe_sympify(integrand_str, locals=local_base)
         if not param_str:
             other_syms = [s.name for s in temp_sym.free_symbols if s.name != var_str]
             param_str = other_syms[0] if len(other_syms) == 1 else "a"
         a = sp.Symbol(param_str, real=True)
-        sym_dict = {var_str: x, param_str: a}
+        sym_dict = {var_str: x, param_str: a, "pi": sp.pi, "e": sp.E, "oo": sp.oo, "ln": sp.log}
         integrand = safe_sympify(integrand_str, locals=sym_dict)
-        low_b = safe_sympify(str(lower_bound), locals=sym_dict)
-        up_b = safe_sympify(str(upper_bound), locals=sym_dict)
+        low_b = safe_sympify(low_str, locals=sym_dict)
+        up_b = safe_sympify(up_str, locals=sym_dict)
 
         canonical_target = x**(a - 1) / (1 + x)
 
@@ -160,7 +171,7 @@ def verify_improper_integral(claim: dict) -> dict:
                     }
 
                 if proposed_closed_form is not None:
-                    prop_sym = safe_sympify(str(proposed_closed_form), locals=sym_dict)
+                    prop_sym = safe_sympify(str(prop_norm_str or proposed_closed_form), locals=sym_dict)
                     diff = sp.simplify(sp.expand_func(prop_sym - val_exact))
                     is_match = (diff == 0)
 

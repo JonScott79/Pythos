@@ -147,17 +147,11 @@ async function replayAnalysisBundle(bundlePath) {
     const claims = Array.isArray(rep.claims) ? rep.claims : [];
     const prompt = claims[0]?.userPrompt || rep.interaction?.question || '';
 
-    // Reconstruct the mathematical steps from raw_match lines; if the report involved trig denominator
-    // cancellation where the production regex mangled "where \sin x \neq 0 and \cos x \neq 0" into "x\neq0",
-    // include the unparenthesized restriction header to verify end-to-end extraction and verification.
-    const needsTrigDenomHeader = claims.some(c =>
-      /\\sin\s*x|\\cos\s*x/.test(c.raw_match || '') &&
-      (c.data?.condition === 'x\\neq0' || /\\frac\{1-\\cos/.test(c.raw_match || ''))
-    );
-    const synthesizedResponse = [
-      ...(needsTrigDenomHeader ? ['Where $\\sin x \\neq 0$ and $\\cos x \\neq 0$:'] : []),
-      ...claims.map(c => `$$${String(c.raw_match || '').replace(/[,;.]$/, '')}$$`)
-    ].join('\n');
+    // Reconstruct the mathematical steps strictly from the raw_match lines stored in the production report
+    // without injecting any synthetic domain-restriction header.
+    const synthesizedResponse = claims
+      .map(c => `$$${String(c.raw_match || '').replace(/[,;.]$/, '')}$$`)
+      .join('\n');
 
     const audit = await verifyResponseClaims(synthesizedResponse, prompt);
     for (let i = 0; i < audit.claims.length; i++) {
@@ -197,4 +191,11 @@ async function main() {
   process.exit(ok ? 0 : 1);
 }
 
-main();
+module.exports = {
+  runGoldenCorpus,
+  replayAnalysisBundle
+};
+
+if (require.main === module) {
+  main();
+}

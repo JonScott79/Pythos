@@ -84,7 +84,7 @@ def dispatch_verification(payload: dict) -> dict:
                 return verify_antiderivative(data)
             elif claim_type == "change_of_variables" or claim_type == "u_substitution":
                 return verify_change_of_variables(data)
-            elif claim_type == "improper_integral" or claim_type == "parameterized_integral":
+            elif claim_type in ("improper_integral", "parameterized_integral", "definite_integral"):
                 return verify_improper_integral(data)
             elif claim_type == "singularity_classification" or claim_type == "singularity":
                 return verify_singularity_classification(data)

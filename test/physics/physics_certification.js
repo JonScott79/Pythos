@@ -10,20 +10,48 @@ const assert = require('assert');
 const geometryEngine = require('../../server/engines/geometryEngine');
 const { verifyResponseClaims } = require('../../server/verificationBridge');
 
-async function runPhysicsAndGeometryCertificationSuite() {
-  const results = { domain: 'PHYSICS_AND_GEOMETRY', total: 0, passed: 0, failed: 0, tp: 0, tn: 0, fp: 0, fn: 0, details: [] };
+const { performance } = require('perf_hooks');
 
-  async function check(name, isPositiveControl, fn) {
+async function runPhysicsAndGeometryCertificationSuite() {
+  const results = {
+    domain: 'PHYSICS_AND_GEOMETRY',
+    total: 0,
+    passed: 0,
+    failed: 0,
+    tp: 0,
+    tn: 0,
+    fp: 0,
+    fn: 0,
+    solverTotal: 0,
+    solverPassed: 0,
+    verifyLatenciesMs: [],
+    solverLatenciesMs: [],
+    details: []
+  };
+
+  async function check(name, isPositiveControl, fn, kind = 'VERIFIER') {
     results.total++;
+    if (kind === 'SOLVER') results.solverTotal++;
+    const t0 = performance.now();
     try {
       await fn();
+      const dt = performance.now() - t0;
+      if (kind === 'SOLVER') {
+        results.solverPassed++;
+        results.solverLatenciesMs.push(dt);
+      } else {
+        results.verifyLatenciesMs.push(dt);
+        if (isPositiveControl) results.tp++; else results.tn++;
+      }
       results.passed++;
-      if (isPositiveControl) results.tp++; else results.tn++;
-      results.details.push({ name, passed: true });
+      results.details.push({ name, kind, passed: true, latencyMs: Number(dt.toFixed(2)) });
     } catch (err) {
+      const dt = performance.now() - t0;
       results.failed++;
-      if (isPositiveControl) results.fn++; else results.fp++;
-      results.details.push({ name, passed: false, error: err.message });
+      if (kind !== 'SOLVER') {
+        if (isPositiveControl) results.fn++; else results.fp++;
+      }
+      results.details.push({ name, kind, passed: false, error: err.message, latencyMs: Number(dt.toFixed(2)) });
     }
   }
 
@@ -36,12 +64,12 @@ async function runPhysicsAndGeometryCertificationSuite() {
     const pts = geometryEngine.solveTwoPoints({ x: 1, y: 2 }, { x: 4, y: 6 });
     assert.strictEqual(pts.status, 'VERIFIED');
     assert.strictEqual(Number(pts.distance), 5);
-  });
+  }, 'SOLVER');
 
   await check('2E-2 (Neg Control): Impossible triangle sides (2, 3, 10) violating triangle inequality MUST be rejected', false, async () => {
     const badTri = geometryEngine.solveTriangleSides(2, 3, 10);
     assert.notStrictEqual(badTri.status, 'VERIFIED', 'Impossible triangle (2,3,10) must not verify');
-  });
+  }, 'SOLVER');
 
   // 3A. Classical Mechanics (Kinematics, Projectile Range, Elastic Collisions, Centripetal Acceleration)
   await check('3A-1: Classical mechanics kinematics, work-energy, and centripetal force F_c = mv^2/r', true, async () => {

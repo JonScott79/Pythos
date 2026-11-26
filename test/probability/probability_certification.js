@@ -10,20 +10,48 @@
 const assert = require('assert');
 const { verifyResponseClaims } = require('../../server/verificationBridge');
 
-async function runProbabilityCertificationSuite() {
-  const results = { domain: 'PROBABILITY_STATISTICS', total: 0, passed: 0, failed: 0, tp: 0, tn: 0, fp: 0, fn: 0, details: [] };
+const { performance } = require('perf_hooks');
 
-  async function check(name, isPositiveControl, fn) {
+async function runProbabilityCertificationSuite() {
+  const results = {
+    domain: 'PROBABILITY_STATISTICS',
+    total: 0,
+    passed: 0,
+    failed: 0,
+    tp: 0,
+    tn: 0,
+    fp: 0,
+    fn: 0,
+    solverTotal: 0,
+    solverPassed: 0,
+    verifyLatenciesMs: [],
+    solverLatenciesMs: [],
+    details: []
+  };
+
+  async function check(name, isPositiveControl, fn, kind = 'VERIFIER') {
     results.total++;
+    if (kind === 'SOLVER') results.solverTotal++;
+    const t0 = performance.now();
     try {
       await fn();
+      const dt = performance.now() - t0;
+      if (kind === 'SOLVER') {
+        results.solverPassed++;
+        results.solverLatenciesMs.push(dt);
+      } else {
+        results.verifyLatenciesMs.push(dt);
+        if (isPositiveControl) results.tp++; else results.tn++;
+      }
       results.passed++;
-      if (isPositiveControl) results.tp++; else results.tn++;
-      results.details.push({ name, passed: true });
+      results.details.push({ name, kind, passed: true, latencyMs: Number(dt.toFixed(2)) });
     } catch (err) {
+      const dt = performance.now() - t0;
       results.failed++;
-      if (isPositiveControl) results.fn++; else results.fp++;
-      results.details.push({ name, passed: false, error: err.message });
+      if (kind !== 'SOLVER') {
+        if (isPositiveControl) results.fn++; else results.fp++;
+      }
+      results.details.push({ name, kind, passed: false, error: err.message, latencyMs: Number(dt.toFixed(2)) });
     }
   }
 

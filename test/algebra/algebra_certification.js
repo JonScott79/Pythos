@@ -10,20 +10,48 @@ const { verifyResponseClaims } = require('../../server/verificationBridge');
 const { evaluateDualOracleEquivalence } = require('../../server/mathCanonical');
 const { evaluateSpecialistAssist } = require('../../server/specialistAssist');
 
-async function runAlgebraCertificationSuite() {
-  const results = { domain: 'ALGEBRA_RADICALS_TRIG', total: 0, passed: 0, failed: 0, tp: 0, tn: 0, fp: 0, fn: 0, details: [] };
+const { performance } = require('perf_hooks');
 
-  async function check(name, isPositiveControl, fn) {
+async function runAlgebraCertificationSuite() {
+  const results = {
+    domain: 'ALGEBRA_RADICALS_TRIG',
+    total: 0,
+    passed: 0,
+    failed: 0,
+    tp: 0,
+    tn: 0,
+    fp: 0,
+    fn: 0,
+    solverTotal: 0,
+    solverPassed: 0,
+    verifyLatenciesMs: [],
+    solverLatenciesMs: [],
+    details: []
+  };
+
+  async function check(name, isPositiveControl, fn, kind = 'VERIFIER') {
     results.total++;
+    if (kind === 'SOLVER') results.solverTotal++;
+    const t0 = performance.now();
     try {
       await fn();
+      const dt = performance.now() - t0;
+      if (kind === 'SOLVER') {
+        results.solverPassed++;
+        results.solverLatenciesMs.push(dt);
+      } else {
+        results.verifyLatenciesMs.push(dt);
+        if (isPositiveControl) results.tp++; else results.tn++;
+      }
       results.passed++;
-      if (isPositiveControl) results.tp++; else results.tn++;
-      results.details.push({ name, passed: true });
+      results.details.push({ name, kind, passed: true, latencyMs: Number(dt.toFixed(2)) });
     } catch (err) {
+      const dt = performance.now() - t0;
       results.failed++;
-      if (isPositiveControl) results.fn++; else results.fp++;
-      results.details.push({ name, passed: false, error: err.message });
+      if (kind !== 'SOLVER') {
+        if (isPositiveControl) results.fn++; else results.fp++;
+      }
+      results.details.push({ name, kind, passed: false, error: err.message, latencyMs: Number(dt.toFixed(2)) });
     }
   }
 
@@ -147,7 +175,7 @@ async function runAlgebraCertificationSuite() {
       nonNegativeVars: ['a', 'b']
     });
     assert.strictEqual(dual.numericallyEquivalent, true);
-  });
+  }, 'SOLVER');
 
   // 2D. Trigonometry (Pythagorean, Double-Angle, Reciprocal, Rational Identities & Pre-Flight CAS Sheet)
   await check('2D-1: Rational trig simplification + Pre-Flight SymPy Answer Sheet (sin(x) + cos(x) with sin(x)!=0, cos(x)!=0)', true, async () => {
@@ -157,7 +185,7 @@ async function runAlgebraCertificationSuite() {
       `Expected [CAS AUTHORITATIVE ANSWER SHEET] for trig simplification, got: ${JSON.stringify(spec)}`);
     assert(spec.contextString.includes('sin(x) != 0') && spec.contextString.includes('cos(x) != 0'),
       `Expected domain restrictions in CAS Answer Sheet, got: ${spec.contextString}`);
-  });
+  }, 'SOLVER');
 
   await check('2D-2: Double-angle and Pythagorean trigonometric identities', true, async () => {
     const audit = await verifyResponseClaims(

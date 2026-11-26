@@ -82,7 +82,9 @@ async function runMetamorphicSuite() {
       const dual = evaluateDualOracleEquivalence(lhs, rhs);
       assert.strictEqual(dual.numericallyEquivalent, true, `Numerical oracle failed for ${lhs} == ${rhs}`);
       const audit = await verifyResponseClaims(`$$${lhs} = ${rhs}$$`, `Verify ${lhs} = ${rhs}`);
+      assert(audit.claims.length > 0, `Expected claim extraction for ${lhs} = ${rhs}, got 0 claims`);
       assert.strictEqual(audit.invalidClaims.length, 0, `CAS failed for ${lhs} = ${rhs}`);
+      assert(audit.verificationResults.some(v => v && v.verified === true), `Expected verified=true for ${lhs} = ${rhs}`);
     }
   });
 

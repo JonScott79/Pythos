@@ -12,20 +12,48 @@ const calculusEngine = require('../../server/engines/calculusEngine');
 const { verifyResponseClaims } = require('../../server/verificationBridge');
 const { evaluateDualOracleEquivalence } = require('../../server/mathCanonical');
 
-async function runCalculusCertificationSuite() {
-  const results = { domain: 'CALCULUS', total: 0, passed: 0, failed: 0, tp: 0, tn: 0, fp: 0, fn: 0, details: [] };
+const { performance } = require('perf_hooks');
 
-  async function check(name, isPositiveControl, fn) {
+async function runCalculusCertificationSuite() {
+  const results = {
+    domain: 'CALCULUS',
+    total: 0,
+    passed: 0,
+    failed: 0,
+    tp: 0,
+    tn: 0,
+    fp: 0,
+    fn: 0,
+    solverTotal: 0,
+    solverPassed: 0,
+    verifyLatenciesMs: [],
+    solverLatenciesMs: [],
+    details: []
+  };
+
+  async function check(name, isPositiveControl, fn, kind = 'VERIFIER') {
     results.total++;
+    if (kind === 'SOLVER') results.solverTotal++;
+    const t0 = performance.now();
     try {
       await fn();
+      const dt = performance.now() - t0;
+      if (kind === 'SOLVER') {
+        results.solverPassed++;
+        results.solverLatenciesMs.push(dt);
+      } else {
+        results.verifyLatenciesMs.push(dt);
+        if (isPositiveControl) results.tp++; else results.tn++;
+      }
       results.passed++;
-      if (isPositiveControl) results.tp++; else results.tn++;
-      results.details.push({ name, passed: true });
+      results.details.push({ name, kind, passed: true, latencyMs: Number(dt.toFixed(2)) });
     } catch (err) {
+      const dt = performance.now() - t0;
       results.failed++;
-      if (isPositiveControl) results.fn++; else results.fp++;
-      results.details.push({ name, passed: false, error: err.message });
+      if (kind !== 'SOLVER') {
+        if (isPositiveControl) results.fn++; else results.fp++;
+      }
+      results.details.push({ name, kind, passed: false, error: err.message, latencyMs: Number(dt.toFixed(2)) });
     }
   }
 
@@ -38,7 +66,7 @@ async function runCalculusCertificationSuite() {
     const lim2 = await calculusEngine.limit('(x^2 - 4)/(x - 2)', { variable: 'x', target: '2' });
     assert.strictEqual(lim2.status, 'VERIFIED');
     assert.strictEqual(String(lim2.exactResult), '4');
-  });
+  }, 'SOLVER');
 
   // 2. Product, Quotient, and Chain Rule Derivatives
   await check('2F-2: Chain rule, product rule, and quotient rule derivatives verified by SymPy + 20-pt numerical oracle', true, async () => {
@@ -53,7 +81,7 @@ async function runCalculusCertificationSuite() {
     const quotRes = await calculusEngine.differentiate('x / (x^2 + 1)', { variable: 'x', order: 1 });
     assert.strictEqual(quotRes.status, 'VERIFIED');
     assert.strictEqual(evaluateDualOracleEquivalence(quotRes.exactResult, '(1 - x^2)/((x^2 + 1)^2)').numericallyEquivalent, true);
-  });
+  }, 'SOLVER');
 
   // 3. Higher-Order Derivatives (Lagrange prime & Leibniz notation)
   await check('2F-3: Higher-order derivatives (second derivative f\'\'(x) and d^2/dx^2)', true, async () => {
@@ -63,7 +91,7 @@ async function runCalculusCertificationSuite() {
     );
     assert.strictEqual(audit.invalidClaims.length, 0);
     assert.strictEqual(audit.verificationResults.filter(v => v && v.verified).length, 2);
-  });
+  }, 'VERIFIER');
 
   // 4. Negative Control: Incorrect Chain Rule (forgetting inner derivative 2x on sin(x^2))
   await check('2F-4 (Neg Control): Forgetting chain-rule factor 2x in d/dx[sin(x^2)] = cos(x^2) MUST be rejected', false, async () => {
@@ -72,7 +100,7 @@ async function runCalculusCertificationSuite() {
       'Differentiate sin(x^2)'
     );
     assert(audit.invalidClaims.length > 0, 'Missing chain rule factor 2x must be rejected');
-  });
+  }, 'VERIFIER');
 
   // 5. Tangent Line & Optimization
   await check('2F-5: Tangent line at x = 2 and critical-point optimization', true, async () => {
@@ -83,7 +111,7 @@ async function runCalculusCertificationSuite() {
     const optRes = await calculusEngine.optimize('x^3 - 3*x', { variable: 'x' });
     assert.strictEqual(optRes.status, 'VERIFIED');
     assert(Array.isArray(optRes.criticalPoints) && optRes.criticalPoints.length === 2);
-  });
+  }, 'SOLVER');
 
   // 6. Indefinite & Definite Integration (Substitution, Integration by Parts, Partial Fractions)
   await check('2F-6: Indefinite integrals (integration by parts x*e^x and partial fractions 1/(x^2-1)) verified by differentiation', true, async () => {
@@ -100,7 +128,7 @@ async function runCalculusCertificationSuite() {
     });
     assert.strictEqual(defInt.status, 'VERIFIED');
     assert.strictEqual(String(defInt.exactResult), '2');
-  });
+  }, 'SOLVER');
 
   // 7. Negative Control: Incorrect Antiderivative
   await check('2F-7 (Neg Control): Incorrect antiderivative \\int cos(2x) dx = sin(2x) + C (missing 1/2) MUST be rejected', false, async () => {
@@ -109,7 +137,7 @@ async function runCalculusCertificationSuite() {
       'Integrate cos(2x) dx'
     );
     assert(audit.invalidClaims.length > 0, 'Missing 1/2 factor in integral of cos(2x) must be rejected');
-  });
+  }, 'VERIFIER');
 
   return results;
 }

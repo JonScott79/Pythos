@@ -1,7 +1,18 @@
 {
-  "timestamp": "2026-11-26T16:28:39.836Z",
+  "startedAt": "2026-11-26T17:06:51.998Z",
+  "completedAt": "2026-11-26T17:07:32.621Z",
+  "timestamp": "2026-11-26T17:07:32.621Z",
+  "durationMs": 40622.03,
   "branch": "staging/trig-notation-diagnostics-fix",
+  "productionMasterCommit": "773ce8f2eac765c8d8cdf9177e0f04eb8a2f0f7a",
   "seed": 20261126,
+  "multiSeeds": [
+    20261126,
+    31415926,
+    27182818,
+    16180339,
+    20260420
+  ],
   "certificationStatus": "PASS",
   "metrics": {
     "overallCheckPassRatePct": 100,
@@ -10,18 +21,642 @@
     "falsePositiveRatePct": 0,
     "falseNegativeRatePct": 0,
     "unknownClaimRatePct": 0,
+    "deterministicSolverAccuracyPct": 100,
     "multiRepresentationParserAccuracyPct": 100,
     "solverAndAlternativeMethodRoutingAccuracyPct": 100,
     "metamorphicInvarianceAccuracyPct": 100,
     "seededRandomizedCorpusAccuracyPct": 100,
-    "medianLatencyMs": 10.04,
-    "p95LatencyMs": 119.57
+    "medianLatencyMs": 2.43,
+    "p95LatencyMs": 25.92
+  },
+  "latencyBoundaries": {
+    "canonicalParserAndDualOracle": {
+      "sampleCount": 25,
+      "p50Ms": 0.15,
+      "p95Ms": 0.27,
+      "minMs": 0.07,
+      "maxMs": 0.9
+    },
+    "deterministicCasSolvers": {
+      "sampleCount": 9,
+      "p50Ms": 15.53,
+      "p95Ms": 248.92,
+      "minMs": 0.29,
+      "maxMs": 248.92
+    },
+    "independentVerificationPipeline": {
+      "sampleCount": 526,
+      "p50Ms": 2.43,
+      "p95Ms": 25.92,
+      "minMs": 0.01,
+      "maxMs": 875.07
+    },
+    "endToEndHostedLlmResponseMs": null
   },
   "confusionMatrix": {
-    "truePositives": 142,
-    "trueNegatives": 89,
+    "description": "Strictly verifier classification positive/negative controls (Baseline + 5-Seed 9-Domain Expansion), excluding direct solver and metamorphic checks.",
+    "truePositives": 282,
+    "trueNegatives": 243,
     "falsePositives": 0,
-    "falseNegatives": 0
+    "falseNegatives": 0,
+    "totalEvaluations": 525
+  },
+  "baselineSeed20261126Breakdown": {
+    "verifierOnlyConfusionMatrix": {
+      "truePositives": 127,
+      "trueNegatives": 88,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "total": 215
+    },
+    "solverChecks": {
+      "passed": 9,
+      "total": 9,
+      "positiveControls": 8,
+      "negativeControls": 1
+    },
+    "metamorphicFamilies": {
+      "passed": 7,
+      "total": 7
+    },
+    "legacyCombinedConfusionMatrix": {
+      "description": "Historical reconciliation count pooling verifier checks (127 TP / 88 TN) + solver checks (8 TP / 1 TN) + metamorphic families (7 TP) = 142 TP / 89 TN (231 total).",
+      "truePositives": 142,
+      "trueNegatives": 89,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "total": 231
+    }
+  },
+  "expandedMultiSeedRandomTesting": {
+    "seeds": [
+      20261126,
+      31415926,
+      27182818,
+      16180339,
+      20260420
+    ],
+    "totalCases": 310,
+    "passedCases": 310,
+    "failedCases": 0,
+    "truePositives": 155,
+    "trueNegatives": 155,
+    "falsePositives": 0,
+    "falseNegatives": 0,
+    "categoryTotals": {
+      "1_ARITHMETIC_RATIONALS": {
+        "total": 40,
+        "passed": 40,
+        "tp": 20,
+        "tn": 20,
+        "fp": 0,
+        "fn": 0
+      },
+      "2_RADICALS_DOMAINS": {
+        "total": 30,
+        "passed": 30,
+        "tp": 15,
+        "tn": 15,
+        "fp": 0,
+        "fn": 0
+      },
+      "3_POLYNOMIAL_REPEATED_EXTRANEOUS_ROOTS": {
+        "total": 40,
+        "passed": 40,
+        "tp": 20,
+        "tn": 20,
+        "fp": 0,
+        "fn": 0
+      },
+      "4_TRIG_IDENTITIES_NOTATION": {
+        "total": 30,
+        "passed": 30,
+        "tp": 15,
+        "tn": 15,
+        "fp": 0,
+        "fn": 0
+      },
+      "5_FIRST_AND_SECOND_DERIVATIVES": {
+        "total": 40,
+        "passed": 40,
+        "tp": 20,
+        "tn": 20,
+        "fp": 0,
+        "fn": 0
+      },
+      "6_INTEGRATION_DEFINITE_INTEGRALS": {
+        "total": 40,
+        "passed": 40,
+        "tp": 20,
+        "tn": 20,
+        "fp": 0,
+        "fn": 0
+      },
+      "7_MATRIX_DETERMINANTS": {
+        "total": 30,
+        "passed": 30,
+        "tp": 15,
+        "tn": 15,
+        "fp": 0,
+        "fn": 0
+      },
+      "8_PROBABILITY_CONDITIONAL": {
+        "total": 30,
+        "passed": 30,
+        "tp": 15,
+        "tn": 15,
+        "fp": 0,
+        "fn": 0
+      },
+      "9_PHYSICS_EQUATIONS": {
+        "total": 30,
+        "passed": 30,
+        "tp": 15,
+        "tn": 15,
+        "fp": 0,
+        "fn": 0
+      }
+    },
+    "seedReports": [
+      {
+        "seed": 20261126,
+        "total": 62,
+        "passed": 62,
+        "failed": 0,
+        "tp": 31,
+        "tn": 31,
+        "fp": 0,
+        "fn": 0,
+        "categories": {
+          "1_ARITHMETIC_RATIONALS": {
+            "total": 8,
+            "passed": 8,
+            "tp": 4,
+            "tn": 4,
+            "fp": 0,
+            "fn": 0
+          },
+          "2_RADICALS_DOMAINS": {
+            "total": 6,
+            "passed": 6,
+            "tp": 3,
+            "tn": 3,
+            "fp": 0,
+            "fn": 0
+          },
+          "3_POLYNOMIAL_REPEATED_EXTRANEOUS_ROOTS": {
+            "total": 8,
+            "passed": 8,
+            "tp": 4,
+            "tn": 4,
+            "fp": 0,
+            "fn": 0
+          },
+          "4_TRIG_IDENTITIES_NOTATION": {
+            "total": 6,
+            "passed": 6,
+            "tp": 3,
+            "tn": 3,
+            "fp": 0,
+            "fn": 0
+          },
+          "5_FIRST_AND_SECOND_DERIVATIVES": {
+            "total": 8,
+            "passed": 8,
+            "tp": 4,
+            "tn": 4,
+            "fp": 0,
+            "fn": 0
+          },
+          "6_INTEGRATION_DEFINITE_INTEGRALS": {
+            "total": 8,
+            "passed": 8,
+            "tp": 4,
+            "tn": 4,
+            "fp": 0,
+            "fn": 0
+          },
+          "7_MATRIX_DETERMINANTS": {
+            "total": 6,
+            "passed": 6,
+            "tp": 3,
+            "tn": 3,
+            "fp": 0,
+            "fn": 0
+          },
+          "8_PROBABILITY_CONDITIONAL": {
+            "total": 6,
+            "passed": 6,
+            "tp": 3,
+            "tn": 3,
+            "fp": 0,
+            "fn": 0
+          },
+          "9_PHYSICS_EQUATIONS": {
+            "total": 6,
+            "passed": 6,
+            "tp": 3,
+            "tn": 3,
+            "fp": 0,
+            "fn": 0
+          }
+        },
+        "failures": []
+      },
+      {
+        "seed": 31415926,
+        "total": 62,
+        "passed": 62,
+        "failed": 0,
+        "tp": 31,
+        "tn": 31,
+        "fp": 0,
+        "fn": 0,
+        "categories": {
+          "1_ARITHMETIC_RATIONALS": {
+            "total": 8,
+            "passed": 8,
+            "tp": 4,
+            "tn": 4,
+            "fp": 0,
+            "fn": 0
+          },
+          "2_RADICALS_DOMAINS": {
+            "total": 6,
+            "passed": 6,
+            "tp": 3,
+            "tn": 3,
+            "fp": 0,
+            "fn": 0
+          },
+          "3_POLYNOMIAL_REPEATED_EXTRANEOUS_ROOTS": {
+            "total": 8,
+            "passed": 8,
+            "tp": 4,
+            "tn": 4,
+            "fp": 0,
+            "fn": 0
+          },
+          "4_TRIG_IDENTITIES_NOTATION": {
+            "total": 6,
+            "passed": 6,
+            "tp": 3,
+            "tn": 3,
+            "fp": 0,
+            "fn": 0
+          },
+          "5_FIRST_AND_SECOND_DERIVATIVES": {
+            "total": 8,
+            "passed": 8,
+            "tp": 4,
+            "tn": 4,
+            "fp": 0,
+            "fn": 0
+          },
+          "6_INTEGRATION_DEFINITE_INTEGRALS": {
+            "total": 8,
+            "passed": 8,
+            "tp": 4,
+            "tn": 4,
+            "fp": 0,
+            "fn": 0
+          },
+          "7_MATRIX_DETERMINANTS": {
+            "total": 6,
+            "passed": 6,
+            "tp": 3,
+            "tn": 3,
+            "fp": 0,
+            "fn": 0
+          },
+          "8_PROBABILITY_CONDITIONAL": {
+            "total": 6,
+            "passed": 6,
+            "tp": 3,
+            "tn": 3,
+            "fp": 0,
+            "fn": 0
+          },
+          "9_PHYSICS_EQUATIONS": {
+            "total": 6,
+            "passed": 6,
+            "tp": 3,
+            "tn": 3,
+            "fp": 0,
+            "fn": 0
+          }
+        },
+        "failures": []
+      },
+      {
+        "seed": 27182818,
+        "total": 62,
+        "passed": 62,
+        "failed": 0,
+        "tp": 31,
+        "tn": 31,
+        "fp": 0,
+        "fn": 0,
+        "categories": {
+          "1_ARITHMETIC_RATIONALS": {
+            "total": 8,
+            "passed": 8,
+            "tp": 4,
+            "tn": 4,
+            "fp": 0,
+            "fn": 0
+          },
+          "2_RADICALS_DOMAINS": {
+            "total": 6,
+            "passed": 6,
+            "tp": 3,
+            "tn": 3,
+            "fp": 0,
+            "fn": 0
+          },
+          "3_POLYNOMIAL_REPEATED_EXTRANEOUS_ROOTS": {
+            "total": 8,
+            "passed": 8,
+            "tp": 4,
+            "tn": 4,
+            "fp": 0,
+            "fn": 0
+          },
+          "4_TRIG_IDENTITIES_NOTATION": {
+            "total": 6,
+            "passed": 6,
+            "tp": 3,
+            "tn": 3,
+            "fp": 0,
+            "fn": 0
+          },
+          "5_FIRST_AND_SECOND_DERIVATIVES": {
+            "total": 8,
+            "passed": 8,
+            "tp": 4,
+            "tn": 4,
+            "fp": 0,
+            "fn": 0
+          },
+          "6_INTEGRATION_DEFINITE_INTEGRALS": {
+            "total": 8,
+            "passed": 8,
+            "tp": 4,
+            "tn": 4,
+            "fp": 0,
+            "fn": 0
+          },
+          "7_MATRIX_DETERMINANTS": {
+            "total": 6,
+            "passed": 6,
+            "tp": 3,
+            "tn": 3,
+            "fp": 0,
+            "fn": 0
+          },
+          "8_PROBABILITY_CONDITIONAL": {
+            "total": 6,
+            "passed": 6,
+            "tp": 3,
+            "tn": 3,
+            "fp": 0,
+            "fn": 0
+          },
+          "9_PHYSICS_EQUATIONS": {
+            "total": 6,
+            "passed": 6,
+            "tp": 3,
+            "tn": 3,
+            "fp": 0,
+            "fn": 0
+          }
+        },
+        "failures": []
+      },
+      {
+        "seed": 16180339,
+        "total": 62,
+        "passed": 62,
+        "failed": 0,
+        "tp": 31,
+        "tn": 31,
+        "fp": 0,
+        "fn": 0,
+        "categories": {
+          "1_ARITHMETIC_RATIONALS": {
+            "total": 8,
+            "passed": 8,
+            "tp": 4,
+            "tn": 4,
+            "fp": 0,
+            "fn": 0
+          },
+          "2_RADICALS_DOMAINS": {
+            "total": 6,
+            "passed": 6,
+            "tp": 3,
+            "tn": 3,
+            "fp": 0,
+            "fn": 0
+          },
+          "3_POLYNOMIAL_REPEATED_EXTRANEOUS_ROOTS": {
+            "total": 8,
+            "passed": 8,
+            "tp": 4,
+            "tn": 4,
+            "fp": 0,
+            "fn": 0
+          },
+          "4_TRIG_IDENTITIES_NOTATION": {
+            "total": 6,
+            "passed": 6,
+            "tp": 3,
+            "tn": 3,
+            "fp": 0,
+            "fn": 0
+          },
+          "5_FIRST_AND_SECOND_DERIVATIVES": {
+            "total": 8,
+            "passed": 8,
+            "tp": 4,
+            "tn": 4,
+            "fp": 0,
+            "fn": 0
+          },
+          "6_INTEGRATION_DEFINITE_INTEGRALS": {
+            "total": 8,
+            "passed": 8,
+            "tp": 4,
+            "tn": 4,
+            "fp": 0,
+            "fn": 0
+          },
+          "7_MATRIX_DETERMINANTS": {
+            "total": 6,
+            "passed": 6,
+            "tp": 3,
+            "tn": 3,
+            "fp": 0,
+            "fn": 0
+          },
+          "8_PROBABILITY_CONDITIONAL": {
+            "total": 6,
+            "passed": 6,
+            "tp": 3,
+            "tn": 3,
+            "fp": 0,
+            "fn": 0
+          },
+          "9_PHYSICS_EQUATIONS": {
+            "total": 6,
+            "passed": 6,
+            "tp": 3,
+            "tn": 3,
+            "fp": 0,
+            "fn": 0
+          }
+        },
+        "failures": []
+      },
+      {
+        "seed": 20260420,
+        "total": 62,
+        "passed": 62,
+        "failed": 0,
+        "tp": 31,
+        "tn": 31,
+        "fp": 0,
+        "fn": 0,
+        "categories": {
+          "1_ARITHMETIC_RATIONALS": {
+            "total": 8,
+            "passed": 8,
+            "tp": 4,
+            "tn": 4,
+            "fp": 0,
+            "fn": 0
+          },
+          "2_RADICALS_DOMAINS": {
+            "total": 6,
+            "passed": 6,
+            "tp": 3,
+            "tn": 3,
+            "fp": 0,
+            "fn": 0
+          },
+          "3_POLYNOMIAL_REPEATED_EXTRANEOUS_ROOTS": {
+            "total": 8,
+            "passed": 8,
+            "tp": 4,
+            "tn": 4,
+            "fp": 0,
+            "fn": 0
+          },
+          "4_TRIG_IDENTITIES_NOTATION": {
+            "total": 6,
+            "passed": 6,
+            "tp": 3,
+            "tn": 3,
+            "fp": 0,
+            "fn": 0
+          },
+          "5_FIRST_AND_SECOND_DERIVATIVES": {
+            "total": 8,
+            "passed": 8,
+            "tp": 4,
+            "tn": 4,
+            "fp": 0,
+            "fn": 0
+          },
+          "6_INTEGRATION_DEFINITE_INTEGRALS": {
+            "total": 8,
+            "passed": 8,
+            "tp": 4,
+            "tn": 4,
+            "fp": 0,
+            "fn": 0
+          },
+          "7_MATRIX_DETERMINANTS": {
+            "total": 6,
+            "passed": 6,
+            "tp": 3,
+            "tn": 3,
+            "fp": 0,
+            "fn": 0
+          },
+          "8_PROBABILITY_CONDITIONAL": {
+            "total": 6,
+            "passed": 6,
+            "tp": 3,
+            "tn": 3,
+            "fp": 0,
+            "fn": 0
+          },
+          "9_PHYSICS_EQUATIONS": {
+            "total": 6,
+            "passed": 6,
+            "tp": 3,
+            "tn": 3,
+            "fp": 0,
+            "fn": 0
+          }
+        },
+        "failures": []
+      }
+    ]
+  },
+  "productionReplayAndChildSuites": {
+    "goldenCorpusPassed": true,
+    "productionBundleReplay": {
+      "executed": true,
+      "passed": true,
+      "verifiedClaims": 16,
+      "totalClaims": 16
+    },
+    "childRegressionSuites": [
+      {
+        "suite": "test/test-malformed-formatting.js",
+        "exitCode": 0,
+        "hasPassEvidence": true,
+        "passed": true,
+        "durationMs": 61.34
+      },
+      {
+        "suite": "test/test-trig-notation-diagnostics.js",
+        "exitCode": 0,
+        "hasPassEvidence": true,
+        "passed": true,
+        "durationMs": 4180.24
+      },
+      {
+        "suite": "test/test-alternative-method-context.js",
+        "exitCode": 0,
+        "hasPassEvidence": true,
+        "passed": true,
+        "durationMs": 3238.34
+      },
+      {
+        "suite": "test/test-schwarzschild-photon-sphere.js",
+        "exitCode": 0,
+        "hasPassEvidence": true,
+        "passed": true,
+        "durationMs": 3788.51
+      },
+      {
+        "suite": "test/test-equivalence-authority-audit.js",
+        "exitCode": 0,
+        "hasPassEvidence": true,
+        "passed": true,
+        "durationMs": 20088.41
+      },
+      {
+        "suite": "test/runner.js",
+        "exitCode": 0,
+        "hasPassEvidence": true,
+        "passed": true,
+        "durationMs": 2366.33
+      }
+    ]
   },
   "domainBreakdown": {
     "2A_ARITHMETIC_NUMBER_THEORY": {
@@ -128,7 +763,43 @@
       "passed": 1,
       "total": 1
     },
+    "8C_EXPANDED_5_SEEDS_9_DOMAINS_310": {
+      "passed": 1,
+      "total": 1
+    },
     "9_TEACHING_AND_AGE_12_25_CLARITY": {
+      "passed": 1,
+      "total": 1
+    },
+    "10A_GOLDEN_PRODUCTION_QA_CORPUS": {
+      "passed": 1,
+      "total": 1
+    },
+    "10B_PRODUCTION_EXPORT_BUNDLE_REPLAY": {
+      "passed": 1,
+      "total": 1
+    },
+    "10C_CHILD_SUITE_TEST-MALFORMED-FORMATTING": {
+      "passed": 1,
+      "total": 1
+    },
+    "10C_CHILD_SUITE_TEST-TRIG-NOTATION-DIAGNOSTICS": {
+      "passed": 1,
+      "total": 1
+    },
+    "10C_CHILD_SUITE_TEST-ALTERNATIVE-METHOD-CONTEXT": {
+      "passed": 1,
+      "total": 1
+    },
+    "10C_CHILD_SUITE_TEST-SCHWARZSCHILD-PHOTON-SPHERE": {
+      "passed": 1,
+      "total": 1
+    },
+    "10C_CHILD_SUITE_TEST-EQUIVALENCE-AUTHORITY-AUDIT": {
+      "passed": 1,
+      "total": 1
+    },
+    "10C_CHILD_SUITE_RUNNER": {
       "passed": 1,
       "total": 1
     }

@@ -840,21 +840,27 @@ function extractClaims(text, userPrompt = '') {
     typeof s === 'string' &&
     (/\\Delta\b|Δ|\b[fFgGhH]\s*'+|\b(?:df|dg|dy)\s*\/\s*d[a-zA-Z]|\b[fFgGhH]\s*\(\s*[a-zA-Z0-9+\-*/\s\\Δ,]+\)/.test(s));
 
-  // 1. Definite & Improper Integrals (e.g. \int_0^\infty e^{-x} dx = 1)
-  const integralRegex = /\\int_\{?([^}]+)\}?\^\{?([^}]+)\}?\s*(?:\\left\(|\()?\s*([^=]+?)\s*(?:\\right\))?\s*d([a-zA-Z])\s*=\s*([^$\n]+)/g;
+  // 1. Definite & Improper Integrals (e.g. \int_0^\infty e^{-x} dx = 1, \int_{0}^{2} 4x\,dx = 8)
+  const integralRegex = /\\int_\{?([^}\s]+)\}?\^\{?([^}\s]+)\}?\s*(?:\\left\(|\()?\s*([^=]+?)\s*(?:\\right\))?\s*(?:\\,|\\;|\\!|\s|\*)*d([a-zA-Z])\s*=\s*([^$\n]+)/g;
   let match;
   while ((match = integralRegex.exec(text)) !== null) {
     if (hasAbstractFunctionPlaceholder(match[0])) continue;
+    const cleanIntegrand = match[3].trim().replace(/(?:\\,|\\;|\\!|\s)+$/g, '').trim();
+    const cleanPropVal = match[5].trim()
+      .replace(/\\boxed\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g, '$1')
+      .replace(/\\\]|\$\$/g, '')
+      .replace(/[.,;:]+$/, '')
+      .trim();
     claims.push({
       domain: 'calculus',
       claim_type: 'definite_integral',
       raw_match: match[0],
       data: {
-        integrand: match[3].trim(),
+        integrand: cleanIntegrand,
         variable: match[4].trim(),
         lower_limit: match[1].trim(),
         upper_limit: match[2].trim(),
-        proposed_value: match[5].trim().replace(/\\/g, '').replace(/[.,;:]+$/, '')
+        proposed_value: cleanPropVal
       }
     });
   }
@@ -1007,12 +1013,13 @@ function extractClaims(text, userPrompt = '') {
       const fnBodyRaw = extractFirstDerivativeRhsSegment(fnm[3]);
       if (!rawFnName || /^(?:sin|cos|tan|sec|csc|cot|log|ln|exp|sqrt|abs|ds|dt|dr|dx|dy)$/i.test(rawFnName)) continue;
       if (!fnBodyRaw || /\\dot|\\ddot|\\partial/.test(fnBodyRaw)) continue;
+      const normBody = normalizeSymbolicSide(fnBodyRaw);
+      if (!normBody || /[\\{}]/.test(normBody)) continue;
       // Only record bare definitions (without '(var)') when they define a potential/function in r, x, or t
-      const inferredVar = explicitVar || (/\br\b/.test(fnBodyRaw) ? 'r' : (/\bx\b/.test(fnBodyRaw) ? 'x' : (/\bt\b/.test(fnBodyRaw) ? 't' : null)));
+      const inferredVar = explicitVar || (/\br\b/.test(normBody) ? 'r' : (/\bx\b/.test(normBody) ? 'x' : (/\bt\b/.test(normBody) ? 't' : null)));
       if (!inferredVar || (!explicitVar && !/^(?:V|U|f|g|h|y)(?:_|$)/i.test(rawFnName))) continue;
-      if (new RegExp(`\\b${inferredVar}\\b`).test(fnBodyRaw)) {
-        const normBody = normalizeSymbolicSide(fnBodyRaw);
-        if (normBody && !/[\\{}]/.test(normBody) && (explicitVar || !namedFunctions.has(rawFnName))) {
+      if (new RegExp(`\\b${inferredVar}\\b`).test(normBody)) {
+        if (explicitVar || !namedFunctions.has(rawFnName)) {
           namedFunctions.set(rawFnName, { variable: inferredVar, expr: normBody, hasExplicitVar: Boolean(explicitVar) });
         }
       }
@@ -1913,9 +1920,9 @@ function extractClaims(text, userPrompt = '') {
           !/^(?:sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|log|ln|exp|sqrt|abs)\s*\(/i.test(lhsRaw)) continue;
       if (/\b(?:the|solutions?|roots?|are|is|and|or|if|when|where|with|for|from|into|by|to|of|in|on|at|as|be|have|has|can|will|let|set|check|substitute|plug|solve|solving|factor|factoring|setting|each|zero|equals?|equal|both|either|neither|none|no|not|all|any|some|gives?|yields?|means?|implies?|produces?|leaves?|shows?|becomes?|gets?|finds?)\b/i.test(lhsRaw) || /\b(?:the|solutions?|roots?|are|is|and|or|if|when|where|with|for|from|into|by|to|of|in|on|at|as|be|have|has|can|will|let|set|check|substitute|plug|solve|solving|factor|factoring|setting|each|zero|equals?|equal|both|either|neither|none|no|not|all|any|some|gives?|yields?|means?|implies?|produces?|leaves?|shows?|becomes?|gets?|finds?)\b/i.test(rhsRaw)) continue;
       if (/^\s*[a-zA-Z]\s*$/.test(lhsRaw) && /^\s*[a-zA-Z]\s*$/.test(rhsRaw)) continue;
-      if ( lhsRaw === '0' || rhsRaw === '0') continue;
       if (!/[a-zA-Z]/.test(lhsRaw) && !/[a-zA-Z]/.test(rhsRaw)) continue;
-      if (/^[-+]?\d+(?:\.\d+)?$/.test(lhsRaw) || /^[-+]?\d+(?:\.\d+)?$/.test(rhsRaw)) continue;
+      // Never treat a bare single-variable assignment on LHS (e.g. x = 5) or numeric LHS (5 = ...) as symbolic_equivalence
+      if (/^\s*[a-zA-Z]\s*$/.test(lhsRaw) || /^[-+]?\d+(?:\.\d+)?$/.test(lhsRaw)) continue;
 
       for (const [k, v] of Object.entries(algebraicDefinitions)) {
         if (k !== 'D' && k !== 'LCD') continue;
@@ -1940,7 +1947,30 @@ function extractClaims(text, userPrompt = '') {
           .filter(tok => !/^\d/.test(tok) && (tok.length === 1 || tok.includes('_')) && !reservedFnTokens.has(tok.toLowerCase()));
       let lhsVarList = extractVarList(normLhs);
       let rhsVarList = extractVarList(normRhs);
-      if (lhsVarList.length === 0 || rhsVarList.length === 0) continue;
+      if (lhsVarList.length === 0) continue;
+
+      // Handle constant-RHS symbolic identities and variable-cancelling simplifications
+      // (e.g. \sin^2(x) + \cos^2(x) = 1, \sin^2(x) + \cos^2(x) = 2, (x+1)^2 - x^2 - 2x = 1, \frac{x-3}{x-3} = 1)
+      // while continuing to skip algebraic equations-to-solve (e.g. 2x = 8, (x-3)(x-4) = 0, V'_eff(r) = 0).
+      const isConstantRhs = /^[-+]?\d+(?:\.\d+)?$/.test(rhsRaw) || rhsVarList.length === 0;
+      if (isConstantRhs) {
+        const isPythagoreanConstantForm =
+          /\(\s*sin\s*\([^()]+\)\s*\)\s*\^\s*2\s*\+\s*\(\s*cos\s*\([^()]+\)\s*\)\s*\^\s*2/i.test(normLhs) ||
+          /\(\s*cos\s*\([^()]+\)\s*\)\s*\^\s*2\s*\+\s*\(\s*sin\s*\([^()]+\)\s*\)\s*\^\s*2/i.test(normLhs) ||
+          /\(\s*sec\s*\([^()]+\)\s*\)\s*\^\s*2\s*-\s*\(\s*tan\s*\([^()]+\)\s*\)\s*\^\s*2/i.test(normLhs) ||
+          /\(\s*csc\s*\([^()]+\)\s*\)\s*\^\s*2\s*-\s*\(\s*cot\s*\([^()]+\)\s*\)\s*\^\s*2/i.test(normLhs);
+        const isSelfQuotientCancellation =
+          /^\(\(([^()]+)\)\/\(\1\)\)$/.test(normLhs);
+        const isSimplificationOrIdentityPrompt =
+          (isIdentityPrompt || /\b(?:simplify|expand|factor|verify|prove|show\s+that|identity|identities)\b/i.test(cleanPromptForEq)) &&
+          !/\b(?:solve|roots?|solutions?|zeros?|critical\s+points?|optimize|maximum|minimum|extrema|tangent|geodesic|orbit|lagrangian|hamilton|eigenvalues?|characteristic)\b/i.test(cleanPromptForEq);
+        const hasRootSolvingContext =
+          claims.some(c => c.claim_type === 'equation_solution' || c.claim_type === 'system_solution') ||
+          /\b(?:set|setting|let|when|if|where|roots?|zeros?|solve|solutions?|critical)\b/i.test(block);
+        if (!isPythagoreanConstantForm && !isSelfQuotientCancellation && !(isSimplificationOrIdentityPrompt && !hasRootSolvingContext)) {
+          continue;
+        }
+      }
 
       let lhsVars = new Set(lhsVarList);
       let rhsVars = new Set(rhsVarList);
@@ -1948,7 +1978,7 @@ function extractClaims(text, userPrompt = '') {
 
       // If one side references a defined symbolic shorthand (e.g. r_s) and the other side references
       // its expansion variables (e.g. G, M, c), expand the defined parameter so both sides can be verified.
-      if (lhsVars.size !== rhsVars.size || [...lhsVars].some(v => !rhsVars.has(v))) {
+      if (!isConstantRhs && (lhsVars.size !== rhsVars.size || [...lhsVars].some(v => !rhsVars.has(v)))) {
         let expandedLhs = normLhs;
         let expandedRhs = normRhs;
         for (const [k, v] of Object.entries(algebraicDefinitions)) {
@@ -1974,12 +2004,12 @@ function extractClaims(text, userPrompt = '') {
       // or a single-symbol simplification step (e.g. (3/2)*r_s / sqrt(1 - 2/3) = (3*sqrt(3)/2)*r_s)
       if ((/_/.test(normLhs) || /_/.test(normRhs)) && !usedParamMacroSubstitution && lhsVars.size > 1) continue;
       if (/[\\{}]/.test(normLhs) || /[\\{}]/.test(normRhs)) continue;
-      if (lhsVars.size !== rhsVars.size || [...lhsVars].some(v => !rhsVars.has(v))) continue;
+      if (!isConstantRhs && (lhsVars.size !== rhsVars.size || [...lhsVars].some(v => !rhsVars.has(v)))) continue;
 
       // Reject variable assignments / substitution definitions (e.g. let u = sqrt(2x+9))
       if (/\b(?:let|set|assume|suppose)\s+[a-zA-Z]\s*=/i.test(cleanBlock)) continue;
       // Single variable on one side cannot be symbolically equivalent to an expression in another variable
-      if (lhsVarList[0] !== rhsVarList[0] && (!normLhs.includes(rhsVarList[0]) || !normRhs.includes(lhsVarList[0]))) continue;
+      if (!isConstantRhs && lhsVarList[0] !== rhsVarList[0] && (!normLhs.includes(rhsVarList[0]) || !normRhs.includes(lhsVarList[0]))) continue;
 
       // Do not mistake the prompt's equation-to-solve (or valid intermediate equation-solving steps in the solved variable) for a universal algebraic identity
       if (!isIdentityPrompt && parts.length === 2 && promptStr && promptStr.includes('=') && (cleanBlock.includes(promptStr.split('=')[0].trim()) || promptStr.includes(cleanBlock))) continue;
@@ -4760,6 +4790,23 @@ function auditPromptClaimFidelity(claims, prompt, verificationResults = null) {
         reason: 'Ungrounded final boxed answer requires derivation or supporting verified intermediate claims.'
       };
     }
+  }
+
+  // 9. Zero-claim extraction safeguard on explicit calculation, simplification, expansion, factoring, or verification prompts:
+  // A missing extraction/verification result on a mathematical computation prompt must never silently become UNVERIFIED_CONCEPTUAL or VERIFIED.
+  const isExplicitMathComputationPrompt =
+    /\b(?:simplify|expand|factor|verify|prove|calculate|compute|evaluate|find\s+the\s+(?:determinant|limit|value|sum|product|quotient))\b/i.test(prompt) &&
+    (/(?:[+\-*/^=]|\\(?:frac|dfrac|tfrac|sqrt|sin|cos|tan|sec|csc|cot|det|lim|int)\b|\d)/.test(prompt)) &&
+    !/\b(?:in\s+the\s+sim\s+lab|concept(?:ual)?|explain\s+why|what\s+is\s+(?:a|an|the)\s+[a-zA-Z]+\s*\??$)/i.test(prompt.trim());
+  if (isExplicitMathComputationPrompt && safeClaims.length === 0) {
+    return {
+      valid: false,
+      primaryClaimVerified: false,
+      primaryClaimStatus: 'MISSING',
+      isUncertainty: true,
+      uncertaintyTarget: 'mathematical result',
+      reason: 'Prompt requested a mathematical calculation or simplification, but zero verifiable claims were extracted from the response.'
+    };
   }
 
   return { valid: true, primaryClaimVerified: true };
