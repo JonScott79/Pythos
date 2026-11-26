@@ -25,6 +25,7 @@
 
 const math = require('mathjs');
 const { INTENTS } = require('./studentIntentClassifier');
+const alternativeMethod = require('./alternativeMethod');
 
 // Create exact math instance with rational Fraction support
 const exactMath = math.create(math.all, {
@@ -40,7 +41,8 @@ const LEARNING_MODES = Object.freeze({
   DIRECT_ANSWER: 'DIRECT_ANSWER',           // "Just give me the answer" - upfront boxed solution
   STANDARD_METHOD: 'STANDARD_METHOD',       // "Show me the standard method"
   EXPLAIN_WHY: 'EXPLAIN_WHY',               // "Why does this work?" - conceptual grounding
-  EVALUATE_SHORTCUT: 'EVALUATE_SHORTCUT'    // Student proposed shortcut or alternative approach
+  EVALUATE_SHORTCUT: 'EVALUATE_SHORTCUT',   // Student proposed shortcut or alternative approach
+  ALTERNATIVE_METHOD: 'ALTERNATIVE_METHOD'  // "Try another method" / "Compare the two approaches"
 });
 
 const MASTERY_LEVELS = Object.freeze({
@@ -134,6 +136,22 @@ function resolveStudentAgencyMode({ text = '', studentIntent = null, learnerStat
         '1. PROVIDE A COMPREHENSIVE WALKTHROUGH: The student requested guided step-by-step teaching.',
         '2. Walk through the solution methodically, showing each essential step in clean LaTeX.',
         '3. Explain WHY each step is necessary and how it connects to the next operation.'
+      ].join('\n')
+    };
+  }
+
+  // 4b. Alternative Solution Method / Method Comparison ("Try another method", "Compare the two derivations")
+  if (studentIntent?.intent === INTENTS.ALTERNATIVE_METHOD_REQUEST ||
+      studentIntent?.intent === INTENTS.METHOD_COMPARISON_REQUEST ||
+      alternativeMethod.isMethodFollowUpRequest(clean)) {
+    return {
+      mode: LEARNING_MODES.ALTERNATIVE_METHOD,
+      confidence: 'high',
+      source: 'explicit_student_agency',
+      directive: [
+        '1. The student requested a DIFFERENT SOLUTION METHOD or a COMPARISON OF METHODS for the active problem (see the Alternative Solution Method directive).',
+        '2. Preserve the complete original problem; never reduce it to an isolated equation fragment.',
+        '3. Use a genuinely different method, re-derive independently with verifiable intermediate equalities, and compare the approaches.'
       ].join('\n')
     };
   }
@@ -1665,11 +1683,19 @@ async function evaluateTeachingStrategyAsync({
     conceptualWhy = generateConceptualWhyGuidance({ userText, activeProblemState });
   }
 
+  let alternativeMethodContext = null;
+  if (agency.mode === LEARNING_MODES.ALTERNATIVE_METHOD) {
+    try {
+      alternativeMethodContext = alternativeMethod.analyzeAlternativeMethodContext({ userText, conversationHistory, activeProblemState });
+    } catch (_) {}
+  }
+
   return {
     agency,
     mastery,
     shortcutAudit,
     conceptualWhy,
+    alternativeMethod: alternativeMethodContext,
     verificationSubordination: true
   };
 }
@@ -1743,6 +1769,9 @@ function formatAdaptiveTeachingContext(strategy) {
   }
 
   // 5. Verification Subordination Guarantee (Phase 3 Mandate)
+  if (strategy.alternativeMethod) {
+    out += alternativeMethod.formatAlternativeMethodDirective(strategy.alternativeMethod) + '\n';
+  }
   out += `- CRITICAL ARCHITECTURAL BOUNDARY (VERIFICATION SUBORDINATION):\n`;
   out += `  * The teaching layer is strictly subordinate to deterministic verification.\n`;
   out += `  * NEVER override a deterministic verifier result.\n`;
@@ -1940,5 +1969,6 @@ module.exports = {
   generateConceptualWhyGuidance,
   evaluateTeachingStrategy,
   evaluateTeachingStrategyAsync,
-  formatAdaptiveTeachingContext
+  formatAdaptiveTeachingContext,
+  analyzeAlternativeMethodContext: alternativeMethod.analyzeAlternativeMethodContext
 };

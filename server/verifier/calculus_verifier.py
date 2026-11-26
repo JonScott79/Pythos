@@ -183,7 +183,7 @@ def _normalize_calculus_expr(raw_str: str, strip_constant: bool = False, var_nam
     s = re.sub(r'(?<![a-zA-Z_.])(\d+)\s*(?![eE][+-]?\d+\b)([a-zA-Z(])', r'\1*\2', s)
     s = re.sub(r'\)\s*\(', ')*(', s)
     s = re.sub(r'\)\s*([a-zA-Z0-9])', r')*\1', s)
-    s = re.sub(r'\b(?!sin|cos|tan|sec|csc|cot|log|log10|log2|ln|exp|sqrt|cbrt|real_root|asin|acos|atan|arcsin|arccos|arctan|sinh|cosh|tanh|asinh|acosh|atanh|atan2|Abs\b)([a-zA-Z_][a-zA-Z0-9_]*)\s*\(', r'\1*(', s)
+    s = re.sub(r'\b(?!sin|cos|tan|sec|csc|cot|log|log10|log2|ln|exp|sqrt|cbrt|real_root|asin|acos|atan|arcsin|arccos|arctan|sinh|cosh|tanh|asinh|acosh|atanh|atan2|abs|Abs\b)([a-zA-Z_][a-zA-Z0-9_]*)\s*\(', r'\1*(', s)
     return s.strip()
 
 

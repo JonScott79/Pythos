@@ -42,6 +42,8 @@ const INTENTS = Object.freeze({
   SHORTCUT_PROPOSAL: 'SHORTCUT_PROPOSAL',
   STANDARD_METHOD_REQUEST: 'STANDARD_METHOD_REQUEST',
   WHY_EXPLANATION_REQUEST: 'WHY_EXPLANATION_REQUEST',
+  ALTERNATIVE_METHOD_REQUEST: 'ALTERNATIVE_METHOD_REQUEST',
+  METHOD_COMPARISON_REQUEST: 'METHOD_COMPARISON_REQUEST',
   UNKNOWN: 'UNKNOWN'
 });
 
@@ -255,6 +257,18 @@ function classifyStudentIntentCore(text, conversationHistory, activeProblemState
   if (isWalkthrough) {
     signals.push('walkthrough_agency_marker');
     return { intent: INTENTS.WALKTHROUGH_REQUEST, confidence: 'high', signals };
+  }
+
+  // Alternative Solution Method / Method Comparison follow-ups on the active problem
+  const altMethod = require('./alternativeMethod');
+  if (altMethod.isAlternativeMethodRequest(clean)) {
+    signals.push('alternative_method_request_marker');
+    if (altMethod.isMethodComparisonRequest(clean)) signals.push('method_comparison_marker');
+    return { intent: INTENTS.ALTERNATIVE_METHOD_REQUEST, confidence: 'high', signals, requestedMethod: altMethod.detectRequestedMethod(clean) };
+  }
+  if (altMethod.isMethodComparisonRequest(clean)) {
+    signals.push('method_comparison_marker');
+    return { intent: INTENTS.METHOD_COMPARISON_REQUEST, confidence: 'high', signals };
   }
 
   // Standard Method Request: "Show me the standard method", "What's the textbook way?"

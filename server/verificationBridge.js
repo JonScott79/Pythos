@@ -4382,7 +4382,16 @@ function auditPromptClaimFidelity(claims, prompt, verificationResults = null) {
   }
 
   // 2. Algebraic Equation Solving Queries
-  if (/\bsolve\b/i.test(prompt) && prompt.includes('=')) {
+  // Conversational wrappers ("Can you solve that using a different method?") and theoretical
+  // physics line elements (ds^2 = ...) are not single-variable equation-solving requests.
+  const promptForSolveCheck = prompt
+    .replace(/\(Alternative method request:[^)]*\)?[^\n]*/gi, ' ')
+    .replace(/[^.?!\n]*\b(?:different|another|alternative|alternate|other)\s+(?:method|approach|technique|formulation)\b[^.?!\n]*[.?!]?/gi, ' ')
+    .replace(/[^.?!\n]*\bsolve\s+(?:that|this|it|the\s+(?:[\w-]+\s+){0,3}problem)\s+(?:using|with|via|by)\b[^.?!\n]*[.?!]?/gi, ' ');
+  const isTheoreticalPhysicsPrompt =
+    /(?:^|[^a-zA-Z])ds\s*(?:\^\s*\{?2\}?|²)\s*=/.test(prompt) ||
+    /\b(?:schwarzschild|geodesics?|lagrangian|hamilton[-\s]*jacobi|christoffel|killing\s+vectors?|line\s+element)\b/i.test(prompt);
+  if (!isTheoreticalPhysicsPrompt && /\bsolve\b/i.test(promptForSolveCheck) && prompt.includes('=')) {
     const check = hasAffirmativelyVerifiedClaim(c => c.claim_type === 'equation_solution' || c.claim_type === 'system_solution');
     if (!check.ok) {
       return {

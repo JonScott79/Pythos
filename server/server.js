@@ -2384,7 +2384,8 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
     ? visionExtractor.isVisionRequiredForTurn(lastUserMsg, messages).requiresVision
     : false;
 
-  if (lastUserMsg && !turnRequiresVisionEarly && !(tutorMode && !revealSolutionRequested)) {
+  if (lastUserMsg && !turnRequiresVisionEarly && !(tutorMode && !revealSolutionRequested) &&
+      !require('./alternativeMethod').isMethodFollowUpRequest(lastUserMsg.content || '')) {
     const deterministicIntent = analyzeDeterministicIntent(lastUserMsg.content, messages);
     if (deterministicIntent) {
       const directResponse = buildDeterministicResponse(deterministicIntent);
@@ -2877,9 +2878,13 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
   });
 
   // Ensure system instructions are always present, up-to-date, and enriched with deterministic ground truth
+  // Alternative-method follow-ups re-derive the COMPLETE active problem, so size the derivation budget on it.
+  const derivationProblemText = (teachingStrategy && teachingStrategy.alternativeMethod && teachingStrategy.alternativeMethod.fullProblemStatement)
+    ? teachingStrategy.alternativeMethod.fullProblemStatement
+    : effectiveProblemText;
   const isMultiPartDerivationPrompt =
-    /\b(?:derive|derivation|geodesic|lagrangian|perturbation|impact\s+parameter|photon\s+sphere)\b/i.test(effectiveProblemText) &&
-    (/(?:^|\n)\s*[2-9]\.\s+/.test(effectiveProblemText) || effectiveProblemText.length > 280);
+    /\b(?:derive|derivation|geodesic|lagrangian|perturbation|impact\s+parameter|photon\s+sphere)\b/i.test(derivationProblemText) &&
+    (/(?:^|\n)\s*[2-9]\.\s+/.test(derivationProblemText) || derivationProblemText.length > 280);
   const multiPartDerivationContext = isMultiPartDerivationPrompt
     ? `\n\n[MULTI-PART DERIVATION DISCIPLINE]\nThis problem requires a multi-step mathematical and physical derivation across multiple parts. Derive every requested equation, conserved quantity, radial equation, circular-orbit condition, perturbation stability analysis, and critical parameter rigorously and concisely without redundant prose padding so the full derivation completes within a single response. Write intermediate calculus/algebraic steps and the final boxed conclusion as explicit symbolic equalities (for example, \\frac{d}{dr}\\left[\\frac{1}{r^2}\\left(1 - \\frac{r_s}{r}\\right)\\right] = -\\frac{2}{r^3} + \\frac{3r_s}{r^4}, r_{\\text{ph}} = \\frac{3}{2}r_s = \\frac{3GM}{c^2}, and \\boxed{b_{\\text{crit}} = \\frac{3\\sqrt{3}}{2}r_s = \\frac{3\\sqrt{3}GM}{c^2}}) so each step can be independently verified by symbolic CAS.`
     : '';

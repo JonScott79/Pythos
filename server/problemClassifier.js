@@ -609,6 +609,30 @@ function classifyProblem(userText) {
   }
 
   // -------------------------------------------------------------
+  // 5z. Theoretical Mechanics & Relativity (Lagrangian / Hamiltonian / Geodesics / Metrics)
+  // Must precede general algebra so metric line elements (ds^2 = ...) are never
+  // classified as single-variable algebraic equations to solve.
+  // -------------------------------------------------------------
+  const isTheoreticalMechanics =
+    /\b(?:schwarzschild|kerr\s+metric|geodesics?|lagrangian|euler[-\s]*lagrange|hamilton[-\s]*jacobi|hamiltonian\s+(?:formulation|mechanics|formalism)|photon\s+sphere|impact\s+parameter|killing\s+vectors?|christoffel|line\s+element|spacetime|general\s+relativity)\b/i.test(text) ||
+    /(?:^|[^a-zA-Z])ds\s*(?:\^\s*\{?2\}?|²)\s*=/.test(text);
+  if (isTheoreticalMechanics) {
+    return {
+      problemDomain: DOMAINS.PHYSICS,
+      problemSubtype: 'THEORETICAL_MECHANICS_AND_RELATIVITY',
+      confidence: 'high',
+      knownQuantities: knowns,
+      unknownQuantities: unknowns,
+      assumptions,
+      constraints,
+      requiredMethod: 'Analytical mechanics / geodesic derivation (Lagrangian, Hamiltonian, Hamilton-Jacobi, or Killing-vector methods)',
+      specializedProtocol: PROTOCOLS.INTERDISCIPLINARY,
+      deterministicWorkAvailable: false,
+      canShortCircuit: false
+    };
+  }
+
+  // -------------------------------------------------------------
   // 6. Physics: Kinematics, Projectile Motion & Dynamics
   // -------------------------------------------------------------
   if (

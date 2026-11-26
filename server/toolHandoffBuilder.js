@@ -573,11 +573,17 @@ function buildToolHandoffContract({
   }
 
   // Try Another Method on non-withheld solvable math/physics prompts
-  if (!withheld && (equationForCheck || isCalculus || domain === 'ALGEBRA' || domain === 'TRIGONOMETRY')) {
+  if (!withheld && (equationForCheck || isCalculus || domain === 'ALGEBRA' || domain === 'TRIGONOMETRY' || domain === 'PHYSICS' || domain === 'GEOMETRY')) {
+    // Multi-line / multi-part problems are referenced (the server preserves the complete active
+    // problem); embedding them would exceed the client handoff limit or embed a truncated fragment.
+    const altBase = String(activeProblemState?.active?.fullProblemText || prompt || '');
+    const isMultiPart = altBase.length > 160 || /\n/.test(altBase) || /\n/.test(prompt) || prompt.length > 160;
     tools.push({
       id: 'try_another_method',
       label: 'Try Another Method',
-      prompt: `Can you solve "${prompt}" using a different method and briefly compare the two approaches?`
+      prompt: isMultiPart
+        ? 'Can you solve this problem using a different method and briefly compare the two approaches?'
+        : `Can you solve "${prompt}" using a different method and briefly compare the two approaches?`
     });
   }
 

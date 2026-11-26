@@ -23,6 +23,17 @@ const { resolveReferentialContext } = require('./deterministicRouter');
 const { evaluateLinearEquationStep, evaluateEquationCandidate, checkAmbiguousNotation } = require('./studentWorkEvaluator');
 const { extractNotationClarificationContext, applyConfirmedNotationClarification } = require('./mathFormatDetector');
 const mathjsVerifier = require('./mathjsVerifier');
+const { isMethodFollowUpRequest, extractProblemStructure } = require('./alternativeMethod');
+
+/**
+ * A problem statement is "multi-part" when it spans multiple lines or is long enough that
+ * reducing it to a single extracted equation would discard equations, definitions, or objectives.
+ */
+function isMultiPartProblemText(text) {
+  if (!text || typeof text !== 'string') return false;
+  const t = text.trim();
+  return t.length > 160 || (/\n/.test(t) && t.split(/\r?\n/).filter(l => l.trim()).length >= 3);
+}
 
 // Exact math instance with rational Fraction and BigNumber support
 const exactMath = math.create(math.all, {
@@ -397,6 +408,14 @@ function extractActiveProblemState(messages = [], preflightFacts = [], options =
       continue;
     }
 
+    // Alternative-method / method-comparison follow-ups ("Try another method", "Can you solve that
+    // using Hamilton-Jacobi?", "Compare the two derivations") always refer to the active problem.
+    // They must never archive it, overwrite its expression, or be parsed as a new equation.
+    if (currentActive && isMethodFollowUpRequest(msg.content)) {
+      currentActive.lastMethodFollowUp = msg.content;
+      continue;
+    }
+
     const classification = classifyProblem(msg.content);
     const mathExpr = resolveReferentialContext(msg.content, messages.slice(0, i + 1));
     const trans = detectTopicTransitionIntent(msg.content);
@@ -547,7 +566,23 @@ function extractActiveProblemState(messages = [], preflightFacts = [], options =
       return /\b(?:the|this|that|and|what|with|from|have|got|think|know|like|please|maybe|because|about|step|definitely|actually|right|correct|wrong|why|how|where|when|can|could|would|should|if|whether|determine|find|calculate|amplitude|period|solve|so|then|it|becomes|gives|means|equals|gets|made|typo|next|therefore|thus)\b/i.test(nonLatex);
     };
 
-    if (cleanPrompt.includes('=')) {
+    // Theoretical mechanics / relativity problems (metric line elements, geodesics, Lagrangians)
+    // are multi-equation derivations, not single algebraic equations: preserve the complete
+    // multi-line relation (all continuation lines) instead of truncating at the first newline.
+    const isTheoreticalDerivation = classification && classification.problemSubtype === 'THEORETICAL_MECHANICS_AND_RELATIVITY';
+    let theoreticalPrimaryRelation = null;
+    if (isTheoreticalDerivation) {
+      const struct = extractProblemStructure(msg.content);
+      // Prefer genuine mathematical relations (short symbolic LHS such as "ds^2 =") over prose
+      // sentences that merely contain "=" (e.g. "A photon travels along a null geodesic (ds^2 = 0)").
+      const symbolicRelations = struct.equations.filter(eq => /^[\\$\s]*[^=\s][^=]{0,14}=/.test(eq) && !/^[^=]*\b[a-zA-Z]{4,}\s+[a-zA-Z]{3,}\b[^=]*=/.test(eq));
+      const pool = symbolicRelations.length > 0 ? symbolicRelations : struct.equations;
+      theoreticalPrimaryRelation = pool.length > 0
+        ? pool.slice().sort((a, b) => b.length - a.length)[0].replace(/^\\\[|\\\]$/g, '').trim()
+        : null;
+    }
+
+    if (cleanPrompt.includes('=') && !isTheoreticalDerivation) {
       let targetForEq = cleanPrompt;
       // If the prompt contains prose words around an equation, try to isolate the embedded equation (including multi-term LHS with spaces, LaTeX, and trig)
       if (isProse(cleanPrompt)) {
@@ -595,7 +630,9 @@ function extractActiveProblemState(messages = [], preflightFacts = [], options =
       /^(?:(?:now|can\s+you|please|let's)\s+)?(?:solve|do|try|calculate|work\s+out)\s+([a-zA-Z0-9+\-*/^()=.\s]+)$/i.test(msg.content) ||
       /\b(?:new|next|different)\s+problem\b/i.test(msg.content);
 
-    const activeMath = (isExplicitNewProblem && extractedEq) ? extractedEq : (mathExpr || extractedEq || extractedExpr || null);
+    const activeMath = isTheoreticalDerivation
+      ? theoreticalPrimaryRelation
+      : ((isExplicitNewProblem && extractedEq) ? extractedEq : (mathExpr || extractedEq || extractedExpr || null));
     const isAlgebraicEquation = Boolean(extractedEq);
     const isMathematicalExpression = Boolean(extractedExpr);
 
@@ -668,7 +705,15 @@ function extractActiveProblemState(messages = [], preflightFacts = [], options =
 
     const isCompletedProblemRetired = currentActive && currentActive.isCompleted && !refersToCompleted;
 
-    if (trans.type === 'NEW_TOPIC_EXPLICIT' || isExplicitNewProblem || isDistinctNewEquation || isTopicSwitch || isGeneralKnowledgeQuery || isCompletedProblemRetired ||
+    // Imperative calculus tasks ("Integrate 3x^2 + 2x dx", "Find the derivative of ...") in a
+    // different domain from the active problem start a new problem even though they contain math.
+    const isNewImperativeTaskInOtherDomain = Boolean(
+      currentActive && isRecognizedProblem && currentActive.domain !== detectedDomain &&
+      !isIntermediateStepOfActive &&
+      /^(?:(?:now|please|can\s+you)\s+)?(?:integrate|differentiate|(?:find|compute|calculate|evaluate|what\s+is)\s+the\s+(?:derivative|integral|antiderivative|limit)\s+of)\b/i.test(msg.content.trim())
+    );
+
+    if (trans.type === 'NEW_TOPIC_EXPLICIT' || isExplicitNewProblem || isDistinctNewEquation || isTopicSwitch || isGeneralKnowledgeQuery || isCompletedProblemRetired || isNewImperativeTaskInOtherDomain ||
         (isRecognizedProblem && currentActive && currentActive.domain !== detectedDomain && !isTerseFollowUp && !activeMath && !isQuestionOrValidation)) {
       if (currentActive) {
         currentActive.status = 'ARCHIVED_IN_SESSION';
@@ -700,6 +745,8 @@ function extractActiveProblemState(messages = [], preflightFacts = [], options =
         requiredMethod: classification ? classification.requiredMethod : null,
         initialUserPrompt: msg.content,
         transcription: msg.content,
+        fullProblemText: isMultiPartProblemText(msg.content) ? msg.content : null,
+        isMultiPartProblem: isMultiPartProblemText(msg.content),
         status: isPureNumericProposition ? 'COMPLETED' : 'ACTIVE',
         currentStepEquation: null,
         verifiedSolution: isVerifiedPropositionTrue ? activeMath : null,
@@ -883,7 +930,12 @@ function formatActiveProblemContext(state) {
   const act = state.active;
   let out = '\n# ACTIVE PROBLEM & CURRENT TOPIC STATE (STRUCTURED SESSION CONTEXT):\n';
   out += `- **Current Domain**: ${act.domain} (${act.subtype})\n`;
-  if (act.activeExpression) {
+  if (act.isMultiPartProblem && act.fullProblemText) {
+    out += `- **Complete Problem Statement** (multi-part; every equation, definition, assumption, and objective below belongs to the active problem — never reduce it to a single line):\n"""\n${String(act.fullProblemText).slice(0, 3500)}\n"""\n`;
+    if (act.activeExpression) {
+      out += `- **Primary Relation (one part of the problem, not an equation to solve in isolation)**: \`${act.activeExpression}\`\n`;
+    }
+  } else if (act.activeExpression) {
     out += `- **Active Mathematical Object / Equation**: \`${act.activeExpression}\`\n`;
   }
   out += `- **Problem Status**: ${act.isCompleted ? 'COMPLETED' : 'IN_PROGRESS'}\n`;
@@ -1065,6 +1117,19 @@ function buildEffectivePrompt(messages = []) {
   if (/\b(?:give|gimme)\s+(?:me\s+)?(?:another|a\s+similar|one\s+more|a\s+practice|a\s+harder|an\s+easier|a\s+different)\s+(?:problem|question|one|exercise)\b/i.test(latestUser) ||
       /\b(?:quiz|test)\s+me\b/i.test(latestUser)) {
     return 'Generate practice problem: ' + latestUser;
+  }
+
+  // 1c. Alternative-method / method-comparison follow-up: the effective problem is the COMPLETE
+  // active problem (never a fragment, never the follow-up sentence parsed as a new equation).
+  if (isMethodFollowUpRequest(latestUser)) {
+    try {
+      const priorState = extractActiveProblemState(messages.slice(0, -1));
+      const act = priorState && priorState.active;
+      const baseProblem = act ? (act.fullProblemText || act.initialUserPrompt || act.activeExpression) : null;
+      if (baseProblem) {
+        return `${String(baseProblem).trim()}\n\n(Alternative method request: ${latestUser})`;
+      }
+    } catch (_) {}
   }
 
   // Guard: If latest turn is a fresh standalone equation or standalone math expression/task
