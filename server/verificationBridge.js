@@ -1839,13 +1839,13 @@ function extractClaims(text, userPrompt = '') {
       algebraicDefinitions[varName] = defExpr;
     }
   }
-  // Extract explicit symbolic parameter definitions (e.g. "where r_s = 2GM/c^2", "where:\n\[\nr_s = \frac{2GM}{c^2}\n\]")
+  // Extract explicit symbolic parameter definitions (e.g. "where r_s = 2GM/c^2", "* \(r_{s}=2GM/c^{2}\)", "(Using \(r_{s}=2GM/c^{2}\))")
   const paramDefSources = `${promptStr || ''}\n${text}`;
-  const paramDefRegex = /\b(?:where|with|given)\s*:?\s*(?:\\\[|\$\$|\\\(|\\|\$|\s)*([a-zA-Z]_\{?[a-zA-Z0-9]+\}?|r_?s|R_?s)\s*=\s*([^$\n,;]+?)(?:\$|\\\]|\$\$|\\\)|\s+is\b|\s+denotes\b|[,;.\n]|$)/gi;
+  const paramDefRegex = /(?:(?:\b(?:where|with|given|using|since|as)\s*:?|(?:^|\n)\s*[*•-]\s*)\s*(?:\\\[|\$\$|\\\(|\\|\$|\s)*([a-zA-Z]_\{?[a-zA-Z0-9]+\}?|r_?s|R_?s)\s*=\s*([^$\n,;)]+?)(?:\$|\\\]|\$\$|\\\)|\s+is\b|\s+denotes\b|\s*[–—-]|\)|[,;.\n]|$)|\b(r_\{?s\}?|R_\{?s\}?)\s*=\s*((?:\\(?:d|t)?frac\{\s*2\s*G\s*M\s*\}\{\s*c\s*\^\s*\{?2\}?\s*\}|2\s*G\s*M\s*\/\s*c\s*\^\s*\{?2\}?)))/gi;
   let pDefMatch;
   while ((pDefMatch = paramDefRegex.exec(paramDefSources)) !== null) {
-    const rawSym = normalizeSymbolicSide(pDefMatch[1]).replace(/\s+/g, '');
-    const rawDefRhs = pDefMatch[2].trim().replace(/[.,;:]+$/, '').trim();
+    const rawSym = normalizeSymbolicSide(pDefMatch[1] || pDefMatch[3]).replace(/\s+/g, '');
+    const rawDefRhs = (pDefMatch[2] || pDefMatch[4] || '').trim().replace(/[.,;:]+$/, '').trim();
     if (rawSym && rawDefRhs && /[a-zA-Z]/.test(rawDefRhs) && !rawDefRhs.includes('=')) {
       const normDefRhs = normalizeSymbolicSide(rawDefRhs);
       if (normDefRhs && !/\b(?:and|or|is|the|for|where)\b/i.test(normDefRhs)) {
