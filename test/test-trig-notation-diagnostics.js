@@ -553,6 +553,99 @@ async function run() {
     );
   });
 
+  await test('14. Production QA Bundle (PY-0beb70cd, PY-80c0e699, PY-53c01a62): Unparenthesized trig powers/restrictions, format-adjustment ack, and radical domain rules', async () => {
+    const { buildToolHandoffContract } = require('../server/toolHandoffBuilder');
+    const { classifyProblem } = require('../server/problemClassifier');
+    const { extractActiveProblemState } = require('../server/contextManager');
+
+    // 13a. Unparenthesized trig powers (1-\sin^{2}x, \cos x\bigl(1-\cos^{2}x\bigr)) and unparenthesized
+    // restrictions inside parenthetical "(where \sin x \neq 0 and \cos x \neq 0):" must verify 10/10
+    const prompt1 = '\\[\\n\\boxed{\\n\\frac{1-\\cos^{2}(x)}{\\sin(x)}\\n+\\n\\frac{1-\\sin^{2}(x)}{\\cos(x)}\\n}\\n\\]';
+    const response1 = [
+      'Using the Pythagorean identity:',
+      '$$1-\\sin^{2}x=\\cos^{2}x,\\qquad 1-\\cos^{2}x=\\sin^{2}x$$',
+      'Combing over a common denominator:',
+      '$$\\frac{A}{\\sin x}+\\frac{B}{\\cos x} = \\frac{A\\cos x+B\\sin x}{\\sin x\\cos x}$$',
+      '$$\\cos x\\bigl(1-\\cos^{2}x\\bigr)+\\sin x\\bigl(1-\\sin^{2}x\\bigr) = \\cos x\\sin^{2}x+\\sin x\\cos^{2}x$$',
+      '$$\\cos x\\sin^{2}x+\\sin x\\cos^{2}x = \\sin x\\cos x(\\sin x+\\cos x)$$',
+      'Dividing numerator and denominator by the common factor $\\sin x\\cos x$ (where $\\sin x \\neq 0$ and $\\cos x \\neq 0$):',
+      '$$\\frac{\\sin x\\cos x(\\sin x+\\cos x)}{\\sin x\\cos x} = \\sin x+\\cos x$$',
+      'Therefore, for $\\sin x \\neq 0$ and $\\cos x \\neq 0$:',
+      '$$\\frac{1-\\cos^{2}(x)}{\\sin(x)} + \\frac{1-\\sin^{2}(x)}{\\cos(x)} = \\boxed{\\sin(x) + \\cos(x)}$$'
+    ].join('\n');
+
+    const audit1 = await verifyResponseClaims(response1, prompt1);
+    assert.strictEqual(
+      audit1.invalidClaims.length,
+      0,
+      `13a: Expected 0 invalid claims on unparenthesized trig steps, got: ${JSON.stringify(audit1.invalidClaims)}`
+    );
+    assert.strictEqual(
+      audit1.unknownClaims.length,
+      0,
+      `13a: Expected 0 unknown claims, got: ${JSON.stringify(audit1.unknownClaims)}`
+    );
+
+    // 13b. Format-adjustment confirmation ("yes you are correct. please adjust the format") reinterprets
+    // \cos²⁽ˣ⁾ -> \cos^{2}(x) and Show Domain Restrictions on Try Another Method anchors on the math expression
+    const rawUserProblem = '\\[\n\\boxed{\n\\frac{1-\\cos²⁽ˣ⁾}{\\sin(x)}\n+\n\\frac{1-\\sin²⁽ˣ⁾}{\\cos(x)}\n}\n\\]';
+    const convo = [
+      { role: 'user', content: rawUserProblem },
+      {
+        role: 'assistant',
+        content: 'The formatting on this problem looks a little weird.\n\nIt looks like (x) ended up inside the exponent of cos instead of acting as its angle argument.',
+        withheld: true,
+        withholdingReason: 'MALFORMED_SYNTAX'
+      },
+      { role: 'user', content: 'yes you are correct. please adjust the format' },
+      {
+        role: 'assistant',
+        content: 'Let us rewrite the expression so that the trigonometric functions are applied to the angle x: \\frac{1-\\cos^2(x)}{\\sin x} + \\frac{1-\\sin^2(x)}{\\cos x}'
+      },
+      { role: 'user', content: 'Can you solve this problem using a different method and briefly compare the two approaches?' }
+    ];
+    const eff = buildEffectivePrompt(convo);
+    assert(
+      eff.includes('\\cos^{2}(x)') && eff.includes('\\sin^{2}(x)') && !eff.includes('²⁽ˣ⁾'),
+      `13b: Effective prompt must reinterpret ²⁽ˣ⁾ after format-adjustment confirmation, got: ${eff}`
+    );
+    const activeState = extractActiveProblemState(convo);
+    assert(
+      activeState?.active?.activeExpression &&
+      activeState.active.activeExpression.includes('\\cos^{2}(x)') &&
+      activeState.active.activeExpression.includes('\\sin^{2}(x)'),
+      `13b: Active problem expression must preserve full reinterpreted sum, got: ${JSON.stringify(activeState?.active)}`
+    );
+    const handoff = buildToolHandoffContract({
+      userPrompt: convo[4].content,
+      classification: classifyProblem(eff),
+      claims: audit1.claims,
+      verificationResults: audit1.verificationResults,
+      verificationState: 'VERIFIED',
+      activeProblemState: activeState,
+      studentIntent: { intent: 'ALTERNATIVE_METHOD_REQUEST' }
+    });
+    const domTool = handoff && handoff.tools && handoff.tools.find(t => t.id === 'domain_restrictions');
+    assert(
+      domTool && !/different method/i.test(domTool.expression) && domTool.expression.includes('cos(x)') && domTool.expression.includes('sin(x)'),
+      `13b: Show Domain Restrictions expression must show the active trig expression rather than the follow-up sentence, got: ${JSON.stringify(domTool)}`
+    );
+
+    // 13c. Report 3 (PY-53c01a62): Radical product rules \sqrt{2}\sqrt{a} = \sqrt{2a} and \sqrt{m^2 n} = |m|\sqrt{n}
+    const radPrompt = '\\frac{\\sqrt{18}+\\sqrt{50}-\\sqrt{8}}{\\sqrt{2}}';
+    const radResponse = [
+      'Using the radical product property $\\sqrt{2}\\sqrt{a} = \\sqrt{2a}$ for $a \\ge 0$ and $\\sqrt{m^{2}n} = |m|\\sqrt{n}$ for $n \\ge 0$:',
+      '$$\\frac{\\sqrt{18}}{\\sqrt{2}} = \\sqrt{9} = 3, \\quad \\frac{\\sqrt{50}}{\\sqrt{2}} = \\sqrt{25} = 5, \\quad \\frac{\\sqrt{8}}{\\sqrt{2}} = \\sqrt{4} = 2$$',
+      '$$\\frac{\\sqrt{18}+\\sqrt{50}-\\sqrt{8}}{\\sqrt{2}} = 3 + 5 - 2 = \\boxed{6}$$'
+    ].join('\n');
+    const radAudit = await verifyResponseClaims(radResponse, radPrompt);
+    assert.strictEqual(
+      radAudit.invalidClaims.length,
+      0,
+      `13c: Radical simplification steps must not trigger false DOMAIN_RESTRICTION_MISMATCH, got: ${JSON.stringify(radAudit.invalidClaims)}`
+    );
+  });
+
   console.log(`\n======================================================================`);
   console.log(`RESULTS: ${passed}/${passed + failed} PASSED (${failed} failed)`);
   console.log(`======================================================================`);

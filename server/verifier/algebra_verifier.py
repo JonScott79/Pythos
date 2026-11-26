@@ -258,6 +258,7 @@ def _parse_inequality_restrictions(cond_str: str) -> list:
         if not lhs_v or not rhs_v:
             return
         lhs_clean = _re.sub(r'\\(sin|cos|tan|sec|csc|cot)\b', r'\1', lhs_v)
+        lhs_clean = _re.sub(r'\b(sin|cos|tan|sec|csc|cot)\s+([a-zA-Z])\b', r'\1(\2)', lhs_clean)
         if '(' not in lhs_clean:
             try:
                 num_v = round(float(rhs_v), 10)
@@ -266,11 +267,23 @@ def _parse_inequality_restrictions(cond_str: str) -> list:
                 return
             except Exception:
                 pass
-        found.append(f"{lhs_v} != {rhs_v}")
+        found.append(f"{lhs_clean} != {rhs_v}")
         # Canonical periodic trig restriction helper: never collapse infinite trig pole families
         # (e.g. sin(x)=0 -> x != n*pi) into finite principal-period decimal floats like [0, 3.1415926536].
         def _extract_periodic_trig_restrictions(trig_expr, target_s, out_set):
             expr_simp = sp.simplify(trig_expr)
+            if isinstance(expr_simp, sp.Mul):
+                any_trig = False
+                for fac in sp.Mul.make_args(expr_simp):
+                    if _extract_periodic_trig_restrictions(fac, target_s, out_set):
+                        any_trig = True
+                return any_trig
+            if isinstance(expr_simp, sp.Pow):
+                return _extract_periodic_trig_restrictions(expr_simp.base, target_s, out_set)
+            if isinstance(expr_simp, (sp.csc, sp.cot)):
+                return _extract_periodic_trig_restrictions(sp.sin(expr_simp.args[0]), target_s, out_set)
+            if isinstance(expr_simp, (sp.sec, sp.tan)):
+                return _extract_periodic_trig_restrictions(sp.cos(expr_simp.args[0]), target_s, out_set)
             if isinstance(expr_simp, sp.sin):
                 arg = sp.simplify(expr_simp.args[0])
                 out_set.add(f"sin({arg}) != 0")
@@ -326,6 +339,10 @@ def _parse_inequality_restrictions(cond_str: str) -> list:
                         if not _re.search(r'(?:^|[^0-9a-zA-Z])2\s*\*?\s*[nk]\s*\*?\s*pi\b', rhs_fn_norm):
                             found.append(f"cos({lhs_fn_norm}) != 0")
                             found.append(f"{lhs_fn_norm} != pi/2 + n*pi, n \u2208 Z")
+                            # If rhs is k*pi/2 or n*pi/2 (multiples of pi/2 with no '+' offset), it excludes BOTH n*pi and pi/2 + n*pi
+                            if '+' not in rhs_fn_norm and '-' not in rhs_fn_norm:
+                                found.append(f"sin({lhs_fn_norm}) != 0")
+                                found.append(f"{lhs_fn_norm} != n*pi, n \u2208 Z")
                         else:
                             found.append(f"1 - sin({lhs_fn_norm}) != 0")
                             found.append(f"sin({lhs_fn_norm}) - 1 != 0")
@@ -373,6 +390,16 @@ def _parse_inequality_restrictions(cond_str: str) -> list:
                             found.append(f"{target} != {sp.simplify(z)}")
         except Exception:
             pass
+
+    # Normalize unparenthesized trig functions and shared/product trig non-zero exclusions first
+    cond_str = _re.sub(r'\\(sin|cos|tan|sec|csc|cot)\b', r'\1', cond_str)
+    cond_str = _re.sub(r'\b(sin|cos|tan|sec|csc|cot)\s+([a-zA-Z])\b', r'\1(\2)', cond_str)
+    cond_str = _re.sub(
+        r'\b((?:sin|cos|tan|sec|csc|cot)\([a-zA-Z]\))\s*(?:,|\band\b|\\cdot|\*|\s)\s*((?:sin|cos|tan|sec|csc|cot)\([a-zA-Z]\))\s*(!=|\\neq|≠|<>)\s*0\b',
+        r'\1 != 0 and \2 != 0',
+        cond_str,
+        flags=_re.IGNORECASE
+    )
 
     # 1. Standard inequality forms, including comma-separated lists like "x != 1, 2, 3"
     # and LaTeX trig denominators/exclusions like "\cos(x) \neq 1 and \sin(x) \neq 1" or "1 - \cos(x) \neq 0"
@@ -1024,7 +1051,19 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
                             arg = atom.base
                             if arg.free_symbols and arg.is_nonnegative is not True and arg.is_positive is not True:
                                 if not (isinstance(arg, sp.Pow) and arg.exp.is_Integer and arg.exp % 2 == 0 and arg.base.is_real):
-                                    ineq_restr.add(f"{sp.simplify(arg)} >= 0")
+                                    arg_s = sp.simplify(arg)
+                                    if isinstance(arg_s, sp.Mul):
+                                        rem_factors = []
+                                        for fac in arg_s.args:
+                                            if fac.is_number and fac.is_positive:
+                                                continue
+                                            if isinstance(fac, sp.Pow) and fac.exp.is_Integer and fac.exp % 2 == 0 and fac.base.is_real:
+                                                continue
+                                            rem_factors.append(fac)
+                                        if not rem_factors:
+                                            continue
+                                        arg_s = sp.Mul(*rem_factors)
+                                    ineq_restr.add(f"{arg_s} >= 0")
                     elif isinstance(atom, (sp.asin, sp.acos)) and len(atom.args) == 1:
                         arg = atom.args[0]
                         if arg.free_symbols:

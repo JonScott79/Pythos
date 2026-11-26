@@ -24,6 +24,8 @@ const { evaluateLinearEquationStep, evaluateEquationCandidate, checkAmbiguousNot
 const { extractNotationClarificationContext, applyConfirmedNotationClarification } = require('./mathFormatDetector');
 const mathjsVerifier = require('./mathjsVerifier');
 const { isMethodFollowUpRequest, extractProblemStructure } = require('./alternativeMethod');
+const { toCanonicalMath, extractCanonicalVariables } = require('./mathCanonical');
+const { extractLinearDenominatorRestrictions } = require('./toolHandoffBuilder');
 
 /**
  * A problem statement is "multi-part" when it spans multiple lines or is long enough that
@@ -32,7 +34,11 @@ const { isMethodFollowUpRequest, extractProblemStructure } = require('./alternat
 function isMultiPartProblemText(text) {
   if (!text || typeof text !== 'string') return false;
   const t = text.trim();
-  return t.length > 160 || (/\n/.test(t) && t.split(/\r?\n/).filter(l => l.trim()).length >= 3);
+  if (t.length > 160) return true;
+  // A short display-math block (e.g. \[\n\boxed{\frac{1-\cos^2(x)}{\sin(x)} + ...}\n\]) is a single expression, not a multi-part problem.
+  const withoutLatex = t.replace(/\\[a-zA-Z]+/g, '');
+  const hasProseSentence = /\b[a-zA-Z]{4,}\s+[a-zA-Z]{3,}\s+[a-zA-Z]{3,}\b/.test(withoutLatex);
+  return hasProseSentence && /\n/.test(t) && t.split(/\r?\n/).filter(l => l.trim()).length >= 3;
 }
 
 // Exact math instance with rational Fraction and BigNumber support
@@ -618,6 +624,7 @@ function extractActiveProblemState(messages = [], preflightFacts = [], options =
       .replace(/^\$([^$]+)\$$/g, '$1')
       .trim()
       .replace(/^\\boxed\{([\s\S]*)\}$/g, '$1')
+      .replace(/\s+/g, ' ')
       .trim();
     if (!exprCandidate.includes('=') && !isProse(exprCandidate) && /^[-+*/^0-9.()\s\\a-zA-Zπ_{}]+$/.test(exprCandidate) &&
         (/\d/.test(exprCandidate) || /[a-zA-Zπ]/.test(exprCandidate)) && exprCandidate.length <= 160 &&
@@ -632,7 +639,11 @@ function extractActiveProblemState(messages = [], preflightFacts = [], options =
 
     const activeMath = isTheoreticalDerivation
       ? theoreticalPrimaryRelation
-      : ((isExplicitNewProblem && extractedEq) ? extractedEq : (mathExpr || extractedEq || extractedExpr || null));
+      : ((isExplicitNewProblem && extractedEq)
+        ? extractedEq
+        : ((extractedExpr && (!mathExpr || extractedExpr.length > mathExpr.length))
+          ? extractedExpr
+          : (mathExpr || extractedEq || extractedExpr || null)));
     const isAlgebraicEquation = Boolean(extractedEq);
     const isMathematicalExpression = Boolean(extractedExpr);
 
@@ -732,10 +743,18 @@ function extractActiveProblemState(messages = [], preflightFacts = [], options =
       const isPureNumericProposition = Boolean(propCheck && propCheck.isProposition);
       const isVerifiedPropositionTrue = Boolean(propCheck && propCheck.isVerified);
 
+      const canonicalExpr = activeMath ? toCanonicalMath(activeMath) : null;
+      const canonicalVars = canonicalExpr ? extractCanonicalVariables(canonicalExpr) : [];
+      const canonicalRestr = canonicalExpr
+        ? extractLinearDenominatorRestrictions(canonicalExpr, canonicalVars[0] || 'x')
+        : [];
+
       currentActive = {
         domain: detectedDomain,
         subtype: detectedSubtype,
         activeExpression: activeMath || null,
+        canonicalExpression: canonicalExpr,
+        canonicalRestrictions: canonicalRestr,
         knownVariables: classification ? classification.knownQuantities : {},
         unknownQuantities: classification ? classification.unknownQuantities : [],
         assumptions: classification ? classification.assumptions : [],
@@ -937,6 +956,12 @@ function formatActiveProblemContext(state) {
     }
   } else if (act.activeExpression) {
     out += `- **Active Mathematical Object / Equation**: \`${act.activeExpression}\`\n`;
+    if (act.canonicalExpression && act.canonicalExpression !== act.activeExpression) {
+      out += `- **Canonical Parsed Form (CAS Ground Truth)**: \`${act.canonicalExpression}\`\n`;
+    }
+    if (Array.isArray(act.canonicalRestrictions) && act.canonicalRestrictions.length > 0) {
+      out += `- **Natural Domain Restrictions (MUST be stated when simplifying or canceling denominators)**: ${act.canonicalRestrictions.join('; ')}\n`;
+    }
   }
   out += `- **Problem Status**: ${act.isCompleted ? 'COMPLETED' : 'IN_PROGRESS'}\n`;
   if (act.isCompleted && act.verifiedSolution) {

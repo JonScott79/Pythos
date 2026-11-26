@@ -1,0 +1,116 @@
+{
+  "timestamp": "2026-11-26T16:08:00.274Z",
+  "branch": "staging/trig-notation-diagnostics-fix",
+  "seed": 20261126,
+  "certificationStatus": "PASS",
+  "metrics": {
+    "overallCheckPassRatePct": 100,
+    "verificationPrecisionPct": 100,
+    "verificationRecallPct": 100,
+    "falsePositiveRatePct": 0,
+    "falseNegativeRatePct": 0,
+    "unknownClaimRatePct": 0,
+    "multiRepresentationParserAccuracyPct": 100,
+    "solverAndAlternativeMethodRoutingAccuracyPct": 100,
+    "metamorphicInvarianceAccuracyPct": 100,
+    "seededRandomizedCorpusAccuracyPct": 100,
+    "medianLatencyMs": 13.78,
+    "p95LatencyMs": 248.06
+  },
+  "confusionMatrix": {
+    "truePositives": 112,
+    "trueNegatives": 79,
+    "falsePositives": 0,
+    "falseNegatives": 0
+  },
+  "domainBreakdown": {
+    "2A_ARITHMETIC_NUMBER_THEORY": {
+      "passed": 2,
+      "total": 2
+    },
+    "2B_ALGEBRA": {
+      "passed": 2,
+      "total": 2
+    },
+    "2C_RADICALS_RATIONALS": {
+      "passed": 3,
+      "total": 3
+    },
+    "2D_TRIGONOMETRY": {
+      "passed": 2,
+      "total": 2
+    },
+    "2E_GEOMETRY": {
+      "passed": 1,
+      "total": 1
+    },
+    "2F_CALCULUS": {
+      "passed": 2,
+      "total": 2
+    },
+    "2G_LINEAR_ALGEBRA": {
+      "passed": 1,
+      "total": 1
+    },
+    "2H_PROBABILITY_STATISTICS": {
+      "passed": 1,
+      "total": 1
+    },
+    "3A_CLASSICAL_MECHANICS": {
+      "passed": 1,
+      "total": 1
+    },
+    "3B_ELECTROMAGNETISM": {
+      "passed": 1,
+      "total": 1
+    },
+    "3C_THERMODYNAMICS": {
+      "passed": 1,
+      "total": 1
+    },
+    "3D_WAVES_OPTICS": {
+      "passed": 1,
+      "total": 1
+    },
+    "3E_RELATIVITY_SCHWARZSCHILD": {
+      "passed": 1,
+      "total": 1
+    },
+    "4_PARSER_MULTI_SURFACE": {
+      "passed": 1,
+      "total": 1
+    },
+    "4_PARSER_ADVERSARIAL_1CHAR": {
+      "passed": 1,
+      "total": 1
+    },
+    "4_PARSER_1CLICK_SUGGESTED_FIX": {
+      "passed": 1,
+      "total": 1
+    },
+    "5_SOLVER_AND_ALT_METHOD_ROUTING": {
+      "passed": 3,
+      "total": 3
+    },
+    "6_INDEPENDENT_VERIFICATION_10_SCENARIOS": {
+      "passed": 10,
+      "total": 10
+    },
+    "7_METAMORPHIC_INVARIANCE": {
+      "passed": 1,
+      "total": 1
+    },
+    "8A_SEEDED_ARITHMETIC_50": {
+      "passed": 1,
+      "total": 1
+    },
+    "8B_SEEDED_ALGEBRA_CALC_RADICALS_105": {
+      "passed": 1,
+      "total": 1
+    },
+    "9_TEACHING_AND_AGE_12_25_CLARITY": {
+      "passed": 1,
+      "total": 1
+    }
+  }
+}

@@ -205,11 +205,11 @@ function cleanBracedExponentInner(raw) {
     .trim();
 }
 
-const EXPLICIT_CLARIFICATION_RE = /\b(?:formatting|syntax|notation|input|expression|exponent|superscript)\s+(?:is|was|are)\s+(?:intentional|correct|fine|right|valid|proper|not\s+(?:an?\s+)?error|no\s+error|exact|what\s+i\s+(?:meant|intended|wrote))\b|\b(?:no\s+(?:formatting|syntax|input)\s+error|there\s+is\s+no\s+(?:formatting\s+)?error|it\s+is\s+not\s+malformed|not\s+malformed|that'?s\s+intentional|this\s+is\s+intentional|intentional(?:ly)?\s+(?:written|formatted)|meant\s+(?:it\s+)?that\s+way|ignore\s+(?:the\s+)?(?:formatting|warning))\b|(?:\\?(?:sin|cos|tan|sec|csc|cot)\s*(?:\^|[⁰¹²³⁴⁵⁶⁷⁸⁹])[^\n.]*?\bmeans?\b|\bmeans?\s*\(\s*\\?(?:sin|cos|tan|sec|csc|cot)\s*\([^)]+\)\s*\)\s*(?:\^|[⁰¹²³⁴⁵⁶⁷⁸⁹]|squared))/i;
+const EXPLICIT_CLARIFICATION_RE = /\b(?:formatting|syntax|notation|input|expression|exponent|superscript)\s+(?:is|was|are)\s+(?:intentional|correct|fine|right|valid|proper|not\s+(?:an?\s+)?error|no\s+error|exact|what\s+i\s+(?:meant|intended|wrote))\b|\b(?:no\s+(?:formatting|syntax|input)\s+error|there\s+is\s+no\s+(?:formatting\s+)?error|it\s+is\s+not\s+malformed|not\s+malformed|that'?s\s+intentional|this\s+is\s+intentional|intentional(?:ly)?\s+(?:written|formatted)|meant\s+(?:it\s+)?that\s+way|ignore\s+(?:the\s+)?(?:formatting|warning))\b|\b(?:yes[.,\s]+you(?:'re|\s+are)\s+(?:correct|right)|(?:please\s+)?(?:adjust|fix|correct|update)\s+(?:the\s+)?(?:format|formatting|notation|expression|exponent|it))\b|(?:\\?(?:sin|cos|tan|sec|csc|cot)\s*(?:\^|[⁰¹²³⁴⁵⁶⁷⁸⁹])[^\n.]*?\bmeans?\b|\bmeans?\s*\(\s*\\?(?:sin|cos|tan|sec|csc|cot)\s*\([^)]+\)\s*\)\s*(?:\^|[⁰¹²³⁴⁵⁶⁷⁸⁹]|squared))/i;
 
 const PRIOR_TRIG_WARNING_RE = /(?:ended\s+up\s+inside\s+the\s+exponent\s+of|trapped\s+inside\s+the\s+exponent|formatting\s+(?:check|issue)|Input\s+Formatting\s+Issue|looks\s+malformed|could\s+not\s+verify\s+(?:the\s+)?syntax|TRIG_POWER_ARG_MISMATCH)/i;
 
-const STANDALONE_ACK_AFTER_WARNING_RE = /^(?:yes|yeah|yep|correct|intentional|that'?s\s+(?:right|intentional)|no\s+error|proceed|solve\s+it(?:\s+anyway)?|simplify\s+it(?:\s+anyway)?|keep\s+(?:it\s+)?as\s+is)[.!?\s]*$/i;
+const STANDALONE_ACK_AFTER_WARNING_RE = /^(?:yes|yeah|yep|correct|intentional|that'?s\s+(?:right|intentional)|no\s+error|proceed|solve\s+it(?:\s+anyway)?|simplify\s+it(?:\s+anyway)?|keep\s+(?:it\s+)?as\s+is|yes[.,\s]+(?:please\s+)?(?:adjust|fix|correct)(?:\s+(?:the\s+)?(?:format|formatting|it))?)[.!?\s]*$/i;
 
 function extractTrigMismatchSnippets(rawText) {
   if (typeof rawText !== 'string' || !rawText) return [];
@@ -460,16 +460,32 @@ function detectFormattingAnomaly(input, options = {}) {
         const pow = innerTrigArg[1];
         const argWrap = innerTrigArg[2];
         const arg = innerTrigArg[3];
-        // Only suggest rewrite when followed by nothing or an explicit binary/comparison operator
-        const safeAfterForFix = !after || /^[+\-*/=<>]/.test(after);
-        const suggestedFix = safeAfterForFix
-          ? `${s.slice(0, i)}^${pow}${argWrap}${after ? ' ' + after : ''}`.trim()
-          : undefined;
+        // Offer a 1-click rewrite when followed by nothing, an operator, or a closing brace/paren/bracket (e.g. inside \frac{...} or \boxed{...}),
+        // but NOT when followed directly by another function/variable with a missing operator (e.g. \sin^{2(x)}\csc(x)).
+        const safeAfterForFix = !after || /^[+\-*/=<>})\]]/.test(after);
+        let suggestedFix;
+        if (safeAfterForFix) {
+          let allOccurrencesSafe = true;
+          const rewritten = s.replace(
+            /(\\?(?:sin|cos|tan|csc|sec|cot))\s*\^\{\s*(\d+)\s*((?:\\left\s*)?\(\s*[a-zA-Z]\s*(?:\\right\s*)?\))\s*\}/g,
+            (fullMatch, fnTok, pTok, argTok, offset) => {
+              const tail = s.slice(offset + fullMatch.length).trimStart();
+              if (tail && !/^[+\-*/=<>})\]]/.test(tail)) {
+                allOccurrencesSafe = false;
+                return fullMatch;
+              }
+              return `${fnTok}^${pTok}${argTok}`;
+            }
+          );
+          if (allOccurrencesSafe && rewritten !== s) {
+            suggestedFix = rewritten.replace(/\s+/g, ' ').trim();
+          }
+        }
         return {
           isWeird: true,
           kind: 'TRIG_POWER_ARG_MISMATCH',
           snippet,
-          explanation: `It looks like (${arg}) ended up inside the exponent of ${trigPrefix[1]} instead of acting as its angle argument.`,
+          explanation: `It looks like (${arg}) ended up inside the exponent of ${trigPrefix[1]} instead of being the angle in ${trigPrefix[1]}(${arg}).`,
           ...(suggestedFix ? { suggestedFix } : {})
         };
       }
@@ -525,5 +541,6 @@ function detectFormattingAnomaly(input, options = {}) {
 module.exports = {
   detectFormattingAnomaly,
   extractNotationClarificationContext,
-  applyConfirmedNotationClarification
+  applyConfirmedNotationClarification,
+  decodeUnicodeSuperscripts
 };

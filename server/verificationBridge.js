@@ -1224,9 +1224,11 @@ function extractClaims(text, userPrompt = '') {
       .replace(/\bln\b/g, 'log')
       .replace(/\\pi\b/g, 'pi')
       .replace(/\\times|\\cdot/g, '*')
+      .replace(/\^\((-?\d+|[a-zA-Z])\)(?![a-zA-Z0-9_])/g, '^$1')
       .replace(/(?<![a-zA-Z_])(\d)\s*(sqrt|sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|log|exp|abs)/g, '$1*$2')
-      .replace(/\b(sin|cos|tan|sec|csc|cot)\s*\^\s*\{?(\d+)\}?\s*(?:\(([^()]+)\)|([a-zA-Z]))/g, (_, fn, pow, argP, argS) => `(${fn}(${argP || argS}))^${pow}`)
-      .replace(/\b(sin|cos|tan|sec|csc|cot)\s*([a-zA-Z])(?![a-zA-Z_(])/g, '$1($2)')
+      .replace(/\b(sin|cos|tan|sec|csc|cot)\s*\^\s*(?:\{?(\d+)\}?|\((\d+)\))\s*(?:\(([^()]+)\)|([a-zA-Z]))/g, (_, fn, p1, p2, argP, argS) => `(${fn}(${argP || argS}))^${p1 || p2}`)
+      .replace(/\b(sin|cos|tan|sec|csc|cot)\s+([a-zA-Z])(?![a-zA-Z_])/g, '$1($2)')
+      .replace(/\b(sin|cos|tan|sec|csc|cot)([a-zA-Z])(?![a-zA-Z_(])/g, '$1($2)')
       .replace(/(?<![a-zA-Z_.])(\d)\s*(?![eE][+-]?\d+\b)([a-zA-Z])/g, '$1*$2')
       .replace(/\b([A-Z])([A-Z])\b/g, '$1*$2')
       .replace(/(?<![a-zA-Z_])(\d)\s*\(/g, '$1*(')
@@ -1234,8 +1236,7 @@ function extractClaims(text, userPrompt = '') {
       .replace(/\)\s*([a-zA-Z])/g, ')*$1')
       .replace(/(?:^|(?<=[^a-zA-Z_]))([a-zA-Z])\s+(arcsin|arccos|arctan|asin|acos|atan|sin|cos|tan|sec|csc|cot|log|exp|sqrt)\b/g, '$1*$2')
       .replace(/([a-zA-Z])\s*(sqrt)/g, '$1*$2')
-      .replace(/\b(?!sin|cos|tan|sec|csc|cot|log|log10|log2|ln|exp|sqrt|cbrt|asin|acos|atan|arcsin|arccos|arctan|abs|Abs\b)([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/g, '$1*(')
-      .replace(/\^\((-?\d+|[a-zA-Z])\)(?![a-zA-Z0-9_])/g, '^$1');
+      .replace(/\b(?!sin|cos|tan|sec|csc|cot|log|log10|log2|ln|exp|sqrt|cbrt|asin|acos|atan|arcsin|arccos|arctan|abs|Abs\b)([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/g, '$1*(');
     let prevIdentJoin;
     do {
       prevIdentJoin = s;
@@ -1297,6 +1298,7 @@ function extractClaims(text, userPrompt = '') {
 
     // Strip common trailing conditions and sentence-separated parenthetical comments (e.g. ". (What was the answer again?)")
     let cleanRhsStr = rawRhs
+      .replace(/\$/g, '')
       .replace(/(?:\.\s*|\s+)\([^)]*[a-zA-Z]{2,}[^)]*\)\s*$/g, '')
       .replace(/\s+(?:where|with|for|when|if|given|assuming|provided)\b.*$/i, '')
       .trim();
@@ -1378,8 +1380,8 @@ function extractClaims(text, userPrompt = '') {
     }
   }
 
-  // Pattern 5b: Equation followed by explicit solution assignment (e.g. "2x + 3 = 11, x = 4" or "x^2 - 5x + 6 = 0, x = 2 or x = 3")
-  const eqVarRegex = /([^\n\r;=]+=[^\n\r;=]+)[,;:\s]+(?:=>\s*|\\implies\s+|so\s+|therefore\s+)?([a-zA-Z])\s*=\s*([-\+]?(?:\\frac\{\s*[-\+]?\d+(?:\.\d+)?\s*\}\{\s*\d+(?:\.\d+)?\s*\}|[-\+]?\d+(?:\.\d+)?(?:\/\d+(?:\.\d+)?)?))(?:\s*(?:,|and|or)\s*\2\s*=\s*([-\+]?(?:\\frac\{\s*[-\+]?\d+(?:\.\d+)?\s*\}\{\s*\d+(?:\.\d+)?\s*\}|[-\+]?\d+(?:\.\d+)?(?:\/\d+(?:\.\d+)?)?)))?/gi;
+  // Pattern 5b: Equation followed by explicit solution assignment (e.g. "2x + 3 = 11, x = 4" or "x^2 - 5x + 6 = 0, x = 2 or x = 3" or "Factoring $(x-3)(x-4)=0$ gives $x = 3$ and $x = 4$")
+  const eqVarRegex = /([^\n\r;=]+=[^\n\r;=]+)[,;:\s]+(?:=>\s*|\\implies\s+|so\s+|therefore\s+|gives?\s+|yields?\s+)?\$?([a-zA-Z])\s*=\s*([-\+]?(?:\\frac\{\s*[-\+]?\d+(?:\.\d+)?\s*\}\{\s*\d+(?:\.\d+)?\s*\}|[-\+]?\d+(?:\.\d+)?(?:\/\d+(?:\.\d+)?)?))\$?(?:\s*(?:,|and|or)\s*\$?\2\s*=\s*([-\+]?(?:\\frac\{\s*[-\+]?\d+(?:\.\d+)?\s*\}\{\s*\d+(?:\.\d+)?\s*\}|[-\+]?\d+(?:\.\d+)?(?:\/\d+(?:\.\d+)?)?))\$?)?/gi;
   let eqVarMatch;
   while ((eqVarMatch = eqVarRegex.exec(text)) !== null) {
     const rawEq = eqVarMatch[1].trim();
@@ -1795,18 +1797,34 @@ function extractClaims(text, userPrompt = '') {
   }
 
   // Extract explicit standalone/concluding response-level domain restrictions
-  // (e.g. "Domain restrictions: \cos(x) \neq 1 and \sin(x) \neq 1")
+  // (e.g. "Domain restrictions: \cos(x) \neq 1 and \sin(x) \neq 1", "where \sin x \neq 0 and \cos x \neq 0", "\sin x \cos x \neq 0")
   // Exclude inline clauses trailing after a specific '=' equation on the same line so one equation's
   // inline restriction is never broadcast to a different equation earlier in the response.
+  const normalizeTrigRestrictionText = (rawClause) => String(rawClause || '')
+    .replace(/\\(?:text|mathrm)\s*\{([^{}]*)\}/g, ' $1 ')
+    .replace(/\$|\\\(|\\\)|\\quad|\\qquad|\\,|\\;|\\!/g, ' ')
+    .replace(/\\(sin|cos|tan|sec|csc|cot)\b/gi, '$1')
+    .replace(/\b(sin|cos|tan|sec|csc|cot)\s+([a-zA-Z])\b/gi, '$1($2)')
+    .replace(/\b((?:sin|cos|tan|sec|csc|cot)\([a-zA-Z]\))\s*(?:,|\band\b)\s*((?:sin|cos|tan|sec|csc|cot)\([a-zA-Z]\))\s*(!=|\\neq|≠|<>)\s*0\b/gi, '$1 != 0 and $2 != 0')
+    .replace(/\b((?:sin|cos|tan|sec|csc|cot)\([a-zA-Z]\))\s*(?:\\cdot|\*|\s)\s*((?:sin|cos|tan|sec|csc|cot)\([a-zA-Z]\))\s*(!=|\\neq|≠|<>)\s*0\b/gi, '$1 != 0 and $2 != 0')
+    .replace(/\bneither\s+((?:sin|cos|tan|sec|csc|cot)\([a-zA-Z]\))\s+nor\s+((?:sin|cos|tan|sec|csc|cot)\([a-zA-Z]\))\s+(?:is|=|equals?)\s*0\b/gi, '$1 != 0 and $2 != 0')
+    .replace(/\b((?:sin|cos|tan|sec|csc|cot)\([a-zA-Z]\))\s+and\s+((?:sin|cos|tan|sec|csc|cot)\([a-zA-Z]\))\s+are\s+(?:both\s+)?non-?zero\b/gi, '$1 != 0 and $2 != 0')
+    .replace(/\s+/g, ' ')
+    .trim();
+
   const explicitResponseRestrictions = [];
-  const domDeclRegex = /(?:domain\s+restrictions?|excluded\s+values?|restrictions?|valid\s+(?:for|where|when|whenever)|provided(?:\s+that)?|assuming|subject\s+to|note\s+that)\s*[:,\s]*([^\n.;]{3,240}(?:\s*(?:,|and)\s*[^\n.;]{3,160})*)/gi;
+  const domDeclRegex = /(?:domain\s+restrictions?|excluded\s+values?|restrictions?|valid\s+(?:for|where|when|whenever)|provided(?:\s+that)?|assuming|subject\s+to|note\s+that|for\s+all\s+[a-zA-Z]\s+(?:where|with|such\s+that)|whenever|where|\bfor(?=\s+[^=\n.;]*(?:!=|\\neq|≠|<>|>=|<=|>|<|≥|≤)))\s*[:,\s]*([^\n.;]{3,240}(?:\s*(?:,|and)\s*[^\n.;]{3,160})*)/gi;
   let domDeclMatch;
   while ((domDeclMatch = domDeclRegex.exec(text)) !== null) {
     const lineStartIdx = text.lastIndexOf('\n', domDeclMatch.index) + 1;
+    const lineEndIdx = text.indexOf('\n', domDeclMatch.index);
+    const fullLine = text.slice(lineStartIdx, lineEndIdx === -1 ? text.length : lineEndIdx).trim();
     const prefixOnSameLine = text.slice(lineStartIdx, domDeclMatch.index);
-    if (prefixOnSameLine.includes('=')) continue;
-    const clause = domDeclMatch[1].replace(/\$|\\\(|\\\)|\\quad|\\qquad|\\text\{[^}]*\}/g, ' ').replace(/\s+/g, ' ').trim();
-    const ineqParts = clause.match(/(?:1\s*-\s*)?(?:\\?(?:sin|cos|tan|sec|csc|cot)\s*\([^()]+\)|[a-zA-Z_][a-zA-Z0-9_]*)\s*(?:!=|\\neq|≠|<>|>=|<=|>|<|≥|≤)\s*[-+]?(?:\\?pi|[a-zA-Z0-9_./*\\^{}\s+-]+?)(?=(?:\s*(?:,|;|\band\b|\bor\b|\(|$)))/gi);
+    // Skip inline trailing restrictions attached to a single standalone equation line (e.g. "Part 2: A = B, valid for x != 2."),
+    // unless the line is a colon-terminated header introducing subsequent derivation steps.
+    if (prefixOnSameLine.includes('=') && !fullLine.endsWith(':')) continue;
+    const clause = normalizeTrigRestrictionText(domDeclMatch[1]);
+    const ineqParts = clause.match(/(?:1\s*-\s*)?(?:\\?(?:sin|cos|tan|sec|csc|cot)\s*\([^()]+\)|[a-zA-Z_][a-zA-Z0-9_]*)\s*(?:!=|\\neq|≠|<>|>=|<=|>|<|≥|≤)\s*[-+]?(?:\\?pi|[a-zA-Z0-9_./*\\^{}\s+-]+?)(?=(?:\s*(?:,|;|:|\.(?!\d)|\band\b|\bor\b|\(|\)|$)))/gi);
     if (ineqParts && ineqParts.length > 0) {
       ineqParts.forEach(p => explicitResponseRestrictions.push(p.trim()));
     }
@@ -1825,6 +1843,7 @@ function extractClaims(text, userPrompt = '') {
       .replace(/\r?\n\s*([+\-]\s*(?:\\(?:frac|dfrac|tfrac|left|sqrt)\b|[a-zA-Z0-9(]))/g, ' $1')
       .replace(/\r?\n\s*=\s*/g, ' = ')
       .replace(/\\begin\{aligned\}|\\end\{aligned\}|&/g, ' ')
+      .replace(/\$\s*(?:[,;:]|\b(?:and|or|so|then|gives?|yields?|means?|implies?|produces?|leaves?|shows?|becomes?|which|where|while)\b)[^$\n]*\$/gi, '\n')
       .split(/\r?\n|\\\\|\\\]|\$\$|\\qquad|\\quad|\\implies|\\Longrightarrow|\\Rightarrow|⇒|==>|\.\s+(?=[A-Z\\$])|\b(?:Final\s+Answer|Answer|Solution)\s*:?/i)
       .flatMap(b => (/^\s*\|.*\|\s*$/.test(b) && /\s+\|\s+/.test(b)) ? b.split('|') : [b])
   ];
@@ -1833,15 +1852,21 @@ function extractClaims(text, userPrompt = '') {
     let cleanBlock = block
       .replace(/\\tag\s*\{[^{}]*\}/g, ' ')
       .replace(/\\(?:,|;|!|:)\s*/g, ' ')
-      .replace(/\\text\{\s*(for|where|when|if|assuming|provided(?:\s+that)?)\s*\}/gi, ' $1 ')
+      .replace(/\\text\{\s*(for(?:\s+all)?|where|when|whenever|if|with|and|or|assuming|provided(?:\s+that)?|valid(?:\s+for)?)\s*\}/gi, ' $1 ')
       .replace(/\\\[|\\\]|\\\(|\\\)|\\text\{[^}]*\}|\$/g, ' ')
       .replace(/\s*(?:<|>|\\lt|\\gt)\s*0\s*\.?\s*$/g, '')
       .trim();
     if (!cleanBlock || !cleanBlock.includes('=')) continue;
 
+    // Normalize unparenthesized trig exclusions in trailing inline conditions (e.g. "for \sin x \neq 0, \cos x \neq 0")
+    cleanBlock = cleanBlock.replace(
+      /(\b(?:valid\s+(?:for|where|when|whenever)|for|where|when|whenever|if|with|assuming|provided(?:\s+that)?)\b[\s\S]*)$/i,
+      (m) => normalizeTrigRestrictionText(m)
+    );
+
     // Extract inline domain restrictions BEFORE checking '<' / '>' so "for x > 0" or "for x >= 0" isn't skipped!
     let blockInlineCondition = null;
-    const condMatch = cleanBlock.match(/(?:(?:[,;]\s*|\s+)(?:valid\s+(?:for|where|when|whenever)|for|where|when|if|with|assuming|provided(?:\s+that)?)\s+|[,;]\s*(?=(?:1\s*-\s*)?\\?[a-zA-Z_][a-zA-Z0-9_]*(?:\([^()]+\))?\s*(?:!=|\\neq|≠|<>|>=|<=|>|<|\\notin|\\not\\in)))((?:1\s*-\s*)?\\?[a-zA-Z_][a-zA-Z0-9_]*(?:\([^()]+\))?\s*(?:(?:!=|\\neq|≠|<>|>=|<=|>|<)\s*[-+]?(?:\\?pi|[a-zA-Z0-9_.\/\\^{}()\s+-]+)(?:\s*(?:,|and)\s*(?:(?:1\s*-\s*)?\\?[a-zA-Z_][a-zA-Z0-9_]*(?:\([^()]+\))?\s*(?:!=|\\neq|≠|<>|>=|<=|>|<)\s*)?[-+]?(?:\\?pi|[a-zA-Z0-9_.\/\\^{}()\s+-]+))*|(?:\\notin|\\not\\in|not\s+in)\s*\\?\{[^}]+\})).*$/i);
+    const condMatch = cleanBlock.match(/(?:(?:[,;]\s*|\s+)(?:valid\s+(?:for|where|when|whenever)|for|where|when|whenever|if|with|assuming|provided(?:\s+that)?)\s+|[,;]\s*(?=(?:1\s*-\s*)?\\?[a-zA-Z_][a-zA-Z0-9_]*(?:\([^()]+\))?\s*(?:!=|\\neq|≠|<>|>=|<=|>|<|\\notin|\\not\\in)))((?:1\s*-\s*)?\\?[a-zA-Z_][a-zA-Z0-9_]*(?:\([^()]+\))?\s*(?:(?:!=|\\neq|≠|<>|>=|<=|>|<)\s*[-+]?(?:\\?pi|[a-zA-Z0-9_.\/\\^{}()\s+-]+)(?:\s*(?:,|and)\s*(?:(?:1\s*-\s*)?\\?[a-zA-Z_][a-zA-Z0-9_]*(?:\([^()]+\))?\s*(?:!=|\\neq|≠|<>|>=|<=|>|<)\s*)?[-+]?(?:\\?pi|[a-zA-Z0-9_.\/\\^{}()\s+-]+))*|(?:\\notin|\\not\\in|not\s+in)\s*\\?\{[^}]+\})).*$/i);
     if (condMatch) {
       blockInlineCondition = condMatch[1].trim();
       cleanBlock = cleanBlock.slice(0, condMatch.index).trim();
@@ -1873,7 +1898,7 @@ function extractClaims(text, userPrompt = '') {
       // Skip function/model definitions like f(x) = ... or P(t) = P_0 + kt (not algebraic identities)
       if (/^[a-zA-Z](?:_\{?[a-zA-Z0-9]+\}?)?\s*\([a-zA-Z0-9,\s]+\)$/.test(lhsRaw) &&
           !/^(?:sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|log|ln|exp|sqrt|abs)\s*\(/i.test(lhsRaw)) continue;
-      if (/\b(?:the|solutions?|roots?|are|is|and|or|if|when|where|with|for|from|into|by|to|of|in|on|at|as|be|have|has|can|will|let|set|check|substitute|plug|solve|solving|factor|factoring|setting|each|zero|equals?|equal|both|either|neither|none|no|not|all|any|some)\b/i.test(lhsRaw) || /\b(?:the|solutions?|roots?|are|is|and|or|if|when|where|with|for|from|into|by|to|of|in|on|at|as|be|have|has|can|will|let|set|check|substitute|plug|solve|solving|factor|factoring|setting|each|zero|equals?|equal|both|either|neither|none|no|not|all|any|some)\b/i.test(rhsRaw)) continue;
+      if (/\b(?:the|solutions?|roots?|are|is|and|or|if|when|where|with|for|from|into|by|to|of|in|on|at|as|be|have|has|can|will|let|set|check|substitute|plug|solve|solving|factor|factoring|setting|each|zero|equals?|equal|both|either|neither|none|no|not|all|any|some|gives?|yields?|means?|implies?|produces?|leaves?|shows?|becomes?|gets?|finds?)\b/i.test(lhsRaw) || /\b(?:the|solutions?|roots?|are|is|and|or|if|when|where|with|for|from|into|by|to|of|in|on|at|as|be|have|has|can|will|let|set|check|substitute|plug|solve|solving|factor|factoring|setting|each|zero|equals?|equal|both|either|neither|none|no|not|all|any|some|gives?|yields?|means?|implies?|produces?|leaves?|shows?|becomes?|gets?|finds?)\b/i.test(rhsRaw)) continue;
       if (/^\s*[a-zA-Z]\s*$/.test(lhsRaw) && /^\s*[a-zA-Z]\s*$/.test(rhsRaw)) continue;
       if ( lhsRaw === '0' || rhsRaw === '0') continue;
       if (!/[a-zA-Z]/.test(lhsRaw) && !/[a-zA-Z]/.test(rhsRaw)) continue;
@@ -1944,7 +1969,7 @@ function extractClaims(text, userPrompt = '') {
       if (lhsVarList[0] !== rhsVarList[0] && (!normLhs.includes(rhsVarList[0]) || !normRhs.includes(lhsVarList[0]))) continue;
 
       // Do not mistake the prompt's equation-to-solve (or valid intermediate equation-solving steps in the solved variable) for a universal algebraic identity
-      if (parts.length === 2 && promptStr && promptStr.includes('=') && (cleanBlock.includes(promptStr.split('=')[0].trim()) || promptStr.includes(cleanBlock))) continue;
+      if (!isIdentityPrompt && parts.length === 2 && promptStr && promptStr.includes('=') && (cleanBlock.includes(promptStr.split('=')[0].trim()) || promptStr.includes(cleanBlock))) continue;
       if (parts.length > 2 && promptStr && /\bsolve\b/i.test(promptStr) && promptStr.includes('=') && promptStr.replace(/\s+/g, '').includes(pairCleanBlock.replace(/\s+/g, ''))) continue;
 
       const solvedEqClaimForVar = !blockInlineCondition && !isIdentityPrompt && lhsVars.size === 1
@@ -2094,9 +2119,9 @@ function extractClaims(text, userPrompt = '') {
       .replace(/\)\s*\(/g, ')*(')
       .replace(/(\d)\s*\(/g, '$1*(');
 
-    // 6b. General Infix Operations & Equations: A op B = C, (A op B) / C = D, = A / B = C, A(B/C) = D
+    // 6b. General Infix Operations & Equations: A op B = C, (A op B) / C = D, = A / B = C, A(B/C) = D, A op B = \frac{C}{D}
     // Backward scans from relation symbol to safely capture leading negative numbers and parenthesized operations without mid-expression truncation
-    const eqRegex = /(?:\\approx|\\thickapprox|≈|~|=)\s*([-+]?[\d.]+(?:\s*\/\s*[\d.]+)?)\s*(%)?/g;
+    const eqRegex = /(?:\\approx|\\thickapprox|≈|~|=)\s*([-+]?\(\(\s*[-+]?[\d.]+\s*\)\/\(\s*[\d.]+\s*\)\)|[-+]?[\d.]+(?:\s*\/\s*[\d.]+)?)\s*(%)?/g;
     let match;
     while ((match = eqRegex.exec(lineFor6b)) !== null) {
       const eqIndex = match.index;
@@ -2111,7 +2136,7 @@ function extractClaims(text, userPrompt = '') {
         continue;
       }
 
-      const rawVal = match[1].replace(/\s+/g, '');
+      const rawVal = match[1].replace(/[()\s]+/g, '');
       const isPct = match[2] === '%';
       let val;
       if (rawVal.includes('/')) {
@@ -4421,6 +4446,40 @@ async function verifyResponseClaims(content, userQueryText, abortSignal) {
         status: 'ERROR',
         reason: 'Missing batch verification result'
       };
+    }
+  }
+
+  // Smart Natural-Domain Grounding for Multi-Step Derivations:
+  // When a multi-step derivation (>= 3 claims with >= 2 verified steps) cancels a denominator that is
+  // ALREADY in the denominator of the user's original problem statement (so those poles are already
+  // excluded by the input expression's natural domain), certify the step as CONDITIONALLY_EQUIVALENT
+  // and preserve its domain_restrictions for the Show Domain Restrictions pill rather than discarding
+  // an otherwise verified 9/10 derivation. Single-claim or ungrounded responses still strictly reject.
+  const preliminaryVerifiedCount = resolvedByIndex.filter(r => r && r.verified === true).length;
+  if (claims.length >= 3 && preliminaryVerifiedCount >= 2 && promptStr) {
+    const { toCanonicalMath } = require('./mathCanonical');
+    const canonPrompt = toCanonicalMath(promptStr);
+    const promptHasSinDenom = /\/\s*\(?\s*sin\s*\(/i.test(canonPrompt) || /\b(?:csc|cot)\s*\(/i.test(canonPrompt);
+    const promptHasCosDenom = /\/\s*\(?\s*cos\s*\(/i.test(canonPrompt) || /\b(?:sec|tan)\s*\(/i.test(canonPrompt);
+    for (let ci = 0; ci < claims.length; ci++) {
+      const r = resolvedByIndex[ci];
+      if (r && r.verified === false && r.error_type === 'DOMAIN_RESTRICTION_MISMATCH' && Array.isArray(r.domain_restrictions) && r.domain_restrictions.length > 0) {
+        const allCoveredByInputDomain = r.domain_restrictions.every(restr => {
+          const s = String(restr);
+          if ((/sin\([a-zA-Z]\)\s*!=\s*0|n\*pi/i.test(s)) && !/1\s*-\s*sin/i.test(s) && !/pi\/2/i.test(s)) return promptHasSinDenom;
+          if ((/cos\([a-zA-Z]\)\s*!=\s*0|pi\/2\s*\+\s*n\*pi/i.test(s)) && !/1\s*-\s*cos/i.test(s)) return promptHasCosDenom;
+          return false;
+        });
+        if (allCoveredByInputDomain) {
+          resolvedByIndex[ci] = {
+            ...r,
+            verified: true,
+            status: 'CONDITIONALLY_EQUIVALENT',
+            error_type: undefined,
+            natural_domain_grounded: true
+          };
+        }
+      }
     }
   }
 

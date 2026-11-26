@@ -326,8 +326,9 @@ function formatAlternativeMethodDirective(ctx, { tutorMode = false } = {}) {
     lines.push(`1. Re-derive the solution INDEPENDENTLY using ${target}. Do NOT repeat the previous method and do NOT simply restate earlier results.`);
     lines.push('2. Work on the COMPLETE problem above. Never treat an isolated equation fragment (for example, a single metric term) as an algebraic equation to solve.');
     lines.push('3. Write intermediate calculus/algebraic steps as explicit symbolic equalities and put each final result in \\boxed{...} so every step can be independently verified by CAS.');
-    lines.push('4. Finish with a brief structured comparison of the two approaches: mathematical foundations, conserved quantities, derivation steps, advantages, and limitations.');
-    lines.push('5. If the two methods disagree anywhere, say so explicitly rather than forcing agreement.');
+    lines.push('4. Whenever simplifying a rational or trigonometric expression that cancels or eliminates a denominator factor (for example, \\sin(x), \\cos(x), 1-\\cos(x), or x-a), explicitly state the required domain restrictions on a dedicated line (e.g., "Domain restrictions: $\\sin(x) \\neq 0$ and $\\cos(x) \\neq 0$").');
+    lines.push('5. Finish with a brief structured comparison of the two approaches: mathematical foundations, conserved quantities, derivation steps, advantages, and limitations.');
+    lines.push('6. If the two methods disagree anywhere, say so explicitly rather than forcing agreement.');
   }
   if (tutorMode) {
     lines.push('TUTOR MODE NOTE: Tutor Mode rules take precedence — introduce the alternative method progressively (setup and first verified step only) unless the student asked for the full solution.');

@@ -1,0 +1,127 @@
+{
+  "version": "1.0.0",
+  "description": "Golden production QA corpus extracted from Pythos live production analysis bundles and QA reports.",
+  "cases": [
+    {
+      "id": "GOLDEN-PY-0beb70cd",
+      "report_id": "PY-0beb70cd",
+      "description": "Unparenthesized trig powers (1-\\sin^2 x, \\cos x\\bigl(1-\\cos^2 x\\bigr)) and parenthetical domain restrictions (where \\sin x \\neq 0 and \\cos x \\neq 0):",
+      "prompt": "\\[\n\\boxed{\n\\frac{1-\\cos^{2}(x)}{\\sin(x)}\n+\n\\frac{1-\\sin^{2}(x)}{\\cos(x)}\n}\n\\]",
+      "response": "Using the Pythagorean identity:\n$$1-\\sin^{2}x=\\cos^{2}x,\\qquad 1-\\cos^{2}x=\\sin^{2}x$$\nCombine over a common denominator:\n$$\\frac{A}{\\sin x}+\\frac{B}{\\cos x} = \\frac{A\\cos x+B\\sin x}{\\sin x\\cos x}$$\n$$(1-\\cos^{2}x)\\cos x = \\cos x-\\cos^{3}x$$\n$$(1-\\sin^{2}x)\\sin x = \\sin x-\\sin^{3}x$$\n$$\\cos x-\\cos^{3}x = \\cos x\\bigl(1-\\cos^{2}x\\bigr)$$\n$$\\sin x-\\sin^{3}x = \\sin x\\bigl(1-\\sin^{2}x\\bigr)$$\n$$\\cos x\\bigl(1-\\cos^{2}x\\bigr)+\\sin x\\bigl(1-\\sin^{2}x\\bigr) = \\cos x \\sin^{2}x+\\sin x \\cos^{2}x$$\n$$\\cos x \\sin^{2}x+\\sin x \\cos^{2}x = \\sin x\\cos x\\bigl(\\sin x+\\cos x\\bigr)$$\nDividing numerator and denominator by $\\sin x\\cos x$ (where $\\sin x \\neq 0$ and $\\cos x \\neq 0$):\n$$\\frac{\\sin x\\cos x\\bigl(\\sin x+\\cos x\\bigr)}{\\sin x\\cos x} = \\sin x+\\cos x$$\n$$\\frac{1-\\cos^{2}(x)}{\\sin(x)} + \\frac{1-\\sin^{2}(x)}{\\cos(x)} = \\boxed{\\sin(x)+\\cos(x)}$$",
+      "expected": {
+        "state": "VERIFIED",
+        "verifiedMin": 10,
+        "invalidCount": 0,
+        "unknownCount": 0
+      }
+    },
+    {
+      "id": "GOLDEN-PY-80c0e699",
+      "report_id": "PY-80c0e699",
+      "description": "Sum-of-cubes alternative method for trig rational simplification with domain restrictions",
+      "prompt": "\\[\n\\boxed{\n\\frac{1-\\cos^{2}(x)}{\\sin(x)}\n+\n\\frac{1-\\sin^{2}(x)}{\\cos(x)}\n}\n\\]\n\n(Alternative method request: Can you solve this problem using a different method and briefly compare the two approaches?)",
+      "response": "Using the sum of cubes identity $a^{3}+b^{3}=(a+b)(a^{2}-ab+b^{2})$ for $\\sin x \\neq 0$ and $\\cos x \\neq 0$:\n$$\\sin^{3}x+\\cos^{3}x = (\\sin x+\\cos x)\\bigl(\\sin^{2}x-\\sin x\\cos x+\\cos^{2}x\\bigr)$$\n$$\\sin^{3}x+\\cos^{3}x = (\\sin x+\\cos x)\\bigl(1-\\sin x\\cos x\\bigr)$$\n$$\\frac{1-\\cos^{2}x}{\\sin x} +\\frac{1-\\sin^{2}x}{\\cos x} = \\sin x+\\cos x$$\n$$\\frac{1-\\cos^{2}(x)}{\\sin x} +\\frac{1-\\sin^{2}(x)}{\\cos x} = \\boxed{\\sin x+\\cos x}$$",
+      "expected": {
+        "state": "VERIFIED",
+        "verifiedMin": 4,
+        "invalidCount": 0,
+        "unknownCount": 0
+      }
+    },
+    {
+      "id": "GOLDEN-PY-53c01a62",
+      "report_id": "PY-53c01a62",
+      "description": "Radical product rules \\sqrt{2}\\sqrt{a} = \\sqrt{2a} and \\sqrt{m^2 n} = |m|\\sqrt{n} in alternative method derivation",
+      "prompt": "\\[\n\\boxed{\\frac{\\sqrt{18}+\\sqrt{50}-\\sqrt{8}}{\\sqrt{2}}}\n\\]\n\n(Alternative method request: Can you solve this problem using a different method and briefly compare the two approaches?)",
+      "response": "By the radical product rules:\n$$\\sqrt{2} \\sqrt{a}= \\sqrt{2a}$$\n$$\\sqrt{m^{2}n}=|m|\\sqrt{n}$$\nTherefore:\n$$\\frac{\\sqrt{18}+\\sqrt{50}-\\sqrt{8}}{\\sqrt{2}} = 3 + 5 - 2 = \\boxed{6}$$",
+      "expected": {
+        "state": "VERIFIED",
+        "verifiedMin": 3,
+        "invalidCount": 0,
+        "unknownCount": 0
+      }
+    },
+    {
+      "id": "GOLDEN-PY-0e3f170c",
+      "report_id": "PY-0e3f170c",
+      "description": "Trig rational simplification with 1-cos(x) != 0 and 1-sin(x) != 0 periodic restrictions",
+      "prompt": "\\[\\boxed{\\frac{\\sin^2(x)}{1-\\cos(x)} + \\frac{\\cos^2(x)}{1-\\sin(x)}}\\]",
+      "response": "For $\\cos(x) \\neq 1$ and $\\sin(x) \\neq 1$ (so $x \\neq 2k\\pi$ and $x \\neq \\frac{\\pi}{2} + 2k\\pi$):\n$$\\frac{\\sin^2(x)}{1-\\cos(x)} = 1 + \\cos(x)$$\n$$\\frac{\\cos^2(x)}{1-\\sin(x)} = 1 + \\sin(x)$$\n$$\\frac{\\sin^2(x)}{1-\\cos(x)} + \\frac{\\cos^2(x)}{1-\\sin(x)} = \\boxed{2 + \\sin(x) + \\cos(x)}$$",
+      "expected": {
+        "state": "VERIFIED",
+        "verifiedMin": 3,
+        "invalidCount": 0,
+        "unknownCount": 0
+      }
+    },
+    {
+      "id": "GOLDEN-TRIG-UNCONDITIONAL-REJECT",
+      "report_id": "PY-0e3f170c-NEG",
+      "description": "Unconditional cancellation without domain restrictions MUST still be rejected with DOMAIN_RESTRICTION_MISMATCH",
+      "prompt": "\\[\\boxed{\\frac{\\sin^2(x)}{1-\\cos(x)} + \\frac{\\cos^2(x)}{1-\\sin(x)}}\\]",
+      "response": "$$\\frac{\\sin^2(x)}{1-\\cos(x)} + \\frac{\\cos^2(x)}{1-\\sin(x)} = 2 + \\sin(x) + \\cos(x)$$",
+      "expected": {
+        "invalidCount": 1,
+        "expectedErrorType": "DOMAIN_RESTRICTION_MISMATCH"
+      }
+    },
+    {
+      "id": "GOLDEN-SCHWARZSCHILD-V-EFF-DERIVATIVES",
+      "report_id": "QA-SCHWARZSCHILD-DERIV",
+      "description": "Schwarzschild effective potential first and second derivatives V'_eff(r) and V''_eff(r) verified symbolically",
+      "prompt": "For V_{\\mathrm{eff}}(r) = \\frac{L^2}{r^2}\\left(1 - \\frac{r_s}{r}\\right), compute V'_{\\mathrm{eff}}(r) and V''_{\\mathrm{eff}}(r).",
+      "response": "$$V_{\\mathrm{eff}}(r) = \\frac{L^2}{r^2}\\left(1 - \\frac{r_s}{r}\\right)$$\n$$V'_{\\mathrm{eff}}(r) = L^2\\left(-\\frac{2}{r^3} + \\frac{3r_s}{r^4}\\right)$$\n$$V''_{\\mathrm{eff}}(r) = L^2\\left(\\frac{6}{r^4} - \\frac{12r_s}{r^5}\\right)$$",
+      "expected": {
+        "state": "VERIFIED",
+        "verifiedMin": 2,
+        "invalidCount": 0,
+        "unknownCount": 0
+      }
+    },
+    {
+      "id": "GOLDEN-SCHWARZSCHILD-WRONG-SECOND-DERIV-REJECT",
+      "report_id": "QA-SCHWARZSCHILD-DERIV-NEG",
+      "description": "Incorrect coefficient -10r_s/r^5 in Schwarzschild V''_eff(r) MUST be rejected with INCORRECT_DERIVATIVE",
+      "prompt": "For V_{\\mathrm{eff}}(r) = \\frac{L^2}{r^2}\\left(1 - \\frac{r_s}{r}\\right), compute V''_{\\mathrm{eff}}(r).",
+      "response": "$$V_{\\mathrm{eff}}(r) = \\frac{L^2}{r^2}\\left(1 - \\frac{r_s}{r}\\right)$$\n$$V''_{\\mathrm{eff}}(r) = L^2\\left(\\frac{6}{r^4} - \\frac{10r_s}{r^5}\\right)$$",
+      "expected": {
+        "invalidCount": 1,
+        "expectedErrorType": "INCORRECT_DERIVATIVE"
+      }
+    },
+    {
+      "id": "GOLDEN-FORMAT-ADJUST-CONVO",
+      "report_id": "PY-0beb70cd-CONVO",
+      "description": "Format-adjustment confirmation ('yes you are correct. please adjust the format') reinterprets ²⁽ˣ⁾ across Try Another Method and Show Domain Restrictions",
+      "messages": [
+        {
+          "role": "user",
+          "content": "\\[\n\\boxed{\n\\frac{1-\\cos²⁽ˣ⁾}{\\sin(x)}\n+\n\\frac{1-\\sin²⁽ˣ⁾}{\\cos(x)}\n}\n\\]"
+        },
+        {
+          "role": "assistant",
+          "content": "The formatting on this problem looks a little weird.\n\nIt looks like (x) ended up inside the exponent of cos instead of acting as its angle argument.",
+          "withheld": true,
+          "withholdingReason": "MALFORMED_SYNTAX"
+        },
+        {
+          "role": "user",
+          "content": "yes you are correct. please adjust the format"
+        },
+        {
+          "role": "assistant",
+          "content": "Let us rewrite the expression so that the trigonometric functions are applied to the angle x: \\frac{1-\\cos^2(x)}{\\sin x} + \\frac{1-\\sin^2(x)}{\\cos x}"
+        },
+        {
+          "role": "user",
+          "content": "Can you solve this problem using a different method and briefly compare the two approaches?"
+        }
+      ],
+      "expected": {
+        "expectedActiveExpression": "\\frac{1-\\cos^{2}(x)}{\\sin(x)} + \\frac{1-\\sin^{2}(x)}{\\cos(x)}",
+        "expectedHandoffContains": ["cos(x)", "sin(x)"],
+        "expectedHandoffExcludes": ["different method", "²⁽ˣ⁾"]
+      }
+    }
+  ]
+}

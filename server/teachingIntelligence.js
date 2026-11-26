@@ -1776,6 +1776,10 @@ function formatAdaptiveTeachingContext(strategy) {
   if (strategy.alternativeMethod) {
     out += alternativeMethod.formatAlternativeMethodDirective(strategy.alternativeMethod) + '\n';
   }
+  out += `- COMMUNICATION CLARITY & AGE-ADAPTIVE TONE (AGES 12–25 BASELINE):\n`;
+  out += `  * Default Tone: Start by explaining ideas in clear, plain everyday English that a bright 12-year-old can easily understand, without ever sounding condescending, robotic, or talk-down.\n`;
+  out += `  * When introducing a math rule or symbol, state simply what it does in plain words alongside the math notation.\n`;
+  out += `  * Dynamic Adaptation: If the student's prompt uses advanced university-level physics or calculus terminology (or they have demonstrated high mastery), match their level with crisp, direct technical explanations.\n`;
   out += `- CRITICAL ARCHITECTURAL BOUNDARY (VERIFICATION SUBORDINATION):\n`;
   out += `  * The teaching layer is strictly subordinate to deterministic verification.\n`;
   out += `  * NEVER override a deterministic verifier result.\n`;

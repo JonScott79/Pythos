@@ -238,10 +238,10 @@ function extractLinearDenominatorRestrictions(expr, variable = 'x') {
   }
 
   // Natural trig denominator singularities for reciprocal/quotient trig functions
-  if (/\b(?:csc|cot)\s*\(/i.test(expr) || /\/\s*(?:sin)\s*\(/i.test(expr)) {
+  if (/\b(?:csc|cot)\s*\(/i.test(expr) || /\/\s*\(?\s*(?:sin)\s*\(/i.test(expr)) {
     restrictions.add(`sin(${safeVar}) != 0 (${safeVar} != n*pi, n \u2208 Z)`);
   }
-  if (/\b(?:sec|tan)\s*\(/i.test(expr) || /\/\s*(?:cos)\s*\(/i.test(expr)) {
+  if (/\b(?:sec|tan)\s*\(/i.test(expr) || /\/\s*\(?\s*(?:cos)\s*\(/i.test(expr)) {
     restrictions.add(`cos(${safeVar}) != 0 (${safeVar} != pi/2 + n*pi, n \u2208 Z)`);
   }
   if (/\b(?:ln|log\d*)\s*\(/i.test(expr)) {
@@ -317,7 +317,8 @@ function buildToolHandoffContract({
       studentEvaluation?.status === 'STEP_VERIFIED_INCORRECT' ||
       studentEvaluation?.status === 'STEP_VERIFIED_CORRECT' ||
       studentEvaluation?.status === 'ANSWER_VERIFIED_INCORRECT' ||
-      ['PROPOSED_STEP', 'PROPOSED_ANSWER', 'VALIDATION_REQUEST', 'HINT_REQUEST', 'CONTINUATION', 'TENTATIVE_HYPOTHESIS'].includes(studentIntent?.intent)
+      ['PROPOSED_STEP', 'PROPOSED_ANSWER', 'VALIDATION_REQUEST', 'HINT_REQUEST', 'CONTINUATION', 'TENTATIVE_HYPOTHESIS', 'ALTERNATIVE_METHOD_REQUEST', 'METHOD_COMPARISON_REQUEST'].includes(studentIntent?.intent) ||
+      /\b(?:different\s+method|another\s+method|alternative\s+method|compare\s+the\s+two\s+(?:approaches|derivations|methods))\b/i.test(rawPrompt)
     )
   );
   const isReferentialGraphTurn = Boolean(
@@ -579,13 +580,14 @@ function buildToolHandoffContract({
     // Multi-line / multi-part problems are referenced (the server preserves the complete active
     // problem); embedding them would exceed the client handoff limit or embed a truncated fragment.
     const altBase = String(activeProblemState?.active?.fullProblemText || prompt || '');
-    const isMultiPart = altBase.length > 160 || /\n/.test(altBase) || /\n/.test(prompt) || prompt.length > 160;
+    const singleLinePrompt = String(prompt || '').replace(/\s+/g, ' ').trim();
+    const isMultiPart = altBase.length > 160 || singleLinePrompt.length > 160;
     tools.push({
       id: 'try_another_method',
       label: 'Try Another Method',
       prompt: isMultiPart
         ? 'Can you solve this problem using a different method and briefly compare the two approaches?'
-        : `Can you solve "${prompt}" using a different method and briefly compare the two approaches?`
+        : `Can you solve "${singleLinePrompt}" using a different method and briefly compare the two approaches?`
     });
   }
 

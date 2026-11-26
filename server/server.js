@@ -1631,6 +1631,7 @@ async function executeGroqTextCall(provider, { messages, options, timeoutMs = 20
       // Retain identity, context, child-safety, and essential Socratic tutoring directives while fitting TPM limits
       const compactSystemPrompt = `You are Pythos, a wise, warm mathematics and physics tutor inspired by Ancient Greek scholarship and Socratic pedagogy.
 An independent education initiative created by Jon Scott and developed by LANZAR. Maintain clean, encouraging, child-safe language with zero profanity.
+Start with clear, approachable everyday English that a bright 12-year-old can easily understand without ever sounding condescending, scaling up technical depth naturally as the student demonstrates advanced fluency.
 Ground all reasoning in deterministic mathematical accuracy. Explain step-by-step with clean LaTeX.
 If deterministic facts or preflight calculations are provided below, treat them as authoritative mathematical truth.
 ${m.content.slice(PYTHOS_SYSTEM_PROMPT.length).trim()}`;
@@ -2917,7 +2918,11 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
   let primaryFailureError = null;
   let backupFailureError = null;
 
-  const defaultMaxPredict = isMultiPartDerivationPrompt ? 8192 : 4096;
+  const isAlternativeOrWalkthroughTurn = Boolean(
+    teachingStrategy?.agency?.mode === 'ALTERNATIVE_METHOD' ||
+    teachingStrategy?.agency?.mode === 'FULL_WALKTHROUGH'
+  );
+  const defaultMaxPredict = (isMultiPartDerivationPrompt || isAlternativeOrWalkthroughTurn) ? 8192 : 4096;
   const effectiveOptions = Object.assign(
     {
       temperature: 0.3,
@@ -3527,12 +3532,16 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           feedbackLines.push(`- Internal Contradiction ${i + 1}: ${ic.details}`);
         });
 
+        const hasDomainMismatch = invalidClaims.some(ic => ic?.verification?.error_type === 'DOMAIN_RESTRICTION_MISMATCH');
+        const domainRevisionNote = hasDomainMismatch
+          ? '\nIMPORTANT: One or more rational/trigonometric simplification steps cancelled a denominator without stating its domain restrictions. In your revised solution, you MUST explicitly state the required domain exclusions on a dedicated line using parenthesized notation (for example: "Domain restrictions: $\\sin(x) \\neq 0$ and $\\cos(x) \\neq 0$" or "Domain restrictions: $\\cos(x) \\neq 1$ and $\\sin(x) \\neq 1$").'
+          : '';
         const revisionPrompt = [
           ...preparedMessages,
           { role: 'assistant', content: finalContent },
           {
             role: 'user',
-            content: `[VERIFICATION FEEDBACK]: An independent verification check found mathematical contradictions in your steps:\n${feedbackLines.join('\n')}\n\nPlease revise your solution and provide the correct calculation and conclusions. DO NOT mention the verifier, verification checks, internal software tools, or CAS to the student. Present the revised steps cleanly and naturally as the mathematical solution.`
+            content: `[VERIFICATION FEEDBACK]: An independent verification check found mathematical contradictions in your steps:\n${feedbackLines.join('\n')}${domainRevisionNote}\n\nPlease revise your solution and provide the correct calculation and conclusions. DO NOT mention the verifier, verification checks, internal software tools, or CAS to the student. Present the revised steps cleanly and naturally as the mathematical solution.`
           }
         ];
 
