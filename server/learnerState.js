@@ -67,9 +67,15 @@ function detectCrossProblemContamination(text, activeProblemState) {
   if (!text || typeof text !== 'string') return false;
   const lower = text.toLowerCase();
 
-  // Explicit mention of mixing with previous problem
+  // Explicit mention of mixing with previous problem (exclude intentional contextual follow-ups
+  // such as "substitute that value of x from the previous problem into 2x + 5")
   if (/(?:old|previous|last)\s+(?:problem'?s?|numbers?|triangle|values?)/i.test(lower)) {
-    return true;
+    const isIntentionalFollowUp =
+      /\b(?:substitute|plug|use|take|apply|evaluate|calculate|compute|multiply|add|subtract|divide|from\s+the\s+(?:previous|last|earlier)\s+(?:problem|step|question|equation|answer|result))\b/i.test(lower) &&
+      !/\b(?:mix(?:ed|ing)?|confus(?:ed|ing)?|wrong|mistake|accident(?:ally)?|sorry|oops|messed\s+up|instead\s+of)\b/i.test(lower);
+    if (!isIntentionalFollowUp) {
+      return true;
+    }
   }
 
   // Common cross-contamination pattern from real transcript:

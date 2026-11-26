@@ -1,8 +1,8 @@
 {
-  "startedAt": "2026-11-26T17:06:51.998Z",
-  "completedAt": "2026-11-26T17:07:32.621Z",
-  "timestamp": "2026-11-26T17:07:32.621Z",
-  "durationMs": 40622.03,
+  "startedAt": "2026-11-26T21:24:23.486Z",
+  "completedAt": "2026-11-26T21:25:06.563Z",
+  "timestamp": "2026-11-26T21:25:06.563Z",
+  "durationMs": 43075.77,
   "branch": "staging/trig-notation-diagnostics-fix",
   "productionMasterCommit": "773ce8f2eac765c8d8cdf9177e0f04eb8a2f0f7a",
   "seed": 20261126,
@@ -26,48 +26,54 @@
     "solverAndAlternativeMethodRoutingAccuracyPct": 100,
     "metamorphicInvarianceAccuracyPct": 100,
     "seededRandomizedCorpusAccuracyPct": 100,
-    "medianLatencyMs": 2.43,
-    "p95LatencyMs": 25.92
+    "medianLatencyMs": 2.79,
+    "p95LatencyMs": 35.47
   },
   "latencyBoundaries": {
     "canonicalParserAndDualOracle": {
       "sampleCount": 25,
-      "p50Ms": 0.15,
-      "p95Ms": 0.27,
-      "minMs": 0.07,
-      "maxMs": 0.9
+      "p50Ms": 0.17,
+      "p95Ms": 0.55,
+      "minMs": 0.08,
+      "maxMs": 0.85
     },
     "deterministicCasSolvers": {
       "sampleCount": 9,
-      "p50Ms": 15.53,
-      "p95Ms": 248.92,
-      "minMs": 0.29,
-      "maxMs": 248.92
+      "p50Ms": 23.2,
+      "p95Ms": 384.52,
+      "minMs": 0.16,
+      "maxMs": 384.52
     },
     "independentVerificationPipeline": {
-      "sampleCount": 526,
-      "p50Ms": 2.43,
-      "p95Ms": 25.92,
+      "sampleCount": 518,
+      "p50Ms": 2.79,
+      "p95Ms": 35.47,
       "minMs": 0.01,
-      "maxMs": 875.07
+      "maxMs": 967.02
     },
-    "endToEndHostedLlmResponseMs": null
+    "endToEndHostedLlmResponse": {
+      "sampleCount": 7,
+      "p50Ms": 2319,
+      "p95Ms": 4368,
+      "minMs": 663,
+      "maxMs": 4368
+    }
   },
   "confusionMatrix": {
-    "description": "Strictly verifier classification positive/negative controls (Baseline + 5-Seed 9-Domain Expansion), excluding direct solver and metamorphic checks.",
-    "truePositives": 282,
-    "trueNegatives": 243,
+    "description": "Strictly deduplicated verifier classification positive/negative controls (Baseline + 5-Seed 9-Domain Expansion), computed directly from evaluationLedger and excluding direct solver and metamorphic checks.",
+    "truePositives": 274,
+    "trueNegatives": 244,
     "falsePositives": 0,
     "falseNegatives": 0,
-    "totalEvaluations": 525
+    "totalEvaluations": 518
   },
   "baselineSeed20261126Breakdown": {
     "verifierOnlyConfusionMatrix": {
-      "truePositives": 127,
-      "trueNegatives": 88,
+      "truePositives": 119,
+      "trueNegatives": 89,
       "falsePositives": 0,
       "falseNegatives": 0,
-      "total": 215
+      "total": 208
     },
     "solverChecks": {
       "passed": 9,
@@ -79,13 +85,219 @@
       "passed": 7,
       "total": 7
     },
-    "legacyCombinedConfusionMatrix": {
-      "description": "Historical reconciliation count pooling verifier checks (127 TP / 88 TN) + solver checks (8 TP / 1 TN) + metamorphic families (7 TP) = 142 TP / 89 TN (231 total).",
-      "truePositives": 142,
-      "trueNegatives": 89,
-      "falsePositives": 0,
-      "falseNegatives": 0,
-      "total": 231
+    "historicalReconciliationNote": {
+      "priorReportTableRowSum": {
+        "tp": 122,
+        "tn": 87,
+        "total": 209,
+        "explanation": "Previously omitted SUITE_PHYSICS_AND_GEOMETRY (5 TP, 1 TN) from the visible Markdown table rows."
+      },
+      "priorJsonSubtotalWithDuplicates": {
+        "tp": 127,
+        "tn": 88,
+        "total": 215,
+        "explanation": "Included SUITE_PHYSICS_AND_GEOMETRY (5 TP, 1 TN) plus 8 duplicate positive inline cases in Sections 2/3, and omitted V11_ZERO_CLAIM_BYPASS (1 TN) from the counter."
+      },
+      "deduplicatedAuthoritativeBaseline": {
+        "tp": 119,
+        "tn": 89,
+        "total": 208,
+        "explanation": "127 TP - 8 duplicate positive inline cases = 119 TP; 88 TN + 1 V11_ZERO_CLAIM_BYPASS negative control = 89 TN (208 unique baseline pure-verifier evaluations)."
+      }
+    }
+  },
+  "sectionBreakdown": {
+    "2_CORE_MATH_BENCHMARKS": {
+      "isBaseline": true,
+      "totalRecords": 7,
+      "passedRecords": 7,
+      "verifierTp": 7,
+      "verifierTn": 0,
+      "verifierFp": 0,
+      "verifierFn": 0,
+      "verifierTotal": 7,
+      "solverPositivePassed": 0,
+      "solverNegativePassed": 0,
+      "solverPassed": 0,
+      "solverTotal": 0,
+      "metamorphicPassed": 0,
+      "metamorphicTotal": 0
+    },
+    "SUITE_ALGEBRA_RADICALS_TRIG": {
+      "isBaseline": true,
+      "totalRecords": 15,
+      "passedRecords": 15,
+      "verifierTp": 9,
+      "verifierTn": 4,
+      "verifierFp": 0,
+      "verifierFn": 0,
+      "verifierTotal": 13,
+      "solverPositivePassed": 2,
+      "solverNegativePassed": 0,
+      "solverPassed": 2,
+      "solverTotal": 2,
+      "metamorphicPassed": 0,
+      "metamorphicTotal": 0
+    },
+    "SUITE_CALCULUS": {
+      "isBaseline": true,
+      "totalRecords": 7,
+      "passedRecords": 7,
+      "verifierTp": 1,
+      "verifierTn": 2,
+      "verifierFp": 0,
+      "verifierFn": 0,
+      "verifierTotal": 3,
+      "solverPositivePassed": 4,
+      "solverNegativePassed": 0,
+      "solverPassed": 4,
+      "solverTotal": 4,
+      "metamorphicPassed": 0,
+      "metamorphicTotal": 0
+    },
+    "SUITE_LINEAR_ALGEBRA": {
+      "isBaseline": true,
+      "totalRecords": 5,
+      "passedRecords": 5,
+      "verifierTp": 3,
+      "verifierTn": 1,
+      "verifierFp": 0,
+      "verifierFn": 0,
+      "verifierTotal": 4,
+      "solverPositivePassed": 1,
+      "solverNegativePassed": 0,
+      "solverPassed": 1,
+      "solverTotal": 1,
+      "metamorphicPassed": 0,
+      "metamorphicTotal": 0
+    },
+    "SUITE_PROBABILITY_STATISTICS": {
+      "isBaseline": true,
+      "totalRecords": 5,
+      "passedRecords": 5,
+      "verifierTp": 4,
+      "verifierTn": 1,
+      "verifierFp": 0,
+      "verifierFn": 0,
+      "verifierTotal": 5,
+      "solverPositivePassed": 0,
+      "solverNegativePassed": 0,
+      "solverPassed": 0,
+      "solverTotal": 0,
+      "metamorphicPassed": 0,
+      "metamorphicTotal": 0
+    },
+    "SUITE_PHYSICS_AND_GEOMETRY": {
+      "isBaseline": true,
+      "totalRecords": 8,
+      "passedRecords": 8,
+      "verifierTp": 5,
+      "verifierTn": 1,
+      "verifierFp": 0,
+      "verifierFn": 0,
+      "verifierTotal": 6,
+      "solverPositivePassed": 1,
+      "solverNegativePassed": 1,
+      "solverPassed": 2,
+      "solverTotal": 2,
+      "metamorphicPassed": 0,
+      "metamorphicTotal": 0
+    },
+    "3_CORE_PHYSICS_BENCHMARKS": {
+      "isBaseline": true,
+      "totalRecords": 4,
+      "passedRecords": 4,
+      "verifierTp": 4,
+      "verifierTn": 0,
+      "verifierFp": 0,
+      "verifierFn": 0,
+      "verifierTotal": 4,
+      "solverPositivePassed": 0,
+      "solverNegativePassed": 0,
+      "solverPassed": 0,
+      "solverTotal": 0,
+      "metamorphicPassed": 0,
+      "metamorphicTotal": 0
+    },
+    "6_INDEPENDENT_VERIFICATION_SCENARIOS": {
+      "isBaseline": true,
+      "totalRecords": 11,
+      "passedRecords": 11,
+      "verifierTp": 4,
+      "verifierTn": 7,
+      "verifierFp": 0,
+      "verifierFn": 0,
+      "verifierTotal": 11,
+      "solverPositivePassed": 0,
+      "solverNegativePassed": 0,
+      "solverPassed": 0,
+      "solverTotal": 0,
+      "metamorphicPassed": 0,
+      "metamorphicTotal": 0
+    },
+    "7_METAMORPHIC_INVARIANCE": {
+      "isBaseline": true,
+      "totalRecords": 7,
+      "passedRecords": 7,
+      "verifierTp": 0,
+      "verifierTn": 0,
+      "verifierFp": 0,
+      "verifierFn": 0,
+      "verifierTotal": 0,
+      "solverPositivePassed": 0,
+      "solverNegativePassed": 0,
+      "solverPassed": 0,
+      "solverTotal": 0,
+      "metamorphicPassed": 7,
+      "metamorphicTotal": 7
+    },
+    "8A_SEEDED_ARITHMETIC_50": {
+      "isBaseline": true,
+      "totalRecords": 50,
+      "passedRecords": 50,
+      "verifierTp": 22,
+      "verifierTn": 28,
+      "verifierFp": 0,
+      "verifierFn": 0,
+      "verifierTotal": 50,
+      "solverPositivePassed": 0,
+      "solverNegativePassed": 0,
+      "solverPassed": 0,
+      "solverTotal": 0,
+      "metamorphicPassed": 0,
+      "metamorphicTotal": 0
+    },
+    "8B_SEEDED_ALGEBRA_CALC_RADICALS_105": {
+      "isBaseline": true,
+      "totalRecords": 105,
+      "passedRecords": 105,
+      "verifierTp": 60,
+      "verifierTn": 45,
+      "verifierFp": 0,
+      "verifierFn": 0,
+      "verifierTotal": 105,
+      "solverPositivePassed": 0,
+      "solverNegativePassed": 0,
+      "solverPassed": 0,
+      "solverTotal": 0,
+      "metamorphicPassed": 0,
+      "metamorphicTotal": 0
+    },
+    "8C_EXPANDED_5_SEEDS_9_DOMAINS_310": {
+      "isBaseline": false,
+      "totalRecords": 310,
+      "passedRecords": 310,
+      "verifierTp": 155,
+      "verifierTn": 155,
+      "verifierFp": 0,
+      "verifierFn": 0,
+      "verifierTotal": 310,
+      "solverPositivePassed": 0,
+      "solverNegativePassed": 0,
+      "solverPassed": 0,
+      "solverTotal": 0,
+      "metamorphicPassed": 0,
+      "metamorphicTotal": 0
     }
   },
   "expandedMultiSeedRandomTesting": {
@@ -613,67 +825,79 @@
       "verifiedClaims": 16,
       "totalClaims": 16
     },
+    "liveLlmAcceptanceCorpus": {
+      "executed": true,
+      "passed": true,
+      "hostedProvider": "groq-text",
+      "hostedModel": "openai/gpt-oss-120b",
+      "totalScenarios": 7,
+      "passedScenarios": 7,
+      "totalExtractedClaims": 39,
+      "totalVerifiedClaims": 39,
+      "totalInvalidClaims": 0,
+      "totalUnknownClaims": 0
+    },
     "childRegressionSuites": [
       {
         "suite": "test/test-malformed-formatting.js",
         "exitCode": 0,
         "hasPassEvidence": true,
         "passed": true,
-        "durationMs": 61.34
+        "durationMs": 68.16
       },
       {
         "suite": "test/test-trig-notation-diagnostics.js",
         "exitCode": 0,
         "hasPassEvidence": true,
         "passed": true,
-        "durationMs": 4180.24
+        "durationMs": 3872.41
       },
       {
         "suite": "test/test-alternative-method-context.js",
         "exitCode": 0,
         "hasPassEvidence": true,
         "passed": true,
-        "durationMs": 3238.34
+        "durationMs": 2693.9
       },
       {
         "suite": "test/test-schwarzschild-photon-sphere.js",
         "exitCode": 0,
         "hasPassEvidence": true,
         "passed": true,
-        "durationMs": 3788.51
+        "durationMs": 3350.16
       },
       {
         "suite": "test/test-equivalence-authority-audit.js",
         "exitCode": 0,
         "hasPassEvidence": true,
         "passed": true,
-        "durationMs": 20088.41
+        "durationMs": 22077.61
       },
       {
         "suite": "test/runner.js",
         "exitCode": 0,
         "hasPassEvidence": true,
         "passed": true,
-        "durationMs": 2366.33
+        "durationMs": 2328.79
       }
     ]
   },
   "domainBreakdown": {
     "2A_ARITHMETIC_NUMBER_THEORY": {
-      "passed": 2,
-      "total": 2
+      "passed": 1,
+      "total": 1
     },
     "2B_ALGEBRA": {
-      "passed": 2,
-      "total": 2
+      "passed": 1,
+      "total": 1
     },
     "2C_RADICALS_RATIONALS": {
-      "passed": 3,
-      "total": 3
+      "passed": 1,
+      "total": 1
     },
     "2D_TRIGONOMETRY": {
-      "passed": 2,
-      "total": 2
+      "passed": 1,
+      "total": 1
     },
     "2E_GEOMETRY": {
       "passed": 1,
@@ -682,14 +906,6 @@
     "2F_CALCULUS": {
       "passed": 2,
       "total": 2
-    },
-    "2G_LINEAR_ALGEBRA": {
-      "passed": 1,
-      "total": 1
-    },
-    "2H_PROBABILITY_STATISTICS": {
-      "passed": 1,
-      "total": 1
     },
     "SUITE_ALGEBRA_RADICALS_TRIG": {
       "passed": 15,
@@ -727,10 +943,6 @@
       "passed": 1,
       "total": 1
     },
-    "3E_RELATIVITY_SCHWARZSCHILD": {
-      "passed": 1,
-      "total": 1
-    },
     "4_PARSER_MULTI_SURFACE": {
       "passed": 1,
       "total": 1
@@ -747,9 +959,9 @@
       "passed": 3,
       "total": 3
     },
-    "6_INDEPENDENT_VERIFICATION_10_SCENARIOS": {
-      "passed": 10,
-      "total": 10
+    "6_INDEPENDENT_VERIFICATION_SCENARIOS": {
+      "passed": 11,
+      "total": 11
     },
     "7_METAMORPHIC_INVARIANCE": {
       "passed": 1,
@@ -776,6 +988,10 @@
       "total": 1
     },
     "10B_PRODUCTION_EXPORT_BUNDLE_REPLAY": {
+      "passed": 1,
+      "total": 1
+    },
+    "10D_LIVE_LLM_7_SCENARIO_ACCEPTANCE_CORPUS": {
       "passed": 1,
       "total": 1
     },

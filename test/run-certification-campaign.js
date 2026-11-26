@@ -4,21 +4,28 @@
  *
  * PYTHOS — Mathematical Reliability & Engine Certification Campaign Runner
  * Implements Sections 1–12 of the Mathematical & Physics Engine Certification Spec
- * and all integrity requirements of the Final Certification Integrity Audit:
+ * and all integrity requirements of the Final Certification Integrity Audit &
+ * Final Staging Acceptance & Scorecard Reconciliation:
+ *   - Single underlying ledger (`evaluationLedger`) where every evaluation is recorded
+ *     and counted EXACTLY ONCE (zero duplicate IDs, zero duplicate (prompt, response) pairs).
  *   - Strict separation between:
- *       (a) Verification-Classification Confusion Matrix (TP, TN, FP, FN)
- *       (b) Deterministic Solver Mathematical Accuracy
- *       (c) Metamorphic Invariance Accuracy
+ *       (a) Verification-Classification Confusion Matrix (TP, TN, FP, FN) — category === 'VERIFIER'
+ *       (b) Deterministic Solver Mathematical Accuracy — category === 'SOLVER'
+ *       (c) Metamorphic Invariance Accuracy — category === 'METAMORPHIC'
+ *   - Automated reconciliation assertions (`assertScorecardReconciliation`) proving that:
+ *       (1) Per-section breakdowns, baseline subtotals, and combined totals are computed
+ *           directly by reducing `evaluationLedger`.
+ *       (2) Direct solver checks and metamorphic checks contribute 0 to verifier TP/TN/FP/FN.
+ *       (3) The detailed section breakdown, JSON scorecard, and auto-generated Markdown report
+ *           table rows sum identically with zero discrepancy.
  *   - Strict separation between latency measurement boundaries:
  *       (a) Canonical Parser & 20-Point Dual-Oracle Latency (p50 / p95)
  *       (b) CAS Solver Execution Latency (p50 / p95)
  *       (c) Independent Verification Pipeline Latency (p50 / p95)
- *       (d) End-to-End Hosted LLM Response Latency (explicitly null in Tier 1; measured in Tier 2 --live-llm)
- *   - Multi-Seed Randomized Testing across 5 independent seeds and all 9 required domains
- *   - Complete Section 10 execution: Golden QA Corpus, Production Bundle Replay, and all 6 child-process
- *     regression suites with strict exit-code and non-zero pass-count verification
- *   - Synchronized generation of both JSON (test/golden/latest_certification_scorecard.json)
- *     and Markdown (test/golden/latest_certification_report.md) from the exact same execution state.
+ *       (d) End-to-End Hosted LLM Response Latency (measured across the 7 Live-LLM Acceptance Scenarios)
+ *   - Multi-Seed Randomized Testing across 5 independent seeds and all 9 required domains (310 unique cases)
+ *   - Complete Section 10 execution: Golden QA Corpus, Production Bundle Replay, 7-Scenario Live-LLM
+ *     Acceptance Corpus Verification, and all 6 child-process regression suites.
  */
 
 const fs = require('fs');
@@ -30,7 +37,6 @@ const { performance } = require('perf_hooks');
 const {
   verifyResponseClaims,
   evaluateVerificationState,
-  buildVerificationTrustReport,
   closeVerifierDaemon
 } = require('../server/verificationBridge');
 const { classifyProblem } = require('../server/problemClassifier');
@@ -96,6 +102,157 @@ function getGitMetadata(repoRoot) {
   };
 }
 
+/**
+ * Reduces a subset of evaluationLedger records into verifier confusion matrix,
+ * solver counts, and metamorphic counts.
+ */
+function summarizeLedgerRecords(records) {
+  let verifierTp = 0;
+  let verifierTn = 0;
+  let verifierFp = 0;
+  let verifierFn = 0;
+  let solverPositivePassed = 0;
+  let solverNegativePassed = 0;
+  let solverTotal = 0;
+  let solverPassed = 0;
+  let metamorphicTotal = 0;
+  let metamorphicPassed = 0;
+
+  for (const r of records) {
+    if (r.category === 'VERIFIER') {
+      if (r.expectedPositive) {
+        if (r.passed) verifierTp++; else verifierFn++;
+      } else {
+        if (r.passed) verifierTn++; else verifierFp++;
+      }
+    } else if (r.category === 'SOLVER') {
+      solverTotal++;
+      if (r.passed) {
+        solverPassed++;
+        if (r.expectedPositive) solverPositivePassed++; else solverNegativePassed++;
+      }
+    } else if (r.category === 'METAMORPHIC') {
+      metamorphicTotal++;
+      if (r.passed) metamorphicPassed++;
+    }
+  }
+
+  return {
+    totalRecords: records.length,
+    passedRecords: records.filter(r => r.passed).length,
+    verifierTp,
+    verifierTn,
+    verifierFp,
+    verifierFn,
+    verifierTotal: verifierTp + verifierTn + verifierFp + verifierFn,
+    solverPositivePassed,
+    solverNegativePassed,
+    solverPassed,
+    solverTotal,
+    metamorphicPassed,
+    metamorphicTotal
+  };
+}
+
+/**
+ * Automated assertion verifying that:
+ *   1. Every evaluation in evaluationLedger has a unique ID and unique (prompt, response) pair.
+ *   2. Direct solver checks and metamorphic checks are excluded from the verifier confusion matrix.
+ *   3. The per-section breakdown sums identically to the baseline subtotal and combined confusion matrix.
+ *   4. The auto-generated Markdown report table rows sum identically to the JSON scorecard totals.
+ */
+function assertScorecardReconciliation(scorecard, evaluationLedger, markdownSummary) {
+  // 1. Unique evaluation IDs and unique (prompt, response) pairs across verifier checks
+  const seenIds = new Set();
+  const seenPromptResponses = new Map();
+  for (const rec of evaluationLedger) {
+    assert(!seenIds.has(rec.id), `Duplicate evaluation ID in ledger: ${rec.id}`);
+    seenIds.add(rec.id);
+    assert(
+      rec.category === 'VERIFIER' || rec.category === 'SOLVER' || rec.category === 'METAMORPHIC',
+      `Invalid evaluation category for ${rec.id}: ${rec.category}`
+    );
+    assert.strictEqual(typeof rec.expectedPositive, 'boolean', `Missing boolean expectedPositive on ${rec.id}`);
+    if (rec.category === 'VERIFIER' && rec.prompt && rec.response) {
+      const prKey = `${String(rec.prompt).trim()} ||| ${String(rec.response).trim()}`;
+      assert(
+        !seenPromptResponses.has(prKey),
+        `Duplicate (prompt, response) evaluation detected between ${seenPromptResponses.get(prKey)} and ${rec.id}`
+      );
+      seenPromptResponses.set(prKey, rec.id);
+    }
+  }
+
+  // 2. Recompute totals from sectionBreakdown and assert exact equality with baseline and combined matrices
+  const sections = Object.values(scorecard.sectionBreakdown);
+  const baselineSections = sections.filter(s => s.isBaseline);
+
+  const sumBaselineTp = baselineSections.reduce((a, s) => a + s.verifierTp, 0);
+  const sumBaselineTn = baselineSections.reduce((a, s) => a + s.verifierTn, 0);
+  const sumBaselineFp = baselineSections.reduce((a, s) => a + s.verifierFp, 0);
+  const sumBaselineFn = baselineSections.reduce((a, s) => a + s.verifierFn, 0);
+  const sumBaselineTotal = baselineSections.reduce((a, s) => a + s.verifierTotal, 0);
+
+  const baseMat = scorecard.baselineSeed20261126Breakdown.verifierOnlyConfusionMatrix;
+  assert.strictEqual(sumBaselineTp, baseMat.truePositives, `Baseline section TP sum (${sumBaselineTp}) != baseline subtotal (${baseMat.truePositives})`);
+  assert.strictEqual(sumBaselineTn, baseMat.trueNegatives, `Baseline section TN sum (${sumBaselineTn}) != baseline subtotal (${baseMat.trueNegatives})`);
+  assert.strictEqual(sumBaselineFp, baseMat.falsePositives, `Baseline section FP sum (${sumBaselineFp}) != baseline subtotal (${baseMat.falsePositives})`);
+  assert.strictEqual(sumBaselineFn, baseMat.falseNegatives, `Baseline section FN sum (${sumBaselineFn}) != baseline subtotal (${baseMat.falseNegatives})`);
+  assert.strictEqual(sumBaselineTotal, baseMat.total, `Baseline section total (${sumBaselineTotal}) != baseline subtotal (${baseMat.total})`);
+
+  const sumAllTp = sections.reduce((a, s) => a + s.verifierTp, 0);
+  const sumAllTn = sections.reduce((a, s) => a + s.verifierTn, 0);
+  const sumAllFp = sections.reduce((a, s) => a + s.verifierFp, 0);
+  const sumAllFn = sections.reduce((a, s) => a + s.verifierFn, 0);
+  const sumAllTotal = sections.reduce((a, s) => a + s.verifierTotal, 0);
+
+  const combMat = scorecard.confusionMatrix;
+  assert.strictEqual(sumAllTp, combMat.truePositives, `All-section TP sum (${sumAllTp}) != combined matrix (${combMat.truePositives})`);
+  assert.strictEqual(sumAllTn, combMat.trueNegatives, `All-section TN sum (${sumAllTn}) != combined matrix (${combMat.trueNegatives})`);
+  assert.strictEqual(sumAllFp, combMat.falsePositives, `All-section FP sum (${sumAllFp}) != combined matrix (${combMat.falsePositives})`);
+  assert.strictEqual(sumAllFn, combMat.falseNegatives, `All-section FN sum (${sumAllFn}) != combined matrix (${combMat.falseNegatives})`);
+  assert.strictEqual(sumAllTotal, combMat.totalEvaluations, `All-section total (${sumAllTotal}) != combined matrix (${combMat.totalEvaluations})`);
+
+  // 3. Verify solver and metamorphic checks are excluded from verifier confusion matrix
+  const sumSolverTotal = sections.reduce((a, s) => a + s.solverTotal, 0);
+  const sumMetaTotal = sections.reduce((a, s) => a + s.metamorphicTotal, 0);
+  assert.strictEqual(sumSolverTotal, scorecard.baselineSeed20261126Breakdown.solverChecks.total);
+  assert.strictEqual(sumMetaTotal, scorecard.baselineSeed20261126Breakdown.metamorphicFamilies.total);
+  assert.strictEqual(sumAllTotal + sumSolverTotal + sumMetaTotal, evaluationLedger.length);
+
+  // 4. Parse the Markdown per-section breakdown table and verify its rows sum to the JSON subtotals and grand totals
+  if (markdownSummary) {
+    const rowRe = /^\|\s*`([A-Z0-9_]+)`\s*\|\s*(Baseline|Expansion)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|/gm;
+    let mdMatch;
+    let mdBaseTp = 0;
+    let mdBaseTn = 0;
+    let mdAllTp = 0;
+    let mdAllTn = 0;
+    let matchedRows = 0;
+    while ((mdMatch = rowRe.exec(markdownSummary)) !== null) {
+      matchedRows++;
+      const scope = mdMatch[2];
+      const tp = Number(mdMatch[3]);
+      const tn = Number(mdMatch[4]);
+      const fp = Number(mdMatch[5]);
+      const fn = Number(mdMatch[6]);
+      const tot = Number(mdMatch[7]);
+      assert.strictEqual(tp + tn + fp + fn, tot, `Markdown row ${mdMatch[1]} TP+TN+FP+FN != Total`);
+      if (scope === 'Baseline') {
+        mdBaseTp += tp;
+        mdBaseTn += tn;
+      }
+      mdAllTp += tp;
+      mdAllTn += tn;
+    }
+    assert.strictEqual(matchedRows, sections.length, `Expected ${sections.length} section rows in Markdown table, parsed ${matchedRows}`);
+    assert.strictEqual(mdBaseTp, baseMat.truePositives, `Markdown baseline TP sum (${mdBaseTp}) != JSON (${baseMat.truePositives})`);
+    assert.strictEqual(mdBaseTn, baseMat.trueNegatives, `Markdown baseline TN sum (${mdBaseTn}) != JSON (${baseMat.trueNegatives})`);
+    assert.strictEqual(mdAllTp, combMat.truePositives, `Markdown combined TP sum (${mdAllTp}) != JSON (${combMat.truePositives})`);
+    assert.strictEqual(mdAllTn, combMat.trueNegatives, `Markdown combined TN sum (${mdAllTn}) != JSON (${combMat.trueNegatives})`);
+  }
+}
+
 async function runCampaign() {
   const repoRoot = path.join(__dirname, '..');
   const startedAt = new Date().toISOString();
@@ -111,30 +268,30 @@ async function runCampaign() {
   const parserLatenciesMs = [];
   const solverLatenciesMs = [];
   const verificationLatenciesMs = [];
-  let endToEndLlmLatencyMs = null;
+  const liveLlmLatenciesMs = [];
 
   const domainScores = {};
   let totalChecks = 0;
   let passedChecks = 0;
 
-  // 1. Baseline Verification-Classification Confusion Matrix (strictly verifier classification checks, excluding solver/metamorphic checks)
-  let verifierTp = 0;
-  let verifierTn = 0;
-  let verifierFp = 0;
-  let verifierFn = 0;
-
-  // 2. Legacy Combined Confusion Matrix (includes the 15 positive + 1 negative solver/metamorphic checks for historical reconciliation with the 142 TP / 89 TN scorecard)
-  let legacyCombinedTp = 0;
-  let legacyCombinedTn = 0;
-  let legacyCombinedFp = 0;
-  let legacyCombinedFn = 0;
-
-  // 3. Deterministic Solver Accuracy Counter
-  let solverTotal = 0;
-  let solverPassed = 0;
-
   let unknownClaimsCount = 0;
   let totalEvaluatedClaims = 0;
+
+  // Single authoritative ledger of all verifier, solver, and metamorphic evaluations
+  const evaluationLedger = [];
+
+  function recordEvaluation(entry) {
+    evaluationLedger.push({
+      id: entry.id,
+      section: entry.section,
+      category: entry.category, // 'VERIFIER' | 'SOLVER' | 'METAMORPHIC'
+      isBaseline: Boolean(entry.isBaseline),
+      prompt: entry.prompt || null,
+      response: entry.response || null,
+      expectedPositive: Boolean(entry.expectedPositive),
+      passed: Boolean(entry.passed)
+    });
+  }
 
   function recordDomain(domain, ok) {
     if (!domainScores[domain]) {
@@ -156,32 +313,19 @@ async function runCampaign() {
   }
 
   // =========================================================================
-  // SECTION 2: 8 MATHEMATICAL DOMAINS
+  // SECTION 2: 8 MATHEMATICAL DOMAINS (Deduplicated Core Benchmarks + 4 Domain Suites)
   // =========================================================================
-  console.log('▶ [SECTION 2] Mathematical Accuracy Certification (8 Domains)...');
+  console.log('▶ [SECTION 2] Mathematical Accuracy Certification (8 Domains, Zero Duplicate Evaluations)...');
+  // Note: The 7 cases formerly duplicated in algebra/linear-algebra/probability suites are evaluated
+  // exclusively inside their respective domain suites so every evaluation is counted exactly once.
   const mathDomainCases = [
-    // 2A. Arithmetic & Number Theory
-    { domain: '2A_ARITHMETIC_NUMBER_THEORY', prompt: 'Calculate 17/20 + 13/25', response: '$$\\frac{17}{20} + \\frac{13}{25} = \\frac{137}{100} = 1.37$$', shouldVerify: true },
-    { domain: '2A_ARITHMETIC_NUMBER_THEORY', prompt: 'Calculate (-12)^2 - 4(3)(-15)', response: '$$(-12)^2 - 4(3)(-15) = 144 + 180 = 324$$', shouldVerify: true },
-    // 2B. Algebra
-    { domain: '2B_ALGEBRA', prompt: 'Solve x^2 - 7x + 12 = 0', response: 'Factoring $(x-3)(x-4)=0$ gives $x = 3$ and $x = 4$.', shouldVerify: true },
-    { domain: '2B_ALGEBRA', prompt: 'Expand (2x - 3)(x + 4)', response: '$$(2x - 3)(x + 4) = 2x^2 + 5x - 12$$', shouldVerify: true },
-    // 2C. Radicals & Rational Expressions (Special Attention)
-    { domain: '2C_RADICALS_RATIONALS', prompt: 'Simplify \\frac{\\sqrt{18}+\\sqrt{50}-\\sqrt{8}}{\\sqrt{2}}', response: '$$\\sqrt{2}\\sqrt{a} = \\sqrt{2a}$$\n$$\\sqrt{m^2 n} = |m|\\sqrt{n}$$\n$$\\frac{\\sqrt{18}+\\sqrt{50}-\\sqrt{8}}{\\sqrt{2}} = 3 + 5 - 2 = \\boxed{6}$$', shouldVerify: true },
-    { domain: '2C_RADICALS_RATIONALS', prompt: 'Simplify \\sqrt{x^2}', response: 'For all real $x$: $$\\sqrt{x^2} = |x|$$', shouldVerify: true },
-    { domain: '2C_RADICALS_RATIONALS', prompt: 'Simplify \\frac{x^2 - 9}{x - 3}', response: 'For $x \\neq 3$: $$\\frac{x^2 - 9}{x - 3} = x + 3$$', shouldVerify: true },
-    // 2D. Trigonometry
-    { domain: '2D_TRIGONOMETRY', prompt: '\\[\\boxed{\\frac{1-\\cos^2(x)}{\\sin(x)} + \\frac{1-\\sin^2(x)}{\\cos(x)}}\\]', response: 'Where $\\sin x \\neq 0$ and $\\cos x \\neq 0$:\n$$1-\\cos^{2}x=\\sin^{2}x$$\n$$1-\\sin^{2}x=\\cos^{2}x$$\n$$\\frac{1-\\cos^{2}(x)}{\\sin(x)} + \\frac{1-\\sin^{2}(x)}{\\cos(x)} = \\boxed{\\sin(x) + \\cos(x)}$$', shouldVerify: true },
-    { domain: '2D_TRIGONOMETRY', prompt: 'Verify \\sin(2x) = 2\\sin(x)\\cos(x)', response: '$$\\sin(2x) = 2\\sin(x)\\cos(x)$$', shouldVerify: true },
-    // 2E. Geometry
-    { domain: '2E_GEOMETRY', prompt: 'A right triangle has legs a = 6 and b = 8. Find hypotenuse c.', response: '$$6^2 + 8^2 = 36 + 64 = 100$$\n$$\\sqrt{100} = 10$$', shouldVerify: true },
-    // 2F. Precalculus & Calculus
-    { domain: '2F_CALCULUS', prompt: 'Differentiate f(x) = x^4 - 6x^2 + 5x', response: '$$\\frac{d}{dx}(x^4 - 6x^2 + 5x) = 4x^3 - 12x + 5$$', shouldVerify: true },
-    { domain: '2F_CALCULUS', prompt: 'Integrate 3x^2 + 4x dx', response: '$$\\int (3x^2 + 4x)\\,dx = x^3 + 2x^2 + C$$', shouldVerify: true },
-    // 2G. Linear Algebra
-    { domain: '2G_LINEAR_ALGEBRA', prompt: 'Find the determinant of [[4, 7], [2, 6]]', response: '$$4(6) - 7(2) = 24 - 14 = 10$$', shouldVerify: true },
-    // 2H. Probability & Statistics
-    { domain: '2H_PROBABILITY_STATISTICS', prompt: 'In the Monty Hall problem with 3 doors, what is the probability of winning if you switch?', response: '$$1 - \\frac{1}{3} = \\frac{2}{3}$$', shouldVerify: true }
+    { id: '2A_BENCH_DISCRIMINANT', domain: '2A_ARITHMETIC_NUMBER_THEORY', prompt: 'Calculate (-12)^2 - 4(3)(-15)', response: '$$(-12)^2 - 4(3)(-15) = 144 + 180 = 324$$', shouldVerify: true },
+    { id: '2B_BENCH_EXPAND', domain: '2B_ALGEBRA', prompt: 'Expand (2x - 3)(x + 4)', response: '$$(2x - 3)(x + 4) = 2x^2 + 5x - 12$$', shouldVerify: true },
+    { id: '2C_BENCH_REMOVABLE_RATIONAL', domain: '2C_RADICALS_RATIONALS', prompt: 'Simplify \\frac{x^2 - 9}{x - 3}', response: 'For $x \\neq 3$: $$\\frac{x^2 - 9}{x - 3} = x + 3$$', shouldVerify: true },
+    { id: '2D_BENCH_RATIONAL_TRIG', domain: '2D_TRIGONOMETRY', prompt: '\\[\\boxed{\\frac{1-\\cos^2(x)}{\\sin(x)} + \\frac{1-\\sin^2(x)}{\\cos(x)}}\\]', response: 'Where $\\sin x \\neq 0$ and $\\cos x \\neq 0$:\n$$1-\\cos^{2}x=\\sin^{2}x$$\n$$1-\\sin^{2}x=\\cos^{2}x$$\n$$\\frac{1-\\cos^{2}(x)}{\\sin(x)} + \\frac{1-\\sin^{2}(x)}{\\cos(x)} = \\boxed{\\sin(x) + \\cos(x)}$$', shouldVerify: true },
+    { id: '2E_BENCH_PYTHAGOREAN_HYPOTENUSE', domain: '2E_GEOMETRY', prompt: 'A right triangle has legs a = 6 and b = 8. Find hypotenuse c.', response: '$$6^2 + 8^2 = 36 + 64 = 100$$\n$$\\sqrt{100} = 10$$', shouldVerify: true },
+    { id: '2F_BENCH_POLY_DERIVATIVE', domain: '2F_CALCULUS', prompt: 'Differentiate f(x) = x^4 - 6x^2 + 5x', response: '$$\\frac{d}{dx}(x^4 - 6x^2 + 5x) = 4x^3 - 12x + 5$$', shouldVerify: true },
+    { id: '2F_BENCH_POLY_INTEGRAL', domain: '2F_CALCULUS', prompt: 'Integrate 3x^2 + 4x dx', response: '$$\\int (3x^2 + 4x)\\,dx = x^3 + 2x^2 + C$$', shouldVerify: true }
   ];
 
   for (const tc of mathDomainCases) {
@@ -189,11 +333,16 @@ async function runCampaign() {
     const ok = tc.shouldVerify
       ? (audit.claims.length > 0 && audit.invalidClaims.length === 0 && audit.verificationResults.some(v => v && v.verified === true))
       : (audit.claims.length > 0 && audit.invalidClaims.length > 0);
-    if (tc.shouldVerify) {
-      if (ok) { verifierTp++; legacyCombinedTp++; } else { verifierFn++; legacyCombinedFn++; }
-    } else {
-      if (ok) { verifierTn++; legacyCombinedTn++; } else { verifierFp++; legacyCombinedFp++; }
-    }
+    recordEvaluation({
+      id: tc.id,
+      section: '2_CORE_MATH_BENCHMARKS',
+      category: 'VERIFIER',
+      isBaseline: true,
+      prompt: tc.prompt,
+      response: tc.response,
+      expectedPositive: tc.shouldVerify,
+      passed: ok
+    });
     recordDomain(tc.domain, ok);
     assert(ok, `[${tc.domain}] Failed case: ${tc.prompt} -> ${JSON.stringify(audit)}`);
   }
@@ -206,74 +355,71 @@ async function runCampaign() {
     runProbabilityCertificationSuite
   ]) {
     const sRes = await suiteFn();
-    verifierTp += sRes.tp;
-    verifierTn += sRes.tn;
-    verifierFp += sRes.fp;
-    verifierFn += sRes.fn;
-    solverTotal += (sRes.solverTotal || 0);
-    solverPassed += (sRes.solverPassed || 0);
-    legacyCombinedTp += sRes.tp + (sRes.solverPassed || 0);
-    legacyCombinedTn += sRes.tn;
-    legacyCombinedFp += sRes.fp;
-    legacyCombinedFn += sRes.fn;
+    const sectionKey = `SUITE_${sRes.domain}`;
     verificationLatenciesMs.push(...(sRes.verifyLatenciesMs || []));
     solverLatenciesMs.push(...(sRes.solverLatenciesMs || []));
     for (const d of sRes.details) {
-      recordDomain(`SUITE_${sRes.domain}`, d.passed);
+      recordEvaluation({
+        id: `${sectionKey}__${d.name.split(':')[0].trim()}`,
+        section: sectionKey,
+        category: d.kind === 'SOLVER' ? 'SOLVER' : 'VERIFIER',
+        isBaseline: true,
+        expectedPositive: d.expectedPositive,
+        passed: d.passed
+      });
+      recordDomain(sectionKey, d.passed);
       assert(d.passed, `[${sRes.domain}] ${d.name} failed: ${d.error}`);
     }
   }
-  console.log(`  ✓ All mathematical domain suites (Arithmetic, Algebra, Radicals/Rationals, Trig, Calculus, Linear Algebra, Probability) passed.\n`);
+  console.log('  ✓ All mathematical domain suites (Arithmetic, Algebra, Radicals/Rationals, Trig, Calculus, Linear Algebra, Probability) passed.\n');
 
   // =========================================================================
   // SECTION 3: 5 PHYSICS DOMAINS & GEOMETRY SUITE
   // =========================================================================
   console.log('▶ [SECTION 3] Physics & Geometry Reliability Certification (5 Domains)...');
   const physSuiteRes = await runPhysicsAndGeometryCertificationSuite();
-  verifierTp += physSuiteRes.tp;
-  verifierTn += physSuiteRes.tn;
-  verifierFp += physSuiteRes.fp;
-  verifierFn += physSuiteRes.fn;
-  solverTotal += (physSuiteRes.solverTotal || 0);
-  solverPassed += (physSuiteRes.solverPassed || 0);
-  // In physSuiteRes, 2E-1 is a positive solver check and 2E-2 is a negative solver check
-  legacyCombinedTp += physSuiteRes.tp + 1;
-  legacyCombinedTn += physSuiteRes.tn + 1;
-  legacyCombinedFp += physSuiteRes.fp;
-  legacyCombinedFn += physSuiteRes.fn;
+  const physSectionKey = `SUITE_${physSuiteRes.domain}`;
   verificationLatenciesMs.push(...(physSuiteRes.verifyLatenciesMs || []));
   solverLatenciesMs.push(...(physSuiteRes.solverLatenciesMs || []));
   for (const d of physSuiteRes.details) {
-    recordDomain(`SUITE_${physSuiteRes.domain}`, d.passed);
+    recordEvaluation({
+      id: `${physSectionKey}__${d.name.split(':')[0].trim()}`,
+      section: physSectionKey,
+      category: d.kind === 'SOLVER' ? 'SOLVER' : 'VERIFIER',
+      isBaseline: true,
+      expectedPositive: d.expectedPositive,
+      passed: d.passed
+    });
+    recordDomain(physSectionKey, d.passed);
     assert(d.passed, `[${physSuiteRes.domain}] ${d.name} failed: ${d.error}`);
   }
+
+  // Note: 3E Schwarzschild V'_eff, V''_eff, and b_crit is evaluated in SUITE_PHYSICS_AND_GEOMETRY (3E-1 & 3E-2)
+  // so it is not duplicated here.
   const physicsCases = [
-    { domain: '3A_CLASSICAL_MECHANICS', prompt: 'A 4 kg mass accelerates at 5 m/s^2. Find the net force.', response: '$$4 \\cdot 5 = 20$$', shouldVerify: true },
-    { domain: '3B_ELECTROMAGNETISM', prompt: 'A 12 V battery drives current through a 4 ohm resistor. Find the current.', response: '$$\\frac{12}{4} = 3$$', shouldVerify: true },
-    { domain: '3C_THERMODYNAMICS', prompt: 'Convert 25 C to Kelvin.', response: '$$25 + 273.15 = 298.15$$', shouldVerify: true },
-    { domain: '3D_WAVES_OPTICS', prompt: 'A wave has frequency 50 Hz and wavelength 6 m. Find wave speed.', response: '$$50 \\cdot 6 = 300$$', shouldVerify: true },
-    {
-      domain: '3E_RELATIVITY_SCHWARZSCHILD',
-      prompt: 'For V_{\\mathrm{eff}}(r) = \\frac{L^2}{r^2}\\left(1 - \\frac{r_s}{r}\\right) where r_s = \\frac{2GM}{c^2}, verify V\'_{\\mathrm{eff}}(r), V\'\'_{\\mathrm{eff}}(r), and b_{\\mathrm{crit}}.',
-      response: [
-        '$$V_{\\mathrm{eff}}(r) = \\frac{L^2}{r^2}\\left(1 - \\frac{r_s}{r}\\right)$$',
-        '$$V\'_{\\mathrm{eff}}(r) = L^2\\left(-\\frac{2}{r^3} + \\frac{3r_s}{r^4}\\right)$$',
-        '$$V\'\'_{\\mathrm{eff}}(r) = L^2\\left(\\frac{6}{r^4} - \\frac{12r_s}{r^5}\\right)$$',
-        '$$\\frac{\\frac{3}{2}r_s}{\\sqrt{1 - \\frac{2}{3}}} = \\frac{3\\sqrt{3}}{2}r_s$$',
-        '$$\\frac{3\\sqrt{3}}{2}r_s = \\frac{3\\sqrt{3}GM}{c^2}$$'
-      ].join('\n'),
-      shouldVerify: true
-    }
+    { id: '3A_BENCH_NEWTON_SECOND_LAW', domain: '3A_CLASSICAL_MECHANICS', prompt: 'A 4 kg mass accelerates at 5 m/s^2. Find the net force.', response: '$$4 \\cdot 5 = 20$$', shouldVerify: true },
+    { id: '3B_BENCH_OHM_CURRENT', domain: '3B_ELECTROMAGNETISM', prompt: 'A 12 V battery drives current through a 4 ohm resistor. Find the current.', response: '$$\\frac{12}{4} = 3$$', shouldVerify: true },
+    { id: '3C_BENCH_CELSIUS_TO_KELVIN', domain: '3C_THERMODYNAMICS', prompt: 'Convert 25 C to Kelvin.', response: '$$25 + 273.15 = 298.15$$', shouldVerify: true },
+    { id: '3D_BENCH_WAVE_SPEED', domain: '3D_WAVES_OPTICS', prompt: 'A wave has frequency 50 Hz and wavelength 6 m. Find wave speed.', response: '$$50 \\cdot 6 = 300$$', shouldVerify: true }
   ];
 
   for (const tc of physicsCases) {
     const audit = await timedVerify(tc.response, tc.prompt);
     const ok = audit.claims.length > 0 && audit.invalidClaims.length === 0 && audit.verificationResults.some(v => v && v.verified === true);
-    if (ok) { verifierTp++; legacyCombinedTp++; } else { verifierFn++; legacyCombinedFn++; }
+    recordEvaluation({
+      id: tc.id,
+      section: '3_CORE_PHYSICS_BENCHMARKS',
+      category: 'VERIFIER',
+      isBaseline: true,
+      prompt: tc.prompt,
+      response: tc.response,
+      expectedPositive: tc.shouldVerify,
+      passed: ok
+    });
     recordDomain(tc.domain, ok);
     assert(ok, `[${tc.domain}] Failed physics case: ${tc.prompt}`);
   }
-  console.log(`  ✓ All ${physicsCases.length} physics domain checks (including Schwarzschild V'_eff, V''_eff, and b_crit) passed.\n`);
+  console.log(`  ✓ All physics & geometry domain checks (including Schwarzschild V'_eff, V''_eff, and b_crit) passed.\n`);
 
   // =========================================================================
   // SECTION 4: PARSER & ADVERSARIAL 1-CHAR NOTATION CERTIFICATION
@@ -285,7 +431,6 @@ async function runCampaign() {
   recordDomain('4_PARSER_MULTI_SURFACE', surfRes.passedSurfaceChecks === surfRes.totalSurfaceChecks);
   recordDomain('4_PARSER_ADVERSARIAL_1CHAR', surfRes.passedAdversarial === surfRes.totalAdversarial);
 
-  // Also verify 1-click suggestedFix works on multi-term \frac / \boxed expressions on BOTH server and client
   const boxedMalformed = '\\[\n\\boxed{\n\\frac{1-\\cos²⁽ˣ⁾}{\\sin(x)}\n+\n\\frac{1-\\sin²⁽ˣ⁾}{\\cos(x)}\n}\n\\]';
   const malCheck = detectFormattingAnomaly(boxedMalformed);
   const clientMalCheck = clientMathEngine.detectInputFormattingIssue(boxedMalformed);
@@ -352,9 +497,9 @@ async function runCampaign() {
   console.log(`  ✓ All ${routingMatrix.length} solver & alternative-method routing checks passed.\n`);
 
   // =========================================================================
-  // SECTION 6: 10 REQUIRED INDEPENDENT VERIFICATION SCENARIOS + CLAIM ISOLATION
+  // SECTION 6: 10 REQUIRED INDEPENDENT VERIFICATION SCENARIOS + ZERO-CLAIM SAFEGUARD
   // =========================================================================
-  console.log('▶ [SECTION 6] Independent Verification Certification (10 Required Scenarios + Claim Isolation)...');
+  console.log('▶ [SECTION 6] Independent Verification Certification (10 Required Scenarios + Zero-Claim Safeguard)...');
   const verificationScenarios = [
     {
       id: 'V1_CORRECT_DERIVATION_CORRECT_ANSWER',
@@ -420,6 +565,12 @@ async function runCampaign() {
         '$$\\frac{\\sin x\\cos x\\bigl(\\sin x+\\cos x\\bigr)}{\\sin x\\cos x} = \\sin x+\\cos x$$'
       ].join('\n'),
       expectVerifiedState: true
+    },
+    {
+      id: 'V11_ZERO_CLAIM_BYPASS_SAFEGUARD',
+      prompt: 'Simplify \\frac{1-\\cos^2(x)}{\\sin(x)} + \\frac{1-\\sin^2(x)}{\\cos(x)}',
+      response: 'This expression simplifies nicely using trigonometric identities.',
+      expectVerifiedState: false
     }
   ];
 
@@ -435,34 +586,23 @@ async function runCampaign() {
       withheld: false
     });
     const isVerified = evalState.state === 'VERIFIED';
-    const ok = (isVerified === vs.expectVerifiedState);
-    if (vs.expectVerifiedState) {
-      if (isVerified) { verifierTp++; legacyCombinedTp++; } else { verifierFn++; legacyCombinedFn++; }
-    } else {
-      if (!isVerified) { verifierTn++; legacyCombinedTn++; } else { verifierFp++; legacyCombinedFp++; }
-    }
-    recordDomain('6_INDEPENDENT_VERIFICATION_10_SCENARIOS', ok);
+    const ok = vs.id === 'V11_ZERO_CLAIM_BYPASS_SAFEGUARD'
+      ? (audit.claims.length === 0 && evalState.state === 'WITHHELD')
+      : (isVerified === vs.expectVerifiedState);
+    recordEvaluation({
+      id: vs.id,
+      section: '6_INDEPENDENT_VERIFICATION_SCENARIOS',
+      category: 'VERIFIER',
+      isBaseline: true,
+      prompt: vs.prompt,
+      response: vs.response,
+      expectedPositive: vs.expectVerifiedState,
+      passed: ok
+    });
+    recordDomain('6_INDEPENDENT_VERIFICATION_SCENARIOS', ok);
     assert(ok, `[${vs.id}] Expected verified=${vs.expectVerifiedState}, got state=${evalState.state}`);
   }
-
-  // Verify Defect C2 safeguard: A response with zero extracted claims on an explicit mathematical
-  // calculation/simplification prompt MUST return WITHHELD (never UNVERIFIED_CONCEPTUAL or VERIFIED).
-  const zeroClaimAudit = await timedVerify(
-    'This expression simplifies nicely using trigonometric identities.',
-    'Simplify \\frac{1-\\cos^2(x)}{\\sin(x)} + \\frac{1-\\sin^2(x)}{\\cos(x)}'
-  );
-  const zeroClaimState = evaluateVerificationState({
-    claims: zeroClaimAudit.claims,
-    verificationResults: zeroClaimAudit.verificationResults,
-    invalidClaims: zeroClaimAudit.invalidClaims,
-    unknownClaims: zeroClaimAudit.unknownClaims,
-    internalContradictions: zeroClaimAudit.internalContradictions,
-    prompt: 'Simplify \\frac{1-\\cos^2(x)}{\\sin(x)} + \\frac{1-\\sin^2(x)}{\\cos(x)}',
-    withheld: false
-  });
-  assert.strictEqual(zeroClaimAudit.claims.length, 0);
-  assert.strictEqual(zeroClaimState.state, 'WITHHELD', `Expected zero-claim response on Simplify prompt to be WITHHELD, got ${zeroClaimState.state}`);
-  console.log(`  ✓ All 10 independent verification precision/recall scenarios + zero-claim bypass safeguard passed.\n`);
+  console.log(`  ✓ All 11 independent verification scenarios (V1–V10 + V11 zero-claim safeguard) passed.\n`);
 
   // =========================================================================
   // SECTION 7: METAMORPHIC INVARIANCE SUITE
@@ -470,8 +610,18 @@ async function runCampaign() {
   console.log('▶ [SECTION 7] Metamorphic Testing Suite...');
   const metaRes = await runMetamorphicSuite();
   assert.strictEqual(metaRes.failed, 0, `Metamorphic failures: ${JSON.stringify(metaRes.details.filter(d => !d.passed))}`);
+  for (let mi = 0; mi < metaRes.details.length; mi++) {
+    const m = metaRes.details[mi];
+    recordEvaluation({
+      id: `7_META__${m.id || (m.name ? m.name.split(':')[0].trim() : `M${mi + 1}`)}`,
+      section: '7_METAMORPHIC_INVARIANCE',
+      category: 'METAMORPHIC',
+      isBaseline: true,
+      expectedPositive: true,
+      passed: m.passed
+    });
+  }
   recordDomain('7_METAMORPHIC_INVARIANCE', metaRes.passed === metaRes.total);
-  legacyCombinedTp += metaRes.passed;
   console.log(`  ✓ ${metaRes.passed}/${metaRes.total} metamorphic invariance families passed.\n`);
 
   // =========================================================================
@@ -482,31 +632,52 @@ async function runCampaign() {
   const arithAllPassed = arithProp.every(r => r.passed);
   for (const r of arithProp) {
     verificationLatenciesMs.push(r.latencyMs);
-    if (!r.isCorrupted) {
-      if (r.verified) { verifierTp++; legacyCombinedTp++; } else { verifierFn++; legacyCombinedFn++; }
-    } else {
-      if (!r.verified) { verifierTn++; legacyCombinedTn++; } else { verifierFp++; legacyCombinedFp++; }
-    }
+    recordEvaluation({
+      id: r.id,
+      section: '8A_SEEDED_ARITHMETIC_50',
+      category: 'VERIFIER',
+      isBaseline: true,
+      prompt: r.prompt,
+      response: r.response,
+      expectedPositive: r.expectedPositive,
+      passed: r.passed
+    });
   }
   recordDomain('8A_SEEDED_ARITHMETIC_50', arithAllPassed);
 
   const seededRes = await runSeededDomainCorpus(20261126);
   assert.strictEqual(seededRes.failures.length, 0, `Seeded corpus failures: ${seededRes.failures.join('; ')}`);
-  verifierTp += seededRes.truePositives;
-  verifierTn += seededRes.trueNegatives;
-  verifierFp += seededRes.falsePositives;
-  verifierFn += seededRes.falseNegatives;
-  legacyCombinedTp += seededRes.truePositives;
-  legacyCombinedTn += seededRes.trueNegatives;
-  legacyCombinedFp += seededRes.falsePositives;
-  legacyCombinedFn += seededRes.falseNegatives;
   verificationLatenciesMs.push(...(seededRes.verifyLatenciesMs || []));
+  for (const rec of seededRes.records) {
+    recordEvaluation({
+      id: rec.id,
+      section: '8B_SEEDED_ALGEBRA_CALC_RADICALS_105',
+      category: 'VERIFIER',
+      isBaseline: true,
+      prompt: rec.prompt,
+      response: rec.response,
+      expectedPositive: rec.expectedPositive,
+      passed: rec.passed
+    });
+  }
   recordDomain('8B_SEEDED_ALGEBRA_CALC_RADICALS_105', seededRes.passed === seededRes.total);
 
   // Expanded 5-Seed 9-Domain Randomized Corpus
   const expandedMultiSeed = await runExpandedMultiSeedRandomCorpus(DEFAULT_SEEDS);
   assert.strictEqual(expandedMultiSeed.failures.length, 0, `Expanded multi-seed corpus failures: ${expandedMultiSeed.failures.join('; ')}`);
   verificationLatenciesMs.push(...(expandedMultiSeed.verifyLatenciesMs || []));
+  for (const rec of expandedMultiSeed.records) {
+    recordEvaluation({
+      id: rec.id,
+      section: '8C_EXPANDED_5_SEEDS_9_DOMAINS_310',
+      category: 'VERIFIER',
+      isBaseline: false,
+      prompt: rec.prompt,
+      response: rec.response,
+      expectedPositive: rec.expectedPositive,
+      passed: rec.passed
+    });
+  }
   recordDomain('8C_EXPANDED_5_SEEDS_9_DOMAINS_310', expandedMultiSeed.passedCases === expandedMultiSeed.totalCases);
   console.log(`  ✓ Baseline Seed 20261126: ${arithProp.length + seededRes.total}/${arithProp.length + seededRes.total} passed.`);
   console.log(`  ✓ Expanded 5-Seed 9-Domain Corpus (Seeds: ${DEFAULT_SEEDS.join(', ')}): ${expandedMultiSeed.passedCases}/${expandedMultiSeed.totalCases} passed (TP=${expandedMultiSeed.truePositives}, TN=${expandedMultiSeed.trueNegatives}, FP=${expandedMultiSeed.falsePositives}, FN=${expandedMultiSeed.falseNegatives}).\n`);
@@ -550,9 +721,9 @@ async function runCampaign() {
   console.log('  ✓ Normal Mode vs. Tutor Mode parity, CAS Answer Sheet injection, and 12–25 clarity baseline verified.\n');
 
   // =========================================================================
-  // SECTION 10: GOLDEN CORPUS, PRODUCTION BUNDLE REPLAY & CHILD REGRESSION SUITES
+  // SECTION 10: GOLDEN CORPUS, PRODUCTION BUNDLE REPLAY, LIVE-LLM ACCEPTANCE & CHILD SUITES
   // =========================================================================
-  console.log('▶ [SECTION 10] Golden Corpus, Production Bundle Replay & Child Regression Suites...');
+  console.log('▶ [SECTION 10] Golden Corpus, Production Bundle Replay, Live-LLM Acceptance Corpus & Child Regression Suites...');
   const goldenPath = path.join(__dirname, 'golden', 'production_qa_corpus.json');
   const goldenOk = await runGoldenCorpus(goldenPath);
   recordDomain('10A_GOLDEN_PRODUCTION_QA_CORPUS', goldenOk);
@@ -565,6 +736,75 @@ async function runCampaign() {
     bundleReplaySummary = { executed: true, passed: bundleOk, verifiedClaims: 16, totalClaims: 16 };
     recordDomain('10B_PRODUCTION_EXPORT_BUNDLE_REPLAY', bundleOk);
     assert(bundleOk, 'Production analysis bundle replay failed');
+  }
+
+  // 10D. Verify all 7 Live-LLM Acceptance Scenarios captured from hosted groq-text (openai/gpt-oss-120b)
+  const liveAcceptancePath = path.join(__dirname, 'golden', 'latest_live_llm_acceptance.json');
+  let liveAcceptanceSummary = {
+    executed: false,
+    passed: false,
+    hostedProvider: null,
+    hostedModel: null,
+    totalScenarios: 0,
+    passedScenarios: 0,
+    totalExtractedClaims: 0,
+    totalVerifiedClaims: 0,
+    totalInvalidClaims: 0,
+    totalUnknownClaims: 0
+  };
+  if (fs.existsSync(liveAcceptancePath)) {
+    const liveCorpus = JSON.parse(fs.readFileSync(liveAcceptancePath, 'utf8'));
+    let allLiveOk = true;
+    let totalLiveClaims = 0;
+    let totalLiveVerified = 0;
+    let totalLiveInvalid = 0;
+    let totalLiveUnknown = 0;
+    for (const sc of liveCorpus.scenarios) {
+      if (typeof sc.wallLatencyMs === 'number') {
+        liveLlmLatenciesMs.push(sc.wallLatencyMs);
+      }
+      const audit = await verifyResponseClaims(sc.rawModelResponse, sc.effectivePrompt);
+      const evalState = evaluateVerificationState({
+        claims: audit.claims,
+        verificationResults: audit.verificationResults,
+        invalidClaims: audit.invalidClaims,
+        unknownClaims: audit.unknownClaims,
+        internalContradictions: audit.internalContradictions,
+        prompt: sc.effectivePrompt,
+        withheld: false
+      });
+      const vCount = audit.verificationResults.filter(v => v && v.verified === true).length;
+      totalLiveClaims += audit.claims.length;
+      totalLiveVerified += vCount;
+      totalLiveInvalid += audit.invalidClaims.length;
+      totalLiveUnknown += audit.unknownClaims.length;
+
+      const scenarioOk = sc.tutorMode
+        ? (evalState.state === 'UNVERIFIED_CONCEPTUAL' &&
+           audit.claims.length === 0 &&
+           !/\bx\s*=\s*5\b|\\boxed\{\s*5\s*\}|3x\s*=\s*15/i.test(sc.rawModelResponse))
+        : (evalState.state === 'VERIFIED' &&
+           audit.claims.length > 0 &&
+           vCount === audit.claims.length &&
+           audit.invalidClaims.length === 0 &&
+           audit.unknownClaims.length === 0);
+      if (!scenarioOk) allLiveOk = false;
+      assert(scenarioOk, `[Live-LLM Acceptance ${sc.id}] Expected state=${sc.expectedVerificationState}, got state=${evalState.state}, claims=${audit.claims.length}, invalid=${audit.invalidClaims.length}, unknown=${audit.unknownClaims.length}`);
+    }
+    liveAcceptanceSummary = {
+      executed: true,
+      passed: allLiveOk,
+      hostedProvider: liveCorpus.hostedProvider,
+      hostedModel: liveCorpus.hostedModel,
+      totalScenarios: liveCorpus.scenarios.length,
+      passedScenarios: allLiveOk ? liveCorpus.scenarios.length : 0,
+      totalExtractedClaims: totalLiveClaims,
+      totalVerifiedClaims: totalLiveVerified,
+      totalInvalidClaims: totalLiveInvalid,
+      totalUnknownClaims: totalLiveUnknown
+    };
+    recordDomain('10D_LIVE_LLM_7_SCENARIO_ACCEPTANCE_CORPUS', allLiveOk);
+    console.log(`  ✓ Live-LLM 7-Scenario Acceptance Corpus (${liveCorpus.hostedProvider} / ${liveCorpus.hostedModel}): ${liveCorpus.scenarios.length}/${liveCorpus.scenarios.length} passed (${totalLiveVerified}/${totalLiveClaims} claims verified, 0 invalid, 0 unknown).`);
   }
 
   const childRegressionSuites = [
@@ -601,38 +841,61 @@ async function runCampaign() {
   }
   console.log(`  ✓ All ${childSuiteResults.length} child regression suites executed with exitCode=0.\n`);
 
-  // Optional Tier 2 Live-LLM Reasoning Execution (--live-llm flag)
+  // Optional Live-LLM network refresh (--live-llm flag)
   if (process.argv.includes('--live-llm')) {
-    const stagingUrl = process.env.PYTHOS_STAGING_URL || 'http://localhost:3006';
-    console.log(`▶ [TIER 2: LIVE-LLM] Executing Live-LLM Reasoning Probe against ${stagingUrl}/chat...`);
+    const stagingApiUrl = process.env.PYTHOS_STAGING_URL || 'https://pythos-production-c45f.up.railway.app/api';
+    console.log(`▶ [TIER 2: LIVE-LLM] Executing Live-LLM Probe against ${stagingApiUrl}/chat...`);
     const llmT0 = performance.now();
-    const res = await fetch(`${stagingUrl}/chat`, {
+    const res = await fetch(`${stagingApiUrl}/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        messages: [{ role: 'user', content: 'Simplify (1 - cos^2(x))/sin(x) + (1 - sin^2(x))/cos(x) and state any domain restrictions.' }],
+        messages: [{ role: 'user', content: 'I need help solving 3x + 7 = 22. Give me a hint for the very first step only.' }],
+        tutorMode: true,
         stream: false
       })
     });
-    endToEndLlmLatencyMs = Number((performance.now() - llmT0).toFixed(2));
+    const liveProbeMs = Number((performance.now() - llmT0).toFixed(2));
+    liveLlmLatenciesMs.push(liveProbeMs);
     assert(res.ok, `Live-LLM staging probe HTTP status ${res.status}`);
     const body = await res.json();
     assert(body && body.message && body.message.content, 'Live-LLM response missing message content');
-    console.log(`  ✓ Live-LLM staging probe succeeded in ${endToEndLlmLatencyMs} ms (state=${body.verificationState || 'VERIFIED'}).\n`);
+    console.log(`  ✓ Live-LLM network probe succeeded in ${liveProbeMs} ms (provider=${body.provider}, model=${body.model}).\n`);
   }
 
   // =========================================================================
-  // SECTION 11 & 12: QUANTITATIVE SCORECARD & SYNCHRONIZED REPORT GENERATION
+  // SECTION 11 & 12: SINGLE-LEDGER QUANTITATIVE SCORECARD & SYNCHRONIZED REPORT
   // =========================================================================
   const parserLatencySummary = summarizeLatencies(parserLatenciesMs);
   const solverLatencySummary = summarizeLatencies(solverLatenciesMs);
   const verificationLatencySummary = summarizeLatencies(verificationLatenciesMs);
+  const liveLlmLatencySummary = liveLlmLatenciesMs.length > 0 ? summarizeLatencies(liveLlmLatenciesMs) : null;
 
-  // Combined verifier confusion matrix (Baseline + Expanded 5-Seed 9-Domain)
-  const totalVerifierTp = verifierTp + expandedMultiSeed.truePositives;
-  const totalVerifierTn = verifierTn + expandedMultiSeed.trueNegatives;
-  const totalVerifierFp = verifierFp + expandedMultiSeed.falsePositives;
-  const totalVerifierFn = verifierFn + expandedMultiSeed.falseNegatives;
+  // Build ordered per-section breakdown directly from evaluationLedger
+  const orderedSectionNames = [];
+  for (const rec of evaluationLedger) {
+    if (!orderedSectionNames.includes(rec.section)) {
+      orderedSectionNames.push(rec.section);
+    }
+  }
+
+  const sectionBreakdown = {};
+  for (const secName of orderedSectionNames) {
+    const secRecords = evaluationLedger.filter(r => r.section === secName);
+    const summary = summarizeLedgerRecords(secRecords);
+    sectionBreakdown[secName] = {
+      isBaseline: secRecords.every(r => r.isBaseline),
+      ...summary
+    };
+  }
+
+  const baselineSummary = summarizeLedgerRecords(evaluationLedger.filter(r => r.isBaseline));
+  const combinedSummary = summarizeLedgerRecords(evaluationLedger);
+
+  const totalVerifierTp = combinedSummary.verifierTp;
+  const totalVerifierTn = combinedSummary.verifierTn;
+  const totalVerifierFp = combinedSummary.verifierFp;
+  const totalVerifierFn = combinedSummary.verifierFn;
 
   const verificationPrecision = (totalVerifierTp + totalVerifierFp) > 0
     ? Number(((totalVerifierTp / (totalVerifierTp + totalVerifierFp)) * 100).toFixed(2))
@@ -651,8 +914,8 @@ async function runCampaign() {
     : 0;
   const parserAccuracy = Number(((surfRes.passedSurfaceChecks + surfRes.passedAdversarial) /
     (surfRes.totalSurfaceChecks + surfRes.totalAdversarial) * 100).toFixed(2));
-  const solverAccuracyPct = solverTotal > 0
-    ? Number(((solverPassed / solverTotal) * 100).toFixed(2))
+  const solverAccuracyPct = combinedSummary.solverTotal > 0
+    ? Number(((combinedSummary.solverPassed / combinedSummary.solverTotal) * 100).toFixed(2))
     : 100;
 
   const certifiedPass =
@@ -689,7 +952,7 @@ async function runCampaign() {
       deterministicSolverAccuracyPct: solverAccuracyPct,
       multiRepresentationParserAccuracyPct: parserAccuracy,
       solverAndAlternativeMethodRoutingAccuracyPct: 100,
-      metamorphicInvarianceAccuracyPct: Number(((metaRes.passed / metaRes.total) * 100).toFixed(2)),
+      metamorphicInvarianceAccuracyPct: Number(((combinedSummary.metamorphicPassed / combinedSummary.metamorphicTotal) * 100).toFixed(2)),
       seededRandomizedCorpusAccuracyPct: Number(((expandedMultiSeed.passedCases / expandedMultiSeed.totalCases) * 100).toFixed(2)),
       medianLatencyMs: verificationLatencySummary.p50Ms,
       p95LatencyMs: verificationLatencySummary.p95Ms
@@ -698,43 +961,46 @@ async function runCampaign() {
       canonicalParserAndDualOracle: parserLatencySummary,
       deterministicCasSolvers: solverLatencySummary,
       independentVerificationPipeline: verificationLatencySummary,
-      endToEndHostedLlmResponseMs: endToEndLlmLatencyMs
+      endToEndHostedLlmResponse: liveLlmLatencySummary
     },
     confusionMatrix: {
-      description: 'Strictly verifier classification positive/negative controls (Baseline + 5-Seed 9-Domain Expansion), excluding direct solver and metamorphic checks.',
+      description: 'Strictly deduplicated verifier classification positive/negative controls (Baseline + 5-Seed 9-Domain Expansion), computed directly from evaluationLedger and excluding direct solver and metamorphic checks.',
       truePositives: totalVerifierTp,
       trueNegatives: totalVerifierTn,
       falsePositives: totalVerifierFp,
       falseNegatives: totalVerifierFn,
-      totalEvaluations: totalVerifierTp + totalVerifierTn + totalVerifierFp + totalVerifierFn
+      totalEvaluations: combinedSummary.verifierTotal
     },
     baselineSeed20261126Breakdown: {
       verifierOnlyConfusionMatrix: {
-        truePositives: verifierTp,
-        trueNegatives: verifierTn,
-        falsePositives: verifierFp,
-        falseNegatives: verifierFn,
-        total: verifierTp + verifierTn + verifierFp + verifierFn
+        truePositives: baselineSummary.verifierTp,
+        trueNegatives: baselineSummary.verifierTn,
+        falsePositives: baselineSummary.verifierFp,
+        falseNegatives: baselineSummary.verifierFn,
+        total: baselineSummary.verifierTotal
       },
       solverChecks: {
-        passed: solverPassed,
-        total: solverTotal,
-        positiveControls: 8,
-        negativeControls: 1
+        passed: baselineSummary.solverPassed,
+        total: baselineSummary.solverTotal,
+        positiveControls: baselineSummary.solverPositivePassed,
+        negativeControls: baselineSummary.solverNegativePassed
       },
       metamorphicFamilies: {
-        passed: metaRes.passed,
-        total: metaRes.total
+        passed: baselineSummary.metamorphicPassed,
+        total: baselineSummary.metamorphicTotal
       },
-      legacyCombinedConfusionMatrix: {
-        description: 'Historical reconciliation count pooling verifier checks (127 TP / 88 TN) + solver checks (8 TP / 1 TN) + metamorphic families (7 TP) = 142 TP / 89 TN (231 total).',
-        truePositives: legacyCombinedTp,
-        trueNegatives: legacyCombinedTn,
-        falsePositives: legacyCombinedFp,
-        falseNegatives: legacyCombinedFn,
-        total: legacyCombinedTp + legacyCombinedTn + legacyCombinedFp + legacyCombinedFn
+      historicalReconciliationNote: {
+        priorReportTableRowSum: { tp: 122, tn: 87, total: 209, explanation: 'Previously omitted SUITE_PHYSICS_AND_GEOMETRY (5 TP, 1 TN) from the visible Markdown table rows.' },
+        priorJsonSubtotalWithDuplicates: { tp: 127, tn: 88, total: 215, explanation: 'Included SUITE_PHYSICS_AND_GEOMETRY (5 TP, 1 TN) plus 8 duplicate positive inline cases in Sections 2/3, and omitted V11_ZERO_CLAIM_BYPASS (1 TN) from the counter.' },
+        deduplicatedAuthoritativeBaseline: {
+          tp: baselineSummary.verifierTp,
+          tn: baselineSummary.verifierTn,
+          total: baselineSummary.verifierTotal,
+          explanation: '127 TP - 8 duplicate positive inline cases = 119 TP; 88 TN + 1 V11_ZERO_CLAIM_BYPASS negative control = 89 TN (208 unique baseline pure-verifier evaluations).'
+        }
       }
     },
+    sectionBreakdown,
     expandedMultiSeedRandomTesting: {
       seeds: expandedMultiSeed.seeds,
       totalCases: expandedMultiSeed.totalCases,
@@ -750,10 +1016,65 @@ async function runCampaign() {
     productionReplayAndChildSuites: {
       goldenCorpusPassed: goldenOk,
       productionBundleReplay: bundleReplaySummary,
+      liveLlmAcceptanceCorpus: liveAcceptanceSummary,
       childRegressionSuites: childSuiteResults
     },
     domainBreakdown: domainScores
   };
+
+  const sectionTableRows = orderedSectionNames.map((secName) => {
+    const s = sectionBreakdown[secName];
+    const scope = s.isBaseline ? 'Baseline' : 'Expansion';
+    const solverStr = s.solverTotal > 0 ? `${s.solverPassed}/${s.solverTotal} (${s.solverPositivePassed} Pos, ${s.solverNegativePassed} Neg)` : '0';
+    const metaStr = s.metamorphicTotal > 0 ? `${s.metamorphicPassed}/${s.metamorphicTotal}` : '0';
+    return `| \`${secName}\` | ${scope} | ${s.verifierTp} | ${s.verifierTn} | ${s.verifierFp} | ${s.verifierFn} | ${s.verifierTotal} | ${solverStr} | ${metaStr} |`;
+  });
+
+  const markdownSummary = [
+    '# PYTHOS — Auto-Generated Certification Scorecard Summary',
+    '',
+    `- **Branch:** \`${scorecard.branch}\``,
+    `- **Production Master Commit:** \`${scorecard.productionMasterCommit}\``,
+    `- **Started At:** \`${scorecard.startedAt}\``,
+    `- **Completed At:** \`${scorecard.completedAt}\``,
+    `- **Total Duration:** \`${scorecard.durationMs} ms\``,
+    `- **Certification Status:** **${scorecard.certificationStatus}**`,
+    '',
+    '## 1. Separated Confusion Matrix & Accuracy Metrics',
+    '',
+    '| Metric | Score | Scope & Count Detail |',
+    '|---|---|---|',
+    `| **Verification-Classification Precision** | **${scorecard.metrics.verificationPrecisionPct}%** | \`TP = ${totalVerifierTp}\`, \`FP = ${totalVerifierFp}\` (Baseline: \`${baselineSummary.verifierTp} TP\`, 5-Seed Expansion: \`${expandedMultiSeed.truePositives} TP\`) |`,
+    `| **Verification-Classification Recall** | **${scorecard.metrics.verificationRecallPct}%** | \`TP = ${totalVerifierTp}\`, \`FN = ${totalVerifierFn}\` |`,
+    `| **Verification False-Positive Rate (FPR)** | **${scorecard.metrics.falsePositiveRatePct}%** | \`TN = ${totalVerifierTn}\`, \`FP = ${totalVerifierFp}\` (Baseline: \`${baselineSummary.verifierTn} TN\`, 5-Seed Expansion: \`${expandedMultiSeed.trueNegatives} TN\`) |`,
+    `| **Verification False-Negative Rate (FNR)** | **${scorecard.metrics.falseNegativeRatePct}%** | \`FN = ${totalVerifierFn}\` |`,
+    `| **Deterministic CAS Solver Accuracy** | **${scorecard.metrics.deterministicSolverAccuracyPct}%** | \`${combinedSummary.solverPassed}/${combinedSummary.solverTotal}\` direct solver & pre-flight CAS oracle checks (\`${combinedSummary.solverPositivePassed}\` positive, \`${combinedSummary.solverNegativePassed}\` negative) |`,
+    `| **Metamorphic Invariance Accuracy** | **${scorecard.metrics.metamorphicInvarianceAccuracyPct}%** | \`${combinedSummary.metamorphicPassed}/${combinedSummary.metamorphicTotal}\` metamorphic transformation families |`,
+    `| **Multi-Surface & Adversarial Parser Accuracy** | **${scorecard.metrics.multiRepresentationParserAccuracyPct}%** | \`${surfRes.passedSurfaceChecks}/${surfRes.totalSurfaceChecks}\` surface variants + \`${surfRes.passedAdversarial}/${surfRes.totalAdversarial}\` 1-char adversarial pairs |`,
+    `| **Expanded 5-Seed 9-Domain Randomized Corpus** | **${scorecard.metrics.seededRandomizedCorpusAccuracyPct}%** | \`${expandedMultiSeed.passedCases}/${expandedMultiSeed.totalCases}\` across seeds \`${DEFAULT_SEEDS.join(', ')}\` |`,
+    `| **Live-LLM 7-Scenario Acceptance Corpus** | **100%** | \`${liveAcceptanceSummary.passedScenarios}/${liveAcceptanceSummary.totalScenarios}\` scenarios (\`${liveAcceptanceSummary.totalVerifiedClaims}/${liveAcceptanceSummary.totalExtractedClaims}\` claims verified, \`0\` invalid, \`0\` unknown) |`,
+    '',
+    '## 2. Single-Ledger Per-Section Scorecard Breakdown (Zero Duplicates)',
+    '',
+    '| Section | Scope | Verifier TP | Verifier TN | Verifier FP | Verifier FN | Verifier Total | Direct Solver (Separate) | Metamorphic (Separate) |',
+    '|---|---|---|---|---|---|---|---|---|',
+    ...sectionTableRows,
+    `| **Baseline Subtotal (Seed 20261126)** | **Baseline** | **${baselineSummary.verifierTp}** | **${baselineSummary.verifierTn}** | **${baselineSummary.verifierFp}** | **${baselineSummary.verifierFn}** | **${baselineSummary.verifierTotal}** | **${baselineSummary.solverPassed}/${baselineSummary.solverTotal} (${baselineSummary.solverPositivePassed} Pos, ${baselineSummary.solverNegativePassed} Neg)** | **${baselineSummary.metamorphicPassed}/${baselineSummary.metamorphicTotal}** |`,
+    `| **Grand Total (Baseline + 5-Seed Expansion)** | **Combined** | **${combinedSummary.verifierTp}** | **${combinedSummary.verifierTn}** | **${combinedSummary.verifierFp}** | **${combinedSummary.verifierFn}** | **${combinedSummary.verifierTotal}** | **${combinedSummary.solverPassed}/${combinedSummary.solverTotal} (${combinedSummary.solverPositivePassed} Pos, ${combinedSummary.solverNegativePassed} Neg)** | **${combinedSummary.metamorphicPassed}/${combinedSummary.metamorphicTotal}** |`,
+    '',
+    '## 3. Subsystem Latency Measurement Boundaries',
+    '',
+    '| Subsystem Boundary | Sample Count | Median (`p50`) | `p95` | Min | Max |',
+    '|---|---|---|---|---|---|',
+    `| **1. Canonical Parser & 20-Pt Numerical Dual-Oracle** | ${parserLatencySummary.sampleCount} | **${parserLatencySummary.p50Ms} ms** | **${parserLatencySummary.p95Ms} ms** | ${parserLatencySummary.minMs} ms | ${parserLatencySummary.maxMs} ms |`,
+    `| **2. Deterministic CAS Solvers (\`calculusEngine\`, \`geometryEngine\`, \`specialistAssist\`)** | ${solverLatencySummary.sampleCount} | **${solverLatencySummary.p50Ms} ms** | **${solverLatencySummary.p95Ms} ms** | ${solverLatencySummary.minMs} ms | ${solverLatencySummary.maxMs} ms |`,
+    `| **3. Independent Verification Pipeline (\`verifyResponseClaims\`)** | ${verificationLatencySummary.sampleCount} | **${verificationLatencySummary.p50Ms} ms** | **${verificationLatencySummary.p95Ms} ms** | ${verificationLatencySummary.minMs} ms | ${verificationLatencySummary.maxMs} ms |`,
+    `| **4. End-to-End Hosted LLM Response (\`groq-text\` / \`openai/gpt-oss-120b\`)** | ${liveLlmLatencySummary ? liveLlmLatencySummary.sampleCount : 0} | **${liveLlmLatencySummary ? `${liveLlmLatencySummary.p50Ms} ms` : 'N/A'}** | **${liveLlmLatencySummary ? `${liveLlmLatencySummary.p95Ms} ms` : 'N/A'}** | ${liveLlmLatencySummary ? `${liveLlmLatencySummary.minMs} ms` : 'N/A'} | ${liveLlmLatencySummary ? `${liveLlmLatencySummary.maxMs} ms` : 'N/A'} |`,
+    ''
+  ].join('\n');
+
+  // Execute automated scorecard reconciliation assertion before writing or verifying files
+  assertScorecardReconciliation(scorecard, evaluationLedger, markdownSummary);
 
   const scorecardPath = path.join(__dirname, 'golden', 'latest_certification_scorecard.json');
   const markdownPath = path.join(__dirname, 'golden', 'latest_certification_report.md');
@@ -765,69 +1086,35 @@ async function runCampaign() {
     assert.strictEqual(committedScorecard.certificationStatus, scorecard.certificationStatus);
     assert.deepStrictEqual(committedScorecard.confusionMatrix, scorecard.confusionMatrix);
     assert.deepStrictEqual(committedScorecard.baselineSeed20261126Breakdown, scorecard.baselineSeed20261126Breakdown);
+    assert.deepStrictEqual(committedScorecard.sectionBreakdown, scorecard.sectionBreakdown);
     assert.deepStrictEqual(committedScorecard.expandedMultiSeedRandomTesting, scorecard.expandedMultiSeedRandomTesting);
     assert.deepStrictEqual(committedScorecard.domainBreakdown, scorecard.domainBreakdown);
   } else {
     fs.writeFileSync(scorecardPath, JSON.stringify(scorecard, null, 2) + '\n', 'utf8');
-
-    const markdownSummary = [
-      '# PYTHOS — Auto-Generated Certification Scorecard Summary',
-      '',
-      `- **Branch:** \`${scorecard.branch}\``,
-      `- **Production Master Commit:** \`${scorecard.productionMasterCommit}\``,
-      `- **Started At:** \`${scorecard.startedAt}\``,
-      `- **Completed At:** \`${scorecard.completedAt}\``,
-      `- **Total Duration:** \`${scorecard.durationMs} ms\``,
-      `- **Certification Status:** **${scorecard.certificationStatus}**`,
-      '',
-      '## 1. Separated Confusion Matrix & Accuracy Metrics',
-      '',
-      '| Metric | Score | Scope & Count Detail |',
-      '|---|---|---|',
-      `| **Verification-Classification Precision** | **${scorecard.metrics.verificationPrecisionPct}%** | \`TP = ${totalVerifierTp}\`, \`FP = ${totalVerifierFp}\` (Baseline: \`${verifierTp} TP\`, 5-Seed Expansion: \`${expandedMultiSeed.truePositives} TP\`) |`,
-      `| **Verification-Classification Recall** | **${scorecard.metrics.verificationRecallPct}%** | \`TP = ${totalVerifierTp}\`, \`FN = ${totalVerifierFn}\` |`,
-      `| **Verification False-Positive Rate (FPR)** | **${scorecard.metrics.falsePositiveRatePct}%** | \`TN = ${totalVerifierTn}\`, \`FP = ${totalVerifierFp}\` (Baseline: \`${verifierTn} TN\`, 5-Seed Expansion: \`${expandedMultiSeed.trueNegatives} TN\`) |`,
-      `| **Verification False-Negative Rate (FNR)** | **${scorecard.metrics.falseNegativeRatePct}%** | \`FN = ${totalVerifierFn}\` |`,
-      `| **Deterministic CAS Solver Accuracy** | **${scorecard.metrics.deterministicSolverAccuracyPct}%** | \`${solverPassed}/${solverTotal}\` direct solver & pre-flight CAS oracle checks (\`8\` positive, \`1\` negative) |`,
-      `| **Metamorphic Invariance Accuracy** | **${scorecard.metrics.metamorphicInvarianceAccuracyPct}%** | \`${metaRes.passed}/${metaRes.total}\` metamorphic transformation families |`,
-      `| **Multi-Surface & Adversarial Parser Accuracy** | **${scorecard.metrics.multiRepresentationParserAccuracyPct}%** | \`${surfRes.passedSurfaceChecks}/${surfRes.totalSurfaceChecks}\` surface variants + \`${surfRes.passedAdversarial}/${surfRes.totalAdversarial}\` 1-char adversarial pairs |`,
-      `| **Expanded 5-Seed 9-Domain Randomized Corpus** | **${scorecard.metrics.seededRandomizedCorpusAccuracyPct}%** | \`${expandedMultiSeed.passedCases}/${expandedMultiSeed.totalCases}\` across seeds \`${DEFAULT_SEEDS.join(', ')}\` |`,
-      `| **Historical Legacy Combined Count (Seed 20261126)** | **100%** | \`TP = ${legacyCombinedTp}\`, \`TN = ${legacyCombinedTn}\` (\`${legacyCombinedTp + legacyCombinedTn}\` total = \`${verifierTp}/${verifierTn}\` verifier + \`8/1\` solver + \`${metaRes.passed}/0\` metamorphic) |`,
-      '',
-      '## 2. Subsystem Latency Measurement Boundaries',
-      '',
-      '| Subsystem Boundary | Sample Count | Median (`p50`) | `p95` | Min | Max |',
-      '|---|---|---|---|---|---|',
-      `| **1. Canonical Parser & 20-Pt Numerical Dual-Oracle** | ${parserLatencySummary.sampleCount} | **${parserLatencySummary.p50Ms} ms** | **${parserLatencySummary.p95Ms} ms** | ${parserLatencySummary.minMs} ms | ${parserLatencySummary.maxMs} ms |`,
-      `| **2. Deterministic CAS Solvers (\`calculusEngine\`, \`geometryEngine\`, \`specialistAssist\`)** | ${solverLatencySummary.sampleCount} | **${solverLatencySummary.p50Ms} ms** | **${solverLatencySummary.p95Ms} ms** | ${solverLatencySummary.minMs} ms | ${solverLatencySummary.maxMs} ms |`,
-      `| **3. Independent Verification Pipeline (\`verifyResponseClaims\`)** | ${verificationLatencySummary.sampleCount} | **${verificationLatencySummary.p50Ms} ms** | **${verificationLatencySummary.p95Ms} ms** | ${verificationLatencySummary.minMs} ms | ${verificationLatencySummary.maxMs} ms |`,
-      `| **4. End-to-End Hosted LLM Response Generation** | ${endToEndLlmLatencyMs !== null ? 1 : 0} | ${endToEndLlmLatencyMs !== null ? `${endToEndLlmLatencyMs} ms` : 'Not executed in Tier 1 deterministic mode (requires `--live-llm`)'} | ${endToEndLlmLatencyMs !== null ? `${endToEndLlmLatencyMs} ms` : 'N/A'} | N/A | N/A |`,
-      ''
-    ].join('\n');
-
     fs.writeFileSync(markdownPath, markdownSummary, 'utf8');
   }
 
   console.log('================================================================================');
-  console.log('📊 SECTION 11 CERTIFICATION SCORECARD');
+  console.log('📊 SECTION 11 CERTIFICATION SCORECARD (SINGLE-LEDGER RECONCILED)');
   console.log('================================================================================');
   console.log(`• Tested Git Commit (HEAD)          : ${gitMeta.commit}`);
   console.log(`• Production Master Commit          : ${gitMeta.productionMasterCommit}`);
   console.log(`• Certification Decision            : ${scorecard.certificationStatus}`);
-  console.log(`• Verifier Precision (Pure)         : ${scorecard.metrics.verificationPrecisionPct}% (TP=${totalVerifierTp}, FP=${totalVerifierFp})`);
-  console.log(`• Verifier Recall (Pure)            : ${scorecard.metrics.verificationRecallPct}% (TP=${totalVerifierTp}, FN=${totalVerifierFn})`);
-  console.log(`• Verifier False-Positive Rate      : ${scorecard.metrics.falsePositiveRatePct}% (TN=${totalVerifierTn})`);
-  console.log(`• Verifier False-Negative Rate      : ${scorecard.metrics.falseNegativeRatePct}%`);
-  console.log(`• Baseline Legacy Combined (20261126): TP=${legacyCombinedTp}, TN=${legacyCombinedTn} (Total=${legacyCombinedTp + legacyCombinedTn})`);
-  console.log(`• Deterministic CAS Solver Accuracy : ${scorecard.metrics.deterministicSolverAccuracyPct}% (${solverPassed}/${solverTotal})`);
+  console.log(`• Baseline Pure-Verifier (20261126) : TP=${baselineSummary.verifierTp}, TN=${baselineSummary.verifierTn}, FP=${baselineSummary.verifierFp}, FN=${baselineSummary.verifierFn} (Total=${baselineSummary.verifierTotal})`);
+  console.log(`• 5-Seed 9-Domain Expansion (310)   : TP=${expandedMultiSeed.truePositives}, TN=${expandedMultiSeed.trueNegatives}, FP=${expandedMultiSeed.falsePositives}, FN=${expandedMultiSeed.falseNegatives} (Total=${expandedMultiSeed.totalCases})`);
+  console.log(`• Combined Pure-Verifier Matrix     : TP=${totalVerifierTp}, TN=${totalVerifierTn}, FP=${totalVerifierFp}, FN=${totalVerifierFn} (Total=${combinedSummary.verifierTotal})`);
+  console.log(`• Verifier Precision / Recall       : ${scorecard.metrics.verificationPrecisionPct}% / ${scorecard.metrics.verificationRecallPct}% (FPR=${scorecard.metrics.falsePositiveRatePct}%, FNR=${scorecard.metrics.falseNegativeRatePct}%)`);
+  console.log(`• Deterministic CAS Solver Accuracy : ${scorecard.metrics.deterministicSolverAccuracyPct}% (${combinedSummary.solverPassed}/${combinedSummary.solverTotal}: ${combinedSummary.solverPositivePassed} Pos, ${combinedSummary.solverNegativePassed} Neg)`);
+  console.log(`• Metamorphic Invariance            : ${scorecard.metrics.metamorphicInvarianceAccuracyPct}% (${combinedSummary.metamorphicPassed}/${combinedSummary.metamorphicTotal})`);
+  console.log(`• Live-LLM 7-Scenario Acceptance    : ${liveAcceptanceSummary.passedScenarios}/${liveAcceptanceSummary.totalScenarios} passed (${liveAcceptanceSummary.totalVerifiedClaims}/${liveAcceptanceSummary.totalExtractedClaims} claims verified)`);
   console.log(`• Unknown Claim Rate                : ${scorecard.metrics.unknownClaimRatePct}%`);
   console.log(`• Multi-Surface Parser Accuracy     : ${scorecard.metrics.multiRepresentationParserAccuracyPct}%`);
-  console.log(`• Solver & Alt-Method Routing       : ${scorecard.metrics.solverAndAlternativeMethodRoutingAccuracyPct}%`);
-  console.log(`• Metamorphic Invariance            : ${scorecard.metrics.metamorphicInvarianceAccuracyPct}% (${metaRes.passed}/${metaRes.total})`);
-  console.log(`• Expanded 5-Seed 9-Domain Corpus   : ${scorecard.metrics.seededRandomizedCorpusAccuracyPct}% (${expandedMultiSeed.passedCases}/${expandedMultiSeed.totalCases})`);
   console.log(`• Parser + Dual-Oracle Latency      : p50=${parserLatencySummary.p50Ms} ms / p95=${parserLatencySummary.p95Ms} ms (n=${parserLatencySummary.sampleCount})`);
   console.log(`• CAS Solver Execution Latency      : p50=${solverLatencySummary.p50Ms} ms / p95=${solverLatencySummary.p95Ms} ms (n=${solverLatencySummary.sampleCount})`);
   console.log(`• Independent Verification Latency  : p50=${verificationLatencySummary.p50Ms} ms / p95=${verificationLatencySummary.p95Ms} ms (n=${verificationLatencySummary.sampleCount})`);
+  if (liveLlmLatencySummary) {
+    console.log(`• Hosted Live-LLM E2E Latency       : p50=${liveLlmLatencySummary.p50Ms} ms / p95=${liveLlmLatencySummary.p95Ms} ms (n=${liveLlmLatencySummary.sampleCount})`);
+  }
   console.log(`• Scorecard JSON (${isVerifyCleanMode ? 'Verified Clean' : 'Written'})   : ${scorecardPath}`);
   console.log(`• Scorecard Markdown (${isVerifyCleanMode ? 'Verified Clean' : 'Written'}): ${markdownPath}`);
   console.log('================================================================================\n');

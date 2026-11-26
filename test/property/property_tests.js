@@ -50,10 +50,14 @@ function generateArithmeticTests(count = 50, seed = 20261126) {
     const expectedPass = !isCorrupted;
     const passed = (res.verified === expectedPass);
     results.push({
+      id: `8A_ARITH_${seed}_${i + 1}`,
       type: 'arithmetic_property',
       seed,
+      prompt: `Calculate ${a} + ${b}`,
+      response: `${a} + ${b} = ${proposedSum}`,
       input: `${a} + ${b} = ${proposedSum}`,
       isCorrupted,
+      expectedPositive: expectedPass,
       verified: res.verified,
       passed,
       status: res.status,
@@ -218,18 +222,20 @@ async function runSeededDomainCorpus(seed = 20261126) {
   let falseNegatives = 0;
   const verifyLatenciesMs = [];
   const failures = [];
+  const records = [];
 
   async function timedVerify(resp, prompt) {
     const t0 = performance.now();
     const out = await verifyResponseClaims(resp, prompt);
-    verifyLatenciesMs.push(performance.now() - t0);
-    return out;
+    const dt = performance.now() - t0;
+    verifyLatenciesMs.push(dt);
+    return { out, dt };
   }
 
   // 1. 25 Seeded Quadratic Equations with Known Integer Roots (plus 25 corrupted root negative controls)
   for (let i = 0; i < 25; i++) {
-    const r1 = Math.floor(rand() * 15) - 7;
-    let r2 = Math.floor(rand() * 15) - 7;
+    const r1 = (Math.floor(rand() * 15) - 7) + i * 16;
+    let r2 = (Math.floor(rand() * 15) - 7) - i * 16;
     if (r2 === r1) r2 += 1;
     const b = -(r1 + r2);
     const c = r1 * r2;
@@ -239,70 +245,125 @@ async function runSeededDomainCorpus(seed = 20261126) {
 
     // Positive control (exact roots)
     total++;
-    const posAudit = await timedVerify(`The solutions are $x = ${r1}$ and $x = ${r2}$.`, `Solve ${eq}`);
-    if (posAudit.claims.length > 0 && posAudit.invalidClaims.length === 0 && posAudit.verificationResults.some(v => v && v.verified === true)) {
+    const posPrompt = `Solve ${eq}`;
+    const posResp = `The solutions are $x = ${r1}$ and $x = ${r2}$.`;
+    const { out: posAudit, dt: posDt } = await timedVerify(posResp, posPrompt);
+    const posOk = posAudit.claims.length > 0 && posAudit.invalidClaims.length === 0 && posAudit.verificationResults.some(v => v && v.verified === true);
+    if (posOk) {
       passed++;
       truePositives++;
     } else {
       falseNegatives++;
       failures.push(`Seeded quadratic pos #${i} (${eq}, roots ${r1},${r2}) failed`);
     }
+    records.push({
+      id: `8B_QUAD_POS_${seed}_${i}`,
+      prompt: posPrompt,
+      response: posResp,
+      expectedPositive: true,
+      passed: posOk,
+      latencyMs: posDt
+    });
 
     // Negative control (corrupted root r2 + 2)
     total++;
     const badR2 = (r2 + 2 === r1) ? r2 + 3 : r2 + 2;
-    const negAudit = await timedVerify(`The solutions are $x = ${r1}$ and $x = ${badR2}$.`, `Solve ${eq}`);
-    if (negAudit.claims.length > 0 && negAudit.invalidClaims.length > 0) {
+    const negPrompt = `Solve ${eq}`;
+    const negResp = `The solutions are $x = ${r1}$ and $x = ${badR2}$.`;
+    const { out: negAudit, dt: negDt } = await timedVerify(negResp, negPrompt);
+    const negOk = negAudit.claims.length > 0 && negAudit.invalidClaims.length > 0;
+    if (negOk) {
       passed++;
       trueNegatives++;
     } else {
       falsePositives++;
       failures.push(`Seeded quadratic neg #${i} (${eq}, bad root ${badR2}) falsely verified`);
     }
+    records.push({
+      id: `8B_QUAD_NEG_${seed}_${i}`,
+      prompt: negPrompt,
+      response: negResp,
+      expectedPositive: false,
+      passed: negOk,
+      latencyMs: negDt
+    });
   }
 
   // 2. 20 Seeded Analytical Derivatives (plus 20 corrupted derivative negative controls)
   for (let i = 0; i < 20; i++) {
-    const a = Math.floor(rand() * 7) + 1;
+    const a = (Math.floor(rand() * 7) + 1) + i * 8;
     const n = Math.floor(rand() * 4) + 2;
-    const b = Math.floor(rand() * 9) + 1;
+    const b = (Math.floor(rand() * 9) + 1) + i * 10;
     const fn = `${a}x^${n} + ${b}x`;
     const exactDeriv = `${a * n}x^${n - 1} + ${b}`;
     const wrongDeriv = `${a * n + 1}x^${n - 1} + ${b}`;
 
     total++;
-    const posAudit = await timedVerify(`$$\\frac{d}{dx}\\left(${fn}\\right) = ${exactDeriv}$$`, `Differentiate ${fn}`);
-    if (posAudit.claims.length > 0 && posAudit.invalidClaims.length === 0 && posAudit.verificationResults.some(v => v && v.verified === true)) {
+    const posPrompt = `Differentiate ${fn}`;
+    const posResp = `$$\\frac{d}{dx}\\left(${fn}\\right) = ${exactDeriv}$$`;
+    const { out: posAudit, dt: posDt } = await timedVerify(posResp, posPrompt);
+    const posOk = posAudit.claims.length > 0 && posAudit.invalidClaims.length === 0 && posAudit.verificationResults.some(v => v && v.verified === true);
+    if (posOk) {
       passed++;
       truePositives++;
     } else {
       falseNegatives++;
       failures.push(`Seeded derivative pos #${i} (${fn} -> ${exactDeriv}) failed`);
     }
+    records.push({
+      id: `8B_DERIV_POS_${seed}_${i}`,
+      prompt: posPrompt,
+      response: posResp,
+      expectedPositive: true,
+      passed: posOk,
+      latencyMs: posDt
+    });
 
     total++;
-    const negAudit = await timedVerify(`$$\\frac{d}{dx}\\left(${fn}\\right) = ${wrongDeriv}$$`, `Differentiate ${fn}`);
-    if (negAudit.claims.length > 0 && negAudit.invalidClaims.length > 0) {
+    const negPrompt = `Differentiate ${fn}`;
+    const negResp = `$$\\frac{d}{dx}\\left(${fn}\\right) = ${wrongDeriv}$$`;
+    const { out: negAudit, dt: negDt } = await timedVerify(negResp, negPrompt);
+    const negOk = negAudit.claims.length > 0 && negAudit.invalidClaims.length > 0;
+    if (negOk) {
       passed++;
       trueNegatives++;
     } else {
       falsePositives++;
       failures.push(`Seeded derivative neg #${i} (${fn} -> ${wrongDeriv}) falsely verified`);
     }
+    records.push({
+      id: `8B_DERIV_NEG_${seed}_${i}`,
+      prompt: negPrompt,
+      response: negResp,
+      expectedPositive: false,
+      passed: negOk,
+      latencyMs: negDt
+    });
   }
 
   // 3. 15 Seeded Radical Product Identities (\sqrt{c}\sqrt{a} = \sqrt{c*a})
   for (let i = 0; i < 15; i++) {
-    const c = Math.floor(rand() * 11) + 2;
+    const c = (Math.floor(rand() * 11) + 2) + i * 12;
     total++;
-    const radAudit = await timedVerify(`$$\\sqrt{${c}}\\sqrt{a} = \\sqrt{${c}a}$$`, `Simplify \\sqrt{${c}}\\sqrt{a}`);
-    if (radAudit.claims.length > 0 && radAudit.invalidClaims.length === 0 && radAudit.verificationResults.some(v => v && v.verified === true)) {
+    const radPrompt = `Simplify \\sqrt{${c}}\\sqrt{a}`;
+    const radResp = `$$\\sqrt{${c}}\\sqrt{a} = \\sqrt{${c}a}$$`;
+    const { out: radAudit, dt: radDt } = await timedVerify(radResp, radPrompt);
+    const radOk = radAudit.claims.length > 0 && radAudit.invalidClaims.length === 0 && radAudit.verificationResults.some(v => v && v.verified === true);
+    if (radOk) {
       passed++;
       truePositives++;
     } else {
       falseNegatives++;
       failures.push(`Seeded radical pos #${i} (\\sqrt{${c}}\\sqrt{a} = \\sqrt{${c}a}) failed`);
     }
+    records.push({
+      id: `8B_RAD_POS_${seed}_${i}`,
+      prompt: radPrompt,
+      response: radResp,
+      expectedPositive: true,
+      passed: radOk,
+      latencyMs: radDt
+    });
   }
 
   return {
@@ -314,6 +375,7 @@ async function runSeededDomainCorpus(seed = 20261126) {
     falsePositives,
     falseNegatives,
     verifyLatenciesMs,
+    records,
     failures
   };
 }
@@ -336,6 +398,7 @@ async function runExpandedMultiSeedRandomCorpus(seeds = DEFAULT_SEEDS) {
   const seedReports = [];
   const categoryTotals = {};
   const verifyLatenciesMs = [];
+  const records = [];
   let grandTotal = 0;
   let grandPassed = 0;
   let grandTp = 0;
@@ -344,7 +407,9 @@ async function runExpandedMultiSeedRandomCorpus(seeds = DEFAULT_SEEDS) {
   let grandFn = 0;
   const allFailures = [];
 
-  for (const seed of seeds) {
+  for (let sIdx = 0; sIdx < seeds.length; sIdx++) {
+    const seed = seeds[sIdx];
+    const seedOffset = (sIdx + 1) * 17;
     const rand = createSeededRng(seed);
     let seedTotal = 0;
     let seedPassed = 0;
@@ -369,12 +434,24 @@ async function runExpandedMultiSeedRandomCorpus(seeds = DEFAULT_SEEDS) {
 
       const t0 = performance.now();
       const audit = await verifyResponseClaims(response, prompt);
-      verifyLatenciesMs.push(performance.now() - t0);
+      const dt = performance.now() - t0;
+      verifyLatenciesMs.push(dt);
 
       const hasExtractedClaim = audit.claims.length > 0;
       const isVerified = hasExtractedClaim && audit.invalidClaims.length === 0 && audit.verificationResults.some(v => v && v.verified === true);
       const isRejected = hasExtractedClaim && audit.invalidClaims.length > 0;
       const ok = expectValid ? isVerified : isRejected;
+
+      records.push({
+        id: `8C_${seed}_${category}_${label}`,
+        seed,
+        category,
+        prompt,
+        response,
+        expectedPositive: expectValid,
+        passed: ok,
+        latencyMs: dt
+      });
 
       if (expectValid) {
         if (ok) {
@@ -407,10 +484,10 @@ async function runExpandedMultiSeedRandomCorpus(seeds = DEFAULT_SEEDS) {
 
     // 1. Arithmetic & Rational Expressions (4 pos + 4 neg = 8 cases/seed)
     for (let i = 0; i < 4; i++) {
-      const p = Math.floor(rand() * 9) + 1;
-      const q = Math.floor(rand() * 8) + 2;
-      const r = Math.floor(rand() * 9) + 1;
-      const s = Math.floor(rand() * 8) + 2;
+      const p = seedOffset + i * 3 + (Math.floor(rand() * 3) + 1);
+      const q = (sIdx + 2) * 5 + i * 2 + 1;
+      const r = Math.floor(rand() * 7) + 2 + i;
+      const s = (sIdx + 3) * 3 + i + 2;
       const num = p * s + r * q;
       const den = q * s;
       await evalCase(
@@ -431,7 +508,7 @@ async function runExpandedMultiSeedRandomCorpus(seeds = DEFAULT_SEEDS) {
 
     // 2. Radical Identities & Domain Restrictions (3 pos + 3 neg = 6 cases/seed)
     for (let i = 0; i < 3; i++) {
-      const c = Math.floor(rand() * 12) + 2;
+      const c = seedOffset + 20 + i * 5 + Math.floor(rand() * 3);
       await evalCase(
         '2_RADICALS_DOMAINS',
         `radical_prod_pos_${i}`,
@@ -451,7 +528,7 @@ async function runExpandedMultiSeedRandomCorpus(seeds = DEFAULT_SEEDS) {
     // 3. Polynomial Roots, Repeated Roots & Extraneous Roots (4 pos + 4 neg = 8 cases/seed)
     for (let i = 0; i < 2; i++) {
       // Repeated root (x - r)^2 = 0
-      const r = Math.floor(rand() * 9) + 1;
+      const r = seedOffset + i * 4 + (Math.floor(rand() * 3) + 2);
       const eqRep = `x^2 - ${2 * r}x + ${r * r} = 0`;
       await evalCase(
         '3_POLYNOMIAL_REPEATED_EXTRANEOUS_ROOTS',
@@ -469,10 +546,8 @@ async function runExpandedMultiSeedRandomCorpus(seeds = DEFAULT_SEEDS) {
         false
       );
       // Extraneous root on radical equation \sqrt{x + a} = x - b
-      // Pick valid root x_valid = b + k (k >= 2) so \sqrt{b + k + a} = k => a = k^2 - b - k,
-      // and extraneous root of (x - b)^2 = x + a is x_ext = b - k + 1 < b!
-      const k = Math.floor(rand() * 3) + 2; // 2..4
-      const b = k + 1;
+      const k = sIdx * 2 + i + 2; // unique k >= 2 across all (sIdx, i)
+      const b = k + 1 + sIdx;
       const a = k * k - b - k;
       const xValid = b + k;
       const xExt = b - k + 1;
@@ -495,9 +570,10 @@ async function runExpandedMultiSeedRandomCorpus(seeds = DEFAULT_SEEDS) {
 
     // 4. Trigonometric Identities & Equivalent Notation (3 pos + 3 neg = 6 cases/seed)
     for (let i = 0; i < 3; i++) {
+      const kCoeff = seedOffset + i + 2;
       const surf = i === 0
-        ? '\\sin^2(x) + \\cos^2(x)'
-        : (i === 1 ? '\\sin^{2}x + \\cos^{2}x' : '\\sin²(x) + \\cos²(x)');
+        ? `\\sin^2(${kCoeff}x) + \\cos^2(${kCoeff}x)`
+        : (i === 1 ? `\\sin^{2}(${kCoeff}x) + \\cos^{2}(${kCoeff}x)` : `\\sin²(${kCoeff}x) + \\cos²(${kCoeff}x)`);
       await evalCase(
         '4_TRIG_IDENTITIES_NOTATION',
         `pythagorean_constant_pos_${i}`,
@@ -508,7 +584,7 @@ async function runExpandedMultiSeedRandomCorpus(seeds = DEFAULT_SEEDS) {
       await evalCase(
         '4_TRIG_IDENTITIES_NOTATION',
         `pythagorean_constant_neg_${i}`,
-        `$$${surf} = 2$$`,
+        `$$${surf} = ${i + 2}$$`,
         `Verify ${surf} = 1`,
         false
       );
@@ -516,8 +592,8 @@ async function runExpandedMultiSeedRandomCorpus(seeds = DEFAULT_SEEDS) {
 
     // 5. First and Second Derivatives (4 pos + 4 neg = 8 cases/seed)
     for (let i = 0; i < 2; i++) {
-      const a = Math.floor(rand() * 5) + 2;
-      const b = Math.floor(rand() * 6) + 1;
+      const a = seedOffset + i * 3 + 2;
+      const b = (sIdx + 1) * 5 + i * 2 + 1;
       const fn = `${a}x^3 + ${b}x^2`;
       const d1 = `${3 * a}x^2 + ${2 * b}x`;
       const d2 = `${6 * a}x + ${2 * b}`;
@@ -554,8 +630,8 @@ async function runExpandedMultiSeedRandomCorpus(seeds = DEFAULT_SEEDS) {
 
     // 6. Integration and Definite Integrals (4 pos + 4 neg = 8 cases/seed)
     for (let i = 0; i < 2; i++) {
-      const a = Math.floor(rand() * 5) + 1;
-      const b = Math.floor(rand() * 4) + 2;
+      const a = seedOffset + i * 4 + 1;
+      const b = (sIdx + 2) * 3 + i + 1;
       await evalCase(
         '6_INTEGRATION_DEFINITE_INTEGRALS',
         `indef_int_pos_${i}`,
@@ -570,7 +646,7 @@ async function runExpandedMultiSeedRandomCorpus(seeds = DEFAULT_SEEDS) {
         `Integrate ${3 * a}x^2 + ${2 * b}x dx`,
         false
       );
-      const upper = Math.floor(rand() * 4) + 1;
+      const upper = sIdx + i + 2;
       const defVal = a * upper * upper;
       await evalCase(
         '6_INTEGRATION_DEFINITE_INTEGRALS',
@@ -590,10 +666,10 @@ async function runExpandedMultiSeedRandomCorpus(seeds = DEFAULT_SEEDS) {
 
     // 7. Matrix Operations and Determinants (3 pos + 3 neg = 6 cases/seed)
     for (let i = 0; i < 3; i++) {
-      const a = Math.floor(rand() * 7) + 1;
-      const b = Math.floor(rand() * 6) + 1;
-      const c = Math.floor(rand() * 6) + 1;
-      const d = Math.floor(rand() * 7) + 2;
+      const a = seedOffset + i * 2 + 1;
+      const b = sIdx + i + 2;
+      const c = sIdx * 2 + i + 1;
+      const d = (sIdx + 1) * 3 + i + 2;
       const detVal = a * d - b * c;
       const wrongDet = a * d + b * c;
       await evalCase(
@@ -614,7 +690,7 @@ async function runExpandedMultiSeedRandomCorpus(seeds = DEFAULT_SEEDS) {
 
     // 8. Probability and Conditional Probability (3 pos + 3 neg = 6 cases/seed)
     for (let i = 0; i < 3; i++) {
-      const n = Math.floor(rand() * 6) + 5; // 5..10
+      const n = seedOffset + i * 3 + 5;
       const comb = (n * (n - 1)) / 2;
       await evalCase(
         '8_PROBABILITY_CONDITIONAL',
@@ -634,8 +710,8 @@ async function runExpandedMultiSeedRandomCorpus(seeds = DEFAULT_SEEDS) {
 
     // 9. Physics Equations & Formula Consistency (3 pos + 3 neg = 6 cases/seed)
     for (let i = 0; i < 3; i++) {
-      const m = Math.floor(rand() * 6) + 2;
-      const v = Math.floor(rand() * 8) + 3;
+      const m = seedOffset + i * 2 + 2;
+      const v = (sIdx + 1) * 4 + i + 3;
       const ke = 0.5 * m * v * v;
       await evalCase(
         '9_PHYSICS_EQUATIONS',
@@ -679,6 +755,7 @@ async function runExpandedMultiSeedRandomCorpus(seeds = DEFAULT_SEEDS) {
     categoryTotals,
     seedReports,
     verifyLatenciesMs,
+    records,
     failures: allFailures
   };
 }

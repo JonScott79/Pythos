@@ -46,14 +46,14 @@ async function runCalculusCertificationSuite() {
         if (isPositiveControl) results.tp++; else results.tn++;
       }
       results.passed++;
-      results.details.push({ name, kind, passed: true, latencyMs: Number(dt.toFixed(2)) });
+      results.details.push({ name, kind, expectedPositive: Boolean(isPositiveControl), passed: true, latencyMs: Number(dt.toFixed(2)) });
     } catch (err) {
       const dt = performance.now() - t0;
       results.failed++;
       if (kind !== 'SOLVER') {
         if (isPositiveControl) results.fn++; else results.fp++;
       }
-      results.details.push({ name, kind, passed: false, error: err.message, latencyMs: Number(dt.toFixed(2)) });
+      results.details.push({ name, kind, expectedPositive: Boolean(isPositiveControl), passed: false, error: err.message, latencyMs: Number(dt.toFixed(2)) });
     }
   }
 

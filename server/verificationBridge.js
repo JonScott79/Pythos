@@ -244,8 +244,8 @@ function parseSolutionNumbers(rawStr) {
     }
   }
 
-  // 1. Replace [+-]?\frac{a}{b} with evaluated quotient
-  s = s.replace(/([-\+]?)\s*\\frac\{\s*([-\+]?\d+(?:\.\d+)?)\s*\}\{\s*(\d+(?:\.\d+)?)\s*\}/g, (_, sign, num, den) => {
+  // 1. Replace [+-]?\frac{a}{b} (including \dfrac and \tfrac) with evaluated quotient
+  s = s.replace(/([-\+]?)\s*\\(?:d|t)?frac\{\s*([-\+]?\d+(?:\.\d+)?)\s*\}\{\s*(\d+(?:\.\d+)?)\s*\}/g, (_, sign, num, den) => {
     const mult = (sign === '-') ? -1 : 1;
     const d = Number(den);
     return (d !== 0) ? (' ' + (mult * Number(num) / d) + ' ') : ' ';
@@ -904,11 +904,20 @@ function extractClaims(text, userPrompt = '') {
   {
     const extractFirstDerivativeRhsSegment = (rawRhsStr) => {
       if (!rawRhsStr || typeof rawRhsStr !== 'string') return '';
-      const segs = rawRhsStr.split('=').map(s => s.trim()).filter(Boolean);
+      const cleanedRhs = rawRhsStr
+        .replace(/\\(?:,|;|!|:)\s*/g, ' ')
+        .replace(/,\s*\\q?quad\b[\s\S]*$/i, '')
+        .replace(/\\q?quad\b[\s\S]*$/i, '')
+        .replace(/,\s*(?:compute|find|determine|evaluate|verify|show|derive|calculate|where|with|and|to\s+prove)\b[\s\S]*$/i, '')
+        .replace(/\s*(?:\\\)|\\\]|\|)\s*.*$/, '')
+        .trim();
+      const segs = cleanedRhs.split('=').map(s => s.trim()).filter(Boolean);
       const nonOpSeg = segs.find(s => !/\\frac\{d(?:\^\s*\{?\d+\}?)?\s*[a-zA-Z_\\{}]*/.test(s) && s !== '0') || segs[0] || '';
       return nonOpSeg
+        .replace(/\\(?:,|;|!|:)\s*/g, ' ')
         .replace(/\s*(?:<|>|\\lt|\\gt|\\le|\\ge|≤|≥)\s*[-+]?\d+(?:\.\d+)?\s*$/i, '')
-        .replace(/[.,;:]+$/, '')
+        .replace(/\s*(?:\\\)|\\\]|\|)\s*$/g, '')
+        .replace(/[.,;:\\]+$/, '')
         .trim();
     };
 
@@ -968,7 +977,7 @@ function extractClaims(text, userPrompt = '') {
         rawExpr = `(${segmentPreFactor})*(${rawExpr})`;
       }
       const tailAfterExpr = text.slice(afterExprIdx);
-      const eqTailMatch = tailAfterExpr.match(/^\s*=\s*([^$\n]+?)(?=\s*(?:\\quad|\\qquad|\$|\\\\|\n|\\end|\\\]|$))/);
+      const eqTailMatch = tailAfterExpr.match(/^\s*=\s*([^$\n]+?)(?=\s*(?:\\quad|\\qquad|\$|\\\)|\\\]|\||\\\\|\n|\\end|$))/);
       if (!eqTailMatch) continue;
 
       const rawPropVal = extractFirstDerivativeRhsSegment(eqTailMatch[1]);
@@ -979,7 +988,9 @@ function extractClaims(text, userPrompt = '') {
         .replace(/^(?:differentiate|find\s+the\s+deriv[ai]tive\s+of|calculate\s+the\s+deriv[ai]tive\s+of|what\s+is\s+the\s+deriv[ai]tive\s+of|compute\s+the\s+deriv[ai]tive\s+of)\s+/i, '')
         .trim();
       const propVal = normalizeSymbolicSide(rawPropVal) || rawPropVal;
-      if (!cleanExpr || !propVal) continue;
+      if (!cleanExpr || !propVal || propVal === '0') continue;
+      // Skip general symbolic power-rule template formulas (e.g. d/dx[c*x^n] = c*n*x^(n-1) with symbolic exponent n)
+      if (/\^\s*\(?n\b/.test(cleanExpr) && /\bn\b/.test(propVal)) continue;
 
       const rawMatchFull = text.slice(dhm.index, afterExprIdx + eqTailMatch[0].length).trim();
       if (!claims.some(c => c.claim_type === 'derivative' && c.data?.expression === cleanExpr && (c.data?.order || 1) === order)) {
@@ -1002,9 +1013,10 @@ function extractClaims(text, userPrompt = '') {
     // e.g. V_{\text{eff}}(r) = \frac{L^2}{r^2}\left(1 - \frac{r_s}{r}\right) or V_{\mathrm{eff}}(r) = b^2\frac{1-r_s/r}{r^2}
     // followed by \frac{dV_{\text{eff}}}{dr} = ..., \frac{d^2V_{\text{eff}}}{dr^2} = ..., V'_{\mathrm{eff}}(r) = ..., or V''_{\mathrm{eff}}(r) = ...
     const namedFunctions = new Map();
-    const combinedFnSource = `${promptStr || ''}\n${text}`
+    const combinedFnSource = unwrapBoxedLatex(`${promptStr || ''}\n${text}`)
+      .replace(/\\underbrace\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}_\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g, '$1')
       .replace(/\r?\n\s*=\s*/g, ' = ');
-    const fnDefRe = /(?<![a-zA-Z\\'])([a-zA-Z](?:_\{?[a-zA-Z0-9\\{}\s]+\}?|_[a-zA-Z0-9]+)?)\s*(?:\(\s*([a-zA-Z])\s*\))?\s*=\s*([^$\n]+?)(?=\s*(?:\$|\\\]|\\\\|\n|;\s|$))/g;
+    const fnDefRe = /(?<![a-zA-Z\\'])([a-zA-Z](?:_\{?[a-zA-Z0-9\\{}\s]+\}?|_[a-zA-Z0-9]+)?)\s*(?:\(\s*([a-zA-Z])\s*\))?\s*=\s*([^$\n]+?)(?=\s*(?:,\s*\\q?quad\b|\\q?quad\b|\$|\\\)|\\\]|\\\\|\n|;\s|$))/g;
     let fnm;
     while ((fnm = fnDefRe.exec(combinedFnSource)) !== null) {
       if (/'|\\prime/.test(fnm[1])) continue;
@@ -1012,22 +1024,22 @@ function extractClaims(text, userPrompt = '') {
       const explicitVar = fnm[2] ? fnm[2].trim() : null;
       const fnBodyRaw = extractFirstDerivativeRhsSegment(fnm[3]);
       if (!rawFnName || /^(?:sin|cos|tan|sec|csc|cot|log|ln|exp|sqrt|abs|ds|dt|dr|dx|dy)$/i.test(rawFnName)) continue;
-      if (!fnBodyRaw || /\\dot|\\ddot|\\partial/.test(fnBodyRaw)) continue;
+      if (!fnBodyRaw || /\\dot|\\ddot|\\partial/.test(fnBodyRaw) || hasAbstractFunctionPlaceholder(fnBodyRaw)) continue;
       const normBody = normalizeSymbolicSide(fnBodyRaw);
       if (!normBody || /[\\{}]/.test(normBody)) continue;
       // Only record bare definitions (without '(var)') when they define a potential/function in r, x, or t
       const inferredVar = explicitVar || (/\br\b/.test(normBody) ? 'r' : (/\bx\b/.test(normBody) ? 'x' : (/\bt\b/.test(normBody) ? 't' : null)));
       if (!inferredVar || (!explicitVar && !/^(?:V|U|f|g|h|y)(?:_|$)/i.test(rawFnName))) continue;
       if (new RegExp(`\\b${inferredVar}\\b`).test(normBody)) {
-        if (explicitVar || !namedFunctions.has(rawFnName)) {
+        if (!namedFunctions.has(rawFnName) || (explicitVar && !namedFunctions.get(rawFnName).hasExplicitVar)) {
           namedFunctions.set(rawFnName, { variable: inferredVar, expr: normBody, hasExplicitVar: Boolean(explicitVar) });
         }
       }
     }
     if (namedFunctions.size > 0) {
-      const textForNamedDeriv = text.replace(/\r?\n\s*=\s*/g, ' = ');
+      const textForNamedDeriv = unwrapBoxedLatex(text).replace(/\r?\n\s*=\s*/g, ' = ');
       // 2a. Leibniz notation on named function: \frac{d V_eff}{dr} = ..., \frac{d^2 V_eff}{dr^2} = ...
-      const namedDerivRe = /\\frac\{d(?:\^\s*\{?(\d+)\}?)?\s*([a-zA-Z](?:_\{?[a-zA-Z0-9\\{}\s]+\}?|_[a-zA-Z0-9]+)?)\s*(?:\(\s*([a-zA-Z])\s*\))?\}\{d([a-zA-Z])(?:\^\s*\{?\d+\}?)?\}\s*=\s*([^$\n]+?)(?=\s*(?:\\quad|\\qquad|\$|\\\\|\n|\\end|\\\]|$))/g;
+      const namedDerivRe = /\\frac\{d(?:\^\s*\{?(\d+)\}?)?\s*([a-zA-Z](?:_\{?[a-zA-Z0-9\\{}\s]+\}?|_[a-zA-Z0-9]+)?)\s*(?:\(\s*([a-zA-Z])\s*\))?\}\{d([a-zA-Z])(?:\^\s*\{?\d+\}?)?\}\s*=\s*([^$\n]+?)(?=\s*(?:\\quad|\\qquad|\$|\\\)|\\\]|\\\\|\n|\\end|$))/g;
       let ndm;
       while ((ndm = namedDerivRe.exec(textForNamedDeriv)) !== null) {
         const order = ndm[1] ? parseInt(ndm[1], 10) : 1;
@@ -1039,7 +1051,7 @@ function extractClaims(text, userPrompt = '') {
         const rawProp = extractFirstDerivativeRhsSegment(ndm[5]);
         if (!rawProp || rawProp === '0' || /\\frac\{d/.test(rawProp)) continue;
         const normProp = normalizeSymbolicSide(rawProp);
-        if (!normProp || !new RegExp(`\\b${dVar}\\b`).test(normProp)) continue;
+        if (!normProp || normProp === '0' || !new RegExp(`\\b${dVar}\\b`).test(normProp)) continue;
         if (!claims.some(c => c.claim_type === 'derivative' && c.data?.expression === fnEntry.expr && (c.data?.order || 1) === order)) {
           claims.push({
             domain: 'calculus',
@@ -1060,7 +1072,7 @@ function extractClaims(text, userPrompt = '') {
       // Matches V'_{\mathrm{eff}}(r) = ..., V''_{\mathrm{eff}}(r) = ..., V_{\mathrm{eff}}'(r) = ..., V''_{\mathrm{eff}} = ..., f'(x) = ..., f''(x) = ...
       const primeGroup = `(?:'+|\\^\\s*\\{?\\s*(?:\\\\prime\\s*)+\\}?)`;
       const primeDerivRe = new RegExp(
-        `(?<![a-zA-Z\\\\])([a-zA-Z])(${primeGroup})?(_\\{?[a-zA-Z0-9\\\\{}\\s]+\\}?|_[a-zA-Z0-9]+)?(${primeGroup})?(?:\\s*(?:\\\\left)?\\(\\s*([a-zA-Z])\\s*(?:\\\\right)?\\))?(?!\\s*(?:\\\\left)?\\()\\s*=\\s*([^$\\n]+?)(?=\\s*(?:\\\\quad|\\\\qquad|\\$|\\\\\\\\|\\n|\\\\end|\\\\\\]|$))`,
+        `(?<![a-zA-Z\\\\])([a-zA-Z])(${primeGroup})?(_\\{?[a-zA-Z0-9\\\\{}\\s]+\\}?|_[a-zA-Z0-9]+)?(${primeGroup})?(?:\\s*(?:\\\\left)?\\(\\s*([a-zA-Z])\\s*(?:\\\\right)?\\))?(?!\\s*(?:\\\\left)?\\()\\s*=\\s*([^$\\n]+?)(?=\\s*(?:\\\\quad|\\\\qquad|\\$|\\\\\\)|\\\\\\]|\\\\\\\\|\\n|\\\\end|$))`,
         'g'
       );
       let pdm;
@@ -1088,7 +1100,7 @@ function extractClaims(text, userPrompt = '') {
         if (!rawProp || rawProp === '0' || /\\frac\{d/.test(rawProp)) continue;
         if (hasAbstractFunctionPlaceholder(rawProp)) continue;
         const normProp = normalizeSymbolicSide(rawProp);
-        if (!normProp) continue;
+        if (!normProp || normProp === '0') continue;
 
         if (!claims.some(c => c.claim_type === 'derivative' && c.data?.expression === fnEntry.expr && (c.data?.order || 1) === order && c.data?.proposed_derivative === normProp)) {
           claims.push({
@@ -1219,7 +1231,9 @@ function extractClaims(text, userPrompt = '') {
     }
     s = replaceLatexRadicalsAndFractions(s);
     // Normalize LaTeX subscripts (e.g. r_{s} -> r_s, b_{crit} -> b_crit) BEFORE converting remaining braces {...} to (...)
+    // Preserve token separation when a braced subscript is immediately followed by another identifier (e.g. 3r_{s}r^{-4} -> 3r_s r^{-4})
     s = s
+      .replace(/_\s*\{\s*([a-zA-Z0-9]+)\s*\}(?=[a-zA-Z0-9\\(])/g, '_$1 ')
       .replace(/_\s*\{\s*([a-zA-Z0-9]+)\s*\}/g, '_$1')
       .replace(/_\s*([a-zA-Z0-9])\b/g, '_$1');
     while (s.includes('|')) {
@@ -1379,7 +1393,7 @@ function extractClaims(text, userPrompt = '') {
   }
 
   // Pattern 5a: Equation followed by "solutions:" / "roots:" (e.g. "x^2 - 5x + 6 = 0, solutions: 2, 3")
-  const eqSolutionsRegex = /([^\n\r;=]+=[^\n\r;=]+)[,;:\s]+(?:with\s+)?(?:solutions?|roots?)\s*(?:are|is|:|=)?\s*([-\d.,\s*andor\\frac{}]+)/gi;
+  const eqSolutionsRegex = /([^\n\r;=]+=[^\n\r;=]+)[,;:\s]+(?:with\s+)?(?:solutions?|roots?)\s*(?:are|is|:|=)?\s*([-\d.,\s*andor\\dtfrac{};]+)/gi;
   let eqSolMatch;
   while ((eqSolMatch = eqSolutionsRegex.exec(text)) !== null) {
     const rawEq = eqSolMatch[1].trim();
@@ -1401,7 +1415,7 @@ function extractClaims(text, userPrompt = '') {
   }
 
   // Pattern 5b: Equation followed by explicit solution assignment (e.g. "2x + 3 = 11, x = 4" or "x^2 - 5x + 6 = 0, x = 2 or x = 3" or "Factoring $(x-3)(x-4)=0$ gives $x = 3$ and $x = 4$")
-  const eqVarRegex = /([^\n\r;=]+=[^\n\r;=]+)[,;:\s]+(?:=>\s*|\\implies\s+|so\s+|therefore\s+|gives?\s+|yields?\s+)?\$?([a-zA-Z])\s*=\s*([-\+]?(?:\\frac\{\s*[-\+]?\d+(?:\.\d+)?\s*\}\{\s*\d+(?:\.\d+)?\s*\}|[-\+]?\d+(?:\.\d+)?(?:\/\d+(?:\.\d+)?)?))\$?(?:\s*(?:,|and|or)\s*\$?\2\s*=\s*([-\+]?(?:\\frac\{\s*[-\+]?\d+(?:\.\d+)?\s*\}\{\s*\d+(?:\.\d+)?\s*\}|[-\+]?\d+(?:\.\d+)?(?:\/\d+(?:\.\d+)?)?))\$?)?/gi;
+  const eqVarRegex = /([^\n\r;=]+=[^\n\r;=]+)[,;:\s]+(?:=>\s*|\\implies\s+|so\s+|therefore\s+|gives?\s+|yields?\s+)?\$?([a-zA-Z])\s*=\s*([-\+]?(?:\\(?:d|t)?frac\{\s*[-\+]?\d+(?:\.\d+)?\s*\}\{\s*\d+(?:\.\d+)?\s*\}|[-\+]?\d+(?:\.\d+)?(?:\/\d+(?:\.\d+)?)?))\$?(?:\s*(?:,|and|or)\s*\$?\2\s*=\s*([-\+]?(?:\\(?:d|t)?frac\{\s*[-\+]?\d+(?:\.\d+)?\s*\}\{\s*\d+(?:\.\d+)?\s*\}|[-\+]?\d+(?:\.\d+)?(?:\/\d+(?:\.\d+)?)?))\$?)?/gi;
   let eqVarMatch;
   while ((eqVarMatch = eqVarRegex.exec(text)) !== null) {
     const rawEq = eqVarMatch[1].trim();
@@ -1511,13 +1525,21 @@ function extractClaims(text, userPrompt = '') {
         const rawBoxed = cleanLatexUnits(boxedMatches[boxedMatches.length - 1].content);
         // If the boxed content is an algebraic polynomial / identity containing the variable,
         // do NOT treat its coefficients/exponents as candidate roots!
-        const hasUnboundVar = new RegExp(`\\b${v}\\b`).test(rawBoxed.replace(/^[a-zA-Z]\s*=/, ''));
-        const isIntermediateEquation = rawBoxed.includes('=') && !/^[a-zA-Z](?:_\{?\d+\}?)?\s*(?:=|\\approx|≈)/.test(rawBoxed.trim());
+        // Strip all root-assignment prefixes (e.g. "x = 3/2 or x = 4", "x_1 = 2, x_2 = 3") globally first.
+        const strippedRootAssigns = rawBoxed
+          .replace(/\b[a-zA-Z](?:_\{?\d+\}?)?\s*(?:=|\\approx|≈)/g, '')
+          .replace(/\b(?:or|and)\b/gi, ' ');
+        const hasUnboundVar = new RegExp(`\\b${v}\\b`).test(strippedRootAssigns);
+        const hasExplicitBoxedVarAssign = /^[a-zA-Z](?:_\{?\d+\}?)?\s*(?:=|\\approx|≈)/.test(rawBoxed.trim());
+        const isFollowUpSubstitutionOrSeqPrompt =
+          !hasExplicitBoxedVarAssign &&
+          (/\b(?:substitute|plug\b[^.?!]*\binto|evaluate)\b|\.\s+Then\s+(?:subtract|add|multiply|divide|plus|minus|times)\b/i.test(cleanPromptForEq));
+        const isIntermediateEquation = rawBoxed.includes('=') && !hasExplicitBoxedVarAssign;
         // Ignore true general integer parametric solution families (e.g. n*pi, 2*k*pi, + 2\pi k, n \in Z),
         // but DO NOT skip literal numeric pi / inverse-trig solutions like \boxed{\pi} or \boxed{\arcsin(1/2)}!
         const isParametricFamily = /\b[nk]\s*(?:\*?\s*(?:\\pi|pi)|\\in)|(?:\\pi|pi)\s*\*?\s*[nk]\b|\\in\s*\\(?:mathbb\{Z\}|Z\b)|(?:[+-]\s*2?\s*[nk]\s*\\?pi|\+\s*2?\\?pi\s*[nk])/i.test(rawBoxed);
         if (isParametricFamily) boxedWasParametric = true;
-        if (!hasUnboundVar && !isIntermediateEquation && !isParametricFamily) {
+        if (!hasUnboundVar && !isIntermediateEquation && !isParametricFamily && !isFollowUpSubstitutionOrSeqPrompt) {
           const cleanBoxedForComp = cleanLatexUnits(rawBoxed).replace(/\\pi\b|\bpi\b/gi, '').replace(/^[a-zA-Z]\s*=/, '');
           const compMatches = cleanBoxedForComp.match(/(?<![a-zA-Z\\])[-+]?(?:\d*(?:\.\d+)?)?i\b(?![a-zA-Z])/g);
           if (compMatches && compMatches.length > 0) {
@@ -1535,7 +1557,7 @@ function extractClaims(text, userPrompt = '') {
 
       // If not in boxed (and not a parametric trig family), check explicit assignments like x = 3 or x = 9
       if (sols.length === 0 && !boxedWasParametric) {
-        const solListRegex = new RegExp('(?:solutions?|roots?)\\s*(?:are|is|:|=)?\\s*([-\\d.,\\s*andor\\\\frac{}]+)', 'i');
+        const solListRegex = new RegExp('(?:solutions?|roots?)\\s*(?:are|is|:|=)?\\s*([-\\d.,\\s*andor\\\\dtfrac{};]+)', 'i');
         const listMatch = text.match(solListRegex);
         if (listMatch) {
           const listSols = parseSolutionNumbers(listMatch[1]);
@@ -1547,7 +1569,7 @@ function extractClaims(text, userPrompt = '') {
           }
         }
 
-        const assignAllRegex = new RegExp('\\b' + v + '\\s*=\\s*([-\\+]?(?:\\\\frac\\{\\s*[-\\+]?\\d+(?:\\.\\d+)?\\s*\\}\\{\\s*\\d+(?:\\.\\d+)?\\s*\\}|[-\\+]?\\d+(?:\\.\\d+)?(?:\\/\\d+(?:\\.\\d+)?)?))', 'gi');
+        const assignAllRegex = new RegExp('\\b' + v + '\\s*=\\s*([-\\+]?(?:\\\\(?:d|t)?frac\\{\\s*[-\\+]?\\d+(?:\\.\\d+)?\\s*\\}\\{\\s*\\d+(?:\\.\\d+)?\\s*\\}|[-\\+]?\\d+(?:\\.\\d+)?(?:\\/\\d+(?:\\.\\d+)?)?))', 'gi');
         let m;
         while ((m = assignAllRegex.exec(text)) !== null) {
           // Do not extract test substitutions, hypothetical assignments, parametric families (e.g. "x = 2k\pi"),
@@ -1557,7 +1579,7 @@ function extractClaims(text, userPrompt = '') {
           if (/\b(?:let|test|testing|try|trying|for|if|when|substitute|substituting|plug|plugging|check|checking|at|with|no\s+real|undefined|excluded?|occurs?\s+(?:at|when)|restriction|denominator|cannot\s+equal)\s*(?:\([^)]*\)\s*)?$/i.test(prefix) ||
               /(?:\\|\b)(?:sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|log|ln|exp|sqrt)\s*(?:\^\s*\{?\d+\}?\s*)?$/i.test(prefix) ||
               /(?:[\^*\/+\-)]|\\(?:cdot|times|div))\s*$/i.test(prefix) ||
-              /^(?:[a-zA-Z\\√⁰¹²³⁴⁵⁶⁷⁸⁹]|\s*\*?\s*(?:pi|π|k|n|e|i|theta|θ|\\pi|\\sqrt|\\frac)\b)/i.test(afterMatch)) {
+              /^(?:[a-zA-Z√⁰¹²³⁴⁵⁶⁷⁸⁹]|\\(?![)\],;!\s]|q?quad\b|text\b|mathrm\b|right\b)|\s*\*?\s*(?:pi|π|k|n|e|i|theta|θ|\\pi|\\sqrt|\\frac)\b)/i.test(afterMatch)) {
             continue;
           }
           const parsedVals = parseSolutionNumbers(m[1]);
@@ -1809,7 +1831,7 @@ function extractClaims(text, userPrompt = '') {
     const trailingCond = (im[2] || '').replace(/\$/g, ' ').trim();
     inlineDelimitedMathBlocks.push(trailingCond ? `${core} ${trailingCond}` : core);
   }
-  const inlineParenMatches = text.matchAll(new RegExp('\\\\\\(([\\s\\S]+?=[\\s\\S]+?)\\\\\\)' + trailingCondGroup, 'gi'));
+  const inlineParenMatches = text.matchAll(new RegExp('\\\\\\(((?:(?!\\\\\\(|\\\\\\))[\\s\\S])+?=(?:(?!\\\\\\(|\\\\\\))[\\s\\S])+?)\\\\\\)' + trailingCondGroup, 'gi'));
   for (const ip of inlineParenMatches) {
     const core = unwrapBoxedLatex(ip[1]).trim();
     const trailingCond = (ip[2] || '').replace(/\\\(|\\\)/g, ' ').trim();
@@ -1865,7 +1887,7 @@ function extractClaims(text, userPrompt = '') {
       .replace(/\\begin\{aligned\}|\\end\{aligned\}|&/g, ' ')
       .replace(/\$\s*(?:[,;:]|\b(?:and|or|so|then|gives?|yields?|means?|implies?|produces?|leaves?|shows?|becomes?|which|where|while)\b)[^$\n]*\$/gi, '\n')
       .split(/\r?\n|\\\\|\\\]|\$\$|\\qquad|\\quad|\\implies|\\Longrightarrow|\\Rightarrow|⇒|==>|\.\s+(?=[A-Z\\$])|\b(?:Final\s+Answer|Answer|Solution)\s*:?/i)
-      .flatMap(b => (/^\s*\|.*\|\s*$/.test(b) && /\s+\|\s+/.test(b)) ? b.split('|') : [b])
+      .flatMap(b => (/\s+\|\s+|^\s*\|/.test(b)) ? b.split(/\s+\|\s+|^\s*\||\|\s*$/).filter(Boolean) : [b])
   ];
 
   for (let block of rawEquivBlocks) {
@@ -1874,6 +1896,7 @@ function extractClaims(text, userPrompt = '') {
       .replace(/\\(?:,|;|!|:)\s*/g, ' ')
       .replace(/\\text\{\s*(for(?:\s+all)?|where|when|whenever|if|with|and|or|assuming|provided(?:\s+that)?|valid(?:\s+for)?)\s*\}/gi, ' $1 ')
       .replace(/\\\[|\\\]|\\\(|\\\)|\\text\{[^}]*\}|\$/g, ' ')
+      .replace(/\(\s*(?:since|because|as)\s+[^()\n]*\)/gi, ' ')
       .replace(/\s*(?:<|>|\\lt|\\gt)\s*0\s*\.?\s*$/g, '')
       .trim();
     if (!cleanBlock || !cleanBlock.includes('=')) continue;
@@ -1920,6 +1943,7 @@ function extractClaims(text, userPrompt = '') {
           !/^(?:sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|log|ln|exp|sqrt|abs)\s*\(/i.test(lhsRaw)) continue;
       if (/\b(?:the|solutions?|roots?|are|is|and|or|if|when|where|with|for|from|into|by|to|of|in|on|at|as|be|have|has|can|will|let|set|check|substitute|plug|solve|solving|factor|factoring|setting|each|zero|equals?|equal|both|either|neither|none|no|not|all|any|some|gives?|yields?|means?|implies?|produces?|leaves?|shows?|becomes?|gets?|finds?)\b/i.test(lhsRaw) || /\b(?:the|solutions?|roots?|are|is|and|or|if|when|where|with|for|from|into|by|to|of|in|on|at|as|be|have|has|can|will|let|set|check|substitute|plug|solve|solving|factor|factoring|setting|each|zero|equals?|equal|both|either|neither|none|no|not|all|any|some|gives?|yields?|means?|implies?|produces?|leaves?|shows?|becomes?|gets?|finds?)\b/i.test(rhsRaw)) continue;
       if (/^\s*[a-zA-Z]\s*$/.test(lhsRaw) && /^\s*[a-zA-Z]\s*$/.test(rhsRaw)) continue;
+      if (lhsRaw === '0' || rhsRaw === '0') continue;
       if (!/[a-zA-Z]/.test(lhsRaw) && !/[a-zA-Z]/.test(rhsRaw)) continue;
       // Never treat a bare single-variable assignment on LHS (e.g. x = 5) or numeric LHS (5 = ...) as symbolic_equivalence
       if (/^\s*[a-zA-Z]\s*$/.test(lhsRaw) || /^[-+]?\d+(?:\.\d+)?$/.test(lhsRaw)) continue;
@@ -2718,7 +2742,7 @@ function extractClaims(text, userPrompt = '') {
     if (claims.length > 0) {
       if (!isAlreadyClaimed) {
         const isDirectCalculusPrompt = /\b(?:derivative|differentiate|integral|integrate|antiderivative)\b|\\int\b|\\frac\{d\}\{d/i.test(promptStr || '');
-        const isBoxedNamedAssignment = /^[a-zA-Z](?:_\{?[a-zA-Z0-9\s]+\}?|\s+_[a-zA-Z0-9]+)?\s*=/.test(cleanBoxedStr);
+        const isBoxedNamedAssignment = /^[a-zA-Z](?:'+|_\{?[a-zA-Z0-9\s]+\}?|\s+_[a-zA-Z0-9]+)*(?:\s*\([a-zA-Z0-9,\s]+\))?\s*=/.test(cleanBoxedStr);
         const calcClaims = (isDirectCalculusPrompt && !isBoxedNamedAssignment)
           ? claims.filter(c => c.domain === 'calculus' && (c.claim_type === 'derivative' || c.claim_type === 'antiderivative'))
           : [];
