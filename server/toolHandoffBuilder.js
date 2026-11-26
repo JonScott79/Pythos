@@ -14,7 +14,7 @@ const SIM_LAB_TOPICS = [
   { id: 'hookes_law', title: "Hooke's Law & Oscillations", re: /\b(?:hooke'?s?\s+law|spring\s+constant|elastic\s+potential|restoring\s+force)\b/i },
   { id: 'pendulum', title: 'Simple Harmonic Pendulum', re: /\b(?:pendulum|oscillat|harmonic\s+period)\b/i },
   { id: 'energy_transfer', title: 'Conservation of Energy', re: /\b(?:conservation\s+of\s+energy|kinetic\s+energy|potential\s+energy)\b/i },
-  { id: 'momentum', title: 'Momentum & 1D Collisions', re: /\b(?:momentum|elastic\s+collision|inelastic\s+collision|impulse)\b/i },
+  { id: 'momentum', title: 'Momentum & 1D Collisions', re: /(?<!angular\s|conjugate\s|canonical\s)\b(?:momentum|elastic\s+collision|inelastic\s+collision|impulse)\b/i },
   { id: 'waves', title: 'Wave Mechanics & Propagation', re: /\b(?:wavelength|wave\s+speed|frequency|amplitude|standing\s+wave)\b/i },
   { id: 'optics', title: "Snell's Law & Refraction", re: /\b(?:snell'?s?\s+law|refraction|refractive\s+index|critical\s+angle|total\s+internal\s+reflection)\b/i },
   { id: 'buoyancy', title: "Archimedes' Buoyancy & Upthrust", re: /\b(?:buoyan|archimedes|submerged\s+volume|upthrust)\b/i },
@@ -506,17 +506,19 @@ function buildToolHandoffContract({
   const isCalculus = domain === 'CALCULUS' || subtype.includes('DERIVATIVE') || subtype.includes('INTEGRAL') || subtype.includes('LIMIT');
 
   let expressionType = 'general';
-  if (isRational) expressionType = 'rational_equation';
+  if (domain === 'PHYSICS') expressionType = 'physics';
+  else if (domain === 'GEOMETRY') expressionType = 'geometry';
+  else if (isRational) expressionType = 'rational_equation';
   else if (isTrig) expressionType = 'trigonometric';
   else if (isCalculus) expressionType = 'calculus';
   else if (isExplicitFnNotation || subtype.includes('FUNCTION') || subtype.includes('GRAPH')) expressionType = 'function';
   else if (equationForCheck) expressionType = 'algebraic_equation';
-  else if (domain === 'GEOMETRY') expressionType = 'geometry';
-  else if (domain === 'PHYSICS') expressionType = 'physics';
   else if (domain === 'ARITHMETIC') expressionType = 'arithmetic';
 
   const domainRestrictions = collectDeterministicRestrictions(safeResults, normalizedExpr, primaryVar);
-  const simMatch = SIM_LAB_TOPICS.find(t => t.re.test(prompt));
+  const simMatch = subtype === 'THEORETICAL_MECHANICS_AND_RELATIVITY'
+    ? null
+    : SIM_LAB_TOPICS.find(t => t.re.test(prompt));
 
   const tools = [];
 

@@ -123,9 +123,13 @@ function resolveStudentAgencyMode({ text = '', studentIntent = null, learnerStat
     };
   }
 
-  // 4. Walkthrough Request ("Walk me through this", "Guide me step by step")
+  // 4. Walkthrough Request ("Walk me through this", "Guide me step by step", or explicit multi-part derivation mission)
+  const isExplicitMultiPartDerivation =
+    (/\b(?:derive\s+and\s+explain|show\s+the\s+intermediate\s+derivation|derive\s+the\s+geodesic|your\s+mission\s*:)\b/i.test(clean) &&
+     /(?:^|\n)\s*1\.\s+[\s\S]*(?:^|\n)\s*2\.\s+/.test(clean));
   if (studentIntent?.intent === INTENTS.WALKTHROUGH_REQUEST ||
       learnerState?.state === 'EXPLICIT_STEP_BY_STEP' ||
+      isExplicitMultiPartDerivation ||
       /^(?:can\s+you\s+)?(?:walk\s+me\s+through(?:\s+this|\s+it)?|guide\s+me\s+step\s+by\s+step|break\s+it\s+down\s+step\s+by\s+step|teach\s+me\s+step\s+by\s+step|show\s+me\s+all\s+(?:the\s+)?steps)[.?!]*$/i.test(clean) ||
       /\b(?:walk\s+me\s+through|guide\s+me\s+step\s+by\s+step|step\s+by\s+step\s+walkthrough|break\s+it\s+down\s+step\s+by\s+step)\b/i.test(lower)) {
     return {
@@ -133,9 +137,9 @@ function resolveStudentAgencyMode({ text = '', studentIntent = null, learnerStat
       confidence: 'high',
       source: 'explicit_student_agency',
       directive: [
-        '1. PROVIDE A COMPREHENSIVE WALKTHROUGH: The student requested guided step-by-step teaching.',
-        '2. Walk through the solution methodically, showing each essential step in clean LaTeX.',
-        '3. Explain WHY each step is necessary and how it connects to the next operation.'
+        '1. PROVIDE A COMPREHENSIVE WALKTHROUGH: The student requested a complete step-by-step derivation.',
+        '2. Derive and explain EVERY requested part/objective methodically in a single complete response, showing each essential intermediate equation and final result in clean LaTeX.',
+        '3. Do NOT stop after Part 1 or ask the student to complete the remaining parts unless Tutor Mode is active.'
       ].join('\n')
     };
   }

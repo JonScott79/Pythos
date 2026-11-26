@@ -268,6 +268,76 @@ async function run() {
     assert.strictEqual(flawedState.state, 'WITHHELD', 'Derivation with rejected intermediate step must never be presented as VERIFIED');
   });
 
+  await test('6. Exact Derivative Regression: Lagrange prime V\'_eff(r) and V\'\'_eff(r) verified, old -10r_s/r^5 error rejected with exact residual, equivalent forms and non-Schwarzschild functions verified', async () => {
+    const vEffDef = '\\[\nV_{\\mathrm{eff}}(r)=b^2\\frac{1-r_s/r}{r^2}\n\\]';
+    const vEffD1 = '\\[\nV\'_{\\mathrm{eff}}(r)\n=b^2\\left(-\\frac{2}{r^3}+\\frac{3r_s}{r^4}\\right)\n\\]';
+    const vEffD2Good = '\\[\nV\'\'_{\\mathrm{eff}}(r)\n=b^2\\left(\\frac{6}{r^4}-\\frac{12r_s}{r^5}\\right)\n\\]';
+    const vEffD2Bad = '\\[\nV\'\'_{\\mathrm{eff}}(r)\n=b^2\\left(\\frac{6}{r^4}-\\frac{10r_s}{r^5}\\right)\n\\]';
+    const vEffEval = 'At $r=\\frac{3r_s}{2}$,\\[\nV\'\'_{\\mathrm{eff}}\\left(\\frac{3r_s}{2}\\right)\n=-\\frac{2b^2}{r^4}<0\n\\]confirming an unstable circular orbit.';
+
+    // 1 & 2. Correct 1st and 2nd derivatives accepted
+    const d1Res = await verifyResponseClaims(`${vEffDef}\n${vEffD1}`, 'Derive V_eff(r) and its first derivative.');
+    assert.strictEqual(d1Res.claims.length, 1);
+    assert.strictEqual(d1Res.verificationResults[0].verified, true);
+
+    const d2Res = await verifyResponseClaims(`${vEffDef}\n${vEffD2Good}`, 'Derive V_eff(r) and its second derivative.');
+    assert.strictEqual(d2Res.claims.length, 1);
+    assert.strictEqual(d2Res.verificationResults[0].verified, true);
+
+    // 3 & 4. Previous incorrect 2nd derivative rejected with specific mathematical discrepancy
+    const badRes = await verifyResponseClaims(`${vEffDef}\n${vEffD1}\n${vEffD2Bad}\n${vEffEval}`, 'Derive V_eff(r) and determine stability.');
+    assert.strictEqual(badRes.invalidClaims.length, 1, 'Old incorrect -10r_s/r^5 second derivative must be rejected');
+    const badVer = badRes.invalidClaims[0].verification;
+    assert.strictEqual(badVer.status, 'INCORRECT_DERIVATIVE');
+    assert.strictEqual(badVer.residual, '-2*b**2*r_s/r**5');
+    assert(badVer.actual_derivative_expanded.includes('12*b**2*r_s/r**5'));
+    const badState = evaluateVerificationState({
+      claims: badRes.claims,
+      verificationResults: badRes.verificationResults,
+      invalidClaims: badRes.invalidClaims,
+      unknownClaims: badRes.unknownClaims,
+      internalContradictions: badRes.internalContradictions,
+      prompt: 'Derive V_eff(r) and determine stability.',
+      withheld: false
+    });
+    assert.strictEqual(badState.state, 'WITHHELD', 'Response with incorrect 2nd derivative must be WITHHELD even if final conclusion says unstable');
+
+    // 5. Correct instability conclusion supported by correct 1st & 2nd derivatives -> VERIFIED
+    const goodRes = await verifyResponseClaims(`${vEffDef}\n${vEffD1}\n${vEffD2Good}\n${vEffEval}`, 'Derive V_eff(r) and determine stability.');
+    const goodState = evaluateVerificationState({
+      claims: goodRes.claims,
+      verificationResults: goodRes.verificationResults,
+      invalidClaims: goodRes.invalidClaims,
+      unknownClaims: goodRes.unknownClaims,
+      internalContradictions: goodRes.internalContradictions,
+      prompt: 'Derive V_eff(r) and determine stability.',
+      withheld: false
+    });
+    assert.strictEqual(goodState.state, 'VERIFIED');
+    assert.strictEqual(goodState.verifiedCount, 2);
+
+    // 6. Equivalent algebraic forms accepted
+    for (const [ord, form] of [
+      [1, '\\frac{b^2(3r_s - 2r)}{r^4}'],
+      [1, '-\\frac{2b^2}{r^3} + \\frac{3b^2 r_s}{r^4}'],
+      [2, '\\frac{6b^2(r - 2r_s)}{r^5}'],
+      [2, '\\frac{6b^2}{r^4} - \\frac{12b^2 r_s}{r^5}'],
+      [2, '6b^2 r^{-4} - 12b^2 r_s r^{-5}']
+    ]) {
+      const prime = ord === 1 ? "V'_{\\mathrm{eff}}(r)" : "V''_{\\mathrm{eff}}(r)";
+      const eqAudit = await verifyResponseClaims(`${vEffDef}\n\\[\n${prime} = ${form}\n\\]`, 'Differentiate V_eff');
+      assert.strictEqual(eqAudit.invalidClaims.length, 0, `Equivalent form rejected: ${form}`);
+      assert.strictEqual(eqAudit.verificationResults[0]?.verified, true, `Equivalent form not verified: ${form}`);
+    }
+
+    // 7. General non-Schwarzschild higher-order derivatives (proving no hardcoding)
+    const genOk = await verifyResponseClaims('Let $f(x) = x^4 - 6x^2 + 5x$. Then $f\'(x) = 4x^3 - 12x + 5$ and $f\'\'(x) = 12x^2 - 12$.', 'Find f\'(x) and f\'\'(x).');
+    assert.strictEqual(genOk.verificationResults.every(v => v.verified), true);
+    const genBad = await verifyResponseClaims('Let $f(x) = x^4 - 6x^2 + 5x$. Then $f\'(x) = 4x^3 - 12x + 5$ and $f\'\'(x) = 12x^2 - 10$.', 'Find f\'(x) and f\'\'(x).');
+    assert.strictEqual(genBad.invalidClaims.length, 1);
+    assert.strictEqual(genBad.invalidClaims[0].verification.residual, '-2');
+  });
+
   console.log(`\n======================================================================`);
   console.log(`RESULTS: ${passed}/${passed + failed} PASSED (${failed} failed)`);
   console.log(`======================================================================`);

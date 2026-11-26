@@ -163,6 +163,7 @@ def _normalize_calculus_expr(raw_str: str, strip_constant: bool = False, var_nam
 
     s = _expand_latex_structures(s)
     s = _normalize_abs_bars(s)
+    s = s.replace('[', '(').replace(']', ')')
 
     s = re.sub(r'\\(?:cdot|times)\b', '*', s)
     s = re.sub(r'\\div\b', '/', s)
@@ -184,6 +185,15 @@ def _normalize_calculus_expr(raw_str: str, strip_constant: bool = False, var_nam
     s = re.sub(r'\)\s*\(', ')*(', s)
     s = re.sub(r'\)\s*([a-zA-Z0-9])', r')*\1', s)
     s = re.sub(r'\b(?!sin|cos|tan|sec|csc|cot|log|log10|log2|ln|exp|sqrt|cbrt|real_root|asin|acos|atan|arcsin|arccos|arctan|sinh|cosh|tanh|asinh|acosh|atanh|atan2|abs|Abs\b)([a-zA-Z_][a-zA-Z0-9_]*)\s*\(', r'\1*(', s)
+    while True:
+        next_s = re.sub(
+            r'\b(?!sin|cos|tan|sec|csc|cot|log|log10|log2|ln|exp|sqrt|cbrt|real_root|asin|acos|atan|arcsin|arccos|arctan|sinh|cosh|tanh|asinh|acosh|atanh|atan2|abs|Abs\b)([a-zA-Z_][a-zA-Z0-9_]*)\s+([a-zA-Z_][a-zA-Z0-9_]*)\b',
+            r'\1*\2',
+            s
+        )
+        if next_s == s:
+            break
+        s = next_s
     return s.strip()
 
 
@@ -218,22 +228,28 @@ def verify_derivative(claim: dict) -> dict:
 
         actual_deriv = sp.diff(expr, x, order)
         diff = sp.simplify(sp.trigsimp(actual_deriv - proposed))
+        op_label = f"d^{order}/d{var_str}^{order}" if order > 1 else f"d/d{var_str}"
 
         if diff == 0:
             return {
                 "verified": True,
                 "status": "VERIFIED",
+                "order": order,
                 "actual_derivative": str(actual_deriv),
-                "details": f"d/d{var_str}[{expr_str}] = {actual_deriv} matches proposed derivative."
+                "details": f"{op_label}[{expr_str}] = {actual_deriv} matches proposed derivative."
             }
         else:
+            actual_expanded = sp.expand(actual_deriv)
             return {
                 "verified": False,
                 "status": "INCORRECT_DERIVATIVE",
                 "error_type": "INCORRECT_DERIVATIVE",
+                "order": order,
                 "actual_derivative": str(actual_deriv),
+                "actual_derivative_expanded": str(actual_expanded),
                 "proposed_derivative": proposed_str,
-                "details": f"Actual derivative d/d{var_str}[{expr_str}] is {actual_deriv}, not {proposed_str}"
+                "residual": str(diff),
+                "details": f"Actual derivative {op_label}[{expr_str}] is {actual_deriv} (expanded: {actual_expanded}), not {proposed_str} (residual discrepancy: {diff})."
             }
     except Exception as e:
         return {"verified": False, "status": "UNKNOWN", "reason": str(e)}

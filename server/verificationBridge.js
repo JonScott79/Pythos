@@ -893,7 +893,11 @@ function extractClaims(text, userPrompt = '') {
     const extractFirstDerivativeRhsSegment = (rawRhsStr) => {
       if (!rawRhsStr || typeof rawRhsStr !== 'string') return '';
       const segs = rawRhsStr.split('=').map(s => s.trim()).filter(Boolean);
-      return (segs[0] || '').replace(/[.,;:]+$/, '').trim();
+      const nonOpSeg = segs.find(s => !/\\frac\{d(?:\^\s*\{?\d+\}?)?\s*[a-zA-Z_\\{}]*/.test(s) && s !== '0') || segs[0] || '';
+      return nonOpSeg
+        .replace(/\s*(?:<|>|\\lt|\\gt|\\le|\\ge|≤|≥)\s*[-+]?\d+(?:\.\d+)?\s*$/i, '')
+        .replace(/[.,;:]+$/, '')
+        .trim();
     };
 
     const derivHeaderRe = /\\frac\{d(?:\^\s*\{?(\d+)\}?)?\}\{d([a-zA-Z])(?:\^\s*\{?\d+\}?)?\}/g;
@@ -901,6 +905,17 @@ function extractClaims(text, userPrompt = '') {
     while ((dhm = derivHeaderRe.exec(text)) !== null) {
       const order = dhm[1] ? parseInt(dhm[1], 10) : 1;
       const dVar = dhm[2].trim();
+      // Check if \frac{d}{dVar} is preceded by a constant/parameter multiplicative prefactor on the same segment
+      // (e.g. "= L^{2}\frac{d}{dr}\left[\frac{1}{r^2} - \frac{r_s}{r^3}\right] = L^{2}\left[...\right]")
+      let segmentPreFactor = '';
+      const beforeHeader = text.slice(Math.max(0, dhm.index - 80), dhm.index);
+      const segStartMatch = beforeHeader.match(/(?:^|[=$\n]|\\\[)\s*([a-zA-Z0-9_^{}\\]+(?:\s*\\!|\s*\\,|\s)*)$/);
+      if (segStartMatch && segStartMatch[1]) {
+        const candPre = segStartMatch[1].replace(/\\(?:!|,|;|:)\s*/g, '').trim();
+        if (candPre && !new RegExp(`\\b${dVar}\\b`).test(candPre) && /^[a-zA-Z0-9_^{}()+\-*/\\]+$/.test(candPre)) {
+          segmentPreFactor = candPre;
+        }
+      }
       let cursor = dhm.index + dhm[0].length;
       while (cursor < text.length && /(?:\s|\\,|\\;|\\!)/.test(text.slice(cursor, cursor + 2))) {
         if (text[cursor] === '\\') cursor += 2;
@@ -937,6 +952,9 @@ function extractClaims(text, userPrompt = '') {
       }
 
       if (!rawExpr || afterExprIdx === -1) continue;
+      if (segmentPreFactor) {
+        rawExpr = `(${segmentPreFactor})*(${rawExpr})`;
+      }
       const tailAfterExpr = text.slice(afterExprIdx);
       const eqTailMatch = tailAfterExpr.match(/^\s*=\s*([^$\n]+?)(?=\s*(?:\\quad|\\qquad|\$|\\\\|\n|\\end|\\\]|$))/);
       if (!eqTailMatch) continue;
@@ -968,29 +986,43 @@ function extractClaims(text, userPrompt = '') {
       }
     }
 
-    // Named function derivative linking in multi-step derivations:
-    // e.g. V_{\text{eff}}(r) = \frac{L^2}{r^2}\left(1 - \frac{r_s}{r}\right) followed by \frac{dV_{\text{eff}}}{dr} = ...
+    // Named function derivative linking in multi-step derivations (Leibniz & Lagrange prime notation):
+    // e.g. V_{\text{eff}}(r) = \frac{L^2}{r^2}\left(1 - \frac{r_s}{r}\right) or V_{\mathrm{eff}}(r) = b^2\frac{1-r_s/r}{r^2}
+    // followed by \frac{dV_{\text{eff}}}{dr} = ..., \frac{d^2V_{\text{eff}}}{dr^2} = ..., V'_{\mathrm{eff}}(r) = ..., or V''_{\mathrm{eff}}(r) = ...
     const namedFunctions = new Map();
-    const fnDefRe = /\b([a-zA-Z](?:_\{?[a-zA-Z0-9\\{}\s]+\}?|_[a-zA-Z0-9]+)?)\s*\(\s*([a-zA-Z])\s*\)\s*=\s*([^=$\n\\]+?(?:\\(?:frac|left|right|sqrt)[^{}$\n]*\{[^$\n]+?\})*[^=$\n]*?)(?=\s*(?:=|\$|\\\]|\\\\|\n|,|;|$))/g;
+    const combinedFnSource = `${promptStr || ''}\n${text}`
+      .replace(/\r?\n\s*=\s*/g, ' = ');
+    const fnDefRe = /(?<![a-zA-Z\\'])([a-zA-Z](?:_\{?[a-zA-Z0-9\\{}\s]+\}?|_[a-zA-Z0-9]+)?)\s*(?:\(\s*([a-zA-Z])\s*\))?\s*=\s*([^$\n]+?)(?=\s*(?:\$|\\\]|\\\\|\n|;\s|$))/g;
     let fnm;
-    while ((fnm = fnDefRe.exec(text)) !== null) {
+    while ((fnm = fnDefRe.exec(combinedFnSource)) !== null) {
+      if (/'|\\prime/.test(fnm[1])) continue;
       const rawFnName = normalizeSymbolicSide(fnm[1]).replace(/\s+/g, '');
-      const fnVar = fnm[2].trim();
-      const fnBodyRaw = fnm[3].trim().replace(/[.,;:]+$/, '').trim();
-      if (!rawFnName || /^(?:sin|cos|tan|sec|csc|cot|log|ln|exp|sqrt|abs)$/i.test(rawFnName)) continue;
-      if (fnBodyRaw && new RegExp(`\\b${fnVar}\\b`).test(fnBodyRaw) && !/\\dot|\\ddot|\\partial/.test(fnBodyRaw)) {
-        namedFunctions.set(rawFnName, { variable: fnVar, expr: normalizeSymbolicSide(fnBodyRaw) });
+      const explicitVar = fnm[2] ? fnm[2].trim() : null;
+      const fnBodyRaw = extractFirstDerivativeRhsSegment(fnm[3]);
+      if (!rawFnName || /^(?:sin|cos|tan|sec|csc|cot|log|ln|exp|sqrt|abs|ds|dt|dr|dx|dy)$/i.test(rawFnName)) continue;
+      if (!fnBodyRaw || /\\dot|\\ddot|\\partial/.test(fnBodyRaw)) continue;
+      // Only record bare definitions (without '(var)') when they define a potential/function in r, x, or t
+      const inferredVar = explicitVar || (/\br\b/.test(fnBodyRaw) ? 'r' : (/\bx\b/.test(fnBodyRaw) ? 'x' : (/\bt\b/.test(fnBodyRaw) ? 't' : null)));
+      if (!inferredVar || (!explicitVar && !/^(?:V|U|f|g|h|y)(?:_|$)/i.test(rawFnName))) continue;
+      if (new RegExp(`\\b${inferredVar}\\b`).test(fnBodyRaw)) {
+        const normBody = normalizeSymbolicSide(fnBodyRaw);
+        if (normBody && !/[\\{}]/.test(normBody) && (explicitVar || !namedFunctions.has(rawFnName))) {
+          namedFunctions.set(rawFnName, { variable: inferredVar, expr: normBody, hasExplicitVar: Boolean(explicitVar) });
+        }
       }
     }
     if (namedFunctions.size > 0) {
+      const textForNamedDeriv = text.replace(/\r?\n\s*=\s*/g, ' = ');
+      // 2a. Leibniz notation on named function: \frac{d V_eff}{dr} = ..., \frac{d^2 V_eff}{dr^2} = ...
       const namedDerivRe = /\\frac\{d(?:\^\s*\{?(\d+)\}?)?\s*([a-zA-Z](?:_\{?[a-zA-Z0-9\\{}\s]+\}?|_[a-zA-Z0-9]+)?)\s*(?:\(\s*([a-zA-Z])\s*\))?\}\{d([a-zA-Z])(?:\^\s*\{?\d+\}?)?\}\s*=\s*([^$\n]+?)(?=\s*(?:\\quad|\\qquad|\$|\\\\|\n|\\end|\\\]|$))/g;
       let ndm;
-      while ((ndm = namedDerivRe.exec(text)) !== null) {
+      while ((ndm = namedDerivRe.exec(textForNamedDeriv)) !== null) {
         const order = ndm[1] ? parseInt(ndm[1], 10) : 1;
         const fnKey = normalizeSymbolicSide(ndm[2]).replace(/\s+/g, '');
         const dVar = ndm[4].trim();
         const fnEntry = namedFunctions.get(fnKey);
-        if (!fnEntry || fnEntry.variable !== dVar) continue;
+        if (!fnEntry || (fnEntry.hasExplicitVar && fnEntry.variable !== dVar)) continue;
+        if (!new RegExp(`\\b${dVar}\\b`).test(fnEntry.expr)) continue;
         const rawProp = extractFirstDerivativeRhsSegment(ndm[5]);
         if (!rawProp || rawProp === '0' || /\\frac\{d/.test(rawProp)) continue;
         const normProp = normalizeSymbolicSide(rawProp);
@@ -1000,6 +1032,56 @@ function extractClaims(text, userPrompt = '') {
             domain: 'calculus',
             claim_type: 'derivative',
             raw_match: ndm[0].trim(),
+            data: {
+              expression: fnEntry.expr,
+              variable: dVar,
+              ...(order > 1 ? { order } : {}),
+              proposed_value: normProp,
+              proposed_derivative: normProp
+            }
+          });
+        }
+      }
+
+      // 2b. Lagrange prime notation on named function:
+      // Matches V'_{\mathrm{eff}}(r) = ..., V''_{\mathrm{eff}}(r) = ..., V_{\mathrm{eff}}'(r) = ..., V''_{\mathrm{eff}} = ..., f'(x) = ..., f''(x) = ...
+      const primeGroup = `(?:'+|\\^\\s*\\{?\\s*(?:\\\\prime\\s*)+\\}?)`;
+      const primeDerivRe = new RegExp(
+        `(?<![a-zA-Z\\\\])([a-zA-Z])(${primeGroup})?(_\\{?[a-zA-Z0-9\\\\{}\\s]+\\}?|_[a-zA-Z0-9]+)?(${primeGroup})?(?:\\s*(?:\\\\left)?\\(\\s*([a-zA-Z])\\s*(?:\\\\right)?\\))?(?!\\s*(?:\\\\left)?\\()\\s*=\\s*([^$\\n]+?)(?=\\s*(?:\\\\quad|\\\\qquad|\\$|\\\\\\\\|\\n|\\\\end|\\\\\\]|$))`,
+        'g'
+      );
+      let pdm;
+      while ((pdm = primeDerivRe.exec(textForNamedDeriv)) !== null) {
+        const baseLetter = pdm[1];
+        const primeBefore = pdm[2] || '';
+        const subscriptPart = pdm[3] || '';
+        const primeAfter = pdm[4] || '';
+        const explicitArgVar = pdm[5] ? pdm[5].trim() : null;
+        const rawRhs = pdm[6];
+        const allPrimes = `${primeBefore}${primeAfter}`;
+        if (!allPrimes) continue;
+        const tickCount = (allPrimes.match(/'/g) || []).length;
+        const latexPrimeCount = (allPrimes.match(/\\prime/g) || []).length;
+        const order = tickCount + latexPrimeCount;
+        if (order < 1 || order > 4) continue;
+
+        const fnKey = normalizeSymbolicSide(`${baseLetter}${subscriptPart}`).replace(/\s+/g, '');
+        const fnEntry = namedFunctions.get(fnKey);
+        if (!fnEntry) continue;
+        const dVar = explicitArgVar || fnEntry.variable;
+        if (!dVar || (fnEntry.hasExplicitVar && explicitArgVar && fnEntry.variable !== explicitArgVar)) continue;
+
+        const rawProp = extractFirstDerivativeRhsSegment(rawRhs);
+        if (!rawProp || rawProp === '0' || /\\frac\{d/.test(rawProp)) continue;
+        if (hasAbstractFunctionPlaceholder(rawProp)) continue;
+        const normProp = normalizeSymbolicSide(rawProp);
+        if (!normProp) continue;
+
+        if (!claims.some(c => c.claim_type === 'derivative' && c.data?.expression === fnEntry.expr && (c.data?.order || 1) === order && c.data?.proposed_derivative === normProp)) {
+          claims.push({
+            domain: 'calculus',
+            claim_type: 'derivative',
+            raw_match: pdm[0].trim(),
             data: {
               expression: fnEntry.expr,
               variable: dVar,
@@ -1108,6 +1190,8 @@ function extractClaims(text, userPrompt = '') {
       .replace(/\\(?:tfrac|dfrac)\s*(\d)\s*(\d)/g, '\\frac{$1}{$2}')
       .replace(/\\(?:tfrac|dfrac)\b/g, '\\frac')
       .replace(/\\displaystyle\b/g, '')
+      .replace(/\\tag\s*\{[^{}]*\}/g, '')
+      .replace(/\\(?:bigl|bigr|Bigl|Bigr|biggl|biggr|Biggl|Biggr|big|Big|bigg|Bigg)\b\s*/g, '')
       .replace(/\\left\s*([(\[{])/g, '$1')
       .replace(/\\right\s*([)\]}])/g, '$1');
     while (/\\left\|((?:(?!\\left\||\\right\|).)+)\\right\|/.test(s)) {
@@ -1129,6 +1213,8 @@ function extractClaims(text, userPrompt = '') {
     while (/\{([^{}]+)\}/.test(s)) {
       s = s.replace(/\{([^{}]+)\}/g, '($1)');
     }
+    // Convert algebraic square brackets [...] (e.g. L^2\left[-\frac{2}{r^3}+\frac{3r_s}{r^4}\right]) to parentheses (...)
+    s = s.replace(/\[/g, '(').replace(/\]/g, ')');
     s = s
       .replace(/\\\(|\\\)/g, '')
       .replace(/\\log_\{?([a-zA-Z0-9]+)\}?\s*(?:\*|\s)*\(([^()]+)\)/g, '(log($2)/log($1))')
@@ -1149,7 +1235,16 @@ function extractClaims(text, userPrompt = '') {
       .replace(/(?:^|(?<=[^a-zA-Z_]))([a-zA-Z])\s+(arcsin|arccos|arctan|asin|acos|atan|sin|cos|tan|sec|csc|cot|log|exp|sqrt)\b/g, '$1*$2')
       .replace(/([a-zA-Z])\s*(sqrt)/g, '$1*$2')
       .replace(/\b(?!sin|cos|tan|sec|csc|cot|log|log10|log2|ln|exp|sqrt|cbrt|asin|acos|atan|arcsin|arccos|arctan|abs|Abs\b)([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/g, '$1*(')
-      .replace(/\^\((-?\d+|[a-zA-Z])\)(?![a-zA-Z0-9_])/g, '^$1')
+      .replace(/\^\((-?\d+|[a-zA-Z])\)(?![a-zA-Z0-9_])/g, '^$1');
+    let prevIdentJoin;
+    do {
+      prevIdentJoin = s;
+      s = s.replace(
+        /\b(?!sin|cos|tan|sec|csc|cot|log|log10|log2|ln|exp|sqrt|cbrt|asin|acos|atan|arcsin|arccos|arctan|abs|Abs|and|or|for|where|when|if|in|not\b)([a-zA-Z_][a-zA-Z0-9_]*)\s+(?!and\b|or\b|for\b|where\b|when\b|if\b|in\b|not\b)([a-zA-Z_][a-zA-Z0-9_]*)\b/g,
+        '$1*$2'
+      );
+    } while (s !== prevIdentJoin);
+    s = s
       .replace(/\s+/g, ' ')
       .trim();
     return s;
@@ -1664,9 +1759,9 @@ function extractClaims(text, userPrompt = '') {
       algebraicDefinitions[varName] = defExpr;
     }
   }
-  // Extract explicit symbolic parameter definitions (e.g. "where r_s = 2GM/c^2", "where rs = 2GM/c²", "where r_s = \frac{2GM}{c^2}")
+  // Extract explicit symbolic parameter definitions (e.g. "where r_s = 2GM/c^2", "where:\n\[\nr_s = \frac{2GM}{c^2}\n\]")
   const paramDefSources = `${promptStr || ''}\n${text}`;
-  const paramDefRegex = /\b(?:where|with|given)\s+\$?([a-zA-Z]_\{?[a-zA-Z0-9]+\}?|r_?s|R_?s)\s*=\s*([^$\n,;]+?)(?:\$|\s+is\b|\s+denotes\b|[,;.\n]|$)/gi;
+  const paramDefRegex = /\b(?:where|with|given)\s*:?\s*(?:\\\[|\$\$|\\\(|\\|\$|\s)*([a-zA-Z]_\{?[a-zA-Z0-9]+\}?|r_?s|R_?s)\s*=\s*([^$\n,;]+?)(?:\$|\\\]|\$\$|\\\)|\s+is\b|\s+denotes\b|[,;.\n]|$)/gi;
   let pDefMatch;
   while ((pDefMatch = paramDefRegex.exec(paramDefSources)) !== null) {
     const rawSym = normalizeSymbolicSide(pDefMatch[1]).replace(/\s+/g, '');
@@ -1723,6 +1818,12 @@ function extractClaims(text, userPrompt = '') {
   const rawEquivBlocks = [
     ...inlineDelimitedMathBlocks,
     ...unwrapBoxedLatex(text)
+      .replace(/\\tag\s*\{[^{}]*\}/g, ' ')
+      .replace(/\\(?:,|;|!|:)\s*/g, ' ')
+      .replace(/\}\s*\r?\n\s*\{/g, '}{')
+      .replace(/([=+\-*/])\s*\r?\n\s*(?!\\\]|\$\$|#|\*|-?\s*\d+\.\s)/g, '$1 ')
+      .replace(/\r?\n\s*([+\-]\s*(?:\\(?:frac|dfrac|tfrac|left|sqrt)\b|[a-zA-Z0-9(]))/g, ' $1')
+      .replace(/\r?\n\s*=\s*/g, ' = ')
       .replace(/\\begin\{aligned\}|\\end\{aligned\}|&/g, ' ')
       .split(/\r?\n|\\\\|\\\]|\$\$|\\qquad|\\quad|\\implies|\\Longrightarrow|\\Rightarrow|⇒|==>|\.\s+(?=[A-Z\\$])|\b(?:Final\s+Answer|Answer|Solution)\s*:?/i)
       .flatMap(b => (/^\s*\|.*\|\s*$/.test(b) && /\s+\|\s+/.test(b)) ? b.split('|') : [b])
@@ -1730,8 +1831,11 @@ function extractClaims(text, userPrompt = '') {
 
   for (let block of rawEquivBlocks) {
     let cleanBlock = block
+      .replace(/\\tag\s*\{[^{}]*\}/g, ' ')
+      .replace(/\\(?:,|;|!|:)\s*/g, ' ')
       .replace(/\\text\{\s*(for|where|when|if|assuming|provided(?:\s+that)?)\s*\}/gi, ' $1 ')
       .replace(/\\\[|\\\]|\\\(|\\\)|\\text\{[^}]*\}|\$/g, ' ')
+      .replace(/\s*(?:<|>|\\lt|\\gt)\s*0\s*\.?\s*$/g, '')
       .trim();
     if (!cleanBlock || !cleanBlock.includes('=')) continue;
 
@@ -2343,27 +2447,36 @@ function extractClaims(text, userPrompt = '') {
         }
       }
 
-      // 10c. Calculus Derivatives: Find the derivative of <expr> [with respect to <var>]
+      // 10c. Calculus Derivatives: Find the [first|second|third] derivative of <expr> [with respect to <var>]
       const strippedDerivPrompt = cleanPrompt
         .replace(/\s+(?:and\s+(?:show|explain|use|identify|state|verify|check|simplify|apply|find|give)|using\s+(?:the\s+)?[a-zA-Z]+\s+rule|step\s+by\s+step|by\s+hand)\b.*$/i, '')
         .trim();
-      const derivPromptMatch = strippedDerivPrompt.match(/^(?:find\s+the\s+derivative\s+of|calculate\s+the\s+derivative\s+of|what\s+is\s+the\s+derivative\s+of|compute\s+the\s+derivative\s+of|differentiate|find\s+d\/d[a-zA-Z]\s*)\s*\[?([a-zA-Z0-9^+\-*/().\s\\{}]+?)\]?(?:\s+with\s+respect\s+to\s+([a-zA-Z]))?$/i);
+      const derivPromptMatch = strippedDerivPrompt.match(/^(?:(?:find|calculate|what\s+is|compute|determine)\s+(?:the\s+)?(?:(first|second|third|1st|2nd|3rd)\s+)?derivative\s+of|differentiate|find\s+d(?:\^\{?(\d+)\}?)?\/d[a-zA-Z](?:\^\{?\d+\}?)?\s*)\s*\[?(?:([a-zA-Z](?:_\{?[a-zA-Z0-9\\{}\s]+\}?|_[a-zA-Z0-9]+)?)\s*\(\s*([a-zA-Z])\s*\)\s*=\s*)?([a-zA-Z0-9_^+\-*/().\s\\{}]+?)\]?(?:\s+with\s+respect\s+to\s+([a-zA-Z]))?$/i);
       if (derivPromptMatch) {
-        const expr = derivPromptMatch[1].trim();
+        const orderWord = (derivPromptMatch[1] || '').toLowerCase();
+        const orderNum = derivPromptMatch[2] ? parseInt(derivPromptMatch[2], 10) : 0;
+        const order = orderNum > 1
+          ? orderNum
+          : (orderWord === 'second' || orderWord === '2nd' ? 2 : (orderWord === 'third' || orderWord === '3rd' ? 3 : 1));
+        const fnArgVar = derivPromptMatch[4] ? derivPromptMatch[4].trim() : null;
+        const rawPromptExpr = derivPromptMatch[5].trim();
+        const expr = normalizeSymbolicSide(rawPromptExpr) || rawPromptExpr;
         if (/[a-zA-Z]/.test(expr)) {
-          const wrtPrompt = cleanPrompt.match(/\bd\/d([a-zA-Z])\b/i);
+          const wrtPrompt = cleanPrompt.match(/\bd(?:\^\{?\d+\}?)?\/d([a-zA-Z])\b/i);
           const cleanedVars = expr.replace(/\b(?:sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|sinh|cosh|tanh|ln|log|exp|sqrt|cbrt|pi|e|frac)\b/gi, '');
           const vMatch = cleanedVars.match(/[a-zA-Z]/);
-          const v = derivPromptMatch[2] || (wrtPrompt ? wrtPrompt[1] : (vMatch ? vMatch[0] : 'x'));
-          if (!claims.some(c => c.claim_type === 'derivative')) {
-            const normDerivVal = normalizeSymbolicSide(candidateBoxed) || candidateBoxed;
+          const v = derivPromptMatch[6] || fnArgVar || (wrtPrompt ? wrtPrompt[1] : (vMatch ? vMatch[0] : 'x'));
+          if (!claims.some(c => c.claim_type === 'derivative' && (c.data?.order || 1) === order)) {
+            const strippedBoxedRhs = candidateBoxed.includes('=') ? candidateBoxed.split('=').pop().trim() : candidateBoxed;
+            const normDerivVal = normalizeSymbolicSide(strippedBoxedRhs) || strippedBoxedRhs;
             claims.push({
               domain: 'calculus',
               claim_type: 'derivative',
-              raw_match: `d/d${v}[${expr}] = ${normDerivVal}`,
+              raw_match: `d${order > 1 ? `^${order}` : ''}/d${v}${order > 1 ? `^${order}` : ''}[${expr}] = ${normDerivVal}`,
               data: {
                 expression: expr,
                 variable: v,
+                ...(order > 1 ? { order } : {}),
                 proposed_value: normDerivVal,
                 proposed_derivative: normDerivVal,
                 raw_val_str: candidateBoxed,
@@ -3068,11 +3181,17 @@ function checkPromptClaimFidelity(claim, userPrompt) {
     const cleanedDerivPromptStr = String(promptStr || '')
       .replace(/\s+(?:and\s+(?:show|explain|use|identify|state|verify|check|simplify|apply|find|give)|using\s+(?:the\s+)?[a-zA-Z]+\s+rule|step\s+by\s+step|by\s+hand)\b.*$/i, '')
       .trim();
-    const derivPromptMatch = cleanedDerivPromptStr.match(/(?:find\s+the\s+derivative\s+of|calculate\s+the\s+derivative\s+of|what\s+is\s+the\s+derivative\s+of|compute\s+the\s+derivative\s+of|differentiate)\s+([^,;?\n]+?)(?:\s+with\s+respect\s+to\s+[a-zA-Z]|\s*[?!.]|\s*$)/i);
+    const derivPromptMatch = cleanedDerivPromptStr.match(/(?:find\s+the\s+(?:(?:first|second|third|1st|2nd|3rd)\s+)?derivative\s+of|calculate\s+the\s+(?:(?:first|second|third|1st|2nd|3rd)\s+)?derivative\s+of|what\s+is\s+the\s+(?:(?:first|second|third|1st|2nd|3rd)\s+)?derivative\s+of|compute\s+the\s+(?:(?:first|second|third|1st|2nd|3rd)\s+)?derivative\s+of|differentiate)\s+([^,;?\n]+?)(?:\s+with\s+respect\s+to\s+[a-zA-Z]|\s*[?!.]|\s*$)/i);
     if (derivPromptMatch) {
-      let promptExpr = derivPromptMatch[1].trim().replace(/^[a-zA-Z]\s*\([a-zA-Z]\)\s*=\s*/, '');
+      let promptExpr = derivPromptMatch[1]
+        .trim()
+        .replace(/^[a-zA-Z](?:_\{?[a-zA-Z0-9\\{}\s]+\}?|_[a-zA-Z0-9]+)?\s*(?:\(\s*[a-zA-Z]\s*\))?\s*=\s*/, '')
+        .trim();
+      const isNamedFunctionReferenceOnly =
+        /^[a-zA-Z](?:_\{?[a-zA-Z0-9\\{}\s]+\}?|_[a-zA-Z0-9]+)?(?:\s*\(\s*[a-zA-Z]\s*\))?$/.test(promptExpr) &&
+        !/^(?:sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|sinh|cosh|tanh|log|ln|exp|sqrt)\s*\(/i.test(promptExpr);
       const claimExpr = claim.data?.expression;
-      if (promptExpr && claimExpr) {
+      if (promptExpr && claimExpr && !isNamedFunctionReferenceOnly) {
         const canonDerivExpr = (expr) => replaceLatexRadicalsAndFractions(String(expr))
           .replace(/\*\*/g, '^')
           .replace(/\bln\b/g, 'log')
@@ -4027,19 +4146,23 @@ function synthesizeVerificationStepAudit(claim, verification, stepIndex = 0) {
       ? verification.actual_derivative
       : (verification?.solutions ? verification.solutions.join(', ') : null));
 
+  const isVerified = Boolean(verification && verification.verified === true);
+
   // Compute discrepancy / residual
   let discrepancy = null;
   if (proposedVal !== null && expectedVal !== null) {
     if (typeof proposedVal === 'number' && typeof expectedVal === 'number') {
       discrepancy = Math.abs(proposedVal - expectedVal);
+    } else if (isVerified) {
+      discrepancy = 0;
+    } else if (verification?.residual) {
+      discrepancy = `Residual: ${verification.residual} (claimed "${proposedVal}" vs expected "${expectedVal}")`;
     } else if (String(proposedVal).trim() !== String(expectedVal).trim()) {
       discrepancy = `Residual: claimed "${proposedVal}" vs expected "${expectedVal}"`;
     } else {
       discrepancy = 0;
     }
   }
-
-  const isVerified = Boolean(verification && verification.verified === true);
   const verdict = isVerified
     ? 'VERIFIED'
     : (verification?.status || (verification?.verified === false ? 'REJECTED' : 'OUT_OF_SCOPE'));

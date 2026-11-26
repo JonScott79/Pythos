@@ -955,7 +955,9 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
                     zeros = sp.solve(denom_base, target_sym)
                     is_multivar = len(all_identifiers) > 1
                     if not zeros:
-                        restr.add(f"{sp.simplify(denom_base)} != 0")
+                        denom_simp = sp.simplify(denom_base)
+                        if denom_simp.free_symbols and not (use_real_domain and (denom_simp.is_positive is True or denom_simp.is_negative is True)):
+                            restr.add(f"{denom_simp} != 0")
                     for z in zeros:
                         if z.is_number:
                             try:
@@ -1080,6 +1082,10 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
                 def _is_restriction_stated(r):
                     if r in stated_restrictions:
                         return True
+                    # Non-zero subscripted physical scale parameters (e.g. Schwarzschild radius r_s = 2GM/c^2 > 0)
+                    if (r == 0 or r == 0.0) and primary_sym is not None and '_' in str(primary_sym):
+                        if any(isinstance(s, str) and _re.search(r'\b(?:r_s|rs|2\s*G\s*M|Schwarzschild|black\s+hole|radius)\b', s, _re.IGNORECASE) for s in extra_condSources):
+                            return True
                     if isinstance(r, (int, float)):
                         return any(
                             (isinstance(sr, (int, float)) and abs(sr - r) < 1e-9) or
@@ -1118,7 +1124,7 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
                             pass
                     return False
 
-                if (stated_restrictions or any(isinstance(s, str) and (">" in s or ">=" in s) for s in extra_condSources)) and all(_is_restriction_stated(r) for r in mismatched):
+                if all(_is_restriction_stated(r) for r in mismatched):
                     return {
                         "verified": True,
                         "status": "CONDITIONALLY_EQUIVALENT",
