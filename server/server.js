@@ -755,10 +755,41 @@ if (!IS_CONTAINER_ROOT && fs.existsSync(path.join(WORKSPACE_ROOT, 'index.html'))
   }
 }
 
+// Authoritative runtime build & deployment provenance (non-sensitive, safe for public diagnostics)
+let _cachedGitMetadata = null;
+function getRuntimeBuildMetadata() {
+  const pkg = require('./package.json');
+  if (!_cachedGitMetadata) {
+    let localCommit = null;
+    let localBranch = null;
+    try {
+      const cp = require('child_process');
+      localCommit = cp.execSync('git rev-parse HEAD', { cwd: __dirname, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+      localBranch = cp.execSync('git branch --show-current', { cwd: __dirname, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    } catch (_) {}
+    _cachedGitMetadata = { localCommit, localBranch };
+  }
+  const commitSha = process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT_SHA || _cachedGitMetadata.localCommit || 'unknown';
+  const branch = process.env.RAILWAY_GIT_BRANCH || process.env.GIT_BRANCH || _cachedGitMetadata.localBranch || 'unknown';
+  const deploymentId = process.env.RAILWAY_DEPLOYMENT_ID || 'local';
+  const environmentName = process.env.RAILWAY_ENVIRONMENT_NAME || process.env.PYTHOS_ENV || 'development';
+  return {
+    version: pkg.version,
+    commitSha,
+    shortCommit: commitSha !== 'unknown' ? commitSha.slice(0, 7) : 'unknown',
+    branch,
+    deploymentId,
+    environment: environmentName
+  };
+}
+
 // Standalone version endpoint
 app.get('/version', (req, res) => {
   const pkg = require('./package.json');
-  res.status(200).json({ version: pkg.version });
+  res.status(200).json({
+    version: pkg.version,
+    build: getRuntimeBuildMetadata()
+  });
 });
 
 // Standalone liveness probe (Phase 1.4 Sanitized): Returns basic service availability only.
@@ -769,6 +800,7 @@ app.get('/health', (req, res) => {
     status: 'ok',
     service: 'pythos-api',
     version: pkg.version,
+    build: getRuntimeBuildMetadata(),
     timestamp: new Date().toISOString()
   });
 });
@@ -780,11 +812,15 @@ app.get('/health/ready', async (req, res) => {
   try {
     const report = await checkReadiness();
     const httpStatus = report.status === 'ready' ? 200 : 503;
-    return res.status(httpStatus).json(report);
+    return res.status(httpStatus).json({
+      ...report,
+      build: getRuntimeBuildMetadata()
+    });
   } catch (err) {
     return res.status(503).json({
       status: 'degraded',
       service: 'pythos-api',
+      build: getRuntimeBuildMetadata(),
       checks: {
         llm: { status: 'degraded', provider: 'unknown' },
         cas: { status: 'degraded', engine: 'sympy' }
@@ -2490,6 +2526,7 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
 
         if (gatePassed && delivery && delivery.delivered) {
           console.log(`[DETERMINISTIC GATE] Verified candidate delivered: '${candidateAnswer}' (${delivery.reason})`);
+          const fastPathBuild = getRuntimeBuildMetadata();
           if (isStreaming) {
             res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
             res.setHeader('Transfer-Encoding', 'chunked');
@@ -2499,6 +2536,7 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
               type: 'verified',
               requestId,
               latencyMs: Date.now() - startTime,
+              build: fastPathBuild,
               finalContent: directResponse,
               verificationState: 'VERIFIED',
               verificationSummary: {
@@ -2518,7 +2556,7 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
               deliveryStatus: delivery.status,
               deliveredAnswer: delivery.answer
             }) + '\n');
-            res.write(JSON.stringify({ type: 'done' }) + '\n');
+            res.write(JSON.stringify({ type: 'done', build: fastPathBuild }) + '\n');
             return res.end();
           }
 
@@ -2527,6 +2565,7 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
           return res.status(200).json({
             requestId,
             latencyMs: Date.now() - startTime,
+            build: fastPathBuild,
             model: 'pythos-deterministic-router',
             message: {
               role: 'assistant',
@@ -4001,8 +4040,10 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
       });
 
       // Attach non-intrusive verification & diagnostic metadata
+      const runtimeBuild = getRuntimeBuildMetadata();
       ollamaResponse.requestId = requestId;
       ollamaResponse.latencyMs = latencyMs;
+      ollamaResponse.build = runtimeBuild;
       ollamaResponse.privacySafeUid = privacySafeUid;
       ollamaResponse.claims = claims || [];
       ollamaResponse.verification = verificationResults;
@@ -4057,6 +4098,7 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
           type: 'verified',
           requestId,
           latencyMs,
+          build: runtimeBuild,
           privacySafeUid,
           finalContent,
           verificationState: verificationEvaluation.state,

@@ -31,8 +31,8 @@
   "hostedModel": "openai/gpt-oss-120b",
   "totalScenarios": 7,
   "passedScenarios": 7,
-  "totalExtractedClaims": 30,
-  "totalVerifiedClaims": 30,
+  "totalExtractedClaims": 33,
+  "totalVerifiedClaims": 33,
   "totalInvalidClaims": 0,
   "totalUnknownClaims": 0,
   "scenarios": [
@@ -319,8 +319,8 @@
       "stagingVerificationState": "VERIFIED",
       "expectedVerificationState": "VERIFIED",
       "expectedFinalAnswerSummary": "V'_eff(r) = (L^2/r^4)(3r_s - 2r), V''_eff(r) = (6L^2/r^5)(r - 2r_s), r_ph = (3/2)r_s, b_crit = (3*sqrt(3)/2)r_s",
-      "extractedClaimsCount": 5,
-      "verifiedClaimsCount": 5,
+      "extractedClaimsCount": 7,
+      "verifiedClaimsCount": 7,
       "invalidClaimsCount": 0,
       "unknownClaimsCount": 0,
       "agreesWithVerifiedMathematicalWork": true,
@@ -339,6 +339,20 @@
           "verified": true,
           "status": "VERIFIED",
           "details": "d/dr[((L^2)/(r^2))*(1 - ((r_s)/(r)))] = L ^ 2 * (2 * (r_s / r - 1) / r ^ 3 + r_s / r ^ 4) algebraically verified"
+        },
+        {
+          "claimType": "derivative",
+          "rawMatch": "V''_{\\mathrm{eff}}(r) = L^{2}\\,\\frac{d}{dr}\\!\\left[\\frac{3r_{s}-2r}{r^{4}}\\right]  = L^{2}\\,\\left[ \\frac{-2}{r^{4}}+\\;(3r_{s}-2r)\\,\\frac{d}{dr}\\!\\left(r^{-4}\\right) \\right]  = L^{2}\\,\\left[ \\frac{-2}{r^{4}}+(3r_{s}-2r)\\,(-4)r^{-5} \\right]  = L^{2}\\,\\left[ -\\frac{2}{r^{4}}-\\frac{4(3r_{s}-2r)}{r^{5}} \\right]  = L^{2}\\,\\left[ -\\frac{2}{r^{4}}-\\frac{12r_{s}}{r^{5}}+\\frac{8}{r^{4}} \\right]  = L^{2}\\,\\left[ \\frac{6}{r^{4}}-\\frac{12r_{s}}{r^{5}} \\right]  = \\,\\frac{L^{2}}{r^{5}}\\!\\left(6r-12r_{s}\\right)       =\\frac{6L^{2}}{r^{5}}\\!\\left(r-2r_{s}\\right)\\,.",
+          "verified": true,
+          "status": "VERIFIED",
+          "details": "d^2/dr^2[((L^2)/(r^2))*(1 - ((r_s)/(r)))] = 6*L**2*(1 - 2*r_s/r)/r**4 matches proposed derivative."
+        },
+        {
+          "claimType": "derivative",
+          "rawMatch": "V''_{\\mathrm{eff}}(r) = \\frac{6L^{2}}{r^{5}}\\bigl(r-2r_{s}\\bigr),",
+          "verified": true,
+          "status": "VERIFIED",
+          "details": "d^2/dr^2[((L^2)/(r^2))*(1 - ((r_s)/(r)))] = 6*L**2*(1 - 2*r_s/r)/r**4 matches proposed derivative."
         },
         {
           "claimType": "symbolic_equivalence",
@@ -488,8 +502,8 @@
       "stagingVerificationState": "VERIFIED",
       "expectedVerificationState": "VERIFIED",
       "expectedFinalAnswerSummary": "x = 8 -> 2(8) + 5 = 16 + 5 = 21",
-      "extractedClaimsCount": 2,
-      "verifiedClaimsCount": 2,
+      "extractedClaimsCount": 3,
+      "verifiedClaimsCount": 3,
       "invalidClaimsCount": 0,
       "unknownClaimsCount": 0,
       "agreesWithVerifiedMathematicalWork": true,
@@ -508,6 +522,13 @@
           "verified": true,
           "status": "VERIFIED",
           "details": "2*(8) = 16 (exact)"
+        },
+        {
+          "claimType": "arithmetic",
+          "rawMatch": "16 + 5 = 21",
+          "verified": true,
+          "status": "VERIFIED",
+          "details": "16 + 5 = 21 (exact)"
         }
       ],
       "rawModelResponse": "**Step 1 – Write the expression with the found value of \\(x\\).**  \n\nFrom the previous problem we obtained  \n\n\\[\nx = 8 .\n\\]\n\nThe expression we must evaluate is  \n\n\\[\n2x + 5 .\n\\]\n\nSubstituting \\(x = 8\\) gives  \n\n\\[\n2(8) + 5 .\n\\]\n\n---\n\n**Step 2 – Multiply.**  \n\n\\(2\\) times \\(8\\) equals \\(16\\):\n\n\\[\n2(8) = 16 .\n\\]\n\nSo the expression becomes  \n\n\\[\n16 + 5 .\n\\]\n\n---\n\n**Step 3 – Add.**  \n\n\\(16 + 5 = 21\\).\n\n---\n\n\\[\n\\boxed{21}\n\\]",

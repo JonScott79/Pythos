@@ -605,6 +605,137 @@ async function runCampaign() {
   console.log(`  ✓ All 11 independent verification scenarios (V1–V10 + V11 zero-claim safeguard) passed.\n`);
 
   // =========================================================================
+  // SECTION 6B: CLASS-LEVEL ARCHITECTURAL & ADVERSARIAL REGRESSION MATRIX (16 Controls)
+  // =========================================================================
+  console.log('▶ [SECTION 6B] Class-Level Architectural & Adversarial Regression Matrix (8 Positive + 8 Negative Controls)...');
+  const architecturalAdversarialControls = [
+    {
+      id: 'ADV_C1_POS_DFRAC_MULTI_ROOT_BOX',
+      prompt: 'Solve 2x^2 - 7x + 6 = 0',
+      response: 'Factoring gives $(2x - 3)(x - 2) = 0$. Therefore $\\boxed{x = \\dfrac{3}{2} \\text{ or } x = 2}$.',
+      expectVerifiedState: true
+    },
+    {
+      id: 'ADV_C1_NEG_DFRAC_LOST_ROOT',
+      prompt: 'Solve 2x^2 - 7x + 6 = 0',
+      response: 'Therefore $\\boxed{x = \\dfrac{3}{2}}$.',
+      expectVerifiedState: false
+    },
+    {
+      id: 'ADV_C2_POS_PEDAGOGICAL_PLACEHOLDER_TEMPLATE',
+      prompt: 'Solve 2x^2 + 7x + 6 = 0 by factoring',
+      response: 'We look for factors of the form $$(2x + ?)(x + ?) = 2x^2 + 7x + 6$$\nUsing $(2x + 3)(x + 2) = 2x^2 + 7x + 6$, the roots are $\\boxed{x = -\\frac{3}{2}, -2}$.',
+      expectVerifiedState: true
+    },
+    {
+      id: 'ADV_C2_NEG_GENUINE_WRONG_FACTORIZATION',
+      prompt: 'Solve 2x^2 + 7x + 6 = 0 by factoring',
+      response: '$$(2x + 1)(x + 6) = 2x^2 + 7x + 6$$\nThe roots are $\\boxed{x = -\\frac{3}{2}, -2}$.',
+      expectVerifiedState: false
+    },
+    {
+      id: 'ADV_C3_POS_MARKDOWN_TABLE_AND_BOXED_SECOND_DERIV',
+      prompt: 'For f(x) = x^4 - 6x^3 + 9x^2, find both the first derivative f\'(x) and the second derivative f\'\'(x).',
+      response: '| Term | Power Rule |\n|---|---|\n| \\(x^4\\) | \\(4x^{4-1}=4x^3\\) |\n$$\\boxed{f\'(x)=4x^3-18x^2+18x}$$\n$$\\boxed{\\,f\'\'(x)=12x^2-36x+18\\,}.$$',
+      expectVerifiedState: true
+    },
+    {
+      id: 'ADV_C3_NEG_MARKDOWN_TABLE_WRONG_POWER_RULE_CELL',
+      prompt: 'For f(x) = x^4 - 6x^3 + 9x^2, find both the first derivative f\'(x) and the second derivative f\'\'(x).',
+      response: '| Term | Power Rule |\n|---|---|\n| \\(x^4\\) | \\(4x^{4-1}=5x^3\\) |\n$$\\boxed{f\'(x)=4x^3-18x^2+18x}$$\n$$\\boxed{\\,f\'\'(x)=12x^2-36x+18\\,}.$$',
+      expectVerifiedState: false
+    },
+    {
+      id: 'ADV_C4_POS_ZERO_RHS_DOMAIN_CONDITION_IN_TRIG',
+      prompt: 'Simplify \\frac{1-\\cos^2(x)}{\\sin(x)} + \\frac{1-\\sin^2(x)}{\\cos(x)} and state domain restrictions.',
+      response: 'Denominators vanish when $\\sin x = 0$ or $\\cos x = 0$. For $\\sin x \\neq 0$ and $\\cos x \\neq 0$:\n$$\\frac{1-\\cos^2(x)}{\\sin(x)} + \\frac{1-\\sin^2(x)}{\\cos(x)} = \\boxed{\\sin(x) + \\cos(x)}$$',
+      expectVerifiedState: true
+    },
+    {
+      id: 'ADV_C4_NEG_FALSE_LINEAR_TRIG_IDENTITY',
+      prompt: 'Simplify \\frac{1-\\cos^2(x)}{\\sin(x)} + \\frac{1-\\sin^2(x)}{\\cos(x)}',
+      response: 'For $\\sin x \\neq 0$ and $\\cos x \\neq 0$:\n$$\\frac{1-\\cos^2(x)}{\\sin(x)} + \\frac{1-\\sin^2(x)}{\\cos(x)} = \\sin(x) + \\cos(x) = 1$$',
+      expectVerifiedState: false
+    },
+    {
+      id: 'ADV_C5_POS_BRACED_SUBSCRIPT_ADJACENT_TOKEN',
+      prompt: 'For V_{\\mathrm{eff}}(r) = \\frac{L^2}{r^2}\\left(1 - \\frac{r_s}{r}\\right), compute V\'_{\\mathrm{eff}}(r).',
+      response: '$$V_{\\mathrm{eff}}(r) = \\frac{L^2}{r^2}\\left(1 - \\frac{r_s}{r}\\right)$$\n$$V\'_{\\mathrm{eff}}(r) = L^2\\left(-2r^{-3} + 3r_{s}r^{-4}\\right)$$',
+      expectVerifiedState: true
+    },
+    {
+      id: 'ADV_C5_NEG_BRACED_SUBSCRIPT_WRONG_COEFFICIENT',
+      prompt: 'For V_{\\mathrm{eff}}(r) = \\frac{L^2}{r^2}\\left(1 - \\frac{r_s}{r}\\right), compute V\'_{\\mathrm{eff}}(r).',
+      response: '$$V_{\\mathrm{eff}}(r) = \\frac{L^2}{r^2}\\left(1 - \\frac{r_s}{r}\\right)$$\n$$V\'_{\\mathrm{eff}}(r) = L^2\\left(-2r^{-3} + 5r_{s}r^{-4}\\right)$$',
+      expectVerifiedState: false
+    },
+    {
+      id: 'ADV_C6_POS_ALIGNED_MULTILINE_SECOND_DERIVATIVE',
+      prompt: 'For V_{\\mathrm{eff}}(r) = \\frac{L^2}{r^2}\\left(1 - \\frac{r_s}{r}\\right), compute the first derivative V\'_{\\mathrm{eff}}(r) and the second derivative V\'\'_{\\mathrm{eff}}(r).',
+      response: '$$V_{\\mathrm{eff}}(r) = \\frac{L^2}{r^2}\\left(1 - \\frac{r_s}{r}\\right)$$\n$$V\'_{\\mathrm{eff}}(r) = \\frac{L^2(3r_s - 2r)}{r^4}$$\n\\[\\begin{aligned}\nV\'\'_{\\mathrm{eff}}(r)\n&= L^2\\,\\frac{d}{dr}\\!\\left[\\frac{3r_s-2r}{r^4}\\right] \\\\[4pt]\n&= L^2\\,\\left[\n\\frac{-2}{r^4}+(3r_s-2r)\\,(-4)r^{-5}\n\\right] \\\\[4pt]\n&= \\frac{6L^2}{r^5}\\bigl(r-2r_s\\bigr)\n\\end{aligned}\\]',
+      expectVerifiedState: true
+    },
+    {
+      id: 'ADV_C6_NEG_SECOND_DERIVATIVE_PROMPT_MISSING_ORDER2',
+      prompt: 'For f(x) = x^4 - 6x^3 + 9x^2, compute the first derivative f\'(x) and the second derivative f\'\'(x).',
+      response: '$$f(x) = x^4 - 6x^3 + 9x^2$$\n$$\\boxed{f\'(x) = 4x^3 - 18x^2 + 18x}$$',
+      expectVerifiedState: false
+    },
+    {
+      id: 'ADV_C7_POS_CANCELED_SYMBOLIC_PARAMETER_IN_RADICAL_AND_LOG',
+      prompt: 'Simplify \\frac{\\frac{3}{2}r_s}{\\sqrt{1 - \\frac{2r_s}{3r_s}}} for r_s > 0.',
+      response: '$$\\frac{\\frac{3}{2}r_s}{\\sqrt{1 - \\frac{2r_s}{3r_s}}} = \\frac{3\\sqrt{3}}{2}r_s$$',
+      expectVerifiedState: true
+    },
+    {
+      id: 'ADV_C7_NEG_OMITTED_REAL_SIGN_RESTRICTION_ON_EVEN_ROOT',
+      prompt: 'Simplify \\frac{\\sqrt{x^2}}{x} over all nonzero real x.',
+      response: '$$\\frac{\\sqrt{x^2}}{x} = 1$$',
+      expectVerifiedState: false
+    },
+    {
+      id: 'ADV_C8_POS_BIGL_BIGR_ARITHMETIC_AND_CONTEXTUAL_SUBSTITUTION',
+      prompt: 'Solve 3x - 5 = 19 for x.\n\nStudent follow-up: Now substitute that value of x into 2x + 5 and evaluate it.',
+      response: 'From the previous problem, $x = 8$. Substituting:\n$$2\\bigl(8\\bigr) = 16$$\n$$16 + 5 = 21$$\n$$\\boxed{21}$$',
+      expectVerifiedState: true
+    },
+    {
+      id: 'ADV_C8_NEG_BIGL_BIGR_ARITHMETIC_SLIP_DETECTED',
+      prompt: 'Solve 3x - 5 = 19 for x.\n\nStudent follow-up: Now substitute that value of x into 2x + 5 and evaluate it.',
+      response: 'From the previous problem, $x = 8$. Substituting:\n$$2\\bigl(8\\bigr) = 18$$\n$$18 + 5 = 23$$\n$$\\boxed{23}$$',
+      expectVerifiedState: false
+    }
+  ];
+
+  for (const ac of architecturalAdversarialControls) {
+    const audit = await timedVerify(ac.response, ac.prompt);
+    const evalState = evaluateVerificationState({
+      claims: audit.claims,
+      verificationResults: audit.verificationResults,
+      invalidClaims: audit.invalidClaims,
+      unknownClaims: audit.unknownClaims,
+      internalContradictions: audit.internalContradictions,
+      prompt: ac.prompt,
+      withheld: false
+    });
+    const isVerified = evalState.state === 'VERIFIED';
+    const ok = isVerified === ac.expectVerifiedState;
+    recordEvaluation({
+      id: ac.id,
+      section: '6B_ARCHITECTURAL_ADVERSARIAL_CONTROLS',
+      category: 'VERIFIER',
+      isBaseline: false,
+      prompt: ac.prompt,
+      response: ac.response,
+      expectedPositive: ac.expectVerifiedState,
+      passed: ok
+    });
+    recordDomain('6B_ARCHITECTURAL_ADVERSARIAL_CONTROLS', ok);
+    assert(ok, `[${ac.id}] Expected verified=${ac.expectVerifiedState}, got state=${evalState.state} (claims=${audit.claims.length}, invalid=${audit.invalidClaims.length}, unknown=${audit.unknownClaims.length})`);
+  }
+  console.log(`  ✓ All ${architecturalAdversarialControls.length} class-level architectural & adversarial controls (8 positive, 8 negative) passed.\n`);
+
+  // =========================================================================
   // SECTION 7: METAMORPHIC INVARIANCE SUITE
   // =========================================================================
   console.log('▶ [SECTION 7] Metamorphic Testing Suite...');
@@ -706,6 +837,32 @@ async function runCampaign() {
   ]);
   const activeCtx = formatActiveProblemContext(activeState);
 
+  const multiPartStrategy = await teachingIntelligence.evaluateTeachingStrategyAsync({
+    userText: 'For V_{\\mathrm{eff}}(r) = \\frac{L^2}{r^2}\\left(1 - \\frac{r_s}{r}\\right), compute the first derivative V\'_{\\mathrm{eff}}(r) and the second derivative V\'\'_{\\mathrm{eff}}(r) step by step.',
+    conversationHistory: []
+  });
+  const { classifyLearnerState, LEARNER_STATES } = require('../server/learnerState');
+  const priorProbState = extractActiveProblemState([
+    { role: 'user', content: 'Solve 3x - 5 = 19 for x.' },
+    { role: 'assistant', content: 'Adding 5 gives 3x = 24, so x = 8.' }
+  ]);
+  const intentionalFollowupState = classifyLearnerState(
+    'In the previous problem where we found x, substitute that value of x into 2x + 5 and evaluate it.',
+    [
+      { role: 'user', content: 'Solve 3x - 5 = 19 for x.' },
+      { role: 'assistant', content: 'Adding 5 gives 3x = 24, so x = 8.' }
+    ],
+    priorProbState
+  );
+  const genuineContaminationState = classifyLearnerState(
+    'Wait, I mixed up the previous problem\'s numbers',
+    [
+      { role: 'user', content: 'Solve 3x - 5 = 19 for x.' },
+      { role: 'assistant', content: 'What operation should we do first to isolate 3x?' }
+    ],
+    priorProbState
+  );
+
   const serverSrc = fs.readFileSync(path.join(__dirname, '..', 'server', 'server.js'), 'utf8');
   const teachingOk =
     adaptiveCtx.includes('AGES 12–25 BASELINE') &&
@@ -715,10 +872,13 @@ async function runCampaign() {
     tutorDir.includes('Do NOT reveal the final answer') &&
     normalDir === '' &&
     activeCtx.includes('Canonical Parsed Form (CAS Ground Truth)') &&
-    activeCtx.includes('Natural Domain Restrictions');
+    activeCtx.includes('Natural Domain Restrictions') &&
+    multiPartStrategy.agency?.mode === 'FULL_WALKTHROUGH' &&
+    intentionalFollowupState.state !== LEARNER_STATES.CROSS_PROBLEM_CONTAMINATION &&
+    genuineContaminationState.state === LEARNER_STATES.CROSS_PROBLEM_CONTAMINATION;
   recordDomain('9_TEACHING_AND_AGE_12_25_CLARITY', teachingOk);
-  assert(teachingOk, 'Teaching mode parity or 12-25 accessible baseline check failed');
-  console.log('  ✓ Normal Mode vs. Tutor Mode parity, CAS Answer Sheet injection, and 12–25 clarity baseline verified.\n');
+  assert(teachingOk, 'Teaching mode parity, multi-part execution agency, contamination detection, or 12-25 accessible baseline check failed');
+  console.log('  ✓ Normal Mode vs. Tutor Mode parity, multi-part execution agency, intentional follow-up vs. contamination discrimination, CAS Answer Sheet injection, and 12–25 clarity baseline verified.\n');
 
   // =========================================================================
   // SECTION 10: GOLDEN CORPUS, PRODUCTION BUNDLE REPLAY, LIVE-LLM ACCEPTANCE & CHILD SUITES

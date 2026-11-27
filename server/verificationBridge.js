@@ -1013,10 +1013,23 @@ function extractClaims(text, userPrompt = '') {
     // Named function derivative linking in multi-step derivations (Leibniz & Lagrange prime notation):
     // e.g. V_{\text{eff}}(r) = \frac{L^2}{r^2}\left(1 - \frac{r_s}{r}\right) or V_{\mathrm{eff}}(r) = b^2\frac{1-r_s/r}{r^2}
     // followed by \frac{dV_{\text{eff}}}{dr} = ..., \frac{d^2V_{\text{eff}}}{dr^2} = ..., V'_{\mathrm{eff}}(r) = ..., or V''_{\mathrm{eff}}(r) = ...
+    const normalizeAlignedContinuations = (src) =>
+      unwrapBoxedLatex(src)
+        .replace(/\\underbrace\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}_\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g, '$1')
+        .replace(/\\begin\{(aligned|align\*?|eqnarray\*?|gather\*?|split)\}([\s\S]*?)\\end\{\1\}/gi, (_, _env, body) => {
+          return body
+            .replace(/\\\\(?:\s*\[[^\]]*\])?/g, '\u0000ROW\u0000')
+            .replace(/\r?\n/g, ' ')
+            .replace(/\u0000ROW\u0000\s*&?\s*=\s*/g, ' = ')
+            .replace(/\u0000ROW\u0000/g, '\n')
+            .replace(/\s*&\s*=\s*/g, ' = ');
+        })
+        .replace(/\\\\(?:\s*\[[^\]]*\])?\s*\r?\n\s*&?\s*=\s*/g, ' = ')
+        .replace(/\r?\n\s*&?\s*=\s*/g, ' = ')
+        .replace(/\s*&\s*=\s*/g, ' = ');
+
     const namedFunctions = new Map();
-    const combinedFnSource = unwrapBoxedLatex(`${promptStr || ''}\n${text}`)
-      .replace(/\\underbrace\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}_\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g, '$1')
-      .replace(/\r?\n\s*=\s*/g, ' = ');
+    const combinedFnSource = normalizeAlignedContinuations(`${promptStr || ''}\n${text}`);
     const fnDefRe = /(?<![a-zA-Z\\'])([a-zA-Z](?:_\{?[a-zA-Z0-9\\{}\s]+\}?|_[a-zA-Z0-9]+)?)\s*(?:\(\s*([a-zA-Z])\s*\))?\s*=\s*([^$\n]+?)(?=\s*(?:,\s*\\q?quad\b|\\q?quad\b|\$|\\\)|\\\]|\\\\|\n|;\s|$))/g;
     let fnm;
     while ((fnm = fnDefRe.exec(combinedFnSource)) !== null) {
@@ -1038,7 +1051,7 @@ function extractClaims(text, userPrompt = '') {
       }
     }
     if (namedFunctions.size > 0) {
-      const textForNamedDeriv = unwrapBoxedLatex(text).replace(/\r?\n\s*=\s*/g, ' = ');
+      const textForNamedDeriv = normalizeAlignedContinuations(text);
       // 2a. Leibniz notation on named function: \frac{d V_eff}{dr} = ..., \frac{d^2 V_eff}{dr^2} = ...
       const namedDerivRe = /\\(?:d|t)?frac\{d(?:\^\s*\{?(\d+)\}?)?\s*([a-zA-Z](?:_\{?[a-zA-Z0-9\\{}\s]+\}?|_[a-zA-Z0-9]+)?)\s*(?:\(\s*([a-zA-Z])\s*\))?\}\{d([a-zA-Z])(?:\^\s*\{?\d+\}?)?\}\s*=\s*([^$\n]+?)(?=\s*(?:\\quad|\\qquad|\$|\\\)|\\\]|\\\\|\n|\\end|$))/g;
       let ndm;
@@ -2181,7 +2194,8 @@ function extractClaims(text, userPrompt = '') {
       .replace(/\\boxed\{([^{}]+)\}/g, '$1')
       .replace(/\\text\{([^{}]+)\}/g, '$1')
       .replace(/[$]/g, ' ')
-      .replace(/\\(?:left|right)/g, '')
+      .replace(/\\(?:\(|\)|\[|\])/g, ' ')
+      .replace(/\\(?:left|right|bigl|bigr|Bigl|Bigr|biggl|biggr|Biggl|Biggr|big|Big|bigg|Bigg|displaystyle|textstyle)\b/g, '')
       .replace(/\\(sin|cos|tan|sec|csc|cot)\b/gi, '$1');
 
     // 6a. LaTeX Fraction: \frac{A}{B} \approx C or = C (only when standalone or after an assignment '=' / prose, never mid-expression after + - * / ^ )
@@ -4770,7 +4784,7 @@ function auditPromptClaimFidelity(claims, prompt, verificationResults = null) {
   // 6. Calculus Derivative Queries (only when asking to compute/find a derivative of an expression,
   // not conceptual questions like "limit definition of the derivative" or "how does shrinking Δx illustrate...")
   const isDerivativeComputationPrompt = (
-    /(?:find|calculate|compute|what\s+is|determine)\s+(?:the\s+)?(?:first\s+|second\s+|partial\s+)?deriv[ai]tive\b/i.test(prompt) ||
+    /(?:find|calculate|compute|what\s+is|determine)\s+(?:the\s+|both\s+the\s+)?(?:first\s+(?:and\s+second\s+)?|second\s+|partial\s+)?deriv[ai]tive[s]?\b/i.test(prompt) ||
     /\bd\/d[a-zA-Z]\b/i.test(prompt) ||
     /\bdifferen[tc]iate\s+(?!between\b)/i.test(prompt)
   ) && !/\b(?:limit\s+definition|concept(?:ual)?|illustrate|explain\b|how\s+does|in\s+the\s+sim\s+lab)\b/i.test(prompt);
@@ -4785,6 +4799,35 @@ function auditPromptClaimFidelity(claims, prompt, verificationResults = null) {
         uncertaintyTarget: 'derivative',
         reason: 'Prompt requested a derivative, but no verified derivative claim was established.'
       };
+    }
+
+    // Higher-order derivative fidelity guard: when the prompt explicitly requests a second derivative,
+    // require an affirmatively verified order-2 derivative claim (or a derivative of the first derivative).
+    const requestsSecondDerivative = (
+      /\bsecond\s+deriv[ai]tive[s]?\b|\bfirst\s+and\s+second\s+deriv[ai]tive[s]?\b/i.test(prompt) ||
+      /\b(?:find|calculate|compute|determine|verify)\b[^.\n]*?[a-zA-Z](?:_\{?[a-zA-Z0-9\\{}\s]+\}?|_[a-zA-Z0-9]+)?\s*''\s*\(/i.test(prompt) ||
+      /\\(?:d|t)?frac\{d\^2/i.test(prompt) ||
+      /\bd\^2\s*\/\s*d[a-zA-Z]\^2\b/i.test(prompt)
+    );
+    if (requestsSecondDerivative) {
+      const verifiedDerivClaims = safeClaims.filter((c, idx) => {
+        if (!c || c.claim_type !== 'derivative') return false;
+        if (!hasVerifications) return true;
+        return isVerifiedStatus(verificationResults[idx]);
+      });
+      const hasOrder2Claim = verifiedDerivClaims.some(c => (c.data?.order || 1) >= 2);
+      const distinctDerivExpressions = new Set(verifiedDerivClaims.map(c => c.data?.expression).filter(Boolean));
+      const hasSequentialSecondDeriv = distinctDerivExpressions.size >= 2;
+      if (!hasOrder2Claim && !hasSequentialSecondDeriv) {
+        return {
+          valid: false,
+          primaryClaimVerified: false,
+          primaryClaimStatus: 'MISSING_PRIMARY_CLAIM',
+          isUncertainty: true,
+          uncertaintyTarget: 'second derivative',
+          reason: 'Prompt explicitly requested a second derivative, but only a first derivative claim was verified.'
+        };
+      }
     }
   }
 

@@ -1021,9 +1021,13 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
                         arg = atom.args[0]
                         if isinstance(arg, sp.Pow) and len(arg.exp.free_symbols) > 0:
                             if arg.base.free_symbols and arg.base.is_positive is not True:
-                                ineq_restr.add(f"{sp.simplify(arg.base)} > 0")
+                                base_s = sp.simplify(arg.base)
+                                if base_s.free_symbols and base_s.is_positive is not True:
+                                    ineq_restr.add(f"{base_s} > 0")
                         elif arg.free_symbols and arg.is_positive is not True:
                             arg_s = sp.simplify(arg)
+                            if not arg_s.free_symbols or arg_s.is_positive is True:
+                                continue
                             if isinstance(arg_s, sp.Mul):
                                 pos_coeff = sp.Integer(1)
                                 rem_factors = []
@@ -1034,7 +1038,8 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
                                         rem_factors.append(fac)
                                 if pos_coeff != 1 and rem_factors:
                                     arg_s = sp.Mul(*rem_factors)
-                            ineq_restr.add(f"{arg_s} > 0")
+                            if arg_s.free_symbols and arg_s.is_positive is not True:
+                                ineq_restr.add(f"{arg_s} > 0")
                     elif isinstance(atom, sp.Pow):
                         exp_v = atom.exp
                         if not exp_v.free_symbols:
@@ -1065,17 +1070,21 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
                                         if not rem_factors:
                                             continue
                                         arg_s = sp.Mul(*rem_factors)
-                                    ineq_restr.add(f"{arg_s} >= 0")
+                                    if arg_s.free_symbols and arg_s.is_nonnegative is not True and arg_s.is_positive is not True:
+                                        ineq_restr.add(f"{arg_s} >= 0")
                     elif isinstance(atom, (sp.asin, sp.acos)) and len(atom.args) == 1:
                         arg = atom.args[0]
                         if arg.free_symbols:
                             arg_s = sp.simplify(arg)
-                            ineq_restr.add(f"{arg_s} >= -1")
-                            ineq_restr.add(f"{arg_s} <= 1")
+                            if arg_s.free_symbols:
+                                ineq_restr.add(f"{arg_s} >= -1")
+                                ineq_restr.add(f"{arg_s} <= 1")
                     elif isinstance(atom, sp.acosh) and len(atom.args) == 1:
                         arg = atom.args[0]
                         if arg.free_symbols and arg.is_positive is not True:
-                            ineq_restr.add(f"{sp.simplify(arg)} >= 1")
+                            arg_s = sp.simplify(arg)
+                            if arg_s.free_symbols and (arg_s - 1).is_nonnegative is not True:
+                                ineq_restr.add(f"{arg_s} >= 1")
             except Exception:
                 pass
             return ineq_restr

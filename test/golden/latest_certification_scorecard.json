@@ -1,8 +1,8 @@
 {
-  "startedAt": "2026-11-26T22:09:43.263Z",
-  "completedAt": "2026-11-26T22:10:20.522Z",
-  "timestamp": "2026-11-26T22:10:20.522Z",
-  "durationMs": 37258.34,
+  "startedAt": "2026-11-27T02:15:30.471Z",
+  "completedAt": "2026-11-27T02:16:10.381Z",
+  "timestamp": "2026-11-27T02:16:10.381Z",
+  "durationMs": 39910.37,
   "branch": "staging/trig-notation-diagnostics-fix",
   "productionMasterCommit": "773ce8f2eac765c8d8cdf9177e0f04eb8a2f0f7a",
   "seed": 20261126,
@@ -26,30 +26,30 @@
     "solverAndAlternativeMethodRoutingAccuracyPct": 100,
     "metamorphicInvarianceAccuracyPct": 100,
     "seededRandomizedCorpusAccuracyPct": 100,
-    "medianLatencyMs": 2.61,
-    "p95LatencyMs": 34.67
+    "medianLatencyMs": 2.9,
+    "p95LatencyMs": 36.07
   },
   "latencyBoundaries": {
     "canonicalParserAndDualOracle": {
       "sampleCount": 25,
-      "p50Ms": 0.18,
-      "p95Ms": 0.57,
+      "p50Ms": 0.15,
+      "p95Ms": 0.32,
       "minMs": 0.09,
-      "maxMs": 0.88
+      "maxMs": 2
     },
     "deterministicCasSolvers": {
       "sampleCount": 9,
-      "p50Ms": 14.91,
-      "p95Ms": 248.42,
-      "minMs": 0.18,
-      "maxMs": 248.42
+      "p50Ms": 20.57,
+      "p95Ms": 386.2,
+      "minMs": 0.28,
+      "maxMs": 386.2
     },
     "independentVerificationPipeline": {
-      "sampleCount": 518,
-      "p50Ms": 2.61,
-      "p95Ms": 34.67,
+      "sampleCount": 534,
+      "p50Ms": 2.9,
+      "p95Ms": 36.07,
       "minMs": 0.01,
-      "maxMs": 1064.59
+      "maxMs": 1178.71
     },
     "endToEndHostedLlmResponse": {
       "sampleCount": 7,
@@ -61,11 +61,11 @@
   },
   "confusionMatrix": {
     "description": "Strictly deduplicated verifier classification positive/negative controls (Baseline + 5-Seed 9-Domain Expansion), computed directly from evaluationLedger and excluding direct solver and metamorphic checks.",
-    "truePositives": 274,
-    "trueNegatives": 244,
+    "truePositives": 282,
+    "trueNegatives": 252,
     "falsePositives": 0,
     "falseNegatives": 0,
-    "totalEvaluations": 518
+    "totalEvaluations": 534
   },
   "baselineSeed20261126Breakdown": {
     "verifierOnlyConfusionMatrix": {
@@ -228,6 +228,22 @@
       "verifierFp": 0,
       "verifierFn": 0,
       "verifierTotal": 11,
+      "solverPositivePassed": 0,
+      "solverNegativePassed": 0,
+      "solverPassed": 0,
+      "solverTotal": 0,
+      "metamorphicPassed": 0,
+      "metamorphicTotal": 0
+    },
+    "6B_ARCHITECTURAL_ADVERSARIAL_CONTROLS": {
+      "isBaseline": false,
+      "totalRecords": 16,
+      "passedRecords": 16,
+      "verifierTp": 8,
+      "verifierTn": 8,
+      "verifierFp": 0,
+      "verifierFn": 0,
+      "verifierTotal": 16,
       "solverPositivePassed": 0,
       "solverNegativePassed": 0,
       "solverPassed": 0,
@@ -832,8 +848,8 @@
       "hostedModel": "openai/gpt-oss-120b",
       "totalScenarios": 7,
       "passedScenarios": 7,
-      "totalExtractedClaims": 30,
-      "totalVerifiedClaims": 30,
+      "totalExtractedClaims": 33,
+      "totalVerifiedClaims": 33,
       "totalInvalidClaims": 0,
       "totalUnknownClaims": 0
     },
@@ -843,42 +859,42 @@
         "exitCode": 0,
         "hasPassEvidence": true,
         "passed": true,
-        "durationMs": 59.68
+        "durationMs": 60.17
       },
       {
         "suite": "test/test-trig-notation-diagnostics.js",
         "exitCode": 0,
         "hasPassEvidence": true,
         "passed": true,
-        "durationMs": 3094.43
+        "durationMs": 4189.07
       },
       {
         "suite": "test/test-alternative-method-context.js",
         "exitCode": 0,
         "hasPassEvidence": true,
         "passed": true,
-        "durationMs": 2561.13
+        "durationMs": 2720
       },
       {
         "suite": "test/test-schwarzschild-photon-sphere.js",
         "exitCode": 0,
         "hasPassEvidence": true,
         "passed": true,
-        "durationMs": 2901.92
+        "durationMs": 2918.46
       },
       {
         "suite": "test/test-equivalence-authority-audit.js",
         "exitCode": 0,
         "hasPassEvidence": true,
         "passed": true,
-        "durationMs": 18197.54
+        "durationMs": 17644.9
       },
       {
         "suite": "test/runner.js",
         "exitCode": 0,
         "hasPassEvidence": true,
         "passed": true,
-        "durationMs": 2352.35
+        "durationMs": 2346.22
       }
     ]
   },
@@ -962,6 +978,10 @@
     "6_INDEPENDENT_VERIFICATION_SCENARIOS": {
       "passed": 11,
       "total": 11
+    },
+    "6B_ARCHITECTURAL_ADVERSARIAL_CONTROLS": {
+      "passed": 16,
+      "total": 16
     },
     "7_METAMORPHIC_INVARIANCE": {
       "passed": 1,
