@@ -73,10 +73,11 @@ function unwrapBoxedLatex(text) {
 function cleanLatexUnits(str) {
   if (!str || typeof str !== 'string') return '';
   return str
+    .replace(/\\(?:displaystyle|textstyle|scriptstyle|scriptscriptstyle)\b/g, ' ')
     .replace(/\\(?:text|mathrm|mathbf|mathit|operatorname)\s*\{([^{}]*)\}/g, ' $1 ')
     .replace(/\{\s*\\(?:rm|it|bf)\b\s*([^{}]*)\}/g, ' $1 ')
     .replace(/\\(?:rm|it|bf)\b\s*/g, ' ')
-    .replace(/\\quad/g, ' ')
+    .replace(/\\q?quad\b/g, ' ')
     .replace(/\\;/g, ' ')
     .replace(/\\(?:,|:|;|!)\s*/g, ' ')
     .replace(/(?<=\d),(?=\d{3}(?:\D|$))/g, '')
@@ -1208,12 +1209,19 @@ function extractClaims(text, userPrompt = '') {
     } catch (_) {}
   }
 
-  // Helper to identify bare variable assignments (e.g. "x = 11" or "y = 3")
-  // Helper to identify bare variable assignments (e.g. "x = 11" or "The solution is x = 11")
+  // Helper to identify bare variable assignments (e.g. "x = 11", "x = 3/2", or "\boxed{\displaystyle x = \frac{3}{2}}")
   function isBareAssignment(eqStr) {
     if (!eqStr || typeof eqStr !== 'string') return false;
-    const cleaned = cleanAndNormalizeEquation(eqStr);
-    if (!cleaned) return false;
+    const unboxed = unwrapBoxedLatex(eqStr).replace(/\\boxed\s*\{/g, ' ').replace(/\\(?:displaystyle|textstyle)\b/g, ' ');
+    const cleaned = cleanAndNormalizeEquation(unboxed);
+    if (!cleaned) return true;
+    const eqParts = cleaned.equation.split('=').map(s => s.trim());
+    if (eqParts.length !== 2) return false;
+    const [lhsPart, rhsPart] = eqParts;
+    if (/^[a-zA-Z](?:_?\d+)?$/.test(lhsPart)) {
+      const baseVar = lhsPart.replace(/_?\d+$/, '');
+      if (!new RegExp(`\\b${baseVar}\\b`, 'i').test(rhsPart)) return true;
+    }
     return /^\s*[a-zA-Z]\s*=\s*[-+]?\d+(?:\.\d+)?\s*$/.test(cleaned.equation);
   }
 
@@ -1303,7 +1311,11 @@ function extractClaims(text, userPrompt = '') {
   function cleanAndNormalizeEquation(rawEqStr) {
     if (!rawEqStr || typeof rawEqStr !== 'string' || !rawEqStr.includes('=')) return null;
     if (rawEqStr.includes('\n') || rawEqStr.includes('\r')) return null;
-    rawEqStr = rawEqStr.replace(/\\\[|\\\]|\$\$/g, ' ').trim();
+    rawEqStr = unwrapBoxedLatex(rawEqStr)
+      .replace(/\\boxed\s*\{/g, ' ')
+      .replace(/\\(?:displaystyle|textstyle|scriptstyle|scriptscriptstyle)\b/g, ' ')
+      .replace(/\\\[|\\\]|\$\$/g, ' ')
+      .trim();
     const parts = rawEqStr.split('=');
     if (parts.length !== 2) return null;
     const rawLhs = parts[0].trim();
@@ -1372,6 +1384,10 @@ function extractClaims(text, userPrompt = '') {
       if (/[+\-*/^=<>~_]/.test(t) || /\\(?:sqrt|frac|times|div)/.test(t)) continue;
 
       if (isMathFnOrConst) continue;
+      if (/^(?:or|and|where|with|for|when|if)$/i.test(cleanWord)) {
+        firstProse = i;
+        break;
+      }
       if (cleanWord.length <= 1) continue;
 
       firstProse = i;
@@ -1384,6 +1400,10 @@ function extractClaims(text, userPrompt = '') {
 
     const normLhs = normalizeSymbolicSide(lhs);
     const normRhs = normalizeSymbolicSide(rhs);
+    const countParens = (str, ch) => (String(str).match(new RegExp(`\\${ch}`, 'g')) || []).length;
+    if (countParens(normLhs, '(') !== countParens(normLhs, ')')) return null;
+    if (countParens(normRhs, '(') !== countParens(normRhs, ')')) return null;
+    if (/\bboxed\s*\(/i.test(normLhs) || /\bboxed\s*\(/i.test(normRhs)) return null;
 
     const variableMatch = normLhs.match(/\b([a-zA-Z])\b/) || normRhs.match(/\b([a-zA-Z])\b/);
     const variable = variableMatch ? variableMatch[1] : 'x';
@@ -1429,7 +1449,7 @@ function extractClaims(text, userPrompt = '') {
   }
 
   // Pattern 5b: Equation followed by explicit solution assignment (e.g. "2x + 3 = 11, x = 4" or "x^2 - 5x + 6 = 0, x = 2 or x = 3" or "Factoring $(x-3)(x-4)=0$ gives $x = 3$ and $x = 4$")
-  const eqVarRegex = /([^\n\r;=]+=[^\n\r;=]+)[,;:\s]+(?:=>\s*|\\implies\s+|so\s+|therefore\s+|gives?\s+|yields?\s+)?\$?([a-zA-Z])\s*=\s*([-\+]?(?:\\(?:d|t)?frac\{\s*[-\+]?\d+(?:\.\d+)?\s*\}\{\s*\d+(?:\.\d+)?\s*\}|[-\+]?\d+(?:\.\d+)?(?:\/\d+(?:\.\d+)?)?))\$?(?:\s*(?:,|and|or)\s*\$?\2\s*=\s*([-\+]?(?:\\(?:d|t)?frac\{\s*[-\+]?\d+(?:\.\d+)?\s*\}\{\s*\d+(?:\.\d+)?\s*\}|[-\+]?\d+(?:\.\d+)?(?:\/\d+(?:\.\d+)?)?))\$?)?/gi;
+  const eqVarRegex = /([^\n\r;=]+=[^\n\r;=]+)[,;:\s]+(?:=>\s*|\\implies\s+|so\s+|therefore\s+|gives?\s+|yields?\s+)?\$?([a-zA-Z])\s*=\s*([-\+]?(?:\\(?:d|t)?frac\{\s*[-\+]?\d+(?:\.\d+)?\s*\}\{\s*\d+(?:\.\d+)?\s*\}|[-\+]?\d+(?:\.\d+)?(?:\/\d+(?:\.\d+)?)?))\$?(?:(?:\s|\\q?quad|\\,|\\;)*(?:,|and|or|\\(?:text|mathrm)\{\s*(?:or|and|,)\s*\})(?:\s|\\q?quad|\\,|\\;)*\$?\2\s*=\s*([-\+]?(?:\\(?:d|t)?frac\{\s*[-\+]?\d+(?:\.\d+)?\s*\}\{\s*\d+(?:\.\d+)?\s*\}|[-\+]?\d+(?:\.\d+)?(?:\/\d+(?:\.\d+)?)?))\$?)?/gi;
   let eqVarMatch;
   while ((eqVarMatch = eqVarRegex.exec(text)) !== null) {
     const rawEq = eqVarMatch[1].trim();

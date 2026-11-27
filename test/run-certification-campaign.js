@@ -612,7 +612,7 @@ async function runCampaign() {
     {
       id: 'ADV_C1_POS_DFRAC_MULTI_ROOT_BOX',
       prompt: 'Solve 2x^2 - 7x + 6 = 0',
-      response: 'Factoring gives $(2x - 3)(x - 2) = 0$. Therefore $\\boxed{x = \\dfrac{3}{2} \\text{ or } x = 2}$.',
+      response: 'Factoring gives $(2x - 3)(x - 2) = 0$. Therefore $$\\boxed{\\displaystyle x = \\dfrac{3}{2}\\quad\\text{or}\\quad x = 2}$$.',
       expectVerifiedState: true
     },
     {

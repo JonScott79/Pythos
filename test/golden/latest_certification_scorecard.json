@@ -1,8 +1,8 @@
 {
-  "startedAt": "2026-11-27T02:15:30.471Z",
-  "completedAt": "2026-11-27T02:16:10.381Z",
-  "timestamp": "2026-11-27T02:16:10.381Z",
-  "durationMs": 39910.37,
+  "startedAt": "2026-11-27T02:24:10.726Z",
+  "completedAt": "2026-11-27T02:24:47.553Z",
+  "timestamp": "2026-11-27T02:24:47.553Z",
+  "durationMs": 36826.19,
   "branch": "staging/trig-notation-diagnostics-fix",
   "productionMasterCommit": "773ce8f2eac765c8d8cdf9177e0f04eb8a2f0f7a",
   "seed": 20261126,
@@ -26,30 +26,30 @@
     "solverAndAlternativeMethodRoutingAccuracyPct": 100,
     "metamorphicInvarianceAccuracyPct": 100,
     "seededRandomizedCorpusAccuracyPct": 100,
-    "medianLatencyMs": 2.9,
-    "p95LatencyMs": 36.07
+    "medianLatencyMs": 2.67,
+    "p95LatencyMs": 35.77
   },
   "latencyBoundaries": {
     "canonicalParserAndDualOracle": {
       "sampleCount": 25,
       "p50Ms": 0.15,
-      "p95Ms": 0.32,
-      "minMs": 0.09,
-      "maxMs": 2
+      "p95Ms": 0.25,
+      "minMs": 0.08,
+      "maxMs": 0.91
     },
     "deterministicCasSolvers": {
       "sampleCount": 9,
-      "p50Ms": 20.57,
-      "p95Ms": 386.2,
-      "minMs": 0.28,
-      "maxMs": 386.2
+      "p50Ms": 14.68,
+      "p95Ms": 216.88,
+      "minMs": 0.16,
+      "maxMs": 216.88
     },
     "independentVerificationPipeline": {
       "sampleCount": 534,
-      "p50Ms": 2.9,
-      "p95Ms": 36.07,
+      "p50Ms": 2.67,
+      "p95Ms": 35.77,
       "minMs": 0.01,
-      "maxMs": 1178.71
+      "maxMs": 831.94
     },
     "endToEndHostedLlmResponse": {
       "sampleCount": 7,
@@ -859,42 +859,42 @@
         "exitCode": 0,
         "hasPassEvidence": true,
         "passed": true,
-        "durationMs": 60.17
+        "durationMs": 64.01
       },
       {
         "suite": "test/test-trig-notation-diagnostics.js",
         "exitCode": 0,
         "hasPassEvidence": true,
         "passed": true,
-        "durationMs": 4189.07
+        "durationMs": 3513.04
       },
       {
         "suite": "test/test-alternative-method-context.js",
         "exitCode": 0,
         "hasPassEvidence": true,
         "passed": true,
-        "durationMs": 2720
+        "durationMs": 2481.96
       },
       {
         "suite": "test/test-schwarzschild-photon-sphere.js",
         "exitCode": 0,
         "hasPassEvidence": true,
         "passed": true,
-        "durationMs": 2918.46
+        "durationMs": 2699.95
       },
       {
         "suite": "test/test-equivalence-authority-audit.js",
         "exitCode": 0,
         "hasPassEvidence": true,
         "passed": true,
-        "durationMs": 17644.9
+        "durationMs": 18113.42
       },
       {
         "suite": "test/runner.js",
         "exitCode": 0,
         "hasPassEvidence": true,
         "passed": true,
-        "durationMs": 2346.22
+        "durationMs": 2098.75
       }
     ]
   },
