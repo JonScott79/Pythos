@@ -36,10 +36,27 @@ const RESERVED_MATH_FUNCTIONS = new Set([
 ]);
 
 /**
+ * Front-door typographical LaTeX normalizer.
+ * Eliminates purely presentational LaTeX macro variants (\dfrac, \tfrac, \cfrac,
+ * \bigl/\bigr/\Bigl/\Bigr sizing, \displaystyle/\textstyle, and braced subscript
+ * token-fusion hazards) once at the component boundary before any downstream
+ * parser or claim extractor runs.
+ */
+function canonicalizeLatexTypography(rawText) {
+  if (!rawText || typeof rawText !== 'string') return '';
+  return rawText
+    .replace(/\\(?:d|t|c)frac\s*(\d)\s*(\d)/g, '\\frac{$1}{$2}')
+    .replace(/\\(?:d|t|c)frac\b/g, '\\frac')
+    .replace(/\\(?:displaystyle|textstyle|scriptstyle|scriptscriptstyle)\b\s*/g, '')
+    .replace(/\\(?:bigl|bigr|Bigl|Bigr|biggl|biggr|Biggl|Biggr|big|Big|bigg|Bigg)\s*(?=[()[\]{}|.]|\\[lrv]vert|\\\{|\\\})/g, '')
+    .replace(/_\s*\{\s*([a-zA-Z0-9]+)\s*\}(?=[a-zA-Z0-9\\(])/g, '_{$1} ');
+}
+
+/**
  * Replaces nested \frac{num}{den}, \dfrac{num}{den}, \tfrac{num}{den} using balanced brace scanning.
  */
 function expandBalancedFractions(input) {
-  let s = input;
+  let s = canonicalizeLatexTypography(input);
   for (let pass = 0; pass < 8; pass++) {
     const cmdMatch = s.match(/\\(?:d|t)?frac\s*\{/);
     if (!cmdMatch) break;
