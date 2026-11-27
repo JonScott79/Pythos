@@ -2,9 +2,9 @@
 
 - **Branch:** `staging/trig-notation-diagnostics-fix`
 - **Production Master Commit:** `773ce8f2eac765c8d8cdf9177e0f04eb8a2f0f7a`
-- **Started At:** `2026-11-27T02:24:10.726Z`
-- **Completed At:** `2026-11-27T02:24:47.553Z`
-- **Total Duration:** `36826.19 ms`
+- **Started At:** `2026-11-27T15:29:15.812Z`
+- **Completed At:** `2026-11-27T15:30:59.277Z`
+- **Total Duration:** `103463.04 ms`
 - **Certification Status:** **PASS**
 
 ## 1. Separated Confusion Matrix & Accuracy Metrics
@@ -45,7 +45,7 @@
 
 | Subsystem Boundary | Sample Count | Median (`p50`) | `p95` | Min | Max |
 |---|---|---|---|---|---|
-| **1. Canonical Parser & 20-Pt Numerical Dual-Oracle** | 25 | **0.15 ms** | **0.25 ms** | 0.08 ms | 0.91 ms |
-| **2. Deterministic CAS Solvers (`calculusEngine`, `geometryEngine`, `specialistAssist`)** | 9 | **14.68 ms** | **216.88 ms** | 0.16 ms | 216.88 ms |
-| **3. Independent Verification Pipeline (`verifyResponseClaims`)** | 534 | **2.67 ms** | **35.77 ms** | 0.01 ms | 831.94 ms |
+| **1. Canonical Parser & 20-Pt Numerical Dual-Oracle** | 25 | **0.67 ms** | **2.05 ms** | 0.39 ms | 3.17 ms |
+| **2. Deterministic CAS Solvers (`calculusEngine`, `geometryEngine`, `specialistAssist`)** | 9 | **37.69 ms** | **640.76 ms** | 0.25 ms | 640.76 ms |
+| **3. Independent Verification Pipeline (`verifyResponseClaims`)** | 534 | **5.28 ms** | **91.4 ms** | 0.03 ms | 1849.19 ms |
 | **4. End-to-End Hosted LLM Response (`groq-text` / `openai/gpt-oss-120b`)** | 7 | **2170 ms** | **4445 ms** | 683 ms | 4445 ms |

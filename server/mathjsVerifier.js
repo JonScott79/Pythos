@@ -1447,6 +1447,37 @@ const MathJSVerifier = {
         : `Kinematics calculation error: expected ${expected}, got ${proposed_value}`
     };
   },
+  verifySubstitutionEvaluation(data) {
+    const {
+      target_expression,
+      bindings = {},
+      expected_value,
+      proposed_value,
+      tolerance = 1e-5
+    } = data || {};
+    if (!target_expression || typeof proposed_value !== 'number' || typeof expected_value !== 'number') {
+      return {
+        verified: false,
+        engine: 'mathjs',
+        status: 'MALFORMED_CLAIM',
+        details: 'Missing target_expression, expected_value, or proposed_value for substitution evaluation'
+      };
+    }
+    const bindingStr = Object.entries(bindings).map(([k, v]) => `${k}=${v}`).join(', ');
+    const matches = Math.abs(expected_value - proposed_value) <= tolerance;
+    return {
+      verified: matches,
+      engine: 'mathjs',
+      status: matches ? 'VERIFIED' : 'INCORRECT_SUBSTITUTION',
+      error_type: matches ? undefined : 'SUBSTITUTION_VARIABLE_MISMATCH',
+      exact_value: expected_value,
+      expected_value,
+      proposed_value,
+      details: matches
+        ? `Substitution of {${bindingStr}} into ${target_expression} = ${expected_value} verified.`
+        : `Substitution mismatch: evaluating ${target_expression} at {${bindingStr}} yields ${expected_value}, not ${proposed_value}.`
+    };
+  },
   verifyCalculusDerivative(claim) {
     const {
       expression,
@@ -1673,6 +1704,11 @@ const MathJSVerifier = {
     // Functional Evaluation Claims (e.g. f(x) = expr, find f(k))
     if ((domain === 'algebra' || domain === 'functions') && (claim_type === 'function_evaluation' || claim_type === 'function_claim')) {
       return this.verifyFunctionEvaluation(data);
+    }
+
+    // Bound-Variable & Contextual Substitution Fidelity Claims
+    if ((domain === 'algebra' || domain === 'functions') && claim_type === 'substitution_evaluation') {
+      return this.verifySubstitutionEvaluation(data);
     }
 
     // 7. Right Triangle Geometry

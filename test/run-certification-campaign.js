@@ -973,6 +973,7 @@ async function runCampaign() {
     'test/test-alternative-method-context.js',
     'test/test-schwarzschild-photon-sphere.js',
     'test/test-equivalence-authority-audit.js',
+    'test/test-final-architectural-qualification.js',
     'test/runner.js'
   ];
   const childSuiteResults = [];

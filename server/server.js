@@ -3533,6 +3533,11 @@ ${preflightContext}${activeProblemContext}${projectKnowledgeContext}`;
       backupTriggerReason: candidateResult?.backupTriggerReason || null,
       truncated: candidateResult?.truncated === true,
       finishReason: candidateResult?.finishReason || null,
+      ...(candidateResult?.safeResponseRecovered ? {
+        safeResponseRecovered: true,
+        recoverySource: candidateResult.recoverySource || null,
+        recoveryTitle: candidateResult.recoveryTitle || null
+      } : {}),
       message: { role: 'assistant', content: finalContent },
       done: true
     };

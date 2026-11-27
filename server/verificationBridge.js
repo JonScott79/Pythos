@@ -911,6 +911,7 @@ function extractClaims(text, userPrompt = '') {
         .replace(/,\s*\\q?quad\b[\s\S]*$/i, '')
         .replace(/\\q?quad\b[\s\S]*$/i, '')
         .replace(/,\s*(?:compute|find|determine|evaluate|verify|show|derive|calculate|where|with|and|to\s+prove)\b[\s\S]*$/i, '')
+        .replace(/\s+\b(?:with\s+respect\s+to\s+[a-zA-Z]|step\s+by\s+step|where\s+[a-zA-Z]|and\s+(?:compute|find|determine|evaluate|verify|show|derive|calculate|simplify|box|state))\b[\s\S]*$/i, '')
         .replace(/\s*(?:\\\)|\\\]|\|)\s*.*$/, '')
         .trim();
       const segs = cleanedRhs.split('=').map(s => s.trim()).filter(Boolean);
@@ -2921,6 +2922,43 @@ function extractClaims(text, userPrompt = '') {
     }
   }
 
+  // 10b. Bound-Variable & Contextual Substitution Fidelity (DEF-24)
+  if (promptStr) {
+    try {
+      const { extractBoundSubstitutionSpec } = require('./mathIR');
+      const subSpec = extractBoundSubstitutionSpec(promptStr, text, claims);
+      if (subSpec) {
+        const isMismatch = Math.abs(subSpec.proposedValue - subSpec.expectedValue) > 1e-4;
+        const alreadyVerifiedByArith = claims.some(
+          c => c.domain === 'arithmetic' && typeof c.data?.proposed_value === 'number' && Math.abs(c.data.proposed_value - subSpec.expectedValue) <= 1e-4
+        );
+        const hasExplicitGivenBindings = /\b(?:given|when|where|if|for|with|at)\s+[a-zA-Z]\s*=\s*[-+]?\d/i.test(promptStr);
+        if (isMismatch || hasExplicitGivenBindings || !alreadyVerifiedByArith) {
+          // If an unverified_boxed_answer placeholder was pushed earlier, remove it now that we have a concrete substitution_evaluation claim
+          for (let i = claims.length - 1; i >= 0; i--) {
+            if (claims[i].claim_type === 'unverified_boxed_answer') {
+              claims.splice(i, 1);
+            }
+          }
+          claims.push({
+            domain: 'algebra',
+            claim_type: 'substitution_evaluation',
+            raw_match: subSpec.rawMatch,
+            data: {
+              target_expression: subSpec.targetExpression,
+              raw_target_expression: subSpec.rawTargetExpression,
+              bindings: subSpec.bindings,
+              expected_value: subSpec.expectedValue,
+              proposed_value: subSpec.proposedValue,
+              userPrompt: promptStr
+            },
+            userPrompt: promptStr
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
   if (promptStr) {
     for (const c of claims) {
       c.userPrompt = promptStr;
@@ -3384,12 +3422,11 @@ function checkPromptClaimFidelity(claim, userPrompt) {
         !/^(?:sin|cos|tan|sec|csc|cot|arcsin|arccos|arctan|sinh|cosh|tanh|log|ln|exp|sqrt)\s*\(/i.test(promptExpr);
       const claimExpr = claim.data?.expression;
       if (promptExpr && claimExpr && !isNamedFunctionReferenceOnly) {
-        const canonDerivExpr = (expr) => replaceLatexRadicalsAndFractions(String(expr))
+        const { toCanonicalMath } = require('./mathCanonical');
+        const canonDerivExpr = (expr) => toCanonicalMath(String(expr))
           .replace(/\*\*/g, '^')
           .replace(/\bln\b/g, 'log')
-          .replace(/\{([^{}]+)\}/g, '$1')
           .replace(/\s+/g, '')
-          .replace(/(\d)([a-zA-Z])/g, '$1*$2')
           .replace(/[()]/g, '');
         const normP = canonDerivExpr(promptExpr);
         const normC = canonDerivExpr(claimExpr);
@@ -4670,6 +4707,11 @@ async function verifyResponseClaims(content, userQueryText, abortSignal) {
     }
   }
 
+  try {
+    const { enrichClaimsWithContract } = require('./mathIR');
+    enrichClaimsWithContract(claims, verificationResults, { userPrompt: promptStr });
+  } catch (_) {}
+
   return {
     claims,
     internalContradictions,
@@ -4741,7 +4783,12 @@ function auditPromptClaimFidelity(claims, prompt, verificationResults = null) {
     /(?:^|[^a-zA-Z])ds\s*(?:\^\s*\{?2\}?|²)\s*=/.test(prompt) ||
     /\b(?:schwarzschild|geodesics?|lagrangian|hamilton[-\s]*jacobi|christoffel|killing\s+vectors?|line\s+element)\b/i.test(prompt);
   if (!isTheoreticalPhysicsPrompt && /\bsolve\b/i.test(promptForSolveCheck) && prompt.includes('=')) {
-    const check = hasAffirmativelyVerifiedClaim(c => c.claim_type === 'equation_solution' || c.claim_type === 'system_solution');
+    const isContextualSubstitutionPrompt = /\b(?:substitute|plug)\s+(?:that\s+(?:value|result|answer)|[a-zA-Z]\s+from\s+the\s+previous)\b/i.test(prompt);
+    const check = hasAffirmativelyVerifiedClaim(
+      c => c.claim_type === 'equation_solution' ||
+           c.claim_type === 'system_solution' ||
+           (isContextualSubstitutionPrompt && c.claim_type === 'substitution_evaluation')
+    );
     if (!check.ok) {
       return {
         valid: false,
