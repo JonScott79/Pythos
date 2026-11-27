@@ -974,6 +974,7 @@ async function runCampaign() {
     'test/test-schwarzschild-photon-sphere.js',
     'test/test-equivalence-authority-audit.js',
     'test/test-final-architectural-qualification.js',
+    'test/test-conversational-intent-routing.js',
     'test/runner.js'
   ];
   const childSuiteResults = [];

@@ -219,11 +219,11 @@
     }
 
     // Equals sign with mathematical terms (e.g. x^2 - 5x + 6 = 0, 3x + 5 = 20, 2*pi*r = 10, 6(22/6)=4pi)
-    if (/=/.test(s)) {
+    if (/=/.test(s) && !/(?:^|[\sa-zA-Z])=[-^']?[()DdpP\/\\|]\s*$/.test(s)) {
       const parts = s.split("=");
       if (parts.length === 2) {
-        const hasMathLeft = /[a-zA-Z0-9^*/+\-()πθαβΔλμω⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞⁄]/.test(parts[0].trim());
-        const hasMathRight = /[a-zA-Z0-9^*/+\-()πθαβΔλμω⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞⁄]/.test(parts[1].trim());
+        const hasMathLeft = /[a-zA-Z0-9πθαβΔλμω⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞⁄√∛]/.test(parts[0].trim());
+        const hasMathRight = /[a-zA-Z0-9πθαβΔλμω⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞⁄√∛]/.test(parts[1].trim());
         if (hasMathLeft && hasMathRight && (/[a-zA-ZπθαβΔλμω]/.test(s) || /[-+*/^()]/.test(s))) {
           score += 0.75;
         }
@@ -714,9 +714,11 @@
         return item && item.kind === kind && (!item.snippet || item.snippet === snippet);
       });
     };
-    const normalizedRaw = raw.replace(/([⁰¹²³⁴⁵⁶⁷⁸⁹ⁿⁱˣʸ⁾]+)⁼([⁺⁻]?)/g, function (_, pre, sign) {
-      return pre + "=" + (sign === "⁻" ? "-" : (sign === "⁺" ? "+" : ""));
-    });
+    const normalizedRaw = raw
+      .replace(/(?:^|[\s,;])(?:[:=;8][-^']?[()DdpP\/\\|]|[()][-^']?[:=;]|<3|\^_\^)(?=\s|$|[.!?,;])/g, " ")
+      .replace(/([⁰¹²³⁴⁵⁶⁷⁸⁹ⁿⁱˣʸ⁾]+)⁼([⁺⁻]?)/g, function (_, pre, sign) {
+        return pre + "=" + (sign === "⁻" ? "-" : (sign === "⁺" ? "+" : ""));
+      });
     const trimmed = decodeSuperscriptsForFormatCheck(normalizedRaw).trim();
     if (!trimmed || trimmed.length > 4000) return cleanNone;
 

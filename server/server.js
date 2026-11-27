@@ -2648,16 +2648,29 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
     ? effectiveMessages.slice(0, -1)
     : effectiveMessages;
   const lastPriorAsstForRepair = effectiveHistoryBefore.length > 0 ? effectiveHistoryBefore[effectiveHistoryBefore.length - 1] : null;
+  const { isPureNaturalLanguageDialogue, stripConversationalEmoticonsAndListMarkers } = require('./mathFormatDetector');
+  const latestUserLooksLikeConversationalProse =
+    typeof isPureNaturalLanguageDialogue === 'function' &&
+    typeof stripConversationalEmoticonsAndListMarkers === 'function'
+      ? isPureNaturalLanguageDialogue(
+          stripConversationalEmoticonsAndListMarkers(lastUserMsg?.content || '')
+        )
+      : false;
   const isPostFormattingWarningRepair = Boolean(
+    !latestUserLooksLikeConversationalProse &&
     lastPriorAsstForRepair &&
     lastPriorAsstForRepair.role === 'assistant' &&
     (lastPriorAsstForRepair.withholdingReason === 'MALFORMED_SYNTAX' ||
      (typeof lastPriorAsstForRepair.content === 'string' && /(?:formatting\s+on\s+this\s+problem\s+looks\s+a\s+little\s+weird|got\s+stuck\s+inside\s+the\s+exponent|ended\s+up\s+inside\s+the\s+exponent)/i.test(lastPriorAsstForRepair.content)))
   );
+  const resolvedEffectivePromptForTurn = typeof contextManager.buildEffectivePrompt === 'function'
+    ? contextManager.buildEffectivePrompt(effectiveMessages)
+    : (lastUserMsg?.content || '');
+  const isReferentialTopicPrompt = /\(Topic context:\s*Pythagorean trigonometric identit/i.test(resolvedEffectivePromptForTurn);
   const effectiveProblemText = (notationClarification.isCurrentTurnClarification && notationClarification.reinterpretedExpression)
     ? notationClarification.reinterpretedExpression
-    : (isPostFormattingWarningRepair && typeof contextManager.buildEffectivePrompt === 'function'
-      ? contextManager.buildEffectivePrompt(effectiveMessages)
+    : ((isPostFormattingWarningRepair || isReferentialTopicPrompt)
+      ? resolvedEffectivePromptForTurn
       : (lastUserMsg?.content || ''));
 
   // Pre-Flight Track: Classify problem domain and extract embedded mathematical calculations
@@ -2888,9 +2901,14 @@ app.post('/api/chat', chatRateLimiter.middleware, async (req, res) => {
   }
 
   // Tool Utilization Layer: Analyze intent and select/execute appropriate allowlisted tool
+  // Always evaluate tool selection against the student's actual turn text (or notation-reinterpreted expression on a notation confirmation turn),
+  // never against a stale Turn-1 equation when the student is asking a conversational follow-up.
   let toolResultContext = '';
   let preflightToolResult = null;
-  const toolSelection = toolController.selectAppropriateTool(studentIntent, effectiveProblemText, effectiveMessages, activeProblemState);
+  const toolInputText = (notationClarification.isCurrentTurnClarification && notationClarification.reinterpretedExpression)
+    ? notationClarification.reinterpretedExpression
+    : (lastUserMsg?.content || effectiveProblemText);
+  const toolSelection = toolController.selectAppropriateTool(studentIntent, toolInputText, effectiveMessages, activeProblemState);
   if (toolSelection) {
     if (toolSelection.isCapabilityGap) {
       console.log(`[TOOL CONTROLLER] Capability gap detected: ${toolSelection.gapName}`);

@@ -410,6 +410,10 @@ function extractActiveProblemState(messages = [], preflightFacts = [], options =
           currentActive.targetValue = asstTriTarget.targetValue;
           currentActive.formula = asstTriTarget.formula;
         }
+        if (/\bpythagorean\s+identit(?:y|ies)\b/i.test(msg.content) ||
+            (/(?:\\?sin\s*(?:\^\{?2\}?|²)|1\s*-\s*\\?cos\s*(?:\^\{?2\}?|²))/i.test(msg.content) && /\bidentit(?:y|ies)\b/i.test(msg.content))) {
+          currentActive.recentExplanationTopic = 'Pythagorean Trigonometric Identities (1. sin²(x) + cos²(x) = 1; 2. 1 + tan²(x) = sec²(x); 3. 1 + cot²(x) = csc²(x))';
+        }
       }
       continue;
     }
@@ -1004,6 +1008,10 @@ function formatActiveProblemContext(state) {
   if (act.requiredMethod) {
     out += `- **Governing Method**: ${act.requiredMethod}\n`;
   }
+  if (act.recentExplanationTopic) {
+    out += `- **Active Sub-Topic / Recent Assistant Explanation**: ${act.recentExplanationTopic}\n`;
+    out += `  *(If the student asks to see "all of them", "the others", "all the identities", or "what about tangent?", directly present the three fundamental Pythagorean trigonometric identities: 1. $\\sin^2(x) + \\cos^2(x) = 1$, 2. $1 + \\tan^2(x) = \\sec^2(x)$, 3. $1 + \\cot^2(x) = \\csc^2(x)$ and briefly explain how the latter two are derived by dividing $\\sin^2(x) + \\cos^2(x) = 1$ by $\\cos^2(x)$ and $\\sin^2(x)$.)*\n`;
+  }
   if (act.knownVariables && act.knownVariables.hasUnitMismatch && act.knownVariables.normalizedLengths) {
     const norms = act.knownVariables.normalizedLengths.map(n => `${n.original} = ${n.normalized}`).join(', ');
     out += `- **CRITICAL DIMENSIONAL UNIT NOTICE**: The problem contains mixed units of the same dimension (${norms}). Before computing ratios, products, or formulas (e.g., arc length $\\theta = s/r$), you MUST convert all quantities to consistent units. If the student divides incompatible raw numbers (e.g. 700 / 6), gently point out the unit discrepancy and show the converted calculation.\n`;
@@ -1118,16 +1126,41 @@ function buildEffectivePrompt(messages = []) {
   const latestUser = userMsgs[userMsgs.length - 1].content.trim();
   const firstUser = userMsgs[0].content.trim();
 
-  // Guard: If latest turn is an independent general inquiry or pure standalone arithmetic,
-  // do not contaminate it with prior problem parameters
+  // Guard: If latest turn is an independent general inquiry, standalone domain concept question,
+  // or pure standalone arithmetic, do not contaminate it with prior problem parameters
   const hasRootOrAnswerClaim = /[a-zA-Z]\s*=\s*[-+]?\d+(?:\.\d+)?|\b(?:the\s+)?(?:answer|solution|root)\s+is\b/i.test(latestUser);
   const isStandaloneQuery = /^(?:tell\s+me\s+about|who\s+(?:was|is)|what\s+is\s+(?:the\s+capital|photosynthesis|gravity|history)|what\s+does\s+[a-zA-Z\s]+\s+mean\b|explain\s+the\s+concept\s+of)\b/i.test(latestUser) ||
+                            /^(?:what\s+is\s+(?:a|an)\s+\d+\s*[-,\s]\s*\d+\s*[-,\s]\s*\d+\s+(?:right\s+)?triangle|explain\s+the\s+pythagorean\s+theorem|show\s+me\s+the\s+pythagorean\s+(?:trigonometric|trig)\s+identit(?:y|ies))\b/i.test(latestUser) ||
                             /^(?:what\s+is\s+)?\d+[\s+\-*/^]+\d+(?:\s*[\s+\-*/^]\s*\d+)*\??$/i.test(latestUser) ||
                             (!hasRootOrAnswerClaim && /^(?:nope|nah|no|not\s+quite)[,.\s]+(?:future|actually|i\s+mean|it'?s|i\s+meant|not\s+that)\b/i.test(latestUser)) ||
                             /^(?:(?:nope|nah|no)[,.\s]+)?(?:that'?s|that\s+is)\s+not\s+what\s+i\s+(?:meant|said|asked|was\s+saying)\b/i.test(latestUser) ||
                             /^(?:nope|nah)[,.\s!]*$/i.test(latestUser);
   if (isStandaloneQuery && !/(?:from\s+that|to\s+that|previous\s+answer|earlier|that\s+result)/i.test(latestUser)) {
     return latestUser;
+  }
+
+  // 0b. Referential Conceptual / Topic Follow-Ups & Conversational Clarifications
+  // When the student asks to see "all the identities", "all of them", "the others", "what about tangent?",
+  // or clarifies "I meant the other identities" / "Yes, I understand =)", resolve the reference against
+  // the active conversation history rather than discarding the follow-up and reverting to Turn 1's equation!
+  const priorMessagesForTopic = messages.slice(0, -1);
+  const priorHistoryText = priorMessagesForTopic.map(m => (m && typeof m.content === 'string') ? m.content : '').join('\n');
+  const hasTrigIdentityTopicInHistory =
+    /\b(?:pythagorean\s+identit(?:y|ies)|trigonometric\s+identit(?:y|ies)|trig\s+identit(?:y|ies))\b/i.test(priorHistoryText) ||
+    /(?:\\?sin\s*(?:\^\{?2\}?|²)\s*\(?[a-zA-Zθ]+\)?\s*\+\s*\\?cos\s*(?:\^\{?2\}?|²)|1\s*-\s*\\?cos\s*(?:\^\{?2\}?|²)|1\s*-\s*\\?sin\s*(?:\^\{?2\}?|²))/i.test(priorHistoryText);
+
+  const isIdentityEnumerationFollowUp =
+    /\b(?:show|list|give|tell|see|display)\s+(?:me\s+)?(?:all\s+(?:of\s+)?(?:the\s+|them\b)|(?:all\s+)?(?:the\s+)?(?:other\s+)?(?:pythagorean\s+)?(?:trigonometric\s+|trig\s+)?(?:identit(?:y|ies)|others\b|other\s+ones\b|rest\b))/i.test(latestUser) ||
+    /\b(?:wanted\s+you\s+to\s+show|just\s+wanted\s+(?:you\s+)?to\s+(?:show|see)|show\s+(?:them\s+all|me\s+all\s+of\s+them|me\s+the\s+others|the\s+others|the\s+other\s+ones)|show\s+all\s+of\s+them|i\s+meant\s+(?:the\s+)?other\s+identit(?:y|ies))\b/i.test(latestUser);
+
+  if (isIdentityEnumerationFollowUp && (hasTrigIdentityTopicInHistory || /\b(?:sin|cos|tan|sec|csc|cot|trig)\b/i.test(priorHistoryText + ' ' + latestUser))) {
+    return `${latestUser} (Topic context: Pythagorean trigonometric identities — 1. sin^2(x) + cos^2(x) = 1, 2. 1 + tan^2(x) = sec^2(x), 3. 1 + cot^2(x) = csc^2(x))`;
+  }
+
+  const trigSubtopicMatch = latestUser.match(/^(?:and\s+)?what\s+about\s+(?:for\s+)?(?:the\s+)?(tangent|cotangent|secant|cosecant|sine|cosine|tan|cot|sec|csc|sin|cos)\b[?!.]*$/i);
+  if (trigSubtopicMatch && (hasTrigIdentityTopicInHistory || /\b(?:sin|cos|tan|sec|csc|cot|trig|identit)\b/i.test(priorHistoryText))) {
+    const sub = trigSubtopicMatch[1].toLowerCase();
+    return `${latestUser} (Topic context: Pythagorean trigonometric identity for ${sub} — 1 + tan^2(x) = sec^2(x) and 1 + cot^2(x) = csc^2(x), derived from sin^2(x) + cos^2(x) = 1)`;
   }
 
   // 1. Explicit new problem reset (must take precedence over prior problem or clarification state)

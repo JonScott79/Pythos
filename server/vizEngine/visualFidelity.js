@@ -135,7 +135,33 @@ function containsVisualClaim(text) {
  * @returns {Object|null} { opp, adj, hyp, angleLabel, orientationNote, trigModel }
  */
 function extractRightTriangleParameters(text, conversationHistory = [], activeProblemState = null) {
-  const combined = `${text} ${(conversationHistory || []).map(m => m.content || '').join(' ')} ${activeProblemState?.active?.activeExpression || ''}`;
+  const currentText = typeof text === 'string' ? text.trim() : '';
+
+  // Guard: Never extract or fabricate right-triangle side lengths when the request is about
+  // trigonometric identities (e.g. "Show me all the identities", "Pythagorean trigonometric identities")
+  if (/\bidentit(?:y|ies)\b/i.test(currentText) && !/\b(?:draw|sketch)\s+(?:a\s+|the\s+)?(?:right\s+)?triangle\b/i.test(currentText)) {
+    return null;
+  }
+
+  // 0. Explicit numeric triple triangle (e.g. "What is a 3-4-5 triangle?", "5-12-13 right triangle")
+  const tripleMatch = currentText.match(/\b(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s+(?:right\s+)?triangle\b/i);
+  if (tripleMatch) {
+    const sides = [parseFloat(tripleMatch[1]), parseFloat(tripleMatch[2]), parseFloat(tripleMatch[3])].sort((a, b) => a - b);
+    const candidate = { opp: sides[0], adj: sides[1], hyp: sides[2], angleLabel: 'θ' };
+    if (verifyTrigTriangleModel(candidate)) {
+      return candidate;
+    }
+  }
+
+  // Only inspect prior user turns / activeExpression when the current turn explicitly asks for a visual
+  // (NEVER concatenate assistant explanatory prose into a single string for cross-turn regex matching!)
+  const userHistoryText = isVisualRequested(currentText)
+    ? (conversationHistory || []).filter(m => m && m.role === 'user').map(m => m.content || '').join(' ')
+    : '';
+  const activeExprText = isVisualRequested(currentText)
+    ? (activeProblemState?.active?.activeExpression || '')
+    : '';
+  const combined = `${currentText} ${userHistoryText} ${activeExprText}`.trim();
 
   // 1. Explicitly stated opposite, adjacent, hypotenuse (Euclidean lengths)
   const oppMatch = combined.match(/\bopp(?:osite)?\s*=\s*([0-9]+(?:\.[0-9]+)?)/i);
@@ -167,11 +193,9 @@ function extractRightTriangleParameters(text, conversationHistory = [], activePr
   }
 
   // 3. Mathematical Trigonometric Expression (Nested or Single)
-  // Decomposes using verified mathematical model: e.g. csc(cot(-28.45°)), cot(-28.45°), sec(tan(-30°))
   const trigModel = parseTrigExpression(combined);
   if (trigModel) {
     if (trigModel.isMalformed) {
-      // Fails closed on mathematically undefined or invalid expressions
       return null;
     }
     if (trigModel.referenceTriangle) {
@@ -190,7 +214,6 @@ function extractRightTriangleParameters(text, conversationHistory = [], activePr
   }
 
   // 4. Trigonometric ratio equations with fractional values:
-  // e.g. cot(theta) = 5/12, tan = 3/4, sin = 3/5, cos = 4/5
   const cotFracMatch = combined.match(/\bcot\s*(?:[a-zA-Z]|theta|\([^\)]*?\))?\s*[:=]\s*(-?[0-9]+(?:\.[0-9]+)?)\s*\/\s*([0-9]+(?:\.[0-9]+)?)/i);
   if (cotFracMatch) {
     const adj = Math.abs(parseFloat(cotFracMatch[1]));
@@ -227,7 +250,7 @@ function extractRightTriangleParameters(text, conversationHistory = [], activePr
     if (verifyTrigTriangleModel(candidate)) return candidate;
   }
 
-  // 5. Explicit trigonometric ratio decimal equation (e.g. cot(theta) = 36.23 where = value is explicit ratio)
+  // 5. Explicit trigonometric ratio decimal equation
   const cotEqMatch = combined.match(/\bcot\s*(?:[a-zA-Z]|theta|\([a-zA-Z]\))?\s*=\s*(-?[0-9]+(?:\.[0-9]+)?)(?![0-9°a-zA-Z])/i);
   if (cotEqMatch) {
     const val = Math.abs(parseFloat(cotEqMatch[1]));
@@ -238,11 +261,13 @@ function extractRightTriangleParameters(text, conversationHistory = [], activePr
     if (verifyTrigTriangleModel(candidate)) return candidate;
   }
 
-  // 6. Qualitative trig / triangle request -> default classical 3-4-5 reference triangle ONLY for qualitative visual requests
-  // Do NOT default to 3-4-5 if numbers or calculations (hypotenuse, perimeter, area) were asked!
-  if (!/(?:legs|sides)?s*(?:0|zero)/i.test(combined) && !/(?:find|calculate|compute|what is)s+(?:thes+)?(?:hypotenuse|perimeter|area)/i.test(combined)) {
-    if (/(?:show|draw|illustrate|see|view|display|plot|sketch).*?(?:triangle)/i.test(combined) ||
-        /(?:hows+(?:as+rights+triangles+works|thiss+works))/i.test(combined)) {
+  // 6. Qualitative trig / triangle request -> default classical 3-4-5 reference triangle ONLY when the CURRENT
+  // user turn explicitly requests to show/draw/sketch a right triangle without specific numbers.
+  if (!/(?:legs|sides)?\s*(?:0\b|zero\b)/i.test(currentText) &&
+      !/(?:find|calculate|compute|what\s+is)\s+(?:the\s+)?(?:hypotenuse|perimeter|area)\b/i.test(currentText) &&
+      !/\bidentit(?:y|ies)\b/i.test(currentText)) {
+    if (/\b(?:show|draw|illustrate|see|view|display|plot|sketch)\s+(?:me\s+)?(?:on\s+a\s+|a\s+|an\s+|the\s+)?(?:right[-\s]+)?triangle\b/i.test(currentText) ||
+        /\bhow\s+(?:a\s+right\s+triangle\s+works|right\s+triangles\s+work)\b/i.test(currentText)) {
       return { opp: 3, adj: 4, hyp: 5, angleLabel: 'θ' };
     }
   }

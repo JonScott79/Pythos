@@ -108,7 +108,11 @@ function constructSafeVerifiedResponse({
   // 2. PREFLIGHT TOOL RESULT AVAILABLE
   if (preflightToolResult && preflightToolResult.success) {
     // 2a. Preflight Geometry Triangle
-    if (preflightToolResult.tool === 'render_geometry_triangle') {
+    // Guard: Never overwrite a trigonometric identity, theorem explanation, or conversational follow-up
+    // with a canned right-triangle hypotenuse numerical block (\boxed{hyp}).
+    const isIdentityOrConceptualQuery =
+      /\b(?:identit(?:y|ies)|explain\s+the\s+pythagorean\s+theorem|show\s+me\s+(?:all|the\s+others|another\s+way)|what\s+about\s+(?:tangent|cotangent|secant|cosecant)|not\s+what\s+i\s+meant)\b/i.test(userPrompt);
+    if (preflightToolResult.tool === 'render_geometry_triangle' && !isIdentityOrConceptualQuery) {
       const { opp, adj, hyp, token, angleLabel = 'θ', orientationNote } = preflightToolResult;
 
       const detIntent = analyzeDeterministicIntent(userPrompt, messages);

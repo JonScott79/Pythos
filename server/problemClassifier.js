@@ -797,15 +797,67 @@ function classifyProblem(userText) {
   }
 
   // -------------------------------------------------------------
-  // 10. Trigonometry
+  // 10. Trigonometry vs. Euclidean Geometry (Strict Disambiguation)
   // -------------------------------------------------------------
+  // CRITICAL: "Pythagorean trigonometric identities" / "Pythagorean identities" / "trig identities"
+  // or referential identity requests ("show me all the identities", "what about tangent?")
+  // MUST classify as TRIGONOMETRY (never GEOMETRY), whereas "Explain the Pythagorean theorem"
+  // or "What is a 3-4-5 triangle?" MUST classify as GEOMETRY.
+  const isExplicitTrigIdentityQuery =
+    /\b(?:(?:pythagorean\s+)?(?:trigonometric|trig)\s+identit(?:y|ies)|pythagorean\s+identit(?:y|ies)|tangent\s+identit(?:y|ies)|cotangent\s+identit(?:y|ies)|secant\s+identit(?:y|ies)|cosecant\s+identit(?:y|ies)|quotient\s+identit(?:y|ies)|reciprocal\s+identit(?:y|ies)|double[-\s]angle\s+identit(?:y|ies)|half[-\s]angle\s+identit(?:y|ies)|cofunction\s+identit(?:y|ies))\b/i.test(text) ||
+    (/\bidentit(?:y|ies)\b/i.test(text) && /\b(?:sin|cos|tan|sec|csc|cot|sine|cosine|tangent|secant|cosecant|cotangent|trig|trigonometric|angle)\b/i.test(text)) ||
+    /^(?:and\s+)?what\s+about\s+(?:for\s+)?(?:the\s+)?(?:tangent|cotangent|secant|cosecant|sine|cosine|tan|cot|sec|csc|sin|cos)\b[?!.]*$/i.test(text.trim());
+
+  if (isExplicitTrigIdentityQuery) {
+    return {
+      problemDomain: DOMAINS.TRIGONOMETRY,
+      problemSubtype: 'TRIGONOMETRIC_IDENTITIES',
+      confidence: 'high',
+      knownQuantities: knowns,
+      unknownQuantities: unknowns.length > 0 ? unknowns : ['trigonometric_identities'],
+      assumptions: ['Fundamental Pythagorean trigonometric identities on their natural domains: sin^2(x) + cos^2(x) = 1, 1 + tan^2(x) = sec^2(x), 1 + cot^2(x) = csc^2(x)'],
+      constraints,
+      requiredMethod: 'Trigonometric identities and algebraic derivation from sin^2(x) + cos^2(x) = 1',
+      specializedProtocol: PROTOCOLS.TRIGONOMETRY,
+      deterministicWorkAvailable: false,
+      canShortCircuit: false
+    };
+  }
+
+  // Euclidean & Right-Triangle Geometry (e.g. "What is a 3-4-5 triangle?", "Explain the Pythagorean theorem",
+  // "Find the hypotenuse of a right triangle with legs 3 and 4")
   const hasTrigRatioKeywords = /\b(?:sin|cos|tan|sec|csc|cot|sine|cosine|tangent|secant|cosecant|cotangent|sohcahtoa)\b/i.test(text);
+  const isGeometricPythagoreanTheorem =
+    /\bpythagorean\s+theorem\b/i.test(text) && !/\b(?:identit(?:y|ies)|trigonometric|trig)\b/i.test(text);
+  const isNumericTripleTriangle =
+    /\b\d+(?:\.\d+)?\s*[-,\s]\s*\d+(?:\.\d+)?\s*[-,\s]\s*\d+(?:\.\d+)?\s+(?:right\s+)?triangle\b/i.test(text);
+  const isEuclideanGeometryProblem =
+    isGeometricPythagoreanTheorem ||
+    isNumericTripleTriangle ||
+    (!hasTrigRatioKeywords && /\b(?:right\s+triangle|isosceles\s+triangle|equilateral\s+triangle|scalene\s+triangle|pythagorean\s+triple|hypotenuse|legs?\s+of\s+a\s+(?:right\s+)?triangle|perimeter\s+of\s+a\s+(?:triangle|rectangle|square|circle|polygon)|area\s+of\s+a\s+(?:triangle|rectangle|square|circle|trapezoid|polygon)|circumference\s+of\s+a\s+circle)\b/i.test(text));
+
+  if (isEuclideanGeometryProblem) {
+    return {
+      problemDomain: DOMAINS.GEOMETRY,
+      problemSubtype: isGeometricPythagoreanTheorem ? 'PYTHAGOREAN_THEOREM' : 'RIGHT_TRIANGLE_GEOMETRY',
+      confidence: 'high',
+      knownQuantities: knowns,
+      unknownQuantities: unknowns.length > 0 ? unknowns : (isGeometricPythagoreanTheorem ? ['pythagorean_theorem_explanation'] : ['geometric_properties']),
+      assumptions: ['Euclidean plane geometry (a^2 + b^2 = c^2 for right triangles with legs a, b and hypotenuse c)'],
+      constraints,
+      requiredMethod: 'Euclidean geometry and the geometric Pythagorean theorem (a^2 + b^2 = c^2)',
+      specializedProtocol: PROTOCOLS.GEOMETRY,
+      deterministicWorkAvailable: isNumericTripleTriangle,
+      canShortCircuit: false
+    };
+  }
+
   const hasTrigContext = /\b(?:sin|cos|tan|sec|csc|cot|sine|cosine|tangent|ratio|ratios|opposite|adjacent|hypotenuse|hypo|angle|theta|\/)\b/i.test(text) ||
                          /[θ\u03B8]/.test(text) || lower.includes('sin/cos');
-  const isTrigProblem = lower.includes('trigonometry') || lower.includes('sin^2') || lower.includes('cos^2') || lower.includes('tan^2') || lower.includes('unit circle') ||
-    (/\\bangle\\b/i.test(lower) && /\\b(?:adjacent|opposite|hypotenuse)\\b/i.test(lower)) ||
-    (hasTrigRatioKeywords && (hasTrigContext || lower.includes('triangle') || lower.includes('hypo') || lower.includes('opp') || lower.includes('adj'))) ||
-    (lower.includes('triangle') && (lower.includes('hypotenuse') || lower.includes('hypo') || lower.includes('sine') || lower.includes('cosine') || lower.includes('tangent') || lower.includes('opposite') || lower.includes('adjacent'))) ||
+  const isTrigProblem = lower.includes('trigonometry') || lower.includes('trigonometric') || lower.includes('sin^2') || lower.includes('cos^2') || lower.includes('tan^2') || lower.includes('sec^2') || lower.includes('csc^2') || lower.includes('cot^2') || lower.includes('unit circle') ||
+    (/\bangle\b/i.test(lower) && /\b(?:adjacent|opposite|hypotenuse)\b/i.test(lower)) ||
+    (hasTrigRatioKeywords && (hasTrigContext || lower.includes('triangle') || lower.includes('hypo') || lower.includes('opp') || lower.includes('adj') || lower.includes('identit'))) ||
+    (lower.includes('triangle') && (lower.includes('sine') || lower.includes('cosine') || lower.includes('tangent'))) ||
     ((lower.includes('arc') || lower.includes('central angle') || lower.includes('radian')) && (lower.includes('circle') || lower.includes('radius') || lower.includes('intercepts'))) ||
     (lower.includes('standard position') || (lower.includes('quadrant') && (lower.includes('angle') || lower.includes('terminal side') || lower.includes('π') || lower.includes('pi') || lower.includes('degrees'))));
 

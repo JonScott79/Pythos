@@ -2144,7 +2144,19 @@ function extractClaims(text, userPrompt = '') {
 
       const vMatch = [lhsVarList[0], lhsVarList[0]];
 
-      const effectiveBlockCondition = blockInlineCondition || explicitResponseCondition || undefined;
+      // When deriving 1 + tan^2(u) = sec^2(u) or 1 + cot^2(u) = csc^2(u) by dividing sin^2(u) + cos^2(u) = 1
+      // through by cos^2(u) or sin^2(u), the explanatory sub-step cos^2(u)/cos^2(u) = 1 or sin^2(u)/sin^2(u) = 1
+      // occurs inside a response whose derived identity (tan/sec or cot/csc) preserves the exact same pole.
+      let pythagoreanDerivationCondition = undefined;
+      if (isConstantRhs && /^\(\(([^()]+)\)\/\(\1\)\)$/.test(normLhs)) {
+        if (/\bcos\b/i.test(normLhs) && /\\?(?:tan|sec)\b/i.test(text)) {
+          pythagoreanDerivationCondition = `cos(${vMatch[1]}) != 0`;
+        } else if (/\bsin\b/i.test(normLhs) && /\\?(?:cot|csc)\b/i.test(text)) {
+          pythagoreanDerivationCondition = `sin(${vMatch[1]}) != 0`;
+        }
+      }
+
+      const effectiveBlockCondition = blockInlineCondition || explicitResponseCondition || pythagoreanDerivationCondition || undefined;
       const existingEquiv = claims.find(c => c.claim_type === 'symbolic_equivalence' && c.data?.expr1 === normLhs && c.data?.expr2 === normRhs);
       if (existingEquiv) {
         if (!existingEquiv.data.condition && effectiveBlockCondition) {
@@ -3838,9 +3850,14 @@ class VerifierWorker {
     this.currentTask = task;
     task.startedPerf = performance.now();
 
+    // Allow initial cold-start SymPy module import on a newly spawned worker up to 15s;
+    // once warmed (hasCompletedTaskSinceStart === true), enforce strict per-task timeoutMs (5000ms).
+    const effectiveTimeoutMs = this.hasCompletedTaskSinceStart
+      ? task.timeoutMs
+      : Math.max(task.timeoutMs || 5000, 15000);
     task.timer = setTimeout(() => {
       this._handleTimeout(task);
-    }, task.timeoutMs);
+    }, effectiveTimeoutMs);
 
     try {
       const payloadWithId = { ...task.payload, _id: task.id };

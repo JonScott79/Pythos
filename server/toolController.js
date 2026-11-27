@@ -835,7 +835,21 @@ function isTrigOrPhysicsVisualCandidate(userText, conversationHistory = []) {
   }
 
   // Trigonometry queries:
+  // Exclude symbolic trigonometric identity / formula inquiries (e.g. "Show me all the identities",
+  // "Show me the Pythagorean trigonometric identities", "What about tangent?") which are algebraic/conceptual,
+  // not numerical right-triangle side/angle evaluations.
+  if (/\bidentit(?:y|ies)\b/i.test(lower) && !/\b(?:draw|sketch)\s+(?:a\s+|the\s+)?(?:right\s+)?triangle\b/i.test(lower)) {
+    return false;
+  }
+  const hasSymbolicVarTrigOnly =
+    /\b(?:sin|cos|tan|csc|sec|cot)\s*(?:\^\{?\d+\}?|[²³])?\s*\(\s*[xyz]\s*\)/i.test(lower) &&
+    !/\d+\s*(?:°|deg|degrees|rad|radians)|\b(?:opposite|adjacent|hypotenuse|triangle|quadrant|reference\s+angle|coterminal)\b/i.test(lower);
+  if (hasSymbolicVarTrigOnly) {
+    return false;
+  }
+
   const isTrigProblem = /\b(?:reference\s+angle|coterminal|quadrant)\b/i.test(lower) ||
+    /\b\d+(?:\.\d+)?\s*-\s*\d+(?:\.\d+)?\s*-\s*\d+(?:\.\d+)?\s+(?:right\s+)?triangle\b/i.test(lower) ||
     /\b(?:sin|cos|tan|csc|sec|cot|sine|cosine|tangent|cosecant|secant|cotangent)\b/i.test(lower) ||
     /\b(?:lengths?|opposite|adjacent|hypotenuse)\b/i.test(lower);
 
@@ -865,16 +879,25 @@ function selectAppropriateTool(studentIntent, userText, conversationHistory = []
     };
   }
 
-    // 2. Normal Tutoring Exclusion (CRITICAL: Do NOT over-tool ordinary pedagogical queries)
+    // 2. Normal Tutoring & Conversational Intent Exclusion (CRITICAL: Do NOT over-tool ordinary pedagogical queries)
+  const isExplicitTripleTriangleQuery = /\b\d+(?:\.\d+)?\s*-\s*\d+(?:\.\d+)?\s*-\s*\d+(?:\.\d+)?\s+(?:right\s+)?triangle\b/i.test(lower);
   const isWorkCheckPhrase = /\b(?:check\s+(?:my\s+)?(?:work|step)|is\s+this\s+(?:step\s+)?(?:right|correct)|did\s+i\s+(?:do\s+this\s+right|mess\s+up|make\s+a\s+mistake)|is\s+my\s+work\s+(?:right|correct))\b/i.test(lower);
+  const isConversationalOrConceptIntent = Boolean(
+    studentIntent && (
+      ['EXPLANATION_REQUEST', 'REFRAME_REQUEST', 'CONTINUATION', 'EUREKA_OR_GRATITUDE', 'CONFUSION', 'ALTERNATIVE_METHOD_REQUEST', 'METHOD_COMPARISON_REQUEST', 'WHY_EXPLANATION_REQUEST', 'INDEPENDENT_WORK_REQUEST', 'HINT_REQUEST'].includes(studentIntent.intent) ||
+      (studentIntent.intent === 'CORRECTION' && studentIntent.isDisambiguation)
+    )
+  );
   const isOrdinaryTutoring =
-    /\b(?:why|how come|what does (?:that|it) mean|explain (?:the|why|how)|intuition|concept|understand|confused|lost|mess(?:ed)?\s+up|oops|haha|my bad|old problem|sorry|thanks|thank you)\b/i.test(lower) &&
+    !isExplicitTripleTriangleQuery &&
     !isVisualRequested(clean) &&
     !/\b(?:calculate|compute|solve|graph|plot|draw|sketch|quiz|practice)\b/i.test(lower) &&
     !isWorkCheckPhrase &&
-    !/\b\d+\s*[-+*\/=]/.test(clean);
+    !/\b\d+\s*[-+*\/=]/.test(clean) &&
+    (isConversationalOrConceptIntent ||
+     /\b(?:why|how come|what does (?:that|it) mean|explain (?:the|why|how)|intuition|concept|understand|identit(?:y|ies)|show\s+me\s+(?:all|the\s+others|another\s+way)|what\s+about\s+(?:tangent|cotangent|secant|cosecant|sine|cosine)|confused|lost|mess(?:ed)?\s+up|oops|haha|my bad|old problem|sorry|thanks|thank you)\b/i.test(lower));
 
-  if (isOrdinaryTutoring && (!studentIntent || !['PRACTICE_REQUEST', 'PROPOSED_STEP', 'PROPOSED_ANSWER'].includes(studentIntent.intent))) {
+  if (isOrdinaryTutoring && (!studentIntent || !['PRACTICE_REQUEST', 'PROPOSED_STEP', 'PROPOSED_ANSWER', 'VISUAL_REQUEST', 'GRAPH_REQUEST'].includes(studentIntent.intent))) {
     return null;
   }
 

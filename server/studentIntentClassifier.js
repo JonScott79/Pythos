@@ -48,19 +48,29 @@ const INTENTS = Object.freeze({
 });
 
 /**
+ * Strips conversational ASCII emoticons (e.g. =), :), :-), ;), :D, =D, :(, =()
+ * so emoticon characters like '=' or ')' are never mistaken for math operators.
+ */
+function stripConversationalEmoticons(text) {
+  if (!text || typeof text !== 'string') return '';
+  return text.replace(/(?:^|(?<=[\s,;]))(?:[:=;8][-^']?[()DdpP\/\\|]|[()][-^']?[:=;]|<3|\^_\^)(?=\s|$|[.!?,;])/g, ' ');
+}
+
+/**
  * Checks if a string contains mathematical symbols or expressions
  */
 function containsMathSymbols(text) {
   if (!text || typeof text !== 'string') return false;
-  return /[=+\-*/^<>≤≥≠]|(?:\bpi\b)|\d+[a-zA-Z]|[a-zA-Z]\^|\b(?:sqrt|sin|cos|tan|cot|sec|csc)\b/i.test(text);
+  const cleaned = stripConversationalEmoticons(text);
+  return /[=+\-*/^<>≤≥≠]|(?:\bpi\b)|\d+[a-zA-Z]|[a-zA-Z]\^|\b(?:sqrt|sin|cos|tan|cot|sec|csc)\b/i.test(cleaned);
 }
 
 /**
- * Strips formatting artifacts like LaTeX wrappers, quotes, and punctuation.
+ * Strips formatting artifacts like LaTeX wrappers, quotes, emoticons, and punctuation.
  */
 function sanitizeInput(text) {
   if (!text || typeof text !== 'string') return '';
-  return text
+  return stripConversationalEmoticons(text)
     .trim()
     .replace(/^\$+|\$+$/g, '')
     .trim();
@@ -147,7 +157,8 @@ function classifyStudentIntentCore(text, conversationHistory, activeProblemState
                                          /^(?:nope|nah)[,.\s!]*$/i.test(lower) ||
                                          /^(?:(?:nope|nah|no)[,.\s]+)?(?:that'?s|that\s+is)\s+not\s+what\s+i\s+(?:meant|said|asked|was\s+saying)\b/i.test(lower) ||
                                          /^(?:(?:nope|nah|no)[,.\s]+)?you\s+misunderstood\b/i.test(lower) ||
-                                         /^(?:i\s+don'?t\s+mean\s+that|not\s+what\s+i\s+mean|not\s+what\s+i\s+asked)\b/i.test(lower);
+                                         /^(?:i\s+don'?t\s+mean\s+that|not\s+what\s+i\s+mean|not\s+what\s+i\s+asked)\b/i.test(lower) ||
+                                         /^(?:no[,.\s]+)?i\s+meant\s+(?:the\s+)?(?:other|all|rest|remaining|different)\b/i.test(lower);
 
   const isPremiseOrCorrection = 
     /\b(?:i\s+think\s+)?(?:you\s+have|you\s+got|you'?re\s+using|you\s+used)\s+(?:the|teh|a)\s+(?:wrong|incorrect)\s+([a-zA-Z\s]+)/i.test(lower) ||
@@ -190,7 +201,10 @@ function classifyStudentIntentCore(text, conversationHistory, activeProblemState
         extractedExpr = correctionExprMatch[1].trim();
       }
     }
-    if (extractedExpr && (containsMathSymbols(extractedExpr) || /^[-+]?\d+(?:\.\d+)?$/.test(extractedExpr) || /^[a-zA-Z]\s*=\s*[-+]?\d+/.test(extractedExpr))) {
+    if (extractedExpr &&
+        !isConversationalDisambiguation &&
+        !/\b(?:other|others|identit(?:y|ies)|theorems?|formulas?|rules?|ones|all\s+of\s+them|what\s+i\s+meant)\b/i.test(extractedExpr) &&
+        (isMathematicalExpression(extractedExpr) || /^[-+]?\d+(?:\.\d+)?$/.test(extractedExpr) || /^[a-zA-Z]\s*=\s*[-+]?\d+/.test(extractedExpr))) {
       signals.push('correction_with_math_expression');
       return {
         intent: INTENTS.CORRECTION,
@@ -302,8 +316,9 @@ function classifyStudentIntentCore(text, conversationHistory, activeProblemState
   // -------------------------------------------------------------
   // 2. REFRAME_REQUEST Intent
   // -------------------------------------------------------------
-  const isReframe = /\b(?:differently|another\s+way|other\s+way|different\s+way|rephrase|reframe|simpler\s+way|in\s+simpler\s+terms|like\s+i'?m\s+five)\b/i.test(lower) &&
-                    /\b(?:explain|say|put|show|phrase|tell)\b/i.test(lower);
+  const isReframe = (/\b(?:differently|another\s+way|other\s+way|different\s+way|rephrase|reframe|simpler\s+way|in\s+simpler\s+terms|like\s+i'?m\s+five)\b/i.test(lower) &&
+                    /\b(?:explain|say|put|show|phrase|tell)\b/i.test(lower)) ||
+                    /^(?:can\s+you\s+|could\s+you\s+)?show\s+me\s+(?:another|a\s+different)\s+way[.?!]*$/i.test(clean);
   if (isReframe) {
     signals.push('reframe_linguistic_marker');
     return { intent: INTENTS.REFRAME_REQUEST, confidence: 'high', signals };
@@ -409,8 +424,10 @@ function classifyStudentIntentCore(text, conversationHistory, activeProblemState
 
   // -------------------------------------------------------------
   // 5f. EUREKA_OR_GRATITUDE Intent
-  // e.g. "OOOOOOH that makes it easier thanks pythos!", "that makes it so much easier", "aha!", "thanks pythos"
+  // e.g. "OOOOOOH that makes it easier thanks pythos!", "that makes it so much easier", "aha!", "thanks pythos",
+  // "Yes, I understand =)", "I understand." (when pure acknowledgment without a follow-up request)
   // -------------------------------------------------------------
+  const hasFollowUpRequestVerb = /\b(?:show|tell|explain|list|give|what|how|why|other|others|all\s+of\s+them|them\s+all|another|wanted\s+you)\b/i.test(lower);
   const isEurekaOrGratitude = (
     /\b(?:o+h+|a+h+a+)\b/i.test(lower) && /\b(?:makes\s+(?:it\s+)?(?:so\s+much\s+|way\s+)?(?:easier|simpler|clearer|sense)|i\s+(?:get|see)\s+it|thanks|thank\s+you)\b/i.test(lower)
   ) || (
@@ -419,6 +436,9 @@ function classifyStudentIntentCore(text, conversationHistory, activeProblemState
     /\b(?:that\s+makes\s+(?:it\s+)?(?:so\s+much\s+|way\s+)?(?:easier|simpler|clearer|more\s+sense)|makes\s+it\s+(?:much\s+|way\s+)?easier)\b/i.test(lower)
   ) || (
     /^(?:thanks|thank\s+you)(?:\s+pythos|\s+so\s+much)?\s*[,!.]*$/i.test(lower)
+  ) || (
+    !hasFollowUpRequestVerb &&
+    /^(?:(?:yes|yeah|yep|ok|okay)[,.\s]+)?i\s+(?:understand|get\s+it|see\s+now|follow)(?:\s+(?:now|that|this|it|the\s+identit(?:y|ies)))?[,!.]*$/i.test(clean)
   );
 
   if (isEurekaOrGratitude && !containsMathSymbols(clean)) {
@@ -477,14 +497,32 @@ function classifyStudentIntentCore(text, conversationHistory, activeProblemState
   // -------------------------------------------------------------
   // 7b. EXPLANATION_REQUEST / CONCEPTUAL PIVOT (Must preempt step/answer when student pivots topic)
   // -------------------------------------------------------------
-  const isExplanation = /^(?:why(?:\s+is\s+that)?\??|why\s+did\s+you\s+do\s+that\??|how\s+did\s+you\s+get\s+that\??|can\s+you\s+explain(?:\s+that|\s+why|\s+how)?(?:\s+again)?\??|what\s+does\s+that\s+mean\??|where\s+did\s+(?:that|\d+|the)\s+come\s+from\??)$/i.test(lower) ||
+  const isIdentityOrConceptEnumeration =
+    /\b(?:show|list|give|tell|see|display)\s+(?:me\s+)?(?:all\s+(?:of\s+)?(?:the\s+|them\b)|(?:all\s+)?(?:the\s+)?(?:other\s+)?(?:pythagorean\s+)?(?:trigonometric\s+|trig\s+)?(?:identit(?:y|ies)|theorems?|formulas?|rules?|others\b|other\s+ones\b|rest\b))/i.test(lower) ||
+    /\b(?:wanted\s+you\s+to\s+show|just\s+wanted\s+(?:you\s+)?to\s+(?:show|see)|show\s+(?:them\s+all|me\s+all\s+of\s+them|me\s+the\s+others|the\s+others|the\s+other\s+ones)|show\s+all\s+of\s+them)\b/i.test(lower);
+  const isConceptualSubtopicPivot =
+    /^(?:and\s+)?what\s+about\s+(?:for\s+)?(?:the\s+)?(?:tangent|cotangent|secant|cosecant|sine|cosine|tan|cot|sec|csc|sin|cos|other\s+identit(?:y|ies)|other\s+ones?|pythagorean(?:\s+identit(?:y|ies)|\s+theorem)?)\b[?!.]*$/i.test(lower);
+  const isReferentialExplanationFollowUp =
+    isIdentityOrConceptEnumeration ||
+    isConceptualSubtopicPivot ||
+    /\b(?:all\s+of\s+them|them\s+all|the\s+others|the\s+other\s+ones|the\s+identities)\b/i.test(lower);
+
+  const isExplanation = isIdentityOrConceptEnumeration ||
+                        isConceptualSubtopicPivot ||
+                        /^(?:why(?:\s+is\s+that)?\??|why\s+did\s+you\s+do\s+that\??|how\s+did\s+you\s+get\s+that\??|can\s+you\s+explain(?:\s+that|\s+why|\s+how)?(?:\s+again)?\??|what\s+does\s+that\s+mean\??|where\s+did\s+(?:that|\d+|the)\s+come\s+from\??)$/i.test(lower) ||
                         /^(?:(?:actually|wait)[,\s]+)?(?:can\s+you\s+|could\s+you\s+|please\s+)?explain(?:\s+step[-\s]by[-\s]step)?(?:\s+(?:how|why|what|the|this|that|to\s+me))?\b/i.test(lower) ||
                         /^(?:(?:actually|wait)[,\s]+)?(?:what\s+is\s+(?:a|an|the)\b|what'?s\s+(?:a|an|the)\b|how\s+does\s+(?:a|an|the)\b)/i.test(lower) ||
                         /^(?:why|how)\s+(?:is|did|does|can|would|are|was|were|come|so|to)\b/i.test(lower) ||
                         /^(?:what(?:'s|\s+is)\s+(?:the\s+)?(?:answer|solution|result)|can\s+you\s+(?:give|tell)\s+me\s+the\s+answer|show\s+me\s+the\s+(?:answer|solution))\b/i.test(lower);
   if (isExplanation) {
     signals.push('explanation_query');
-    return { intent: INTENTS.EXPLANATION_REQUEST, confidence: 'high', signals };
+    if (isReferentialExplanationFollowUp) signals.push('referential_concept_followup');
+    return {
+      intent: INTENTS.EXPLANATION_REQUEST,
+      confidence: 'high',
+      signals,
+      isReferentialFollowUp: Boolean(isReferentialExplanationFollowUp)
+    };
   }
 
   // -------------------------------------------------------------

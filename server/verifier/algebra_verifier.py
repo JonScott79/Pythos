@@ -1126,7 +1126,32 @@ def verify_symbolic_equivalence(claim: dict) -> dict:
                 pass
 
         if diff == 0:
-            if restrictions_1 != restrictions_2 or ineq_1 != ineq_2:
+            # Fundamental Pythagorean trigonometric square-difference identities:
+            # sec^2(u) - tan^2(u) = 1 and csc^2(u) - cot^2(u) = 1
+            # Both terms on the non-constant side share the exact same intrinsic pole
+            # (cos(u) != 0 or sin(u) != 0) and no denominator factor was cancelled by multiplication.
+            def _is_pythagorean_trig_square_diff_identity(lhs_e, rhs_e):
+                for non_const, const_side in ((lhs_e, rhs_e), (rhs_e, lhs_e)):
+                    if const_side == 1:
+                        terms = sp.Add.make_args(non_const)
+                        if len(terms) == 2:
+                            has_sec2 = any(isinstance(t, sp.Pow) and t.exp == 2 and isinstance(t.base, sp.sec) for t in terms)
+                            has_neg_tan2 = any(
+                                isinstance(t, sp.Mul) and -1 in t.args and any(isinstance(f, sp.Pow) and f.exp == 2 and isinstance(f.base, sp.tan) for f in t.args)
+                                for t in terms
+                            )
+                            if has_sec2 and has_neg_tan2:
+                                return True
+                            has_csc2 = any(isinstance(t, sp.Pow) and t.exp == 2 and isinstance(t.base, sp.csc) for t in terms)
+                            has_neg_cot2 = any(
+                                isinstance(t, sp.Mul) and -1 in t.args and any(isinstance(f, sp.Pow) and f.exp == 2 and isinstance(f.base, sp.cot) for f in t.args)
+                                for t in terms
+                            )
+                            if has_csc2 and has_neg_cot2:
+                                return True
+                return False
+
+            if (restrictions_1 != restrictions_2 or ineq_1 != ineq_2) and not _is_pythagorean_trig_square_diff_identity(e1, e2):
                 mismatched = (restrictions_1 ^ restrictions_2) | (ineq_1 ^ ineq_2)
                 # Check if every mismatched restriction was explicitly stated in assumptions
                 def _is_restriction_stated(r):

@@ -360,6 +360,59 @@ function extractNotationClarificationContext(lastUserText = '', historyBefore = 
 }
 
 /**
+ * Strips conversational ASCII emoticons (e.g. =), :), :-), ;), :D, =D, :(, =(, ^_^, <3)
+ * and line-leading conversational list markers (e.g. "1) First...", "a) Second...")
+ * so natural-language punctuation is never mistaken for unbalanced mathematical parentheses
+ * or dangling '=' operators.
+ */
+function stripConversationalEmoticonsAndListMarkers(str) {
+  if (typeof str !== 'string' || !str) return '';
+  return str
+    // Conversational emoticons preceded by start-of-string or whitespace/comma/semicolon
+    // Note: in valid math, '=' is never immediately followed by a closing ')' (e.g. "=)"),
+    // and ':' / ';' are never immediately followed by ')' or '(' in math expressions.
+    .replace(/(?:^|(?<=[\s,;]))(?:[:=;8][-^']?[()DdpP\/\\|]|[()][-^']?[:=;]|<3|\^_\^)(?=\s|$|[.!?,;])/g, ' ')
+    // Leading conversational list markers followed by a multi-letter word (e.g. "1) Show", "a) Explain")
+    .replace(/(?:^|\n)(\s*)(?:\d+|[a-zA-Z])\)\s+(?=[a-zA-Z]{2,}\b)/g, '$1');
+}
+
+/**
+ * Determines whether an input string (after emoticon stripping) is pure natural-language
+ * conversational dialogue rather than a mathematical expression or mixed math/prose input.
+ */
+function isPureNaturalLanguageDialogue(str) {
+  if (typeof str !== 'string' || !str) return false;
+  const s = str.trim();
+  if (!s) return false;
+
+  // Must contain at least one multi-letter conversational word
+  if (!/\b[a-zA-Z]{2,}\b/.test(s)) return false;
+
+  // Any LaTeX command (\frac, \sin, \sqrt, \boxed, \[ ... \], etc.) means mathematical notation is present
+  if (/\\[a-zA-Z[\]()]/.test(s)) return false;
+
+  // Any caret, braced exponent, or Unicode superscript/subscript means mathematical notation is present
+  if (/[\^_{}]|[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱˣʸ₀₁₂₃₄₅₆₇₈₉]/.test(s)) return false;
+
+  // Any mathematical relational or arithmetic operator (=, +, *, /, <, >, ≤, ≥, ≠, ±, √, ∫)
+  if (/[=+*/<>≤≥≠±√∫]/.test(s)) return false;
+
+  // Hyphen used as subtraction or unary minus on numbers/variables (ignore hyphenated English words like "right-triangle" or "3-4-5 triangle")
+  if (/(?:^|[\s(])-\s*(?:\d|[a-zA-Z]\b)|\b(?:\d+|[a-zA-Z])\s+-\s+(?:\d+|[a-zA-Z]\b)/.test(s)) return false;
+
+  // Function call notation like f(x), sin(x), log(x), sqrt(4) or any digit inside parentheses
+  if (/\b(?:sin|cos|tan|csc|sec|cot|arcsin|arccos|arctan|asin|acos|atan|sinh|cosh|tanh|sqrt|cbrt|log|ln|exp|lim|int|[fghxyz])\s*\(/i.test(s)) return false;
+  if (/[()[\]]/.test(s) && /\d|[+\-*/=^]/.test(s)) return false;
+
+  // If no parentheses/brackets remain and no digits+operators exist, it is pure natural language
+  const wordCount = (s.match(/\b[a-zA-Z]{2,}\b/g) || []).length;
+  const hasUnpairedBracket = /[()[\]{}]/.test(s);
+  if (!hasUnpairedBracket && wordCount >= 1 && !/\d/.test(s)) return true;
+
+  return false;
+}
+
+/**
  * Detects structural formatting anomalies in mathematical input.
  * @param {string} input
  * @param {object} [options]
@@ -386,8 +439,12 @@ function detectFormattingAnomaly(input, options = {}) {
   const trimmed = normalizeInvisibleMathChars(input).trim();
   if (!trimmed || trimmed.length > MAX_SCAN_LEN) return noAnomaly();
 
-  const s = trimmed.replace(/^\$\$?|\$\$?$/g, '').trim();
-  if (!s) return noAnomaly();
+  const rawUnwrapped = trimmed.replace(/^\$\$?|\$\$?$/g, '').trim();
+  if (!rawUnwrapped) return noAnomaly();
+
+  // Strip conversational emoticons (e.g. "=)", ":)", ";)") and conversational list markers
+  const s = stripConversationalEmoticonsAndListMarkers(rawUnwrapped).trim();
+  if (!s || isPureNaturalLanguageDialogue(s)) return noAnomaly();
 
   // 1. Unbalanced delimiters first (linear scan)
   const delimErr = checkUnbalancedDelimiters(s);
@@ -542,5 +599,7 @@ module.exports = {
   detectFormattingAnomaly,
   extractNotationClarificationContext,
   applyConfirmedNotationClarification,
-  decodeUnicodeSuperscripts
+  decodeUnicodeSuperscripts,
+  stripConversationalEmoticonsAndListMarkers,
+  isPureNaturalLanguageDialogue
 };
